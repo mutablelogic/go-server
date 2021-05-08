@@ -1,0 +1,14 @@
+
+# Go files
+*.test
+*.out
+*.sum
+
+# Backup files etc
+.DS_Store
+._*
+
+# Dependency and build
+vendor/
+build/
+
