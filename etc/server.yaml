@@ -1,0 +1,10 @@
+
+server:
+  addr: :80
+
+plugins:
+  - ./build/log.plugin
+
+handlers:
+  sqlite: /api/sqlite
+
