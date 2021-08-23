@@ -4,6 +4,7 @@ plugins:
   - build/httpserver.plugin
   - build/log.plugin
   - build/static.plugin
+  - build/sqlite.plugin
 
 # HTTP Server parameters
 httpserver:
@@ -15,8 +16,13 @@ handlers:
     prefix: /
     middleware:
       - log
+  sqlite:
+    prefix: /api/sqlite
 
 # Where to serve static files from
 static:
   path: ./
 
+sqlite:
+  databases:
+    test: /tmp/test.sqlite

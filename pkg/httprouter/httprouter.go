@@ -10,7 +10,6 @@ import (
 	"sync"
 
 	// Modules
-
 	provider "github.com/djthorpe/go-server/pkg/provider"
 )
 
@@ -20,12 +19,12 @@ import (
 type router struct {
 	sync.Mutex
 	*http.ServeMux
-	cache
+	*cache
 	routes map[string]*route
 }
 
 type route struct {
-	cache
+	*cache
 	prefix  string
 	methods map[string]*routehandlers
 }
@@ -49,6 +48,7 @@ func New() *router {
 	this := new(router)
 	this.ServeMux = http.NewServeMux()
 	this.routes = make(map[string]*route)
+	this.cache = new(cache)
 	return this
 }
 
@@ -85,10 +85,10 @@ func (this *router) AddHandlerFuncEx(ctx context.Context, re *regexp.Regexp, han
 		r.prefix = prefix
 		r.methods = make(map[string]*routehandlers)
 		this.routes[prefix] = r
-	}
 
-	// Add to ServeMux
-	this.ServeMux.HandleFunc(prefix, r.ServeHTTP)
+		// Add to ServeMux
+		this.ServeMux.HandleFunc(prefix+PathSeparator, r.ServeHTTP)
+	}
 
 	// Add handler to route
 	return r.AddHandler(re, handler, methods...)
@@ -98,6 +98,7 @@ func (this *route) AddHandler(re *regexp.Regexp, handler http.HandlerFunc, metho
 	for _, method := range methods {
 		if _, exists := this.methods[method]; !exists {
 			this.methods[method] = new(routehandlers)
+			this.methods[method].re = make(map[*regexp.Regexp]http.HandlerFunc)
 		}
 		if re == nil {
 			this.methods[method].de = handler
@@ -125,11 +126,15 @@ func (this *route) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Remove prefix from path
-	r.URL.Path = strings.TrimPrefix(r.URL.Path, this.prefix)
+	if !strings.HasPrefix(r.URL.Path, this.prefix) {
+		ServeError(w, http.StatusNotFound, fmt.Sprintf("Not Found: %q", r.URL.Path))
+	} else {
+		r.URL.Path = strings.TrimPrefix(r.URL.Path, this.prefix)
+	}
 
 	// Find regular expression handler
 	for re, handler := range handler.re {
-		if args := re.FindStringSubmatch(r.URL.Path); len(args) >= 1 {
+		if args := re.FindStringSubmatch(r.URL.Path); args != nil {
 			handler(w, reqWithParams(r, args[1:]))
 			this.cache.Set(r.Method+r.URL.Path, handler, args[1:])
 			return
