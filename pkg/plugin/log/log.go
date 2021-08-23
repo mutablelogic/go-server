@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"sync"
 
 	// Modules
 	. "github.com/djthorpe/go-server"
@@ -11,14 +12,17 @@ import (
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type logger struct{}
+type logger struct {
+	sync.Mutex
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 // NEW
 
 // Create the module
 func New(ctx context.Context, provider Provider) Plugin {
-	return new(logger)
+	this := new(logger)
+	return this
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -44,9 +48,13 @@ func (this *logger) Run(context.Context) error {
 // PUBLIC METHODS - LOG
 
 func (this *logger) Print(_ context.Context, v ...interface{}) {
+	this.Mutex.Lock()
+	defer this.Mutex.Unlock()
 	log.Print(v...)
 }
 
 func (this *logger) Printf(_ context.Context, fmt string, v ...interface{}) {
+	this.Mutex.Lock()
+	defer this.Mutex.Unlock()
 	log.Printf(fmt, v...)
 }

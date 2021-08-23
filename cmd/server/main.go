@@ -44,14 +44,29 @@ func main() {
 	}
 
 	// Create a provider with the configuration
-	provider, err := provider.NewProvider(cfg)
+	wd, err := os.Getwd()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(-1)
+	}
+	provider, err := provider.NewProvider(wd, cfg)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
 	}
 
-	// Display provider
-	fmt.Println(provider)
+	ctx := HandleSignal()
+	provider.Print(ctx, "Loaded plugins:")
+	for _, name := range provider.Plugins() {
+		provider.Print(ctx, " ", name, " => ", provider.GetPlugin(ctx, name))
+	}
+
+	// Run the server
+	if err := provider.Run(ctx); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(-1)
+	}
+
 }
 
 ///////////////////////////////////////////////////////////////////////////////

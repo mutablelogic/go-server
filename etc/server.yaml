@@ -1,10 +1,22 @@
 
-server:
+# Plugins to load, the httpserver and log plugins should be loaded first
+plugins:
+  - build/httpserver.plugin
+  - build/log.plugin
+  - build/static.plugin
+
+# HTTP Server parameters
+httpserver:
   addr: :80
 
-plugins:
-  - ./build/log.plugin
-
+# Handlers for serving plugins  
 handlers:
-  sqlite: /api/sqlite
+  static:
+    prefix: /
+    middleware:
+      - log
+
+# Where to serve static files from
+static:
+  path: ./
 

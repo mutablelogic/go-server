@@ -6,40 +6,24 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"plugin"
 
 	// Modules
-	. "github.com/djthorpe/go-server"
-	multierror "github.com/hashicorp/go-multierror"
 	yaml "gopkg.in/yaml.v3"
-	//server "github.com/djthorpe/go-server/pkg/server"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
 type Config struct {
-	//Server    *server.Config    `yaml:"server"`
-	Plugins  []string          `yaml:"plugins"`
-	Handlers map[string]string `yaml:"handlers"`
-	Config   map[string]interface{}
-
-	plugins map[string]*handler
+	Plugin  []string           `yaml:"plugins"`
+	Handler map[string]Handler `yaml:"handlers"`
+	Config  map[string]interface{}
 }
 
-type handler struct {
-	Path   string
-	Prefix string
-	Plugin Plugin
+type Handler struct {
+	Prefix     string   `yaml:"prefix"`
+	Middleware []string `yaml:"middleware"`
 }
-
-///////////////////////////////////////////////////////////////////////////////
-// GLOBALS
-
-const (
-	funcName = "Name"
-	funcNew  = "New"
-)
 
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
@@ -58,43 +42,33 @@ func New(path string) (*Config, error) {
 		}
 	}
 
-	// When there are no plugins, fail with error
-	if len(this.Plugins) == 0 {
-		return nil, ErrBadParameter.With("plugins")
+	// In the second pass, read plugin configurations
+	if r, err := os.Open(path); err != nil {
+		return nil, err
 	} else {
-		this.plugins = make(map[string]*handler, len(this.Plugins))
-	}
-
-	// Read plugin names
-	var result error
-	for _, path := range this.Plugins {
-		if path := PluginPath(path); path == "" {
-			result = multierror.Append(result, ErrNotFound.With("Plugin: ", path))
-		} else if stat, err := os.Stat(path); err != nil {
-			result = multierror.Append(result, ErrNotFound.With("Plugin: ", path))
-		} else if stat.Mode().IsRegular() == false {
-			result = multierror.Append(result, ErrBadParameter.With("Plugin: ", path))
-		} else if name, err := GetPluginName(path); err != nil {
-			result = multierror.Append(result, ErrBadParameter.With("Plugin: ", err))
-		} else {
-			this.plugins[name] = &handler{path, this.Handlers[name], nil}
+		defer r.Close()
+		dec := yaml.NewDecoder(r)
+		if err := dec.Decode(&this.Config); err != nil {
+			return nil, err
 		}
-	}
-
-	// Warn when a handler is not associated with a plugin name
-	for handler := range this.Handlers {
-		if this.plugins[handler] == nil {
-			result = multierror.Append(result, ErrNotFound.With("Plugin: ", handler))
-		}
-	}
-
-	// Return any errors
-	if result != nil {
-		return nil, result
 	}
 
 	// Return success
 	return this, nil
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// STRINGIFY
+
+func (h Handler) String() string {
+	str := "<handler"
+	if h.Prefix != "" {
+		str += fmt.Sprintf(" prefix=%q", h.Prefix)
+	}
+	if len(h.Middleware) > 0 {
+		str += fmt.Sprintf(" middleware=%q", h.Middleware)
+	}
+	return str + ">"
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -112,33 +86,4 @@ func Usage(w io.Writer) {
 	fmt.Fprintln(w, "\nVersion:")
 	PrintVersion(w)
 	fmt.Fprintln(w, "")
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// PROPERTIES
-
-// GetPluginName returns the module name from a file path
-func GetPluginName(path string) (string, error) {
-	plugin, err := plugin.Open(path)
-	if err != nil {
-		return "", err
-	}
-	// Return module name
-	if fn, err := plugin.Lookup(funcName); err != nil {
-		return "", err
-	} else if name := fn.(func() string)(); name == "" {
-		return "", ErrInternalAppError.With("Name returned nil: ", path)
-	} else {
-		return name, nil
-	}
-}
-
-// PluginPath returns absolute path to a plugin or empty string
-// if it can't be located. Defaults to current working directory.
-func PluginPath(path string) string {
-	if abs, err := filepath.Abs(path); err != nil {
-		return ""
-	} else {
-		return abs
-	}
 }
