@@ -129,6 +129,9 @@ func (this *route) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Make cache key
+	key := r.Method + r.URL.Path
+
 	// Remove prefix from path
 	if !strings.HasPrefix(r.URL.Path, this.prefix) {
 		ServeError(w, http.StatusNotFound, fmt.Sprintf("Not Found: %q", r.URL.Path))
@@ -140,7 +143,7 @@ func (this *route) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	for re, handler := range handler.re {
 		if args := re.FindStringSubmatch(r.URL.Path); args != nil {
 			handler(w, reqWithParams(r, args[1:]))
-			this.cache.Set(r.Method+r.URL.Path, handler, args[1:])
+			this.cache.Set(key, handler, args[1:])
 			return
 		}
 	}
@@ -148,7 +151,7 @@ func (this *route) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Use default handler
 	if handler.de != nil {
 		handler.de(w, r)
-		this.cache.Set(r.Method+r.URL.Path, handler.de, nil)
+		this.cache.Set(key, handler.de, nil)
 		return
 	}
 
