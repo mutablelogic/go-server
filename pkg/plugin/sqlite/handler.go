@@ -1,7 +1,6 @@
 package main
 
 import (
-	"io"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -10,7 +9,6 @@ import (
 	router "github.com/djthorpe/go-server/pkg/httprouter"
 	. "github.com/djthorpe/go-sqlite"
 	. "github.com/djthorpe/go-sqlite/pkg/lang"
-	sqimport "github.com/djthorpe/go-sqlite/pkg/sqimport"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -44,7 +42,7 @@ type TableResponse struct {
 	Count  int64                  `json:"count"`
 	Sql    string                 `json:"sql,omitempty"`
 	Cols   []SchemaColumnResponse `json:"columns,omitempty"`
-	Rows   [][]interface{}        `json:"result"`
+	Rows   [][]interface{}        `json:"result,omitempty"`
 }
 
 type ImportRequest struct {
@@ -53,9 +51,10 @@ type ImportRequest struct {
 }
 
 type ImportResponse struct {
-	Schema string `json:"schema"`
-	Name   string `json:"name"`
+	Schema string `json:"schema,omitempty"`
+	Name   string `json:"name,omitempty"`
 	Url    string `json:"url,omitempty"`
+	Key    int64  `json:"key,omitempty"`
 }
 
 type SchemaColumnResponse struct {
@@ -138,9 +137,8 @@ func (this *sq) ServeSchema(w http.ResponseWriter, req *http.Request) {
 	router.ServeJSON(w, response, http.StatusOK, 2)
 }
 
-/*
 func (this *sq) ServeTable(w http.ResponseWriter, req *http.Request) {
-	params := server.RequestParams(req)
+	params := router.RequestParams(req)
 	response := TableResponse{
 		Schema: params[0],
 		Name:   params[1],
@@ -148,21 +146,21 @@ func (this *sq) ServeTable(w http.ResponseWriter, req *http.Request) {
 
 	// Decode request, set offset and limit
 	q := TableQuery{}
-	if err := server.RequestQuery(req, &q); err != nil {
-		server.ServeError(w, http.StatusBadRequest, err.Error())
+	if err := router.RequestQuery(req, &q); err != nil {
+		router.ServeError(w, http.StatusBadRequest, err.Error())
 		return
 	} else {
 		response.Offset = q.Offset
 		if q.Limit == 0 {
-			response.Limit = maxLimit
+			response.Limit = maxResultLimit
 		} else {
-			response.Limit = minUint(q.Limit, maxLimit)
+			response.Limit = minUint(q.Limit, maxResultLimit)
 		}
 	}
 
 	// Get row count in response
 	if count, err := this.count(params[0], params[1]); err != nil {
-		server.ServeError(w, http.StatusInternalServerError, err.Error())
+		router.ServeError(w, http.StatusInternalServerError, err.Error())
 		return
 	} else {
 		response.Count = count
@@ -170,9 +168,9 @@ func (this *sq) ServeTable(w http.ResponseWriter, req *http.Request) {
 
 	// Get columns in response
 	cols := this.db.ColumnsEx(params[1], params[0])
-	sources := []sqlite.SQSource{}
+	sources := []SQSource{}
 	if cols == nil {
-		server.ServeError(w, http.StatusInternalServerError)
+		router.ServeError(w, http.StatusInternalServerError)
 		return
 	}
 	for _, col := range cols {
@@ -194,7 +192,7 @@ func (this *sq) ServeTable(w http.ResponseWriter, req *http.Request) {
 	// Query table
 	rs, err := this.db.Query(sql)
 	if err != nil {
-		server.ServeError(w, http.StatusInternalServerError, err.Error(), sql.Query())
+		router.ServeError(w, http.StatusInternalServerError, err.Error(), sql.Query())
 		return
 	} else {
 		response.Sql = sql.Query()
@@ -209,9 +207,8 @@ func (this *sq) ServeTable(w http.ResponseWriter, req *http.Request) {
 	}
 
 	// Serve response
-	server.ServeJSON(w, response, http.StatusOK, 2)
+	router.ServeJSON(w, response, http.StatusOK, 2)
 }
-*/
 
 func (this *sq) ServeImport(w http.ResponseWriter, req *http.Request) {
 	params := router.RequestParams(req)
@@ -237,44 +234,26 @@ func (this *sq) ServeImport(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// Create the response
-	response := ImportResponse{
-		Schema: params[0],
-		Url:    url.String(),
-	}
-
-	// TODO
-	cfg := SQImportConfig{
+	// Add import to queue
+	key, err := this.AddImport(url, SQImportConfig{
 		Schema:     params[0],
 		Name:       query.Name,
 		Header:     true,
 		TrimSpace:  true,
 		LazyQuotes: true,
 		Overwrite:  true,
-	}
-	writer, err := sqimport.NewSQLWriter(cfg, this.db)
-	if err != nil {
-		router.ServeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	importer, err := sqimport.NewImporter(cfg, response.Url, writer)
+	})
 	if err != nil {
 		router.ServeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	// Read from source until EOF
-	for {
-		if err := importer.Read(); err == io.EOF {
-			break
-		} else if err != nil {
-			router.ServeError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
+	// Create the response
+	response := ImportResponse{
+		Schema: params[0],
+		Url:    url.String(),
+		Key:    key,
 	}
-
-	// Set response
-	response.Name = importer.Name()
 
 	// Serve response
 	router.ServeJSON(w, response, http.StatusOK, 2)

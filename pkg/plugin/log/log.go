@@ -34,13 +34,14 @@ func (this *logger) String() string {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// PUBLIC METHODS - MODULE
+// PUBLIC METHODS - PLUGIN
 
 func Name() string {
 	return "log"
 }
 
-func (this *logger) Run(context.Context) error {
+func (this *logger) Run(ctx context.Context) error {
+	<-ctx.Done()
 	return nil
 }
 

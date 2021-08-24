@@ -20,9 +20,17 @@ type sq struct {
 	Timezone string                 `yaml:"timezone"`
 	Database map[string]interface{} `yaml:"databases"`
 
-	tz *time.Location
-	db driver.SQConnection
+	tz  *time.Location
+	db  driver.SQConnection
+	log Logger
 }
+
+///////////////////////////////////////////////////////////////////////////////
+// GLOBALS
+
+const (
+	tickerDelta = time.Second * 5
+)
 
 ///////////////////////////////////////////////////////////////////////////////
 // NEW
@@ -30,6 +38,14 @@ type sq struct {
 // Create the module
 func New(ctx context.Context, provider Provider) Plugin {
 	this := new(sq)
+
+	// Get logger
+	if logger := provider.GetPlugin(ctx, "log").(Logger); logger == nil {
+		provider.Print(ctx, "GetLogger: missing logger")
+		return nil
+	} else {
+		this.log = logger
+	}
 
 	// Load configuration
 	if err := provider.GetConfig(ctx, this); err != nil {
@@ -71,17 +87,11 @@ func New(ctx context.Context, provider Provider) Plugin {
 		return nil
 	}
 
-	/*
-
-
-		// Add handler for table or view
-		if err := provider.AddHandlerFuncEx(ctx, reRouteTable, this.ServeTable); err != nil {
-			provider.Print(ctx, "Failed to add handler: ", err)
-			return nil
-		}
-
-
-	*/
+	// Add handler for table or view
+	if err := provider.AddHandlerFuncEx(ctx, reRouteTable, this.ServeTable); err != nil {
+		provider.Print(ctx, "Failed to add handler: ", err)
+		return nil
+	}
 
 	// Return success
 	return this
@@ -164,6 +174,27 @@ func (this *sq) String() string {
 
 func (this *sq) Run(ctx context.Context) error {
 	var result error
+
+	// Create all the tables needed for importing data in the background
+	if err := this.CreateImportTables("main"); err != nil {
+		return err
+	}
+
+	// Create a ticker to periodically check for new import jobs
+	ticker := time.NewTicker(tickerDelta)
+	defer ticker.Stop()
+
+FOR_LOOP:
+	for {
+		select {
+		case <-ctx.Done():
+			break FOR_LOOP
+		case <-ticker.C:
+			if err := this.GetImportJob(); err != nil {
+				this.log.Print(ctx, "GetImportJob: ", err)
+			}
+		}
+	}
 
 	// Wait until completed
 	<-ctx.Done()

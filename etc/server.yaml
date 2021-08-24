@@ -5,15 +5,20 @@ plugins:
   - build/log.plugin
   - build/static.plugin
   - build/sqlite.plugin
-
+  - build/template.plugin
+  
 # HTTP Server parameters
 httpserver:
   addr: :80
 
 # Handlers for serving plugins  
 handlers:
-  static:
+  template:
     prefix: /
+    middleware:
+      - log
+  static:
+    prefix: /static
     middleware:
       - log
   sqlite:
@@ -26,3 +31,8 @@ static:
 sqlite:
   databases:
     test: /tmp/test.sqlite
+
+# Render templates
+template:
+  path: ./
+  templates: etc/templates

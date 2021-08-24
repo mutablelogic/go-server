@@ -76,6 +76,7 @@ func Name() string {
 	return "static"
 }
 
-func (this *static) Run(context.Context) error {
+func (this *static) Run(ctx context.Context) error {
+	<-ctx.Done()
 	return nil
 }
