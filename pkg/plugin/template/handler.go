@@ -15,7 +15,7 @@ import (
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func (this *template) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+func (this *templates) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	// Open file/directory for reading
 	file, err := this.filefs.Open(filepath.Join(".", req.URL.Path))
 	if os.IsNotExist(err) {
@@ -80,7 +80,7 @@ func (this *template) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	this.log.Printf(req.Context(), "Unable to serve %q", req.URL.Path)
 }
 
-func (this *template) ServeFile(w http.ResponseWriter, req *http.Request, file fs.File, info fs.FileInfo) {
+func (this *templates) ServeFile(w http.ResponseWriter, req *http.Request, file fs.File, info fs.FileInfo) {
 	// Forbidden if file is hidden file
 	if strings.HasPrefix(info.Name(), ".") {
 		router.ServeError(w, http.StatusForbidden)
@@ -133,7 +133,7 @@ func (this *template) ServeFile(w http.ResponseWriter, req *http.Request, file f
 	*/
 }
 
-func (this *template) ServeDir(w http.ResponseWriter, req *http.Request, file fs.ReadDirFile, info fs.FileInfo) {
+func (this *templates) ServeDir(w http.ResponseWriter, req *http.Request, file fs.ReadDirFile, info fs.FileInfo) {
 	// Forbidden if name is hidden folder
 	if strings.HasPrefix(info.Name(), ".") {
 		router.ServeError(w, http.StatusForbidden)

@@ -2,8 +2,10 @@ package server
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"regexp"
+	"time"
 )
 
 // Provider provides services to a module
@@ -48,3 +50,33 @@ type Middleware interface {
 	// Add a child handler function which intercepts a handler function
 	AddHandlerFunc(context.Context, http.HandlerFunc) http.HandlerFunc
 }
+
+// Renderer translates a data stream into a document
+type Renderer interface {
+	Read(context.Context, io.Reader) (Document, error)
+}
+
+// Document represents a document to be presented or indexed
+type Document struct {
+	Title       string   `json:"title"`
+	Description string   `json:"description,omitempty"`
+	Author      string   `json:"author,omitempty"`
+	Shortform   string   `json:"shortform,omitempty"`
+	Tags        []string `json:"tags,omitempty"`
+	File        struct {
+		Name    string    `json:"name"`
+		Path    string    `json:"path"`
+		Ext     string    `json:"ext"`
+		ModTime time.Time `json:"modtime,omitempty"`
+		Size    int64     `json:"size,omitempty"`
+	} `json:"file,omitempty"`
+	Meta map[DocumentKey]interface{} `json:"meta,omitempty"`
+}
+
+// DocumentKey provides additional metadata for a document
+type DocumentKey string
+
+const (
+	DocumentKeyArtwork   DocumentKey = "artwork"
+	DocumentKeyThumbnail DocumentKey = "thumbnail"
+)

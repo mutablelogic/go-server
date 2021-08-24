@@ -9,6 +9,7 @@ import (
 
 	// Modules
 	. "github.com/djthorpe/go-server"
+	template "github.com/djthorpe/go-server/pkg/template"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -18,13 +19,13 @@ type Config struct {
 	Path      string                 `yaml:"path"`
 	Templates string                 `yaml:"templates"`
 	Renderers map[string]interface{} `yaml:"renderers"`
+	Default   string                 `yaml:"default"`
 }
 
-type template struct {
+type templates struct {
 	Config
-
+	*template.Cache
 	filefs fs.FS
-	tmplfs fs.FS
 	log    Logger
 }
 
@@ -33,7 +34,7 @@ type template struct {
 
 // Create the template module
 func New(ctx context.Context, provider Provider) Plugin {
-	this := new(template)
+	this := new(templates)
 
 	// Load configuration
 	if err := provider.GetConfig(ctx, &this.Config); err != nil {
@@ -56,11 +57,11 @@ func New(ctx context.Context, provider Provider) Plugin {
 	} else {
 		this.Path = path
 	}
-	if path, err := filepath.Abs(this.Templates); err != nil {
+	if path, err := filepath.Abs(this.Config.Templates); err != nil {
 		provider.Print(ctx, "Invalid template path:", err)
 		return nil
 	} else {
-		this.Templates = path
+		this.Config.Templates = path
 	}
 
 	// Set filesystem for documents
@@ -71,12 +72,15 @@ func New(ctx context.Context, provider Provider) Plugin {
 		this.filefs = os.DirFS(this.Path)
 	}
 
-	//  Set filesystem for templates
-	if stat, err := os.Stat(this.Templates); err != nil || !stat.IsDir() {
-		provider.Printf(ctx, "Invalid template path: %q", this.Templates)
+	//  Create cache for templates
+	if stat, err := os.Stat(this.Config.Templates); err != nil || !stat.IsDir() {
+		provider.Printf(ctx, "Invalid template path: %q", this.Config.Templates)
+		return nil
+	} else if cache, err := template.NewCache(os.DirFS(this.Config.Templates)); err != nil {
+		provider.Printf(ctx, "NewCache: %q", err)
 		return nil
 	} else {
-		this.tmplfs = os.DirFS(this.Templates)
+		this.Cache = cache
 	}
 
 	// Add handler for templates
@@ -132,13 +136,16 @@ func New(ctx context.Context, provider Provider) Plugin {
 ///////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
-func (this *template) String() string {
+func (this *templates) String() string {
 	str := "<template"
 	if this.Config.Templates != "" {
 		str += fmt.Sprintf(" templates=%q", this.Config.Templates)
 	}
 	if this.Config.Path != "" {
 		str += fmt.Sprintf(" path=%q", this.Config.Path)
+	}
+	if this.Cache != nil {
+		str += fmt.Sprint(" ", this.Cache)
 	}
 	for renderer, mimetypes := range this.Config.Renderers {
 		str += fmt.Sprintf(" %q=%q", renderer, mimetypes)
@@ -153,7 +160,7 @@ func Name() string {
 	return "template"
 }
 
-func (this *template) Run(ctx context.Context) error {
+func (this *templates) Run(ctx context.Context) error {
 	<-ctx.Done()
 	return nil
 }

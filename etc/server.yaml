@@ -13,12 +13,8 @@ httpserver:
 
 # Handlers for serving plugins  
 handlers:
-  template:
-    prefix: /
-    middleware:
-      - log
   static:
-    prefix: /static
+    prefix: /
     middleware:
       - log
   sqlite:
@@ -28,7 +24,7 @@ handlers:
 
 # Where to serve static files from
 static:
-  path: .
+  path: npm/sqlite/dist
 
 sqlite:
   databases:
@@ -38,4 +34,4 @@ sqlite:
 template:
   path: .
   templates: etc/templates
-
+  default: default.tmpl

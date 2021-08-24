@@ -12,3 +12,6 @@
 vendor/
 build/
 
+# NPM ignores
+dist/
+node_modules/
