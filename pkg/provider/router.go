@@ -31,6 +31,9 @@ func (this *provider) AddHandler(ctx context.Context, handler http.Handler, meth
 		}
 	}
 
+	// Log adding handler
+	this.Printf(ctx, "Adding Handler %v => prefix=%q methods=%q middleware=%q", ContextPluginName(ctx), ContextHandlerPrefix(ctx), methods, ContextHandlerMiddleware(ctx))
+
 	// Set handler in all routers
 	var result error
 	for _, router := range this.routers {
@@ -61,6 +64,9 @@ func (this *provider) AddHandlerFunc(ctx context.Context, handler http.HandlerFu
 		}
 	}
 
+	// Log adding handler
+	this.Printf(ctx, "Adding Handler %v => prefix=%q methods=%q middleware=%q", ContextPluginName(ctx), ContextHandlerPrefix(ctx), methods, ContextHandlerMiddleware(ctx))
+
 	// Set handler in all routers
 	var result error
 	for _, router := range this.routers {
@@ -89,6 +95,13 @@ func (this *provider) AddHandlerFuncEx(ctx context.Context, re *regexp.Regexp, h
 		} else {
 			handler = middleware.AddHandlerFunc(ctx, handler)
 		}
+	}
+
+	// Log adding handler
+	if re == nil {
+		this.Printf(ctx, "Adding Handler %v => prefix=%q methods=%q middleware=%q", ContextPluginName(ctx), ContextHandlerPrefix(ctx), methods, ContextHandlerMiddleware(ctx))
+	} else {
+		this.Printf(ctx, "Adding Handler %v => prefix=%q regexp=%q methods=%q middleware=%q", ContextPluginName(ctx), ContextHandlerPrefix(ctx), re, methods, ContextHandlerMiddleware(ctx))
 	}
 
 	// Set handler in all routers

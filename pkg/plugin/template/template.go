@@ -80,7 +80,7 @@ func New(ctx context.Context, provider Provider) Plugin {
 	}
 
 	// Add handler for templates
-	if err := provider.AddHandler(ctx, this); err != nil {
+	if err := provider.AddHandlerFunc(ctx, this.ServeHTTP); err != nil {
 		provider.Print(ctx, "Failed to add handler: ", err)
 		return nil
 	}

@@ -282,8 +282,6 @@ func GetPluginName(path string) (string, error) {
 
 // pluginWithPath returns a plugin from a file path
 func (this *provider) pluginWithPath(ctx context.Context, name, path string) (Plugin, error) {
-	this.Print(ctx, "pluginWithPath", DumpContext(ctx), name, path)
-
 	// If plugin is already in the path, return an error, as it would be a circular reference
 	if ContextHasPluginParent(ctx, name) {
 		return nil, ErrDuplicateEntry.With(name)
@@ -305,7 +303,6 @@ func (this *provider) pluginWithPath(ctx context.Context, name, path string) (Pl
 	} else if fn_, ok := fn.(func(context.Context, Provider) Plugin); !ok {
 		return nil, ErrInternalAppError.With("New returned nil: ", name)
 	} else {
-		this.Printf(ctx, "provider.NewModule: %q", name)
 		if module := fn_(ctx, this); module == nil {
 			return nil, ErrInternalAppError.With("New returned nil: ", name)
 		} else {

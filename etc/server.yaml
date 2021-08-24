@@ -1,8 +1,8 @@
 
 # Plugins to load, the httpserver and log plugins should be loaded first
 plugins:
-  - build/httpserver.plugin
   - build/log.plugin
+  - build/httpserver.plugin
   - build/static.plugin
   - build/sqlite.plugin
   - build/template.plugin
@@ -38,3 +38,4 @@ sqlite:
 template:
   path: .
   templates: etc/templates
+

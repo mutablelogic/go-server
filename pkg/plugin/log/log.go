@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"sync"
@@ -54,16 +55,24 @@ func (this *logger) Run(ctx context.Context) error {
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS - LOG
 
-func (this *logger) Print(_ context.Context, v ...interface{}) {
+func (this *logger) Print(ctx context.Context, v ...interface{}) {
 	this.Mutex.Lock()
 	defer this.Mutex.Unlock()
-	log.Print(v...)
+	if name := provider.ContextPluginName(ctx); name != "" {
+		log.Print("["+name+"] ", fmt.Sprint(v...))
+	} else {
+		log.Print(v...)
+	}
 }
 
-func (this *logger) Printf(_ context.Context, fmt string, v ...interface{}) {
+func (this *logger) Printf(ctx context.Context, f string, v ...interface{}) {
 	this.Mutex.Lock()
 	defer this.Mutex.Unlock()
-	log.Printf(fmt, v...)
+	if name := provider.ContextPluginName(ctx); name != "" {
+		log.Print("["+name+"] ", fmt.Sprintf(f, v...))
+	} else {
+		log.Printf(f, v...)
+	}
 }
 
 ///////////////////////////////////////////////////////////////////////////////

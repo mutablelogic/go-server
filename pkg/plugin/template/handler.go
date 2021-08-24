@@ -69,6 +69,7 @@ func (this *template) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 		this.ServeDir(w, req, file.(fs.ReadDirFile), stat)
+		return
 	} else if stat.Mode().IsRegular() {
 		this.ServeFile(w, req, file, stat)
 		return

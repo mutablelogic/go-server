@@ -87,7 +87,11 @@ func (this *router) AddHandlerFuncEx(ctx context.Context, re *regexp.Regexp, han
 		this.routes[prefix] = r
 
 		// Add to ServeMux
-		this.ServeMux.HandleFunc(prefix+PathSeparator, r.ServeHTTP)
+		if strings.HasSuffix(prefix, PathSeparator) {
+			this.ServeMux.HandleFunc(prefix, r.ServeHTTP)
+		} else {
+			this.ServeMux.HandleFunc(prefix+PathSeparator, r.ServeHTTP)
+		}
 	}
 
 	// Add handler to route
