@@ -63,6 +63,14 @@ func ContextHandlerPrefix(ctx context.Context) string {
 	}
 }
 
+func ContextHandlerMiddleware(ctx context.Context) []string {
+	if handler, ok := ctx.Value(ctxKeyHandler).(config.Handler); !ok {
+		return nil
+	} else {
+		return handler.Middleware
+	}
+}
+
 func ContextWithParams(parent context.Context, params []string) context.Context {
 	return context.WithValue(parent, ctxKeyParams, params)
 }

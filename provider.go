@@ -39,3 +39,12 @@ type Router interface {
 	AddHandlerFunc(context.Context, http.HandlerFunc, ...string) error
 	AddHandlerFuncEx(context.Context, *regexp.Regexp, http.HandlerFunc, ...string) error
 }
+
+// Middleware intercepts HTTP requests
+type Middleware interface {
+	// Add a child handler object which intercepts a handler
+	AddHandler(context.Context, http.Handler) http.Handler
+
+	// Add a child handler function which intercepts a handler function
+	AddHandlerFunc(context.Context, http.HandlerFunc) http.HandlerFunc
+}

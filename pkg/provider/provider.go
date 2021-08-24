@@ -23,15 +23,17 @@ type provider struct {
 	plugins map[string]*plugincfg
 
 	// List of interfaces
-	names   []string
-	loggers []Logger
-	routers []Router
+	names      []string
+	loggers    []Logger
+	routers    []Router
+	middleware map[string]Middleware
 }
 
 type plugincfg struct {
-	path   string
-	plugin Plugin
-	config map[string]interface{}
+	path       string
+	plugin     Plugin
+	middleware []string
+	config     map[string]interface{}
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -48,6 +50,7 @@ const (
 func NewProvider(basepath string, cfg *config.Config) (*provider, error) {
 	this := new(provider)
 	this.plugins = make(map[string]*plugincfg, len(cfg.Plugin))
+	this.middleware = make(map[string]Middleware, len(cfg.Plugin))
 
 	// Return error if no plugins
 	if len(cfg.Plugin) == 0 {
@@ -69,7 +72,7 @@ func NewProvider(basepath string, cfg *config.Config) (*provider, error) {
 			result = multierror.Append(result, ErrDuplicateEntry.With("Plugin: ", name))
 		} else {
 			this.names = append(this.names, name)
-			this.plugins[name] = &plugincfg{path, nil, nil}
+			this.plugins[name] = &plugincfg{path, nil, nil, nil}
 		}
 	}
 
@@ -124,15 +127,6 @@ func NewProvider(basepath string, cfg *config.Config) (*provider, error) {
 			result = multierror.Append(result, ErrNotFound.With(name))
 			continue
 		}
-
-		// Register plugin
-		plugincfg.plugin = plugin
-		if router, ok := plugin.(Router); ok {
-			this.routers = append(this.routers, router)
-		}
-		if logger, ok := plugin.(Logger); ok {
-			this.loggers = append(this.loggers, logger)
-		}
 	}
 
 	// Return errors from initialisation
@@ -170,7 +164,7 @@ func (this *provider) Run(ctx context.Context) error {
 	this.Print(ctx, "Running plugins:")
 	for name, plugincfg := range this.plugins {
 		wg.Add(1)
-		ctx, cancel := context.WithCancel(ctx)
+		ctx, cancel := context.WithCancel(context.Background())
 		cancels = append(cancels, cancel)
 		go func(name string, plugin Plugin) {
 			defer wg.Done()
@@ -186,6 +180,7 @@ func (this *provider) Run(ctx context.Context) error {
 	<-ctx.Done()
 
 	// Cancel all plugins
+	this.Print(ctx, "Stopping plugins:")
 	for _, cancel := range cancels {
 		cancel()
 	}
@@ -217,11 +212,27 @@ func (this *provider) GetPlugin(ctx context.Context, name string) Plugin {
 	if err != nil {
 		this.Print(ctx, "GetPlugin:", err)
 		return nil
-	} else {
-		plugincfg.plugin = plugin
+	} else if err := this.setPlugin(ctx, name, plugin); err != nil {
+		this.Print(ctx, "GetPlugin:", err)
+		return nil
 	}
 	// Return success
 	return plugin
+}
+
+func (this *provider) setPlugin(ctx context.Context, name string, plugin Plugin) error {
+	plugincfg := this.plugins[name]
+	plugincfg.plugin = plugin
+	if router, ok := plugin.(Router); ok {
+		this.routers = append(this.routers, router)
+	}
+	if logger, ok := plugin.(Logger); ok {
+		this.loggers = append(this.loggers, logger)
+	}
+	if middleware, ok := plugin.(Middleware); ok {
+		this.middleware[name] = middleware
+	}
+	return nil
 }
 
 func (this *provider) GetConfig(ctx context.Context, v interface{}) error {

@@ -23,16 +23,18 @@ handlers:
       - log
   sqlite:
     prefix: /api/sqlite
+    middleware:
+      - log
 
 # Where to serve static files from
 static:
-  path: ./
+  path: .
 
 sqlite:
   databases:
     test: /tmp/test.sqlite
 
-# Render templates
+# Render templates from path
 template:
-  path: ./
+  path: .
   templates: etc/templates
