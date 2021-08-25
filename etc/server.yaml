@@ -3,17 +3,23 @@
 plugins:
   - build/log.plugin
   - build/httpserver.plugin
+  - build/basicauth.plugin
   - build/static.plugin
   - build/sqlite.plugin
   - build/template.plugin
   - build/mdns.plugin
-  
+
 # HTTP Server parameters
 httpserver:
   addr: :80
 
 # Handlers for serving plugins  
 handlers:
+  basicauth:
+    prefix: /api/basicauth
+    middleware:
+      - log
+      - basicauth
   static:
     prefix: /
     middleware:
@@ -22,10 +28,17 @@ handlers:
     prefix: /api/sqlite
     middleware:
       - log
+      - basicauth
   mdns:
     prefix: /api/mdns
     middleware:
       - log
+      - basicauth
+
+# Authentication
+basicauth:
+  realm: "go-server"
+  path: etc/htpasswd
 
 # Where to serve static files from
 static:

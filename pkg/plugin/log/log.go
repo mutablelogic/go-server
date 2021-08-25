@@ -47,7 +47,7 @@ func Name() string {
 	return "log"
 }
 
-func (this *logger) Run(ctx context.Context) error {
+func (this *logger) Run(ctx context.Context, _ Provider) error {
 	<-ctx.Done()
 	return nil
 }
@@ -78,16 +78,16 @@ func (this *logger) Printf(ctx context.Context, f string, v ...interface{}) {
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS - MIDDLEWARE
 
-func (this *logger) AddHandlerFunc(ctx context.Context, h http.HandlerFunc) http.HandlerFunc {
+func (this *logger) AddMiddlewareFunc(ctx context.Context, h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		this.Print(r.Context(), provider.ContextPluginName(ctx), " ", r.Method, " ", r.URL.Path)
 		h(w, r)
 	}
 }
 
-func (this *logger) AddHandler(ctx context.Context, h http.Handler) http.Handler {
+func (this *logger) AddMiddleware(ctx context.Context, h http.Handler) http.Handler {
 	return &handler{
-		this.AddHandlerFunc(ctx, h.ServeHTTP),
+		this.AddMiddlewareFunc(ctx, h.ServeHTTP),
 	}
 }
 

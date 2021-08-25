@@ -21,11 +21,11 @@ all: clean server $(PLUGIN_DIR)
 
 server: dependencies mkdir
 	@echo Build server
-	${GO} build -o ${BUILD_DIR}/server ${BUILD_FLAGS} ./cmd/server
+	@${GO} build -o ${BUILD_DIR}/server ${BUILD_FLAGS} ./cmd/server
 
 $(PLUGIN_DIR): FORCE
 	@echo Build plugin $(notdir $@)
-	${GO} build -buildmode=plugin -o ${BUILD_DIR}/$(notdir $@).plugin ${BUILD_FLAGS} ./$@
+	@${GO} build -buildmode=plugin -o ${BUILD_DIR}/$(notdir $@).plugin ${BUILD_FLAGS} ./$@
 
 FORCE:
 
@@ -41,6 +41,6 @@ mkdir:
 	@install -d ${BUILD_DIR}
 
 clean:
-	rm -fr $(BUILD_DIR)
-	${GO} mod tidy
-	${GO} clean
+	@rm -fr $(BUILD_DIR)
+	@${GO} mod tidy
+	@${GO} clean

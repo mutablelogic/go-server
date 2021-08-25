@@ -27,7 +27,7 @@ func (this *provider) AddHandler(ctx context.Context, handler http.Handler, meth
 		if middleware, exists := this.middleware[name]; !exists {
 			return fmt.Errorf("AddMiddleware %q not found for plugin %q", name, ContextPluginName(ctx))
 		} else {
-			handler = middleware.AddHandler(ctx, handler)
+			handler = middleware.AddMiddleware(ctx, handler)
 		}
 	}
 
@@ -55,12 +55,12 @@ func (this *provider) AddHandlerFunc(ctx context.Context, handler http.HandlerFu
 		return nil
 	}
 
-	// Set middleware
+	// Set middleware, in reverse order
 	for _, name := range ContextHandlerMiddleware(ctx) {
 		if middleware, exists := this.middleware[name]; !exists {
 			return fmt.Errorf("AddMiddleware %q not found for plugin %q", name, ContextPluginName(ctx))
 		} else {
-			handler = middleware.AddHandlerFunc(ctx, handler)
+			handler = middleware.AddMiddlewareFunc(ctx, handler)
 		}
 	}
 
@@ -93,7 +93,7 @@ func (this *provider) AddHandlerFuncEx(ctx context.Context, re *regexp.Regexp, h
 		if middleware, exists := this.middleware[name]; !exists {
 			return fmt.Errorf("AddMiddleware %q not found for plugin %q", name, ContextPluginName(ctx))
 		} else {
-			handler = middleware.AddHandlerFunc(ctx, handler)
+			handler = middleware.AddMiddlewareFunc(ctx, handler)
 		}
 	}
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	"regexp"
 	"strings"
@@ -8,8 +9,7 @@ import (
 
 	// Modules
 	router "github.com/djthorpe/go-server/pkg/httprouter"
-	"github.com/djthorpe/go-server/pkg/mdns"
-	"golang.org/x/net/context"
+	mdns "github.com/djthorpe/go-server/pkg/mdns"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

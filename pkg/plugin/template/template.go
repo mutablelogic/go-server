@@ -160,7 +160,7 @@ func Name() string {
 	return "template"
 }
 
-func (this *templates) Run(ctx context.Context) error {
+func (this *templates) Run(ctx context.Context, _ Provider) error {
 	<-ctx.Done()
 	return nil
 }

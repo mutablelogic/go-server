@@ -30,10 +30,10 @@ type provider struct {
 }
 
 type plugincfg struct {
-	path       string
-	plugin     Plugin
-	middleware []string
-	config     map[string]interface{}
+	path    string
+	plugin  Plugin
+	handler config.Handler
+	config  map[string]interface{}
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -72,7 +72,7 @@ func NewProvider(basepath string, cfg *config.Config) (*provider, error) {
 			result = multierror.Append(result, ErrDuplicateEntry.With("Plugin: ", name))
 		} else {
 			this.names = append(this.names, name)
-			this.plugins[name] = &plugincfg{path, nil, nil, nil}
+			this.plugins[name] = &plugincfg{path, nil, cfg.Handler[name], nil}
 		}
 	}
 
@@ -85,7 +85,7 @@ func NewProvider(basepath string, cfg *config.Config) (*provider, error) {
 			result = multierror.Append(result, ErrBadParameter.With("Missing prefix for handler: ", name))
 		}
 		for _, middleware := range handler.Middleware {
-			if this.plugins[middleware] == nil {
+			if this.plugins[middleware] == nil && name != middleware {
 				result = multierror.Append(result, ErrNotFound.With("Missing middleware "+strconv.Quote(middleware)+" for handler: ", name))
 			}
 		}
@@ -119,8 +119,8 @@ func NewProvider(basepath string, cfg *config.Config) (*provider, error) {
 
 		// Set plugin context, load plugin
 		ctx := ContextWithPluginName(context.Background(), name)
-		if handler := cfg.Handler[name]; handler.Prefix != "" {
-			ctx = ContextWithHandler(ctx, handler)
+		if plugincfg.handler.Prefix != "" {
+			ctx = ContextWithHandler(ctx, plugincfg.handler)
 		}
 		plugin := this.GetPlugin(ctx, name)
 		if plugin == nil {
@@ -162,18 +162,19 @@ func (this *provider) Run(ctx context.Context) error {
 
 	// Run all plugins and wait until done
 	this.Print(ctx, "Running plugins:")
-	for name, plugincfg := range this.plugins {
+	for name, cfg := range this.plugins {
 		wg.Add(1)
 		ctx, cancel := context.WithCancel(context.Background())
 		cancels = append(cancels, cancel)
-		go func(name string, plugin Plugin) {
+		go func(name string, cfg *plugincfg) {
 			defer wg.Done()
 			this.Print(ctx, " ", name, " running")
-			if err := plugin.Run(ctx); err != nil {
+			ctx = ContextWithHandler(ContextWithPluginName(ctx, name), cfg.handler)
+			if err := cfg.plugin.Run(ctx, this); err != nil {
 				result = multierror.Append(result, err)
 			}
 			this.Print(ctx, " ", name, " stopped")
-		}(name, plugincfg.plugin)
+		}(name, cfg)
 	}
 
 	// Wait for cancel

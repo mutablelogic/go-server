@@ -14,6 +14,8 @@ const (
 	ctxKeyPluginPath
 	ctxKeyHandler
 	ctxKeyParams
+	ctxKeyUser
+	ctxKeyAuth
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -52,7 +54,15 @@ func ContextPluginName(ctx context.Context) string {
 }
 
 func ContextWithHandler(parent context.Context, handler config.Handler) context.Context {
+	// Reverse the middleware value
+	reverse(handler.Middleware)
+
+	// Return the context
 	return context.WithValue(parent, ctxKeyHandler, handler)
+}
+
+func ContextWithAuth(parent context.Context, user string, auth map[string]interface{}) context.Context {
+	return context.WithValue(context.WithValue(parent, ctxKeyUser, user), ctxKeyAuth, auth)
 }
 
 func ContextHandlerPrefix(ctx context.Context) string {
@@ -97,5 +107,21 @@ func DumpContext(ctx context.Context) string {
 	if params, ok := ctx.Value(ctxKeyParams).([]string); ok {
 		str += fmt.Sprintf(" params=%q", params)
 	}
+	if user, ok := ctx.Value(ctxKeyUser).(string); ok {
+		str += fmt.Sprintf(" user=%q", user)
+	}
+	if auth, ok := ctx.Value(ctxKeyAuth).(map[string]interface{}); ok {
+		str += fmt.Sprintf(" auth=%+v", auth)
+	}
 	return str + ">"
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+func reverse(v []string) {
+	last := len(v) - 1
+	for i := 0; i < len(v)/2; i++ {
+		v[i], v[last-i] = v[last-i], v[i]
+	}
 }

@@ -66,6 +66,6 @@ func Name() string {
 	return "mdns"
 }
 
-func (this *server) Run(ctx context.Context) error {
+func (this *server) Run(ctx context.Context, _ Provider) error {
 	return this.Server.Run(ctx)
 }

@@ -20,9 +20,8 @@ type sq struct {
 	Timezone string                 `yaml:"timezone"`
 	Database map[string]interface{} `yaml:"databases"`
 
-	tz  *time.Location
-	db  driver.SQConnection
-	log Logger
+	tz *time.Location
+	db driver.SQConnection
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -38,14 +37,6 @@ const (
 // Create the module
 func New(ctx context.Context, provider Provider) Plugin {
 	this := new(sq)
-
-	// Get logger
-	if logger := provider.GetPlugin(ctx, "log").(Logger); logger == nil {
-		provider.Print(ctx, "GetLogger: missing logger")
-		return nil
-	} else {
-		this.log = logger
-	}
 
 	// Load configuration
 	if err := provider.GetConfig(ctx, this); err != nil {
@@ -172,7 +163,7 @@ func (this *sq) String() string {
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func (this *sq) Run(ctx context.Context) error {
+func (this *sq) Run(ctx context.Context, provider Provider) error {
 	var result error
 
 	// Create all the tables needed for importing data in the background
@@ -191,7 +182,7 @@ FOR_LOOP:
 			break FOR_LOOP
 		case <-ticker.C:
 			if err := this.GetImportJob(); err != nil {
-				this.log.Print(ctx, "GetImportJob: ", err)
+				provider.Print(ctx, "GetImportJob: ", err)
 			}
 		}
 	}

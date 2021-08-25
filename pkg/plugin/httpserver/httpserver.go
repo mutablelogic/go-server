@@ -124,7 +124,7 @@ func Name() string {
 	return "httpserver"
 }
 
-func (this *server) Run(ctx context.Context) error {
+func (this *server) Run(ctx context.Context, _ Provider) error {
 	var result error
 	go func() {
 		<-ctx.Done()

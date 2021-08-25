@@ -26,7 +26,7 @@ type Provider interface {
 // Plugin provides handlers to server
 type Plugin interface {
 	// Run plugin background tasks until cancelled
-	Run(context.Context) error
+	Run(context.Context, Provider) error
 }
 
 // Logger providers a logging interface
@@ -45,10 +45,10 @@ type Router interface {
 // Middleware intercepts HTTP requests
 type Middleware interface {
 	// Add a child handler object which intercepts a handler
-	AddHandler(context.Context, http.Handler) http.Handler
+	AddMiddleware(context.Context, http.Handler) http.Handler
 
 	// Add a child handler function which intercepts a handler function
-	AddHandlerFunc(context.Context, http.HandlerFunc) http.HandlerFunc
+	AddMiddlewareFunc(context.Context, http.HandlerFunc) http.HandlerFunc
 }
 
 // Renderer translates a data stream into a document
