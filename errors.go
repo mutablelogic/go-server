@@ -19,6 +19,7 @@ const (
 	ErrNotModified
 	ErrInternalAppError
 	ErrNotImplemented
+	ErrOutOfOrder
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -42,6 +43,8 @@ func (e Error) Error() string {
 		return "ErrInternalAppError"
 	case ErrNotImplemented:
 		return "ErrNotImplemented"
+	case ErrOutOfOrder:
+		return "ErrOutOfOrder"
 	default:
 		return "[?? Invalid Error value]"
 	}

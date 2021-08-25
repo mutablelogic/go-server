@@ -8,6 +8,7 @@ plugins:
   - build/sqlite.plugin
   - build/template.plugin
   - build/mdns.plugin
+  - build/rotel.plugin
 
 # HTTP Server parameters
 httpserver:
