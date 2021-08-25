@@ -7,7 +7,7 @@ import (
 	// Modules
 	. "github.com/djthorpe/go-server"
 	rotel "github.com/djthorpe/go-server/pkg/rotel"
-	"github.com/hashicorp/go-multierror"
+	multierror "github.com/hashicorp/go-multierror"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
