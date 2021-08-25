@@ -6,6 +6,7 @@ plugins:
   - build/static.plugin
   - build/sqlite.plugin
   - build/template.plugin
+  - build/mdns.plugin
   
 # HTTP Server parameters
 httpserver:
@@ -21,7 +22,11 @@ handlers:
     prefix: /api/sqlite
     middleware:
       - log
-
+  mdns:
+    prefix: /api/mdns
+    middleware:
+      - log
+      
 # Where to serve static files from
 static:
   path: npm/sqlite/dist
