@@ -10,6 +10,7 @@ import (
 	. "github.com/djthorpe/go-server"
 	"github.com/djthorpe/go-server/pkg/htpasswd"
 	router "github.com/djthorpe/go-server/pkg/httprouter"
+	"github.com/djthorpe/go-server/pkg/provider"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -54,10 +55,26 @@ func (this *basicauth) addHandlers(ctx context.Context, provider Provider) error
 ///////////////////////////////////////////////////////////////////////////////
 // HANDLERS
 
+func (this *basicauth) AuthorizeRequest(req *http.Request) bool {
+	// When no admin user is set, allow all requests
+	if this.Config.Admin == "" {
+		return true
+	}
+	if user := provider.ContextUser(req.Context()); user == this.Config.Admin {
+		return true
+	}
+	return false
+}
+
 func (this *basicauth) ServeUsers(w http.ResponseWriter, req *http.Request) {
-	response := []string{}
+	// Authorize request
+	if auth := this.AuthorizeRequest(req); auth == false {
+		router.ServeError(w, http.StatusUnauthorized)
+		return
+	}
 
 	// Get all users
+	response := []string{}
 	if this.Htpasswd != nil {
 		this.Mutex.Lock()
 		defer this.Mutex.Unlock()
@@ -69,9 +86,14 @@ func (this *basicauth) ServeUsers(w http.ResponseWriter, req *http.Request) {
 }
 
 func (this *basicauth) AddUser(w http.ResponseWriter, req *http.Request) {
-	var request PasswordRequest
+	// Authorize request
+	if auth := this.AuthorizeRequest(req); auth == false {
+		router.ServeError(w, http.StatusUnauthorized)
+		return
+	}
 
-	params := router.RequestParams(req)
+	// Decode request body
+	var request PasswordRequest
 	if err := router.RequestBody(req, &request); err != nil {
 		router.ServeError(w, http.StatusBadRequest)
 		return
@@ -89,6 +111,7 @@ func (this *basicauth) AddUser(w http.ResponseWriter, req *http.Request) {
 	// Set password
 	this.Mutex.Lock()
 	defer this.Mutex.Unlock()
+	params := router.RequestParams(req)
 	if err := this.Htpasswd.Set(params[0], request.Password, htpasswd.BCrypt); err != nil {
 		router.ServeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -101,7 +124,11 @@ func (this *basicauth) AddUser(w http.ResponseWriter, req *http.Request) {
 }
 
 func (this *basicauth) DeleteUser(w http.ResponseWriter, req *http.Request) {
-	params := router.RequestParams(req)
+	// Authorize request
+	if auth := this.AuthorizeRequest(req); auth == false {
+		router.ServeError(w, http.StatusUnauthorized)
+		return
+	}
 
 	// Check
 	if this.Htpasswd == nil {
@@ -112,6 +139,7 @@ func (this *basicauth) DeleteUser(w http.ResponseWriter, req *http.Request) {
 	// Delete password
 	this.Mutex.Lock()
 	defer this.Mutex.Unlock()
+	params := router.RequestParams(req)
 	this.Htpasswd.Delete(params[0])
 	this.dirty = true
 

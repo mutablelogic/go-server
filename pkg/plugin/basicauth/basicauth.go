@@ -26,6 +26,7 @@ import (
 type Config struct {
 	Path  string `yaml:"path"`
 	Realm string `yaml:"realm"`
+	Admin string `yaml:"admin"`
 }
 
 type basicauth struct {
@@ -223,7 +224,7 @@ func (this *basicauth) AddMiddlewareFunc(ctx context.Context, h http.HandlerFunc
 			if basic := reBasicAuth.FindStringSubmatch(token); basic != nil {
 				basic[1] = strings.TrimRight(basic[1], "=")
 				if credentials, err := base64.RawStdEncoding.DecodeString(basic[1]); err == nil {
-					user, auth = this.authorized(credentials)
+					user, auth = this.authenticated(credentials)
 				}
 			}
 		}
@@ -258,8 +259,8 @@ func (this *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-// authorized the user and returns true if the given credentials are authorized
-func (this *basicauth) authorized(credentials []byte) (string, bool) {
+// authenticated the user and returns true if the given credentials are authenticated
+func (this *basicauth) authenticated(credentials []byte) (string, bool) {
 	// Lock for reading
 	this.Mutex.Lock()
 	defer this.Mutex.Unlock()

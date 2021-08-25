@@ -39,6 +39,7 @@ handlers:
 basicauth:
   realm: "go-server"
   path: etc/htpasswd
+  admin: root
 
 # Where to serve static files from
 static:

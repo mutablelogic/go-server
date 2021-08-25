@@ -93,6 +93,14 @@ func ContextParams(ctx context.Context) []string {
 	}
 }
 
+func ContextUser(ctx context.Context) string {
+	if user, ok := ctx.Value(ctxKeyUser).(string); ok {
+		return user
+	} else {
+		return ""
+	}
+}
+
 func DumpContext(ctx context.Context) string {
 	str := "<context"
 	if name, ok := ctx.Value(ctxKeyPluginName).(string); ok {
