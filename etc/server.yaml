@@ -26,10 +26,10 @@ handlers:
     prefix: /api/mdns
     middleware:
       - log
-      
+
 # Where to serve static files from
 static:
-  path: npm/sqlite/dist
+  path: npm/mdns/dist
 
 sqlite:
   databases:

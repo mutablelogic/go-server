@@ -15,10 +15,6 @@ import (
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type InstancesResponse struct {
-	Instances []Service `json:"instances,omitempty"`
-}
-
 type Service struct {
 	Service string            `json:"service"`
 	Zone    string            `json:"zone"`
@@ -53,10 +49,9 @@ func (this *server) ServeInstances(w http.ResponseWriter, req *http.Request) {
 	instances := this.Instances(ctx)
 
 	// Make response
-	response := InstancesResponse{}
+	response := []Service{}
 	for _, instance := range instances {
-
-		response.Instances = append(response.Instances, Service{
+		response = append(response, Service{
 			Service: instance.Service(),
 			Zone:    instance.Zone(),
 			Name:    instance.Name(),

@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width">
+    <title>mdns</title>
+    <meta name="description" content="mdns frontend">
+    <link rel="icon" href="/assets/favicon/favicon.ico">
+    <link rel="stylesheet" href="/index.css" media="all">
+    <script src="/index.js"></script>
+</head>
+<body>
+    <!-- NAVIGATION -->
+    <nav class="navbar sticky-top navbar navbar-dark navbar-expand-md bg-primary border-bottom border-white" id="nav">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/"><strong>mdns</strong></a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar-items"
+                aria-expanded="false">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbar-items">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item">
+                        <a class="nav-link" href="#">Home</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+    <!-- TOAST -->
+    <div class="toast-container position-absolute bottom-0 end-0 p-3 d-none" style="z-index: 9999;">
+        <div class="toast" id="toast" role="alert">
+            <div class="toast-header">
+                <strong class="me-auto _title"></strong>
+                <small class="text-muted _code"></small>
+                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+            <div class="toast-body _reason"></div>
+        </div>
+    </div>  
+    <!-- TABLE -->
+    <div class="container-fluid">
+        <table class="table table-hover" id="instances">
+            <thead>
+                <tr>
+                    <th scope="col">Name</th>
+                    <th scope="col">Host</th>
+                    <th scope="col">Txt</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr class="_template">
+                    <td class="_name"></td>
+                    <td class="_host"></td>
+                    <td class="_txt"></td>
+                </tr>
+            </tbody>
+        </table> 
+    </div>
+    <!-- OFFCANVAS -->
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvas" aria-labelledby="offcanvas-right-label">
+        <div class="offcanvas-header">
+            <h5 id="offcanvas-right-label">Offcanvas right</h5>
+            <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+        </div>
+        <div class="offcanvas-body">
+            BODY
+        </div>
+    </div>
+</body>
+</html>
