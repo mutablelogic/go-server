@@ -1,0 +1,30 @@
+name: publish go-server-mdns.npm
+on:
+  release:
+    types: [published]
+jobs:
+  build:
+    runs-on: ubuntu-18.04
+    env:
+      working_directory: ./npm/mdns
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v2
+        with:
+          node-version: "16.x"
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@djthorpe'
+      - name: Install dependendies
+        run: npm install
+        working-directory: ${{ env.working_directory }}
+      - name: Build and publish
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          sed -i "s/\"version\":.*/\"version\": \"${VERSION}\",/g" package.json
+          cat package.json
+          npm run build  
+          npm publish        
+        working-directory: ${{ env.working_directory }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
