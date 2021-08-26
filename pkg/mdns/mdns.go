@@ -13,10 +13,10 @@ import (
 // TYPES
 
 type Config struct {
-	Interface       string `yaml:"interface"`
-	Domain          string `yaml:"domain"`
-	TTL             int    `yaml:"ttl"`
-	ServiceDatabase string `yaml:"services"`
+	Interface       string        `yaml:"interface"`
+	Domain          string        `yaml:"domain"`
+	TTL             int           `yaml:"ttl"`
+	ServiceDatabase []interface{} `yaml:"services"`
 }
 
 type Server struct {
@@ -58,11 +58,16 @@ func New(cfg Config) (*Server, error) {
 	}
 
 	// Read service database
-	if cfg.ServiceDatabase != "" {
-		if db, err := ReadServiceDatabase(cfg.ServiceDatabase); err != nil {
+	if len(cfg.ServiceDatabase) > 0 {
+		if db, err := ReadServiceDatabase(cfg.ServiceDatabase[0].(string)); err != nil {
 			return nil, err
 		} else {
 			this.servicedb = db
+		}
+		for _, source := range cfg.ServiceDatabase[1:] {
+			if err := this.servicedb.Read(source.(string)); err != nil {
+				return nil, err
+			}
 		}
 	}
 

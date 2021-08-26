@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<registry xmlns="http://www.iana.org/assignments" id="service-names-port-numbers">
+  <record date="2014-01-16">
+    <name>googlecast</name>
+    <protocol>tcp</protocol>
+    <assignee>
+      <xref type="person" data="Google_Inc"/>
+    </assignee>
+    <description>Google Chromecast</description>
+    <note>Defined TXT keys: None</note>
+  </record>
+</registry>

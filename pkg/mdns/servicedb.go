@@ -60,32 +60,10 @@ func NewServiceDatabase() *servicedb {
 
 func ReadServiceDatabase(v string) (*servicedb, error) {
 	this := NewServiceDatabase()
-	if url, err := url.Parse(v); err != nil {
-		return nil, err
-	} else if url.Scheme == "file" {
-		r, err := os.Open(url.Path)
-		if err != nil {
-			return nil, err
-		}
-		defer r.Close()
 
-		if err := this.read(r); err != nil {
-			return nil, err
-		}
-	} else if url.Scheme == "http" || url.Scheme == "https" {
-		r, err := http.Get(url.String())
-		if err != nil {
-			return nil, err
-		}
-		defer r.Body.Close()
-		if r.StatusCode != http.StatusOK {
-			return nil, ErrUnexpectedResponse.With(r.Status)
-		}
-		if err := this.read(r.Body); err != nil {
-			return nil, err
-		}
-	} else {
-		return nil, ErrBadParameter.With("Unsupported scheme: ", url.Scheme)
+	// Read databases
+	if err := this.Read(v); err != nil {
+		return nil, err
 	}
 
 	// Return success
@@ -94,6 +72,40 @@ func ReadServiceDatabase(v string) (*servicedb, error) {
 
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
+
+// Read records into database
+func (this *servicedb) Read(v string) error {
+	if url, err := url.Parse(v); err != nil {
+		return err
+	} else if url.Scheme == "file" || url.Scheme == "" {
+		r, err := os.Open(url.Path)
+		if err != nil {
+			return err
+		}
+		defer r.Close()
+
+		if err := this.read(r); err != nil {
+			return err
+		}
+	} else if url.Scheme == "http" || url.Scheme == "https" {
+		r, err := http.Get(url.String())
+		if err != nil {
+			return err
+		}
+		defer r.Body.Close()
+		if r.StatusCode != http.StatusOK {
+			return ErrUnexpectedResponse.With(r.Status)
+		}
+		if err := this.read(r.Body); err != nil {
+			return err
+		}
+	} else {
+		return ErrBadParameter.With("Unsupported scheme: ", url.Scheme)
+	}
+
+	// Return success
+	return nil
+}
 
 // Lookup a record
 func (this *servicedb) Lookup(service string) ServiceDescription {
