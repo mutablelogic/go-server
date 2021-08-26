@@ -13,14 +13,16 @@ import (
 // TYPES
 
 type Config struct {
-	Interface string `yaml:"interface"`
-	Domain    string `yaml:"domain"`
-	TTL       int    `yaml:"ttl"`
+	Interface       string `yaml:"interface"`
+	Domain          string `yaml:"domain"`
+	TTL             int    `yaml:"ttl"`
+	ServiceDatabase string `yaml:"services"`
 }
 
 type Server struct {
 	*listener
 	*discovery
+	*servicedb
 	c chan message
 }
 
@@ -53,6 +55,17 @@ func New(cfg Config) (*Server, error) {
 		return nil, err
 	} else {
 		this.discovery = discovery
+	}
+
+	// Read service database in the background
+	if cfg.ServiceDatabase != "" {
+		go func() {
+			if db, err := ReadServiceDatabase(cfg.ServiceDatabase); err != nil {
+				fmt.Printf("Failed to read service database: %s\n", err)
+			} else {
+				this.servicedb = db
+			}
+		}()
 	}
 
 	// Return success

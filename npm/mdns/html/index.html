@@ -61,11 +61,64 @@
     <!-- OFFCANVAS -->
     <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvas" aria-labelledby="offcanvas-right-label">
         <div class="offcanvas-header">
-            <h5 id="offcanvas-right-label">Offcanvas right</h5>
+            <h5 id="offcanvas-right-label" class="_name"></h5>
             <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
         </div>
         <div class="offcanvas-body">
-            BODY
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th scope="col" colspan="2">Instance</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <th scope="row">Zone</th>
+                        <td class="_zone"></td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Service</th>
+                        <td class="_service"></td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Host</th>
+                        <td class="_host"></td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Port</th>
+                        <td class="_port"></td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th scope="col">Addresses</th>
+                    </tr>
+                </thead>
+                <tbody id="_addrs">
+                    <tr class="_template">
+                        <td class="_value">Addr</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th scope="col" colspan="2">TXT Records</th>
+                    </tr>
+                </thead>
+                <tbody id="_txt">
+                    <tr class="_template">
+                        <th scope="row" class="_key">Key</td>
+                        <td class="_value">Value</td>
+                    </tr>
+                </tbody>
+            </table>
+
+
         </div>
     </div>
 </body>

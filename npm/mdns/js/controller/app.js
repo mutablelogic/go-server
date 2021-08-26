@@ -1,9 +1,10 @@
 import {
-  Controller, Nav, Toast, Provider, List, Offcanvas
+  Controller, Nav, Toast, Provider, List
 } from '@djthorpe/js-framework';
 
 import Instance from '../model/mdns/instance';
 import Node from '../view/node';
+import Offcanvas from '../view/offcanvas';
 
 const API_PREFIX = '/api/mdns';
 const API_FETCH_DELTA = 10 * 1000;
@@ -31,13 +32,17 @@ export default class App extends Controller {
       console.log(`added or changed: ${instance}`);
       if (this.list) {
         const row = this.list.set(instance.key);
-        const tags = instance.txt ? Array.from(instance.txt,k => {
-          return Node.badge('bg-primary',`${k[0]}: ${k[1]}`);
-        }) : [];
+        const tags = instance.txt ? Array.from(instance.txt, (k) => Node.badge('bg-primary', `${k[0]}: ${k[1]}`)) : [];
         row
-        .replace('._name',Node.div('',Node.strong('',instance.name)),Node.div('',Node.small('',Node.badge('bg-secondary',instance.service))))
-        .replace('._host',Node.small('',instance.host && instance.port ? `${instance.host}:${instance.port}` : ''))
-        .replace('._txt',...tags)
+          .replace('._name', Node.div('', Node.strong('', instance.name)), Node.div('', Node.small('', Node.badge('bg-secondary', instance.service))))
+          .replace('._host', Node.small('', instance.host && instance.port ? `${instance.host}:${instance.port}` : ''))
+          .replace('._txt', ...tags)
+      }
+      // Update detail if view shows changed instance
+      if (this.detail && this.detail.instance) {
+        if (instance.key === this.detail.instance.key) {
+          this.detail.show(instance);
+        }
       }
     });
     this.instances.addEventListener('provider:deleted', (sender, instance) => {
@@ -45,12 +50,18 @@ export default class App extends Controller {
       if (this.list) {
         this.list.deleteForKey(instance.key);
       }
+      // Hide detail if view shows deleted instance
+      if (this.detail && this.detail.instance) {
+        if (instance.key === this.detail.instance.key) {
+          this.detail.hide();
+        }
+      }
     });
-    this.instances.addEventListener('provider:completed', (sender) => {
+    this.instances.addEventListener('provider:completed', () => {
       if (this.list) {
         this.list.sortForKeys(this.instances.keys.sort((a, b) => {
-          const namea = this.instances.objectForKey(a).name.toLowerCase() ;
-          const nameb = this.instances.objectForKey(b).name.toLowerCase() ;
+          const namea = this.instances.objectForKey(a).name.toLowerCase();
+          const nameb = this.instances.objectForKey(b).name.toLowerCase();
           return namea.localeCompare(nameb);
         }));
       }
@@ -60,19 +71,19 @@ export default class App extends Controller {
     const listNode = document.querySelector('#instances tbody');
     if (listNode) {
       super.define('list', new List(listNode, '_template'));
-      this.list.addEventListener('list:click', (sender, target,key) => {  
-        const instance = this.instances.objectForKey(key); 
+      this.list.addEventListener('list:click', (sender, target, key) => {
+        const instance = this.instances.objectForKey(key);
         if (instance && this.detail) {
-          this.detail.show();
+          this.detail.show(instance);
         }
-      });      
-     }
+      });
+    }
 
-     // Define the detail view
-     const detailNode = document.querySelector('#offcanvas');
-     if (detailNode) {
-       super.define('detail', new Offcanvas(detailNode));
-     } 
+    // Define the detail view
+    const detailNode = document.querySelector('#offcanvas');
+    if (detailNode) {
+      super.define('detail', new Offcanvas(detailNode));
+    }
   }
 
   main() {
