@@ -30,6 +30,11 @@ func New(ctx context.Context, provider Provider) Plugin {
 		return nil
 	}
 
+	// Set default service database if not set
+	if cfg.ServiceDatabase == "" {
+		cfg.ServiceDatabase = mdns.DefaultServiceDatabase
+	}
+
 	// Create mDNS server
 	if server, err := mdns.New(cfg); err != nil {
 		provider.Print(ctx, "NewServer: ", err)

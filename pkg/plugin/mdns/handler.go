@@ -16,13 +16,15 @@ import (
 // TYPES
 
 type Service struct {
-	Service string            `json:"service"`
-	Zone    string            `json:"zone"`
-	Name    string            `json:"name"`
-	Host    string            `json:"host,omitempty"`
-	Port    uint16            `json:"port,omitempty"`
-	Addrs   []string          `json:"addrs,omitempty"`
-	Txt     map[string]string `json:"txt,omitempty"`
+	Service     string            `json:"service"`
+	Zone        string            `json:"zone"`
+	Name        string            `json:"name"`
+	Host        string            `json:"host,omitempty"`
+	Port        uint16            `json:"port,omitempty"`
+	Addrs       []string          `json:"addrs,omitempty"`
+	Txt         map[string]string `json:"txt,omitempty"`
+	Description string            `json:"description,omitempty"`
+	Note        string            `json:"note,omitempty"`
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -51,7 +53,7 @@ func (this *server) ServeInstances(w http.ResponseWriter, req *http.Request) {
 	// Make response
 	response := []Service{}
 	for _, instance := range instances {
-		response = append(response, Service{
+		service := Service{
 			Service: instance.Service(),
 			Zone:    instance.Zone(),
 			Name:    instance.Name(),
@@ -59,7 +61,12 @@ func (this *server) ServeInstances(w http.ResponseWriter, req *http.Request) {
 			Port:    instance.Port(),
 			Addrs:   instanceAddrs(&instance),
 			Txt:     instanceTxt(&instance),
-		})
+		}
+		if desc := this.LookupServiceDescription(instance.Service()); desc != nil {
+			service.Description = desc.Description()
+			service.Note = desc.Note()
+		}
+		response = append(response, service)
 	}
 
 	// Serve response

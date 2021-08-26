@@ -57,15 +57,13 @@ func New(cfg Config) (*Server, error) {
 		this.discovery = discovery
 	}
 
-	// Read service database in the background
+	// Read service database
 	if cfg.ServiceDatabase != "" {
-		go func() {
-			if db, err := ReadServiceDatabase(cfg.ServiceDatabase); err != nil {
-				fmt.Printf("Failed to read service database: %s\n", err)
-			} else {
-				this.servicedb = db
-			}
-		}()
+		if db, err := ReadServiceDatabase(cfg.ServiceDatabase); err != nil {
+			return nil, err
+		} else {
+			this.servicedb = db
+		}
 	}
 
 	// Return success
@@ -135,6 +133,15 @@ func (this *Server) EnumerateServices(ctx context.Context) ([]string, error) {
 	return []string{}, nil
 }
 */
+
+// Return a service description for the given service name
+func (this *Server) LookupServiceDescription(v string) ServiceDescription {
+	if this.servicedb != nil {
+		return this.servicedb.Lookup(v)
+	} else {
+		return nil
+	}
+}
 
 func (this *Server) Instances(ctx context.Context, services ...string) []Service {
 	// TODO: Query for services

@@ -40,7 +40,8 @@ export default class Offcanvas extends BSOffcanvas {
 
     // Populate instance table
     this
-      .replace('._name', Node.div('', Node.strong('', instance.name)), Node.div('', Node.small('', Node.badge('bg-secondary', instance.service))))
+      .replace('._name', Node.div('', Node.strong('', instance.name)), Node.div('', Node.small('', Node.badge('bg-secondary', instance.description || instance.service))))
+      .replace('._note', instance.note || '')
       .replace('._service', Node.small('', instance.service))
       .replace('._zone', Node.small('', instance.zone ? instance.zone : ''))
       .replace('._host', Node.small('', instance.host ? instance.host : ''))

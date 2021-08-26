@@ -26,7 +26,7 @@ type servicedb struct {
 	lut map[string]*namerecord
 }
 
-type NameRecord interface {
+type ServiceDescription interface {
 	Name() string
 	Service() string
 	Protocol() string
@@ -96,9 +96,13 @@ func ReadServiceDatabase(v string) (*servicedb, error) {
 // PUBLIC METHODS
 
 // Lookup a record
-func (this *servicedb) Lookup(service string) NameRecord {
+func (this *servicedb) Lookup(service string) ServiceDescription {
 	service = fqn(strings.ToLower(service))
-	return this.lut[service]
+	if desc, exists := this.lut[service]; exists {
+		return desc
+	} else {
+		return nil
+	}
 }
 
 // Name returns the service name
@@ -111,7 +115,11 @@ func (r *namerecord) Description() string {
 }
 
 func (r *namerecord) Protocol() string {
-	return r.Protocol_
+	if r.Protocol_ == "" {
+		return "tcp"
+	} else {
+		return r.Protocol_
+	}
 }
 
 func (r *namerecord) Note() string {
@@ -120,10 +128,11 @@ func (r *namerecord) Note() string {
 
 // Service returns the service name or empty string if not found
 func (r *namerecord) Service() string {
-	if r.Port_ == "" || r.Protocol_ == "" || r.Name_ == "" {
+	if name := r.Name(); name == "" {
 		return ""
+	} else {
+		return strings.ToLower("_" + name + "._" + r.Protocol() + ".")
 	}
-	return strings.ToLower("_" + r.Name_ + "._" + r.Protocol_ + ".")
 }
 
 ///////////////////////////////////////////////////////////////////////////////

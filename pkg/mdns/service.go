@@ -3,6 +3,7 @@ package mdns
 import (
 	"fmt"
 	"net"
+	"regexp"
 	"strings"
 	"time"
 
@@ -26,6 +27,14 @@ type Service struct {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+// GLOBALS
+
+var (
+	reIsSubService = regexp.MustCompile(`\._sub\.(.+)\.$`)
+	reIsAddrLookup = regexp.MustCompile(`\.?(in-addr.arpa.)$`)
+)
+
+///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
 func NewService(zone string) *Service {
@@ -42,7 +51,14 @@ func (this *Service) Instance() string {
 }
 
 func (this *Service) Service() string {
-	return strings.TrimSuffix(fqn(this.service), this.zone)
+	service := strings.TrimSuffix(fqn(this.service), this.zone)
+	if match := reIsSubService.FindStringSubmatch(service); match != nil {
+		return match[1]
+	} else if match := reIsAddrLookup.FindStringSubmatch(service); match != nil {
+		return match[1]
+	} else {
+		return service
+	}
 }
 
 func (this *Service) Name() string {

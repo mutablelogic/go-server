@@ -10,6 +10,8 @@ export default class Instance extends Model {
       port: 'number',
       addrs: '[]string',
       txt: '{}string',
+      description: 'string',
+      note: 'string',
     }, 'Instance');
   }
 

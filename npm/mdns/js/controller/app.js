@@ -32,11 +32,19 @@ export default class App extends Controller {
       console.log(`added or changed: ${instance}`);
       if (this.list) {
         const row = this.list.set(instance.key);
-        const tags = instance.txt ? Array.from(instance.txt, (k) => Node.badge('bg-primary', `${k[0]}: ${k[1]}`)) : [];
+        const tags = instance.txt ? Array.from(instance.txt, (k) => {
+          if (k[0] && k[1]) {
+            return Node.badge('bg-primary', `${k[0]}: ${k[1]}`);
+          }
+          if (k[0]) {
+            return Node.badge('bg-primary', `${k[0]}`);
+          }
+          return '';
+        }) : [];
         row
-          .replace('._name', Node.div('', Node.strong('', instance.name)), Node.div('', Node.small('', Node.badge('bg-secondary', instance.service))))
+          .replace('._name', Node.div('', Node.strong('', instance.name)), Node.div('', Node.small('', Node.badge('bg-secondary', instance.description || instance.service))))
           .replace('._host', Node.small('', instance.host && instance.port ? `${instance.host}:${instance.port}` : ''))
-          .replace('._txt', ...tags)
+          .replace('._txt', ...tags);
       }
       // Update detail if view shows changed instance
       if (this.detail && this.detail.instance) {
