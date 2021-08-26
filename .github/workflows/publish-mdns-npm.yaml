@@ -17,6 +17,8 @@ jobs:
       - name: Install dependendies
         run: npm install
         working-directory: ${{ env.working_directory }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Build and publish
         run: |
           VERSION="${GITHUB_REF#refs/tags/v}"
