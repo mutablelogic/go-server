@@ -169,7 +169,7 @@ func msgQueryServices(zone string) *dns.Msg {
 }
 
 // Return a query message looking up a specific service record
-func msgQueryLookup(srv, zone string) *dns.Msg {
+func msgQueryInstances(srv, zone string) *dns.Msg {
 	msg := new(dns.Msg)
 	msg.SetQuestion(fqn(srv)+fqn(zone), dns.TypePTR)
 	msg.RecursionDesired = false

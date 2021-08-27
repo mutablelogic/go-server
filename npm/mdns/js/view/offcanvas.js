@@ -40,15 +40,15 @@ export default class Offcanvas extends BSOffcanvas {
 
     // Populate instance table
     this
-      .replace('._name', Node.div('', Node.strong('', instance.name)), Node.div('', Node.small('', Node.badge('bg-secondary', instance.description || instance.service))))
-      .replace('._note', instance.note || '')
-      .replace('._service', Node.small('', instance.service))
+      .replace('._name', Node.div('', Node.strong('', instance.name)), Node.div('', Node.small('', Node.badge('bg-secondary', instance.service.description || instance.service.service))))
+      .replace('._note', instance.service.note || '')
+      .replace('._service', Node.small('', instance.service.service))
       .replace('._zone', Node.small('', instance.zone ? instance.zone : ''))
       .replace('._host', Node.small('', instance.host ? instance.host : ''))
       .replace('._port', Node.small('', instance.port ? instance.port : ''));
 
     // Hide note if empty
-    this.query('._note').style.display = instance.note ? 'block' : 'none';
+    this.query('._note').style.display = instance.service.note ? 'block' : 'none';
 
     // Populate addrs and txt
     if (this.$addrs) {

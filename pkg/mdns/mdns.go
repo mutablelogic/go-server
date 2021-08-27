@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	// Modules
+	. "github.com/djthorpe/go-server"
 	"github.com/hashicorp/go-multierror"
 )
 
@@ -23,7 +25,16 @@ type Server struct {
 	*listener
 	*discovery
 	*servicedb
-	c chan message
+	c    chan message
+	e    chan Event
+	enum *enum
+}
+
+type enum struct {
+	sync.RWMutex
+	sync.Mutex
+	EventType
+	services map[string]Service
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -32,6 +43,7 @@ type Server struct {
 const (
 	ServicesQuery = "_services._dns-sd._udp"
 	DefaultTTL    = 60 * 5 // In seconds (5 mins)
+	defaultCap    = 100
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -40,8 +52,10 @@ const (
 func New(cfg Config) (*Server, error) {
 	this := new(Server)
 
-	// Create channel
-	this.c = make(chan message)
+	// Create channels and temp storage
+	this.c = make(chan message, defaultCap)
+	this.e = make(chan Event, defaultCap)
+	this.enum = &enum{}
 
 	// Create listener
 	if listener, err := NewListener(cfg.Domain, cfg.Interface, this.c); err != nil {
@@ -51,7 +65,7 @@ func New(cfg Config) (*Server, error) {
 	}
 
 	// Create discovery to receive listener messages
-	if discovery, err := NewDiscovery(this.c); err != nil {
+	if discovery, err := NewDiscovery(this.c, this.e); err != nil {
 		return nil, err
 	} else {
 		this.discovery = discovery
@@ -114,30 +128,53 @@ func (this *Server) Run(ctx context.Context) error {
 		}
 	}()
 
+	// Run event processor in background
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+	FOR_LOOP:
+		for {
+			select {
+			case event := <-this.e:
+				this.enum.add(event)
+			case <-ctx.Done():
+				break FOR_LOOP
+			}
+		}
+	}()
+
 	// Wait for all goroutines to complete
 	wg.Wait()
 
 	// Release resources
 	close(this.c)
+	close(this.e)
 
 	// Return any errors
 	return result
 }
 
-/*
 func (this *Server) EnumerateServices(ctx context.Context) ([]string, error) {
+	// Lock enumeration for receiving service
+	this.enum.Lock(EVENT_TYPE_SERVICE, defaultCap)
+	defer this.enum.Unlock()
+
 	// Query for services on all interfaces
 	query := msgQueryServices(this.listener.domain)
 	if err := this.listener.Query(ctx, query, 0); err != nil {
 		return nil, err
 	}
 
+	// Wait for context to complete
 	<-ctx.Done()
 
-	// TODO: Collect names
-	return []string{}, nil
+	// Return service names
+	var result []string
+	for _, service := range this.enum.Services() {
+		result = append(result, service.Instance())
+	}
+	return result, nil
 }
-*/
 
 // Return a service description for the given service name
 func (this *Server) LookupServiceDescription(v string) ServiceDescription {
@@ -148,31 +185,96 @@ func (this *Server) LookupServiceDescription(v string) ServiceDescription {
 	}
 }
 
-func (this *Server) Instances(ctx context.Context, services ...string) []Service {
-	// TODO: Query for services
+func (this *Server) EnumerateInstances(ctx context.Context, services ...string) ([]Service, error) {
+	// Lock enumeration for receiving instances
+	this.enum.Lock(EVENT_TYPE_ADDED|EVENT_TYPE_CHANGED|EVENT_TYPE_REMOVED|EVENT_TYPE_EXPIRED, defaultCap)
+	defer this.enum.Unlock()
 
-	// Shortcut for all services
+	// Return if no services specified
 	if len(services) == 0 {
-		return this.discovery.Instances("")
+		return nil, ErrBadParameter.With("services")
 	}
 
-	// Filter through instances
-	instances := make(map[string]Service)
-	for _, service := range services {
-		if service == "" {
-			continue
-		}
-		for _, instance := range this.discovery.Instances(service) {
-			if _, exists := instances[instance.Instance()]; !exists {
-				instances[instance.Instance()] = instance
+	// Query for instances on all interfaces, cancel on context done
+	ticker := time.NewTicker(emitRetryDuration * emitRetryCount)
+	defer ticker.Stop()
+FOR_LOOP:
+	for {
+		select {
+		case <-ctx.Done():
+			break FOR_LOOP
+		case <-ticker.C:
+			var service string
+			service, services = services[0], services[1:]
+
+			// Query for services on all interfaces
+			query := msgQueryInstances(service, this.listener.domain)
+			if err := this.listener.Query(ctx, query, 0); err != nil {
+				return nil, err
+			}
+
+			// No more services to query
+			if len(services) == 0 {
+				break FOR_LOOP
 			}
 		}
 	}
 
-	// Return instance array
-	result := make([]Service, len(instances))
-	for _, instance := range instances {
+	// Wait for context to complete
+	<-ctx.Done()
+
+	// Return services
+	result := make([]Service, 0, len(this.enum.services))
+	for _, instance := range this.enum.services {
 		result = append(result, instance)
 	}
+
+	return result, nil
+}
+
+// Lock enumeration
+func (this *enum) Lock(t EventType, cap int) {
+	this.RWMutex.Lock()
+	this.EventType = t
+	this.services = make(map[string]Service, cap)
+}
+
+// Unlock enumeration
+func (this *enum) Unlock() {
+	this.EventType = EVENT_TYPE_NONE
+	this.services = nil
+	this.RWMutex.Unlock()
+}
+
+// Services returns enumerated services
+func (this *enum) Services() []*Service {
+	this.Mutex.Lock()
+	defer this.Mutex.Unlock()
+
+	result := make([]*Service, 0, len(this.services))
+	for _, service := range this.services {
+		s := service
+		result = append(result, &s)
+	}
 	return result
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+// Filter an added service in the enumeration
+func (this *enum) add(event Event) {
+	if this.EventType == EVENT_TYPE_NONE || event.EventType&this.EventType != EVENT_TYPE_NONE {
+		// Add or remove filtered event, keyed by service name
+		this.Mutex.Lock()
+		defer this.Mutex.Unlock()
+		if this.services != nil {
+			key := event.Instance()
+			if event.EventType&(EVENT_TYPE_REMOVED|EVENT_TYPE_EXPIRED) != EVENT_TYPE_NONE {
+				delete(this.services, key)
+			} else {
+				this.services[key] = event.Service
+			}
+		}
+	}
 }

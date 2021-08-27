@@ -3,6 +3,7 @@ import {
 } from '@djthorpe/js-framework';
 
 import Instance from '../model/mdns/instance';
+import Service from '../model/mdns/service';
 import Node from '../view/node';
 import Offcanvas from '../view/offcanvas';
 
@@ -42,7 +43,7 @@ export default class App extends Controller {
           return '';
         }) : [];
         row
-          .replace('._name', Node.div('', Node.strong('', instance.name)), Node.div('', Node.small('', Node.badge('bg-secondary', instance.description || instance.service))))
+          .replace('._name', Node.div('', Node.strong('', instance.name)), Node.div('', Node.small('', Node.badge('bg-secondary', instance.service.description || instance.service.service))))
           .replace('._host', Node.small('', instance.host && instance.port ? `${instance.host}:${instance.port}` : ''))
           .replace('._txt', ...tags);
       }

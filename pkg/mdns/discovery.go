@@ -2,7 +2,6 @@ package mdns
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -17,7 +16,8 @@ type discovery struct {
 	sync.RWMutex
 
 	c        <-chan message
-	services map[string]entry
+	e        chan<- Event
+	services map[string]*entry
 }
 
 type entry struct {
@@ -28,10 +28,11 @@ type entry struct {
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func NewDiscovery(c <-chan message) (*discovery, error) {
+func NewDiscovery(c <-chan message, e chan<- Event) (*discovery, error) {
 	this := new(discovery)
 	this.c = c
-	this.services = make(map[string]entry)
+	this.e = e
+	this.services = make(map[string]*entry)
 
 	// Return success
 	return this, nil
@@ -54,7 +55,6 @@ func (this *discovery) Run(ctx context.Context) error {
 		case message := <-this.c:
 			if message.Err != nil {
 				// An error occurred, ignore for now
-				// fmt.Println("error=", message.Err)
 			} else if services := parsemessage(message.Msg, message.Zone); len(services) > 0 {
 				for _, service := range services {
 					this.process(service)
@@ -102,10 +102,10 @@ func (this *discovery) Set(v *Service) {
 		// Delete service
 		delete(this.services, key)
 	} else {
-		// Set service
-		this.services[key] = entry{
+		// Set service - grace period of 2 mins for expiry
+		this.services[key] = &entry{
 			*v,
-			time.Now().Add(v.ttl).Add(time.Minute),
+			time.Now().Add(v.ttl).Add(2 * time.Minute),
 		}
 	}
 }
@@ -119,15 +119,14 @@ func (this *discovery) Delete(v *Service) {
 	delete(this.services, unfqn(v.Instance()))
 }
 
-// Instances returns service instances for a service name, or all services
-func (this *discovery) Instances(name string) []Service {
+// Instances returns service instances
+func (this *discovery) Instances() []Service {
 	this.RWMutex.RLock()
 	defer this.RWMutex.RUnlock()
 
 	result := make([]Service, 0)
-	key := fqn(name)
 	for _, entry := range this.services {
-		if time.Now().Before(entry.expires) && (name == "" || entry.Service.Service() == key) {
+		if time.Now().Before(entry.expires) {
 			result = append(result, entry.Service)
 		}
 	}
@@ -139,20 +138,45 @@ func (this *discovery) Instances(name string) []Service {
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
+func (this *discovery) send(e Event) {
+	select {
+	case this.e <- e:
+		return
+	default:
+		panic("mDNS Discovery: Blocked channel")
+	}
+}
+
 // Process a service record
 func (this *discovery) process(service *Service) {
 	// Ignore if service is not valid
 	if key := unfqn(service.Name()); key == "" {
 		return
-	} else if service.ttl == 0 {
-		if this.Exists(service) != nil {
-			fmt.Println("REMOVED", service)
-		}
-	} else if other := this.Exists(service); other == nil {
-		fmt.Println("ADDED", service)
-	} else if !other.Equals(service) {
-		fmt.Println("CHANGED", service)
 	}
+
+	// Indicate service has changed
+	if service.ttl == 0 {
+		if this.Exists(service) != nil {
+			this.send(Event{EVENT_TYPE_REMOVED, *service})
+		}
+	}
+
+	// If this is a query, then indicate a service
+	if unfqn(service.Service()) == ServicesQuery {
+		this.send(Event{EVENT_TYPE_SERVICE, *service})
+		return
+	}
+
+	// Check for added and changed services
+	if other := this.Exists(service); other == nil {
+		this.send(Event{EVENT_TYPE_ADDED, *service})
+	} else if !other.Equals(service) {
+		this.send(Event{EVENT_TYPE_CHANGED, *service})
+	} else {
+		return
+	}
+
+	// Add or remove the service
 	this.Set(service)
 }
 
@@ -164,7 +188,6 @@ func (this *discovery) expire() {
 	this.RWMutex.Lock()
 	for _, entry := range this.services {
 		if entry.expires.Before(time.Now()) {
-			fmt.Println("EXPIRED", entry.Name(), entry.expires)
 			expired = append(expired, &entry.Service)
 		}
 	}
@@ -172,7 +195,7 @@ func (this *discovery) expire() {
 
 	// Delete expired records
 	for _, service := range expired {
-		fmt.Println("EXPIRED", service)
+		this.send(Event{EVENT_TYPE_EXPIRED, *service})
 		this.Delete(service)
 	}
 }

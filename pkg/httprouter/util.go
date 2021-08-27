@@ -7,13 +7,12 @@ import (
 	"net/http"
 	"net/url"
 	"reflect"
-	"strconv"
 	"strings"
 
 	// Modules
-	"github.com/djthorpe/go-marshaler"
+	marshaler "github.com/djthorpe/go-marshaler"
 	. "github.com/djthorpe/go-server"
-	"github.com/djthorpe/go-server/pkg/provider"
+	provider "github.com/djthorpe/go-server/pkg/provider"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -140,65 +139,8 @@ func ServeError(w http.ResponseWriter, code int, reason ...string) error {
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-func decodeValues(values url.Values, v interface{}) error {
-	decoder := marshaler.NewDecoder("json", queryDecoder)
-	q := make(map[string]interface{}, len(values))
-	for k, v := range values {
-		q[k] = v
-	}
-	return decoder.Decode(q, v)
-}
-
-func queryDecoder(src reflect.Value, dest reflect.Type) (reflect.Value, error) {
-	// Source should be []string
-	if src.Kind() != reflect.Slice && src.Type() != typeQueryValue {
-		return reflect.ValueOf(nil), nil
-	}
-	// If there is no length to the query, then return zero-value
-	if src.Len() == 0 {
-		return reflect.Zero(dest), nil
-	}
-	// Decode first parameter
-	switch dest.Kind() {
-	case reflect.Uint:
-		if value, err := strconv.ParseUint(src.Index(0).String(), 0, 64); err != nil {
-			return reflect.ValueOf(nil), err
-		} else {
-			return reflect.ValueOf(uint(value)), nil
-		}
-	case reflect.Uint64:
-		if value, err := strconv.ParseUint(src.Index(0).String(), 0, 64); err != nil {
-			return reflect.ValueOf(nil), err
-		} else {
-			return reflect.ValueOf(value), nil
-		}
-	case reflect.Uint32:
-		if value, err := strconv.ParseUint(src.Index(0).String(), 0, 32); err != nil {
-			return reflect.ValueOf(nil), err
-		} else {
-			return reflect.ValueOf(uint32(value)), nil
-		}
-	case reflect.Int:
-		if value, err := strconv.ParseInt(src.Index(0).String(), 0, 64); err != nil {
-			return reflect.ValueOf(nil), err
-		} else {
-			return reflect.ValueOf(int(value)), nil
-		}
-	case reflect.Int64:
-		if value, err := strconv.ParseInt(src.Index(0).String(), 0, 64); err != nil {
-			return reflect.ValueOf(nil), err
-		} else {
-			return reflect.ValueOf(value), nil
-		}
-	case reflect.Int32:
-		if value, err := strconv.ParseInt(src.Index(0).String(), 0, 32); err != nil {
-			return reflect.ValueOf(nil), err
-		} else {
-			return reflect.ValueOf(int32(value)), nil
-		}
-	case reflect.String:
-		return reflect.ValueOf(src.Index(0).String()), nil
-	default:
-		return reflect.ValueOf(nil), ErrInternalAppError.With("Unsupported type", dest.Kind())
-	}
+func decodeValues(q url.Values, v interface{}) error {
+	// Add decoders for duration and time values
+	decoder := marshaler.NewDecoder("json", marshaler.ConvertQueryValues, marshaler.ConvertDuration, marshaler.ConvertTime)
+	return decoder.DecodeQuery(q, v)
 }

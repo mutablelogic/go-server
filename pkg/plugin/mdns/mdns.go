@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"time"
 
 	// Modules
 	. "github.com/djthorpe/go-server"
@@ -43,12 +44,6 @@ func New(ctx context.Context, provider Provider) Plugin {
 		this.Server = server
 	}
 
-	// Add handler for instances
-	if err := provider.AddHandlerFuncEx(ctx, reRouteInstances, this.ServeInstances); err != nil {
-		provider.Print(ctx, "Failed to add handler: ", err)
-		return nil
-	}
-
 	// Return success
 	return this
 }
@@ -71,6 +66,34 @@ func Name() string {
 	return "mdns"
 }
 
-func (this *server) Run(ctx context.Context, _ Provider) error {
+func (this *server) Run(ctx context.Context, provider Provider) error {
+	// Add handlers
+	if err := this.AddHandlers(ctx, provider); err != nil {
+		return err
+	}
+
+	// Enumerate services and instances in the background
+	go func(parent context.Context) {
+		time.Sleep(1 * time.Second)
+		ctx, cancel := context.WithTimeout(parent, time.Second*10)
+		defer cancel()
+		services, err := this.Server.EnumerateServices(ctx)
+		if err != nil {
+			provider.Print(ctx, "EnumerateServices: ", err)
+			return
+		}
+		ctx2, cancel2 := context.WithTimeout(parent, time.Second*10)
+		defer cancel2()
+		instances, err := this.Server.EnumerateInstances(ctx2, services...)
+		if err != nil {
+			provider.Print(ctx, "EnumerateInstances: ", err)
+			return
+		}
+		for _, instance := range instances {
+			provider.Print(ctx, "EnumerateInstances: ", instance.Instance())
+		}
+	}(ctx)
+
+	// Run mDNS server
 	return this.Server.Run(ctx)
 }

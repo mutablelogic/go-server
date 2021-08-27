@@ -30,8 +30,9 @@ type Service struct {
 // GLOBALS
 
 var (
-	reIsSubService = regexp.MustCompile(`\._sub\.(.+)\.$`)
-	reIsAddrLookup = regexp.MustCompile(`\.?(in-addr.arpa.)$`)
+	reIsSubService  = regexp.MustCompile(`\._sub\.(.+)\.$`)
+	reIsAddr4Lookup = regexp.MustCompile(`\.(in-addr\.arpa\.)$`)
+	reIsAddr6Lookup = regexp.MustCompile(`\.(ip6\.arpa\.)$`)
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -54,7 +55,9 @@ func (this *Service) Service() string {
 	service := strings.TrimSuffix(fqn(this.service), this.zone)
 	if match := reIsSubService.FindStringSubmatch(service); match != nil {
 		return match[1]
-	} else if match := reIsAddrLookup.FindStringSubmatch(service); match != nil {
+	} else if match := reIsAddr4Lookup.FindStringSubmatch(service); match != nil {
+		return match[1]
+	} else if match := reIsAddr6Lookup.FindStringSubmatch(service); match != nil {
 		return match[1]
 	} else {
 		return service
@@ -62,15 +65,14 @@ func (this *Service) Service() string {
 }
 
 func (this *Service) Name() string {
-	name := strings.TrimSuffix(this.name, this.zone)
-	if this.Service() != fqn(ServicesQuery) {
-		name = strings.TrimSuffix(this.name, this.service)
-		if name_, err := Unquote(unfqn(name)); err != nil {
-		} else {
+	name := this.name
+	if srv := this.Service(); srv != fqn(ServicesQuery) && name != "" {
+		name = strings.TrimSuffix(fqn(name), fqn(this.service))
+		if name_, err := Unquote(name); err == nil {
 			name = name_
 		}
 	}
-	return name
+	return unfqn(name)
 }
 
 func (this *Service) Host() string {
@@ -177,31 +179,31 @@ func (this *Service) Equals(other *Service) bool {
 ///////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
-func (this *Service) String() string {
+func (s Service) String() string {
 	str := "<service"
-	if instance := this.Instance(); instance != "" {
+	if instance := s.Instance(); instance != "" {
 		str += fmt.Sprintf(" instance=%q", instance)
 	}
-	if service := this.Service(); service != "" {
+	if service := s.Service(); service != "" {
 		str += fmt.Sprintf(" service=%q", service)
 	}
-	if name := this.Name(); name != "" {
+	if name := s.Name(); name != "" {
 		str += fmt.Sprintf(" name=%q", name)
 	}
-	if zone := this.Zone(); zone != "" {
+	if zone := s.Zone(); zone != "" {
 		str += fmt.Sprintf(" zone=%q", zone)
 	}
-	if host, port := this.Host(), this.Port(); host != "" {
+	if host, port := s.Host(), s.Port(); host != "" {
 		str += fmt.Sprintf(" host=%v", net.JoinHostPort(host, fmt.Sprint(port)))
 	}
-	if ips := this.Addrs(); len(ips) > 0 {
+	if ips := s.Addrs(); len(ips) > 0 {
 		str += fmt.Sprintf(" addrs=%v", ips)
 	}
-	if txt := this.Txt(); len(this.txt) > 0 {
+	if txt := s.Txt(); len(s.txt) > 0 {
 		str += fmt.Sprintf(" txt=%q", txt)
 	}
-	if this.ttl != 0 {
-		str += fmt.Sprintf(" ttl=%v", this.ttl)
+	if s.ttl != 0 {
+		str += fmt.Sprintf(" ttl=%v", s.ttl)
 	}
 	return str + ">"
 }

@@ -4,21 +4,19 @@ export default class Instance extends Model {
   static define() {
     super.define(Instance, {
       name: 'string',
-      service: 'string',
+      instance: 'string',
+      service: 'Service',
       zone: 'string',
       host: 'string',
       port: 'number',
       addrs: '[]string',
       txt: '{}string',
-      description: 'string',
-      note: 'string',
     }, 'Instance');
   }
 
   get key() {
     // Replace non-alphanumeric characters with underscores
-    const name = `${this.name}.${this.service}${this.zone}`;
-    return `i-${name.replace(/[^a-zA-Z0-9]/g, '_')}`;
+    return `i-${this.instance.replace(/[^a-zA-Z0-9]/g, '_')}`;
   }
 }
 

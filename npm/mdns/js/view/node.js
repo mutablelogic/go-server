@@ -16,7 +16,7 @@ export default class Node {
   }
 
   static badge(classNames, ...children) {
-    return Node.$new('SPAN', `badge mx-1 ${classNames}`, ...children);
+    return Node.$new('SPAN', `badge me-1 ${classNames}`, ...children);
   }
 
   static span(classNames, ...children) {
