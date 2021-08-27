@@ -1,5 +1,5 @@
 import {
-  Controller, Nav, Toast, Provider, List
+  Controller, Nav, Toast, Provider, List, Button, Form,
 } from '@djthorpe/js-framework';
 
 import Instance from '../model/mdns/instance';
@@ -93,10 +93,45 @@ export default class App extends Controller {
     if (detailNode) {
       super.define('detail', new Offcanvas(detailNode));
     }
+
+    // Actions
+    const actionServicesNode = document.querySelector('#action-services');
+    if (actionServicesNode) {
+      super.define('actionservices', new Button(actionServicesNode));
+      this.actionservices.addEventListener('button:click', () => {
+        if (this.modalservices) {
+          this.modalservices.show();
+        }
+      });
+    }
+    const actionInstancesNode = document.querySelector('#action-instances');
+    if (actionInstancesNode) {
+      super.define('actioninstances', new Button(actionInstancesNode));
+      this.actioninstances.addEventListener('button:click', () => {
+        console.log('click-instances');
+      });
+    }
+
+    // Modals
+    const modalServicesNode = document.querySelector('#modal-services');
+    if (modalServicesNode) {
+      super.define('modalservices', new Form(modalServicesNode));
+      this.modalservices.addEventListener('form:show', () => {
+        this.instances.do('/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: new URLSearchParams({
+            timeout: '2s',
+          }), // body data type must match "Content-Type" header
+        });
+      });
+    }
   }
 
   main() {
     // Request the connection data
-    this.instances.request(null, null, API_FETCH_DELTA);
+    this.instances.request('/', null, API_FETCH_DELTA);
   }
 }
