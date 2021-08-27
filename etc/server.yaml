@@ -1,12 +1,12 @@
 
-# Plugins to load, the httpserver and log plugins should be loaded first
+# Plugins to load, the order of these is important
 plugins:
   - build/log.plugin
   - build/httpserver.plugin
-  - build/eventbus.plugin
   - build/basicauth.plugin
-  - build/static.plugin
   - build/sqlite.plugin
+  - build/eventbus.plugin
+  - build/static.plugin
   - build/template.plugin
   - build/mdns.plugin
 
@@ -50,6 +50,14 @@ static:
 sqlite:
   databases:
     test: /tmp/test.sqlite
+    eventbus: ":memory:"
+
+# Event bus
+eventbus:
+  # Which sqlite database to use
+  database: eventbus
+  # How long to retain events in database
+  retain: 1h
 
 # Render templates from path
 template:

@@ -20,8 +20,8 @@ type sq struct {
 	Timezone string                 `yaml:"timezone"`
 	Database map[string]interface{} `yaml:"databases"`
 
+	driver.SQConnection
 	tz *time.Location
-	db driver.SQConnection
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -57,7 +57,7 @@ func New(ctx context.Context, provider Provider) Plugin {
 		provider.Print(ctx, "OpenDatabases: ", err)
 		return nil
 	} else {
-		this.db = db
+		this.SQConnection = db
 	}
 
 	// Add handler for ping
@@ -149,11 +149,11 @@ func (this *sq) OpenDatabases(ctx context.Context, provider Provider, attach map
 func (this *sq) String() string {
 	str := "<sqlite"
 	str += " version=" + strconv.Quote(Version())
-	if this.db != nil {
-		if modules := this.db.Modules(); modules != nil {
+	if this.SQConnection != nil {
+		if modules := this.SQConnection.Modules(); modules != nil {
 			str += fmt.Sprintf(" modules=%q", modules)
 		}
-		if schemas := this.db.Schemas(); schemas != nil {
+		if schemas := this.SQConnection.Schemas(); schemas != nil {
 			str += fmt.Sprintf(" schemas=%q", schemas)
 		}
 	}
@@ -187,12 +187,10 @@ FOR_LOOP:
 		}
 	}
 
-	// Wait until completed
-	<-ctx.Done()
-
-	// Close database connection
-	if this.db != nil {
-		result = this.db.Close()
+	// Close database connection, release resources
+	if this.SQConnection != nil {
+		result = this.SQConnection.Close()
+		this.SQConnection = nil
 	}
 
 	// Return any errors

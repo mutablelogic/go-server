@@ -38,10 +38,10 @@ const (
 // PUBLIC METHODS
 
 func (this *sq) CreateImportTables(schema string) error {
-	if _, err := this.db.Exec(sqobj.CreateTable("import_config", SQImportConfig{}).IfNotExists().WithTemporary()); err != nil {
+	if _, err := this.Exec(sqobj.CreateTable("import_config", SQImportConfig{}).IfNotExists().WithTemporary()); err != nil {
 		return err
 	}
-	if _, err := this.db.Exec(sqobj.CreateTable("import_job", ImportJob{}).IfNotExists().WithTemporary()); err != nil {
+	if _, err := this.Exec(sqobj.CreateTable("import_job", ImportJob{}).IfNotExists().WithTemporary()); err != nil {
 		return err
 	}
 
@@ -57,7 +57,7 @@ func (this *sq) AddImport(url *url.URL, cfg SQImportConfig) (int64, error) {
 	// Insert import configuration into database
 	if params, err := sqobj.InsertParams(cfg); err != nil {
 		return 0, err
-	} else if r, err := this.db.Exec(sqobj.InsertRow("import_config", cfg), params...); err != nil {
+	} else if r, err := this.Exec(sqobj.InsertRow("import_config", cfg), params...); err != nil {
 		return 0, err
 	} else if r.RowsAffected != 1 {
 		return 0, ErrInternalAppError
@@ -67,7 +67,7 @@ func (this *sq) AddImport(url *url.URL, cfg SQImportConfig) (int64, error) {
 	// Insert job into the database
 	if params, err := sqobj.InsertParams(job); err != nil {
 		return 0, err
-	} else if r, err := this.db.Exec(sqobj.InsertRow("import_job", job), params...); err != nil {
+	} else if r, err := this.Exec(sqobj.InsertRow("import_job", job), params...); err != nil {
 		return 0, err
 	} else if r.RowsAffected != 1 {
 		return 0, ErrInternalAppError
@@ -81,7 +81,7 @@ func (this *sq) GetImportJob() error {
 	s := S(N("import_job")).
 		WithLimitOffset(1, 0).
 		Order(N("created"))
-	rows, err := this.db.Query(s)
+	rows, err := this.Query(s)
 	if err != nil {
 		return err
 	}

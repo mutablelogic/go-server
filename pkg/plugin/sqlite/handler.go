@@ -89,9 +89,9 @@ func (this *sq) ServePing(w http.ResponseWriter, req *http.Request) {
 		Modules: []string{},
 		Schemas: []string{},
 	}
-	if this.db != nil {
-		response.Modules = append(response.Modules, this.db.Modules()...)
-		response.Schemas = append(response.Schemas, this.db.Schemas()...)
+	if this.SQConnection != nil {
+		response.Modules = append(response.Modules, this.Modules()...)
+		response.Schemas = append(response.Schemas, this.Schemas()...)
 	}
 	router.ServeJSON(w, response, http.StatusOK, 0)
 }
@@ -101,7 +101,7 @@ func (this *sq) ServeSchema(w http.ResponseWriter, req *http.Request) {
 	response := []*SchemaObjectResponse{}
 
 	// Obtain table information
-	rs, err := this.db.Query(Q("SELECT name,type,sql,tbl_name FROM " + QuoteIdentifier(params[0]) + ".sqlite_master"))
+	rs, err := this.Query(Q("SELECT name,type,sql,tbl_name FROM " + QuoteIdentifier(params[0]) + ".sqlite_master"))
 	if err != nil {
 		router.ServeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -167,7 +167,7 @@ func (this *sq) ServeTable(w http.ResponseWriter, req *http.Request) {
 	}
 
 	// Get columns in response
-	cols := this.db.ColumnsEx(params[1], params[0])
+	cols := this.ColumnsEx(params[1], params[0])
 	sources := []SQSource{}
 	if cols == nil {
 		router.ServeError(w, http.StatusInternalServerError)
@@ -190,7 +190,7 @@ func (this *sq) ServeTable(w http.ResponseWriter, req *http.Request) {
 		WithLimitOffset(response.Limit, response.Offset)
 
 	// Query table
-	rs, err := this.db.Query(sql)
+	rs, err := this.Query(sql)
 	if err != nil {
 		router.ServeError(w, http.StatusInternalServerError, err.Error(), sql.Query())
 		return
@@ -263,7 +263,7 @@ func (this *sq) ServeImport(w http.ResponseWriter, req *http.Request) {
 // PRIVATE METHODS
 
 func (this *sq) count(schema, name string) (int64, error) {
-	rs, err := this.db.Query(Q("SELECT COUNT(*) FROM " + QuoteIdentifier(schema) + "." + QuoteIdentifier(name)))
+	rs, err := this.Query(Q("SELECT COUNT(*) FROM " + QuoteIdentifier(schema) + "." + QuoteIdentifier(name)))
 	if err != nil {
 		return 0, err
 	}

@@ -5,7 +5,7 @@ go 1.17
 require (
 	github.com/GehirnInc/crypt v0.0.0-20200316065508-bb7000b8a962
 	github.com/djthorpe/go-marshaler v0.0.8
-	github.com/djthorpe/go-sqlite v1.0.21
+	github.com/djthorpe/go-sqlite v1.0.22
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/miekg/dns v1.1.43
 	github.com/pkg/term v1.1.0
