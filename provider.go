@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"io"
+	"net"
 	"net/http"
 	"regexp"
 	"time"
@@ -50,6 +51,28 @@ type Middleware interface {
 	// Add a child handler function which intercepts a handler function
 	AddMiddlewareFunc(context.Context, http.HandlerFunc) http.HandlerFunc
 }
+
+/////////////////////////////////////////////////////////////////////
+// SERVICE DISCOVERY INTERFACES
+
+type ServiceDiscovery interface {
+	EnumerateServices(context.Context) ([]string, error)
+	EnumerateInstances(context.Context, ...string) ([]string, error)
+}
+
+type Service interface {
+	Instance() string
+	Service() string
+	Name() string
+	Host() string
+	Port() uint16
+	Zone() string
+	Addrs() []net.IP
+	Txt() []string
+}
+
+/////////////////////////////////////////////////////////////////////
+// TEMPLATE INTERFACES
 
 // Renderer translates a data stream into a document
 type Renderer interface {

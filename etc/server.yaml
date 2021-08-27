@@ -45,6 +45,7 @@ basicauth:
 static:
   path: npm/mdns/dist
 
+# Databases to load
 sqlite:
   databases:
     test: /tmp/test.sqlite
@@ -55,9 +56,9 @@ template:
   templates: etc/templates
   default: default.tmpl
 
-# mDNS service databases
+# home network service discovery services
 mdns:
+  # Services are defined from the following databases
   services:
     - https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.xml
     - etc/service-names-port-numbers.xml
-

@@ -14,7 +14,7 @@ import (
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type Service struct {
+type service struct {
 	service string
 	zone    string
 	name    string
@@ -38,8 +38,8 @@ var (
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func NewService(zone string) *Service {
-	this := new(Service)
+func NewService(zone string) *service {
+	this := new(service)
 	this.zone = zone
 	return this
 }
@@ -47,11 +47,11 @@ func NewService(zone string) *Service {
 ///////////////////////////////////////////////////////////////////////////////
 // GET PROPERTIES
 
-func (this *Service) Instance() string {
+func (this *service) Instance() string {
 	return strings.TrimSuffix(fqn(this.name), this.zone)
 }
 
-func (this *Service) Service() string {
+func (this *service) Service() string {
 	service := strings.TrimSuffix(fqn(this.service), this.zone)
 	if match := reIsSubService.FindStringSubmatch(service); match != nil {
 		return match[1]
@@ -64,7 +64,7 @@ func (this *Service) Service() string {
 	}
 }
 
-func (this *Service) Name() string {
+func (this *service) Name() string {
 	name := this.name
 	if srv := this.Service(); srv != fqn(ServicesQuery) && name != "" {
 		name = strings.TrimSuffix(fqn(name), fqn(this.service))
@@ -75,59 +75,59 @@ func (this *Service) Name() string {
 	return unfqn(name)
 }
 
-func (this *Service) Host() string {
+func (this *service) Host() string {
 	return this.host
 }
 
-func (this *Service) Port() uint16 {
+func (this *service) Port() uint16 {
 	return this.port
 }
 
-func (this *Service) Zone() string {
+func (this *service) Zone() string {
 	return fqn(this.zone)
 }
 
-func (this *Service) Addrs() []net.IP {
+func (this *service) Addrs() []net.IP {
 	addrs := []net.IP{}
 	addrs = append(addrs, this.a...)
 	addrs = append(addrs, this.aaaa...)
 	return addrs
 }
 
-func (this *Service) Txt() []string {
+func (this *service) Txt() []string {
 	return this.txt
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // SET PROPERTIES
 
-func (this *Service) SetPTR(ptr *dns.PTR) {
+func (this *service) SetPTR(ptr *dns.PTR) {
 	this.service = ptr.Hdr.Name
 	this.name = ptr.Ptr
 	this.ttl = time.Duration(ptr.Hdr.Ttl) * time.Second
 }
 
-func (this *Service) SetSRV(host string, port uint16, priority uint16) {
+func (this *service) SetSRV(host string, port uint16, priority uint16) {
 	this.host = host
 	this.port = port
 }
 
-func (this *Service) SetTXT(txt []string) {
+func (this *service) SetTXT(txt []string) {
 	this.txt = txt
 }
 
-func (this *Service) SetA(ip net.IP) {
+func (this *service) SetA(ip net.IP) {
 	this.a = append(this.a, ip)
 }
 
-func (this *Service) SetAAAA(ip net.IP) {
+func (this *service) SetAAAA(ip net.IP) {
 	this.aaaa = append(this.aaaa, ip)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // CHECK FOR EQUALITY
 
-func (this *Service) Equals(other *Service) bool {
+func (this *service) Equals(other *service) bool {
 	if this.Instance() != other.Instance() {
 		fmt.Println("instance changed", this.Instance(), other.Instance())
 		return false
@@ -179,7 +179,7 @@ func (this *Service) Equals(other *Service) bool {
 ///////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
-func (s Service) String() string {
+func (s service) String() string {
 	str := "<service"
 	if instance := s.Instance(); instance != "" {
 		str += fmt.Sprintf(" instance=%q", instance)

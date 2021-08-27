@@ -21,7 +21,7 @@ type discovery struct {
 }
 
 type entry struct {
-	Service
+	service
 	expires time.Time
 }
 
@@ -65,26 +65,26 @@ func (this *discovery) Run(ctx context.Context) error {
 }
 
 // Get returns a service by name, or nil if service not found
-func (this *discovery) Get(name string) *Service {
+func (this *discovery) Get(name string) *service {
 	this.RWMutex.RLock()
 	defer this.RWMutex.RUnlock()
 
 	key := unfqn(name)
 	if entry, exists := this.services[key]; exists {
-		return &entry.Service
+		return &entry.service
 	} else {
 		return nil
 	}
 }
 
 // Check if service already exists
-func (this *discovery) Exists(v *Service) *Service {
+func (this *discovery) Exists(v *service) *service {
 	return this.Get(v.Instance())
 }
 
 // Check if service has changed, returns false if
 // service does not yet exist
-func (this *discovery) Changed(v *Service) bool {
+func (this *discovery) Changed(v *service) bool {
 	if other := this.Get(v.Instance()); other == nil {
 		return false
 	} else {
@@ -93,7 +93,7 @@ func (this *discovery) Changed(v *Service) bool {
 }
 
 // Set a service and update expiration
-func (this *discovery) Set(v *Service) {
+func (this *discovery) Set(v *service) {
 	this.RWMutex.Lock()
 	defer this.RWMutex.Unlock()
 
@@ -111,7 +111,7 @@ func (this *discovery) Set(v *Service) {
 }
 
 // Delete a service
-func (this *discovery) Delete(v *Service) {
+func (this *discovery) Delete(v *service) {
 	this.RWMutex.Lock()
 	defer this.RWMutex.Unlock()
 
@@ -120,14 +120,14 @@ func (this *discovery) Delete(v *Service) {
 }
 
 // Instances returns service instances
-func (this *discovery) Instances() []Service {
+func (this *discovery) Instances() []*service {
 	this.RWMutex.RLock()
 	defer this.RWMutex.RUnlock()
 
-	result := make([]Service, 0)
+	result := make([]*service, 0)
 	for _, entry := range this.services {
 		if time.Now().Before(entry.expires) {
-			result = append(result, entry.Service)
+			result = append(result, &entry.service)
 		}
 	}
 
@@ -148,7 +148,7 @@ func (this *discovery) send(e Event) {
 }
 
 // Process a service record
-func (this *discovery) process(service *Service) {
+func (this *discovery) process(service *service) {
 	// Ignore if service is not valid
 	if key := unfqn(service.Name()); key == "" {
 		return
@@ -182,13 +182,13 @@ func (this *discovery) process(service *Service) {
 
 // Expire service records
 func (this *discovery) expire() {
-	var expired []*Service
+	var expired []*service
 
 	// Gather expired records
 	this.RWMutex.Lock()
 	for _, entry := range this.services {
 		if entry.expires.Before(time.Now()) {
-			expired = append(expired, &entry.Service)
+			expired = append(expired, &entry.service)
 		}
 	}
 	this.RWMutex.Unlock()
@@ -201,13 +201,15 @@ func (this *discovery) expire() {
 }
 
 // Parse DNS message and capture service records
-func parsemessage(msg *dns.Msg, zone string) []*Service {
-	var result []*Service
+func parsemessage(msg *dns.Msg, zone string) []*service {
+	var result []*service
 	sections := append(append(msg.Answer, msg.Ns...), msg.Extra...)
 	for _, answer := range sections {
 		switch rr := answer.(type) {
 		case *dns.PTR:
-			result = append(result, NewService(zone))
+			if len(result) == 0 {
+				result = append(result, NewService(zone))
+			}
 			result[0].SetPTR(rr)
 		case *dns.SRV:
 			if len(result) > 0 {

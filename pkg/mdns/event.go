@@ -22,7 +22,7 @@ type message struct {
 
 type Event struct {
 	EventType
-	Service
+	service
 }
 
 type EventType int
@@ -49,7 +49,7 @@ func (e Event) String() string {
 	if t := e.EventType; t != EVENT_TYPE_NONE {
 		str += " type=" + e.EventType.String()
 	}
-	str += fmt.Sprint(" ", &e.Service)
+	str += fmt.Sprint(" ", e.service)
 	return str + ">"
 }
 

@@ -34,7 +34,7 @@ type enum struct {
 	sync.RWMutex
 	sync.Mutex
 	EventType
-	services map[string]Service
+	services map[string]*service
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -190,9 +190,14 @@ func (this *Server) EnumerateInstances(ctx context.Context, services ...string) 
 	this.enum.Lock(EVENT_TYPE_ADDED|EVENT_TYPE_CHANGED|EVENT_TYPE_REMOVED|EVENT_TYPE_EXPIRED, defaultCap)
 	defer this.enum.Unlock()
 
-	// Return if no services specified
+	// Return if no services specified, then return instances from database
 	if len(services) == 0 {
-		return nil, ErrBadParameter.With("services")
+		instances := this.Instances()
+		result := make([]Service, 0, len(instances))
+		for _, instance := range instances {
+			result = append(result, instance)
+		}
+		return result, nil
 	}
 
 	// Query for instances on all interfaces, cancel on context done
@@ -236,7 +241,7 @@ FOR_LOOP:
 func (this *enum) Lock(t EventType, cap int) {
 	this.RWMutex.Lock()
 	this.EventType = t
-	this.services = make(map[string]Service, cap)
+	this.services = make(map[string]*service, cap)
 }
 
 // Unlock enumeration
@@ -247,14 +252,14 @@ func (this *enum) Unlock() {
 }
 
 // Services returns enumerated services
-func (this *enum) Services() []*Service {
+func (this *enum) Services() []*service {
 	this.Mutex.Lock()
 	defer this.Mutex.Unlock()
 
-	result := make([]*Service, 0, len(this.services))
+	result := make([]*service, 0, len(this.services))
 	for _, service := range this.services {
-		s := service
-		result = append(result, &s)
+		// Make a copy of the service
+		result = append(result, service)
 	}
 	return result
 }
@@ -262,7 +267,7 @@ func (this *enum) Services() []*Service {
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-// Filter an added service in the enumeration
+// add filters an added service in the enumeration
 func (this *enum) add(event Event) {
 	if this.EventType == EVENT_TYPE_NONE || event.EventType&this.EventType != EVENT_TYPE_NONE {
 		// Add or remove filtered event, keyed by service name
@@ -273,7 +278,7 @@ func (this *enum) add(event Event) {
 			if event.EventType&(EVENT_TYPE_REMOVED|EVENT_TYPE_EXPIRED) != EVENT_TYPE_NONE {
 				delete(this.services, key)
 			} else {
-				this.services[key] = event.Service
+				this.services[key] = &event.service
 			}
 		}
 	}

@@ -21,14 +21,14 @@ type EnumerateRequest struct {
 	Service string        `json:"service"`
 }
 
-type Service struct {
+type ServiceResponse struct {
 	Service     string `json:"service"`
 	Description string `json:"description,omitempty"`
 	Note        string `json:"note,omitempty"`
 }
 
-type Instance struct {
-	Service  Service           `json:"service"`
+type InstanceResponse struct {
+	Service  ServiceResponse   `json:"service"`
 	Name     string            `json:"name"`
 	Instance string            `json:"instance,omitempty"`
 	Host     string            `json:"host,omitempty"`
@@ -77,7 +77,12 @@ func (this *server) AddHandlers(ctx context.Context, provider Provider) error {
 // HANDLERS
 
 func (this *server) ServePing(w http.ResponseWriter, req *http.Request) {
-	this.ServeInstances(w, this.Instances())
+	instances, err := this.EnumerateInstances(req.Context())
+	if err != nil {
+		router.ServeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	this.ServeInstances(w, instances)
 }
 
 func (this *server) ServeEnumerate(w http.ResponseWriter, req *http.Request) {
@@ -103,9 +108,9 @@ func (this *server) ServeEnumerate(w http.ResponseWriter, req *http.Request) {
 		}
 
 		// Make response
-		response := []Service{}
+		response := []ServiceResponse{}
 		for _, service := range services {
-			r := Service{service, "", ""}
+			r := ServiceResponse{service, "", ""}
 			if desc := this.LookupServiceDescription(service); desc != nil {
 				r.Description = desc.Description()
 				r.Note = desc.Note()
@@ -128,18 +133,18 @@ func (this *server) ServeEnumerate(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (this *server) ServeInstances(w http.ResponseWriter, instances []mdns.Service) {
-	response := []Instance{}
+func (this *server) ServeInstances(w http.ResponseWriter, instances []Service) {
+	response := []InstanceResponse{}
 	for _, instance := range instances {
-		service := Instance{
-			Service:  Service{Service: instance.Service()},
+		service := InstanceResponse{
+			Service:  ServiceResponse{Service: instance.Service()},
 			Zone:     instance.Zone(),
 			Instance: instance.Instance(),
 			Name:     instance.Name(),
 			Host:     instance.Host(),
 			Port:     instance.Port(),
-			Addrs:    instanceAddrs(&instance),
-			Txt:      instanceTxt(&instance),
+			Addrs:    instanceAddrs(instance),
+			Txt:      instanceTxt(instance),
 		}
 		if desc := this.LookupServiceDescription(instance.Service()); desc != nil {
 			service.Service.Description = desc.Description()
@@ -155,7 +160,7 @@ func (this *server) ServeInstances(w http.ResponseWriter, instances []mdns.Servi
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-func instanceAddrs(instance *mdns.Service) []string {
+func instanceAddrs(instance Service) []string {
 	addrs := instance.Addrs()
 	result := make([]string, len(addrs))
 	for i, addr := range addrs {
@@ -164,12 +169,16 @@ func instanceAddrs(instance *mdns.Service) []string {
 	return result
 }
 
-func instanceTxt(instance *mdns.Service) map[string]string {
+func instanceTxt(instance Service) map[string]string {
 	txt := instance.Txt()
 	result := make(map[string]string, len(txt))
 	for _, value := range txt {
 		if kv := strings.SplitN(value, "=", 2); len(kv) == 2 {
-			result[kv[0]] = kv[1]
+			if unquoted, err := mdns.Unquote(kv[1]); err != nil {
+				result[kv[0]] = kv[1]
+			} else {
+				result[kv[0]] = unquoted
+			}
 		} else {
 			result[value] = ""
 		}
