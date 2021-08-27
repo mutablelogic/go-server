@@ -14,17 +14,11 @@ import (
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type ServiceDiscovery interface {
-	EnumerateInstances(ctx context.Context, serviceType string) ([]Service, error)
-}
-
 type Config struct {
-	ServiceDiscovery
 }
 
 type chromecast struct {
 	sync.RWMutex
-	ServiceDiscovery
 	cast map[string]*device
 }
 
@@ -44,14 +38,13 @@ func New(cfg Config) error {
 	this := new(chromecast)
 	this.cast = make(map[string]*device)
 
-	// Set service discovery
-	this.ServiceDiscovery = cfg.ServiceDiscovery
-
 	// Return success
 	return nil
 }
 
 func (this *chromecast) Run(ctx context.Context) error {
+	// TODO: Update status
+
 	// Disconnect devices
 	var result error
 	for _, cast := range this.cast {

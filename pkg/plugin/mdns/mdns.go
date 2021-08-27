@@ -42,6 +42,7 @@ func New(ctx context.Context, provider Provider) Plugin {
 		return nil
 	} else {
 		this.Server = server
+		this.Server.C = make(chan Event, 100)
 	}
 
 	// Return success
@@ -84,15 +85,28 @@ func (this *server) Run(ctx context.Context, provider Provider) error {
 		}
 		ctx2, cancel2 := context.WithTimeout(parent, time.Second*10)
 		defer cancel2()
-		instances, err := this.Server.EnumerateInstances(ctx2, services...)
-		if err != nil {
+		if _, err = this.Server.EnumerateInstances(ctx2, services...); err != nil {
 			provider.Print(ctx, "EnumerateInstances: ", err)
 			return
 		}
-		for _, instance := range instances {
-			provider.Print(ctx, "EnumerateInstances: ", instance.Instance())
+	}(ctx)
+
+	// Send mDNS events onto the event bus
+	go func(ctx context.Context) {
+		for {
+			select {
+			case event := <-this.Server.C:
+				provider.Post(ctx, event)
+			case <-ctx.Done():
+				return
+			}
 		}
 	}(ctx)
+
+	// Close event channel on exit
+	defer func() {
+		close(this.Server.C)
+	}()
 
 	// Run mDNS server
 	return this.Server.Run(ctx)

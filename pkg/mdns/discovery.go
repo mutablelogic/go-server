@@ -16,7 +16,7 @@ type discovery struct {
 	sync.RWMutex
 
 	c        <-chan message
-	e        chan<- Event
+	e        chan<- event
 	services map[string]*entry
 }
 
@@ -28,7 +28,7 @@ type entry struct {
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func NewDiscovery(c <-chan message, e chan<- Event) (*discovery, error) {
+func NewDiscovery(c <-chan message, e chan<- event) (*discovery, error) {
 	this := new(discovery)
 	this.c = c
 	this.e = e
@@ -138,7 +138,7 @@ func (this *discovery) Instances() []*service {
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-func (this *discovery) send(e Event) {
+func (this *discovery) send(e event) {
 	select {
 	case this.e <- e:
 		return
@@ -157,21 +157,21 @@ func (this *discovery) process(service *service) {
 	// Indicate service has changed
 	if service.ttl == 0 {
 		if this.Exists(service) != nil {
-			this.send(Event{EVENT_TYPE_REMOVED, *service})
+			this.send(event{EVENT_TYPE_REMOVED, *service})
 		}
 	}
 
 	// If this is a query, then indicate a service
 	if unfqn(service.Service()) == ServicesQuery {
-		this.send(Event{EVENT_TYPE_SERVICE, *service})
+		this.send(event{EVENT_TYPE_SERVICE, *service})
 		return
 	}
 
 	// Check for added and changed services
 	if other := this.Exists(service); other == nil {
-		this.send(Event{EVENT_TYPE_ADDED, *service})
+		this.send(event{EVENT_TYPE_ADDED, *service})
 	} else if !other.Equals(service) {
-		this.send(Event{EVENT_TYPE_CHANGED, *service})
+		this.send(event{EVENT_TYPE_CHANGED, *service})
 	} else {
 		return
 	}
@@ -195,7 +195,7 @@ func (this *discovery) expire() {
 
 	// Delete expired records
 	for _, service := range expired {
-		this.send(Event{EVENT_TYPE_EXPIRED, *service})
+		this.send(event{EVENT_TYPE_EXPIRED, *service})
 		this.Delete(service)
 	}
 }

@@ -27,6 +27,7 @@ type provider struct {
 	loggers    []Logger
 	routers    []Router
 	middleware map[string]Middleware
+	eventbus   []EventBus
 }
 
 type plugincfg struct {
@@ -232,6 +233,9 @@ func (this *provider) setPlugin(ctx context.Context, name string, plugin Plugin)
 	}
 	if middleware, ok := plugin.(Middleware); ok {
 		this.middleware[name] = middleware
+	}
+	if eventbus, ok := plugin.(EventBus); ok {
+		this.eventbus = append(this.eventbus, eventbus)
 	}
 	return nil
 }

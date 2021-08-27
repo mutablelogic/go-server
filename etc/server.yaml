@@ -3,6 +3,7 @@
 plugins:
   - build/log.plugin
   - build/httpserver.plugin
+  - build/eventbus.plugin
   - build/basicauth.plugin
   - build/static.plugin
   - build/sqlite.plugin

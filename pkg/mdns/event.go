@@ -20,7 +20,7 @@ type message struct {
 	Err   error
 }
 
-type Event struct {
+type event struct {
 	EventType
 	service
 }
@@ -42,9 +42,20 @@ const (
 )
 
 ///////////////////////////////////////////////////////////////////////////////
+// EVENT IMPLEMENTATION
+
+func (e event) Name() string {
+	return e.service.Instance()
+}
+
+func (e event) Value() interface{} {
+	return &e.service
+}
+
+///////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
-func (e Event) String() string {
+func (e event) String() string {
 	str := "<mdns.event"
 	if t := e.EventType; t != EVENT_TYPE_NONE {
 		str += " type=" + e.EventType.String()

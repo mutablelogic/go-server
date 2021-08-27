@@ -13,6 +13,7 @@ import (
 type Provider interface {
 	Logger
 	Router
+	EventBus
 
 	// Plugins returns a list of registered plugin names
 	Plugins() []string
@@ -52,13 +53,22 @@ type Middleware interface {
 	AddMiddlewareFunc(context.Context, http.HandlerFunc) http.HandlerFunc
 }
 
-/////////////////////////////////////////////////////////////////////
-// SERVICE DISCOVERY INTERFACES
-
-type ServiceDiscovery interface {
-	EnumerateServices(context.Context) ([]string, error)
-	EnumerateInstances(context.Context, ...string) ([]string, error)
+// EventBus allows subscription to events from other plugins
+type EventBus interface {
+	Post(context.Context, Event)
+	Subscribe(context.Context, chan<- Event)
 }
+
+/////////////////////////////////////////////////////////////////////
+// EVENT INTERFACE
+
+type Event interface {
+	Name() string
+	Value() interface{}
+}
+
+/////////////////////////////////////////////////////////////////////
+// SERVICE DISCOVERY INTERFACE
 
 type Service interface {
 	Instance() string

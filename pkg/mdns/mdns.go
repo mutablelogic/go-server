@@ -26,7 +26,8 @@ type Server struct {
 	*discovery
 	*servicedb
 	c    chan message
-	e    chan Event
+	e    chan event
+	C    chan Event // Channel for emitting events
 	enum *enum
 }
 
@@ -54,7 +55,7 @@ func New(cfg Config) (*Server, error) {
 
 	// Create channels and temp storage
 	this.c = make(chan message, defaultCap)
-	this.e = make(chan Event, defaultCap)
+	this.e = make(chan event, defaultCap)
 	this.enum = &enum{}
 
 	// Create listener
@@ -89,23 +90,6 @@ func New(cfg Config) (*Server, error) {
 	return this, nil
 }
 
-///////////////////////////////////////////////////////////////////////////////
-// STRINGIFY
-
-func (this *Server) String() string {
-	str := "<mdns"
-	if this.listener != nil {
-		str += " " + fmt.Sprint(this.listener)
-	}
-	if this.discovery != nil {
-		str += " " + fmt.Sprint(this.discovery)
-	}
-	return str + ">"
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// PUBLIC METHODS
-
 func (this *Server) Run(ctx context.Context) error {
 	var wg sync.WaitGroup
 	var result error
@@ -136,6 +120,8 @@ func (this *Server) Run(ctx context.Context) error {
 		for {
 			select {
 			case event := <-this.e:
+				// Add events to enumeration and also send to event bus
+				this.send(event)
 				this.enum.add(event)
 			case <-ctx.Done():
 				break FOR_LOOP
@@ -153,6 +139,23 @@ func (this *Server) Run(ctx context.Context) error {
 	// Return any errors
 	return result
 }
+
+///////////////////////////////////////////////////////////////////////////////
+// STRINGIFY
+
+func (this *Server) String() string {
+	str := "<mdns"
+	if this.listener != nil {
+		str += " " + fmt.Sprint(this.listener)
+	}
+	if this.discovery != nil {
+		str += " " + fmt.Sprint(this.discovery)
+	}
+	return str + ">"
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS
 
 func (this *Server) EnumerateServices(ctx context.Context) ([]string, error) {
 	// Lock enumeration for receiving service
@@ -268,7 +271,7 @@ func (this *enum) Services() []*service {
 // PRIVATE METHODS
 
 // add filters an added service in the enumeration
-func (this *enum) add(event Event) {
+func (this *enum) add(event event) {
 	if this.EventType == EVENT_TYPE_NONE || event.EventType&this.EventType != EVENT_TYPE_NONE {
 		// Add or remove filtered event, keyed by service name
 		this.Mutex.Lock()
@@ -281,5 +284,15 @@ func (this *enum) add(event Event) {
 				this.services[key] = &event.service
 			}
 		}
+	}
+}
+
+// send messages on the channel
+func (this *Server) send(event event) {
+	select {
+	case this.C <- event:
+		return
+	default:
+		return
 	}
 }
