@@ -250,7 +250,7 @@ func (this *provider) GetConfig(ctx context.Context, v interface{}) error {
 		// No configuration for this plugin
 		return nil
 	} else {
-		return marshaler.NewDecoder("yaml").Decode(plugincfg.config, v)
+		return marshaler.NewDecoder("yaml", marshaler.ConvertDuration, marshaler.ConvertTime).Decode(plugincfg.config, v)
 	}
 }
 

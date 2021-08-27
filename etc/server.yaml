@@ -4,6 +4,7 @@ plugins:
   - build/log.plugin
   - build/httpserver.plugin
   - build/basicauth.plugin
+  - build/ldapauth.plugin
   - build/sqlite.plugin
   - build/eventbus.plugin
   - build/static.plugin
@@ -36,11 +37,33 @@ handlers:
       - log
       - basicauth
 
-# Authentication
+# Basic Authentication
 basicauth:
+  # Realm to report to client when rejecting authentication
   realm: "go-server"
+  # Path to the user/password file
   path: etc/htpasswd
+  # Admin users who can create, modify and delete users through the API
   admin: root
+
+# LDAP Authentication
+ldapauth:
+  url: ldaps://ldap.jumpcloud.com/
+  user: uid=ldap,ou=Users,o=6041efbd63eb9010498c060a,dc=jumpcloud,dc=com
+  password: "${LDAP_PASSWORD}"
+  basedn: ou=Users,o=6041efbd63eb9010498c060a,dc=jumpcloud,dc=com
+  filter: (uid=${user})
+  expiry: 12h
+  attrs:
+    - cn
+    - sn 
+    - givenName
+    - displayName
+    - title
+    - uid
+    - mail
+    - uidNumber
+    - gidNumber
 
 # Where to serve static files from
 static:
