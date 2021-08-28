@@ -4,6 +4,7 @@ go 1.17
 
 require (
 	github.com/GehirnInc/crypt v0.0.0-20200316065508-bb7000b8a962
+	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/djthorpe/go-marshaler v0.0.8
 	github.com/djthorpe/go-sqlite v1.0.22
 	github.com/go-ldap/ldap/v3 v3.4.1
@@ -18,7 +19,6 @@ require (
 require (
 	github.com/Azure/go-ntlmssp v0.0.0-20200615164410-66371956d46c // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
 	github.com/go-asn1-ber/asn1-ber v1.5.1 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/mattn/go-sqlite3 v1.14.8 // indirect

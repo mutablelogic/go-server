@@ -51,5 +51,5 @@ func (e Error) Error() string {
 }
 
 func (e Error) With(args ...interface{}) error {
-	return fmt.Errorf("%s: %w", fmt.Sprint(args...), e)
+	return fmt.Errorf("%w: %s", e, fmt.Sprint(args...))
 }

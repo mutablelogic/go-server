@@ -4,10 +4,10 @@ plugins:
   - build/log.plugin
   - build/httpserver.plugin
   - build/basicauth.plugin
-  - build/ldapauth.plugin
+  #- build/ldapauth.plugin
   - build/sqlite.plugin
   - build/eventbus.plugin
-  - build/static.plugin
+  #- build/static.plugin
   - build/template.plugin
   - build/mdns.plugin
 
@@ -22,10 +22,10 @@ handlers:
     middleware:
       - log
       - basicauth
-  static:
-    prefix: /
-    middleware:
-      - log
+  #static:
+  #  prefix: /api/static
+  #  middleware:
+  #    - log
   sqlite:
     prefix: /api/sqlite
     middleware:
@@ -67,7 +67,8 @@ ldapauth:
 
 # Where to serve static files from
 static:
-  path: npm/mdns/dist
+  "/mdns": npm/mdns/dist
+  "/sqlite": npm/sqlite/dist
 
 # Databases to load
 sqlite:

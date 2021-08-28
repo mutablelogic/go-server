@@ -13,7 +13,7 @@ BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/config.GitHash=$(shell git rev-parse HE
 BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/config.GoBuildTime=$(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
 BUILD_FLAGS = -ldflags "-s -w $(BUILD_LD_FLAGS)" 
 BUILD_VERSION = $(shell git describe --tags)
-PLUGIN_DIR = $(wildcard pkg/plugin/*)
+PLUGIN_DIR = $(wildcard plugin/*)
 
 .PHONY: all server dependencies mkdir clean 
 

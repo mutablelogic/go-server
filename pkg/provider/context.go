@@ -12,6 +12,7 @@ type contextKey int
 
 const (
 	ctxKeyPluginName contextKey = iota
+	ctxKeyAddr
 	ctxKeyPluginPath
 	ctxKeyHandler
 	ctxKeyParams
@@ -102,8 +103,23 @@ func ContextUser(ctx context.Context) string {
 	}
 }
 
+func ContextWithAddr(parent context.Context, addr string) context.Context {
+	return context.WithValue(parent, ctxKeyAddr, addr)
+}
+
+func ContextAddr(ctx context.Context) string {
+	if addr, ok := ctx.Value(ctxKeyAddr).(string); ok {
+		return addr
+	} else {
+		return ""
+	}
+}
+
 func DumpContext(ctx context.Context) string {
 	str := "<context"
+	if addr, ok := ctx.Value(ctxKeyAddr).(string); ok {
+		str += fmt.Sprintf(" addr=%q", addr)
+	}
 	if name, ok := ctx.Value(ctxKeyPluginName).(string); ok {
 		str += fmt.Sprintf(" name=%q", name)
 	}

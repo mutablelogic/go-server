@@ -125,7 +125,7 @@ func NewProvider(basepath string, cfg *config.Config) (*provider, error) {
 		}
 		plugin := this.GetPlugin(ctx, name)
 		if plugin == nil {
-			result = multierror.Append(result, ErrNotFound.With(name))
+			result = multierror.Append(result, ErrInternalAppError.With(name))
 			continue
 		}
 	}
@@ -207,15 +207,15 @@ func (this *provider) GetPlugin(ctx context.Context, name string) Plugin {
 	if exists && plugincfg.plugin != nil {
 		return plugincfg.plugin
 	} else if !exists {
-		this.Print(ctx, "GetPlugin:", ErrNotFound.With(name))
+		this.Print(ctx, "GetPlugin: ", ErrNotFound.With(name))
 		return nil
 	}
 	plugin, err := this.pluginWithPath(ctx, name, plugincfg.path)
 	if err != nil {
-		this.Print(ctx, "GetPlugin:", err)
+		this.Print(ctx, "GetPlugin: ", err)
 		return nil
 	} else if err := this.setPlugin(ctx, name, plugin); err != nil {
-		this.Print(ctx, "GetPlugin:", err)
+		this.Print(ctx, "GetPlugin: ", err)
 		return nil
 	}
 	// Return success
