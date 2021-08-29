@@ -64,7 +64,7 @@ func Name() string {
 
 func (this *plugin) Run(ctx context.Context, provider Provider) error {
 	if err := this.createTables(ctx); err != nil {
-		provider.Print(ctx, "failed to create tables:", err)
+		provider.Print(ctx, "failed to create tables: ", err)
 		return err
 	}
 

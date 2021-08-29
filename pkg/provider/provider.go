@@ -8,6 +8,7 @@ import (
 	"plugin"
 	"strconv"
 	"sync"
+	"syscall"
 
 	// Modules
 	marshaler "github.com/djthorpe/go-marshaler"
@@ -48,7 +49,7 @@ const (
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func NewProvider(basepath string, cfg *config.Config) (*provider, error) {
+func NewProvider(parent context.Context, basepath string, cfg *config.Config) (*provider, error) {
 	this := new(provider)
 	this.plugins = make(map[string]*plugincfg, len(cfg.Plugin))
 	this.middleware = make(map[string]Middleware, len(cfg.Plugin))
@@ -119,7 +120,7 @@ func NewProvider(basepath string, cfg *config.Config) (*provider, error) {
 		}
 
 		// Set plugin context, load plugin
-		ctx := ContextWithPluginName(context.Background(), name)
+		ctx := ContextWithPluginName(parent, name)
 		if plugincfg.handler.Prefix != "" {
 			ctx = ContextWithHandler(ctx, plugincfg.handler)
 		}
@@ -158,8 +159,30 @@ func (this *plugincfg) String() string {
 
 func (this *provider) Run(ctx context.Context) error {
 	var wg sync.WaitGroup
-	var result error
 	var cancels []context.CancelFunc
+	var result error
+
+	// Channel to receive errors
+	errs := make(chan error)
+
+	// Receive any errors
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case err := <-errs:
+				result = multierror.Append(result, err)
+
+				// Send terminate signal to process
+				if err := syscall.Kill(syscall.Getpid(), syscall.SIGINT); err != nil {
+					result = multierror.Append(result, err)
+				}
+			}
+		}
+	}()
 
 	// Run all plugins and wait until done
 	this.Print(ctx, "Running plugins:")
@@ -170,9 +193,8 @@ func (this *provider) Run(ctx context.Context) error {
 		go func(name string, cfg *plugincfg) {
 			defer wg.Done()
 			this.Print(ctx, " ", name, " running")
-			ctx = ContextWithHandler(ContextWithPluginName(ctx, name), cfg.handler)
-			if err := cfg.plugin.Run(ctx, this); err != nil {
-				result = multierror.Append(result, err)
+			if err := cfg.plugin.Run(ContextWithHandler(ContextWithPluginName(ctx, name), cfg.handler), this); err != nil {
+				errs <- err
 			}
 			this.Print(ctx, " ", name, " stopped")
 		}(name, cfg)

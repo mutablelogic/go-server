@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"syscall"
 
 	// Modules
 	config "github.com/djthorpe/go-server/pkg/config"
@@ -34,8 +35,8 @@ func main() {
 		os.Exit(-1)
 	}
 
-	// Create a context which cancels when CTRL-C is received
-	ctx := provider.ContextWithAddr(HandleSignal(), flags.Lookup(flagAddr).Value.String())
+	// Context with flags
+	ctx := DefineContext(context.Background(), flags)
 
 	// Create a provider with the configuration
 	wd, err := os.Getwd()
@@ -43,19 +44,20 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
 	}
-	provider, err := provider.NewProvider(wd, cfg)
+	provider, err := provider.NewProvider(ctx, wd, cfg)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
 	}
 
+	// Report on loaded plugins
 	provider.Print(ctx, "Loaded plugins:")
 	for _, name := range provider.Plugins() {
 		provider.Print(ctx, " ", name, " => ", provider.GetPlugin(ctx, name))
 	}
 
-	// Run the server
-	if err := provider.Run(ctx); err != nil {
+	// Run the server and plugins
+	if err := provider.Run(HandleSignal()); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
 	}
@@ -63,6 +65,13 @@ func main() {
 
 ///////////////////////////////////////////////////////////////////////////////
 // METHODS
+
+func DefineContext(ctx context.Context, flags *flag.FlagSet) context.Context {
+	if addr := flags.Lookup(flagAddr); addr != nil {
+		ctx = provider.ContextWithAddr(ctx, addr.Value.String())
+	}
+	return ctx
+}
 
 func DefineFlags(args []string) (*flag.FlagSet, error) {
 	flags := flag.NewFlagSet(filepath.Base(args[0]), flag.ContinueOnError)
@@ -91,7 +100,7 @@ func HandleSignal() context.Context {
 	// Handle signals - call cancel when interrupt received
 	ctx, cancel := context.WithCancel(context.Background())
 	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, os.Interrupt)
+	signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-ch
 		cancel()

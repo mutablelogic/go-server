@@ -13,7 +13,7 @@ import (
 	. "github.com/djthorpe/go-server"
 	fcgi "github.com/djthorpe/go-server/pkg/fcgi"
 	httprouter "github.com/djthorpe/go-server/pkg/httprouter"
-	pr "github.com/djthorpe/go-server/pkg/provider"
+	prv "github.com/djthorpe/go-server/pkg/provider"
 	multierror "github.com/hashicorp/go-multierror"
 )
 
@@ -60,7 +60,7 @@ func New(ctx context.Context, provider Provider) Plugin {
 	}
 
 	// Override addr if set in context
-	if addr := pr.ContextAddr(ctx); addr != "" {
+	if addr := prv.ContextAddr(ctx); addr != "" {
 		this.Config.Addr = addr
 	}
 

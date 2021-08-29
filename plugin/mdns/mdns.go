@@ -3,11 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	// Modules
 	. "github.com/djthorpe/go-server"
 	"github.com/djthorpe/go-server/pkg/mdns"
+	"github.com/hashicorp/go-multierror"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -68,46 +70,70 @@ func Name() string {
 }
 
 func (this *server) Run(ctx context.Context, provider Provider) error {
+	var wg sync.WaitGroup
+	var result error
+
 	// Add handlers
 	if err := this.AddHandlers(ctx, provider); err != nil {
 		return err
 	}
 
 	// Enumerate services and instances in the background
-	go func(parent context.Context) {
-		time.Sleep(1 * time.Second)
-		ctx, cancel := context.WithTimeout(parent, time.Second*10)
-		defer cancel()
-		services, err := this.Server.EnumerateServices(ctx)
-		if err != nil {
-			provider.Print(ctx, "EnumerateServices: ", err)
-			return
-		}
-		ctx2, cancel2 := context.WithTimeout(parent, time.Second*10)
-		defer cancel2()
-		if _, err = this.Server.EnumerateInstances(ctx2, services...); err != nil {
-			provider.Print(ctx, "EnumerateInstances: ", err)
+	wg.Add(1)
+	go func(ctx context.Context) {
+		defer wg.Done()
+
+		// Enumerate services and instances after a startup delay
+		timer := time.NewTimer(time.Second * 5)
+		defer timer.Stop()
+
+		select {
+		case <-timer.C:
+			services, err := this.Server.EnumerateServices(ctx)
+			if err != nil {
+				provider.Print(ctx, "EnumerateServices: ", err)
+				return
+			}
+			if _, err = this.Server.EnumerateInstances(ctx, services...); err != nil {
+				provider.Print(ctx, "EnumerateInstances: ", err)
+				return
+			}
+		case <-ctx.Done():
 			return
 		}
 	}(ctx)
 
 	// Send mDNS events onto the event bus
+	wg.Add(1)
 	go func(ctx context.Context) {
+		defer wg.Done()
 		for {
 			select {
 			case event := <-this.Server.C:
-				provider.Post(ctx, event)
+				if event != nil {
+					provider.Post(ctx, event)
+				}
 			case <-ctx.Done():
 				return
 			}
 		}
 	}(ctx)
 
-	// Close event channel on exit
-	defer func() {
-		close(this.Server.C)
+	// Run mDNS server
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if err := this.Server.Run(ctx); err != nil {
+			result = multierror.Append(result, err)
+		}
 	}()
 
-	// Run mDNS server
-	return this.Server.Run(ctx)
+	// Wait for all goroutines to complete
+	wg.Wait()
+
+	// Close event channel
+	close(this.Server.C)
+
+	// Run any errors
+	return result
 }
