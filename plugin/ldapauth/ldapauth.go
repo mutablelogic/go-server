@@ -88,8 +88,15 @@ func New(ctx context.Context, provider Provider) Plugin {
 
 func (this *plugin) String() string {
 	str := "<ldapauth"
-	str += fmt.Sprintf(" filter=%q basedn=%q", this.filter, this.basedn)
-	str += fmt.Sprintf(" fields=%v", this.fields)
+	if basedn := this.basedn; basedn != "" {
+		str += fmt.Sprintf(" basedn=%q", this.basedn)
+	}
+	if len(this.fields) > 0 {
+		str += fmt.Sprintf(" fields=%q", this.fields)
+	}
+	if filter := this.filter; filter != "" {
+		str += fmt.Sprintf(" filter=%q", this.filter)
+	}
 	str += fmt.Sprint(" ", this.Credentials)
 	str += fmt.Sprint(" ", this.JWT)
 	return str + ">"

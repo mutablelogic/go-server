@@ -35,7 +35,7 @@ func New(ctx context.Context, provider Provider) Plugin {
 
 	// Set default service database if not set
 	if len(cfg.ServiceDatabase) == 0 {
-		cfg.ServiceDatabase = []interface{}{mdns.DefaultServiceDatabase}
+		cfg.ServiceDatabase = []string{mdns.DefaultServiceDatabase}
 	}
 
 	// Create mDNS server
