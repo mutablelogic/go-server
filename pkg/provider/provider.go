@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"plugin"
@@ -38,12 +39,19 @@ type plugincfg struct {
 	config  map[string]interface{}
 }
 
+type PluginUsageFunc func(io.Writer)
+
 ///////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 
 const (
-	funcName = "Name"
-	funcNew  = "New"
+	PluginFileExt = ".plugin"
+)
+
+const (
+	funcName  = "Name"
+	funcUsage = "Usage"
+	funcNew   = "New"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -286,6 +294,8 @@ func PluginPath(basepath, path string) string {
 		return path
 	} else if abs, err := filepath.Abs(filepath.Join(basepath, path)); err != nil {
 		return ""
+	} else if ext := filepath.Ext(path); ext == "" {
+		return ext + PluginFileExt
 	} else {
 		return abs
 	}
@@ -304,6 +314,17 @@ func GetPluginName(path string) (string, error) {
 		return "", ErrInternalAppError.With("Name returned nil: ", path)
 	} else {
 		return name, nil
+	}
+}
+
+// GetPluginUsage returns the usage function for a plugin
+func GetPluginUsage(path string) (PluginUsageFunc, error) {
+	if plugin, err := plugin.Open(path); err != nil {
+		return nil, err
+	} else if fn, err := plugin.Lookup(funcUsage); err != nil {
+		return nil, err
+	} else {
+		return fn.(func(io.Writer)), nil
 	}
 }
 

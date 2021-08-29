@@ -4,7 +4,7 @@ plugins:
   - build/log.plugin
   - build/httpserver.plugin
   - build/basicauth.plugin
-  #- build/ldapauth.plugin
+  - build/ldapauth.plugin
   - build/sqlite.plugin
   - build/eventbus.plugin
   #- build/static.plugin

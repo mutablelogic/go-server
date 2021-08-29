@@ -22,8 +22,31 @@ const (
 // MAIN
 
 func main() {
-	flags, err := DefineFlags(os.Args)
+	// Get working directory
+	wd, err := os.Getwd()
 	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(-1)
+	}
+
+	// Define flags
+	flags, err := DefineFlags(os.Args)
+	if err == flag.ErrHelp {
+		for _, arg := range flags.Args() {
+			if path := provider.PluginPath(wd, arg); path == "" {
+				continue
+			} else if name, err := provider.GetPluginName(path); err == nil && name != "" {
+				fmt.Fprintf(flags.Output(), "Usage of plugin %q:\n", name)
+				if fn, err := provider.GetPluginUsage(path); err != nil {
+					fmt.Fprintln(flags.Output(), " ", err)
+				} else if fn != nil {
+					fn(flags.Output())
+				}
+				fmt.Fprintln(flags.Output(), "")
+			}
+		}
+		os.Exit(0)
+	} else if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
 	}
@@ -39,11 +62,6 @@ func main() {
 	ctx := DefineContext(context.Background(), flags)
 
 	// Create a provider with the configuration
-	wd, err := os.Getwd()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(-1)
-	}
 	provider, err := provider.NewProvider(ctx, wd, cfg)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -82,7 +100,7 @@ func DefineFlags(args []string) (*flag.FlagSet, error) {
 		config.Usage(os.Stdout, flags)
 	}
 
-	// Parse flags from comand line
+	// Parse flags from comand line, return on error
 	if err := flags.Parse(args[1:]); err != nil {
 		return flags, err
 	}
