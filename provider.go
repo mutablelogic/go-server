@@ -79,6 +79,10 @@ type Service interface {
 	Zone() string
 	Addrs() []net.IP
 	Txt() []string
+
+	// Return TXT keys and value for a key
+	Keys() []string
+	ValueForKey(string) string
 }
 
 /////////////////////////////////////////////////////////////////////

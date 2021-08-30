@@ -2,7 +2,7 @@ package chromecast
 
 import (
 	"fmt"
-	"net"
+	"strconv"
 
 	// Modules
 	. "github.com/djthorpe/go-server"
@@ -15,9 +15,9 @@ type Cast struct {
 	id, fn string
 	md, rs string
 	st     uint
-	host   string
-	ips    []net.IP
-	port   uint16
+
+	host string
+	port uint16
 	//vol *Volume
 	//app *App
 }
@@ -27,33 +27,31 @@ type Cast struct {
 
 func NewCast(instance Service) *Cast {
 	this := new(Cast)
+
+	// Set host and port for connection
 	this.host = instance.Host()
 	this.port = instance.Port()
 
-	/*
-		// Set properties
-		tuples := txtToMap(r.Txt())
-		if id, exists := tuples["id"]; exists && id != "" {
-			this.id = id
-		} else {
-			return nil
-		}
-		if fn, exists := tuples["fn"]; exists && fn != "" {
-			this.fn = fn
-		} else {
-			this.fn = this.id
-		}
-		if md, exists := tuples["md"]; exists {
-			this.md = md
-		}
-		if rs, exists := tuples["rs"]; exists {
-			this.rs = rs
-		}
-		if st, exists := tuples["st"]; exists {
-			if st, err := strconv.ParseUint(st, 0, 64); err == nil {
-				this.st = uint(st)
-			}
-		}*/
+	// Set Chromecast ID
+	if id := instance.ValueForKey("id"); id == "" {
+		return nil
+	} else {
+		this.id = id
+	}
+
+	// Set chromecast name
+	if fn := instance.ValueForKey("fn"); fn == "" {
+		this.fn = "Chromecast"
+	} else {
+		this.fn = fn
+	}
+
+	// Model, application, state
+	this.md = instance.ValueForKey("md")
+	this.rs = instance.ValueForKey("rs")
+	if st, err := strconv.ParseUint(instance.ValueForKey("st"), 0, 64); err == nil {
+		this.st = uint(st)
+	}
 
 	return this
 }
@@ -72,8 +70,18 @@ func (this *Cast) disconnect() error {
 func (this *Cast) String() string {
 	str := "<cast"
 	if this.host != "" && this.port > 0 {
-		str += fmt.Sprint(" addr=%s:%v", this.host, this.port)
+		str += fmt.Sprintf(" addr=%s:%v", this.host, this.port)
 	}
+	if name := this.fn; name != "" {
+		str += fmt.Sprintf(" name=%q", name)
+	}
+	if model := this.md; model != "" {
+		str += fmt.Sprintf(" model=%q", model)
+	}
+	if app := this.rs; app != "" {
+		str += fmt.Sprintf(" app=%q", app)
+	}
+	str += fmt.Sprintf(" state=%v", this.st)
 	return str + ">"
 }
 
@@ -283,4 +291,7 @@ func txtToMap(txt []string) map[string]string {
 	}
 	return result
 }
+	if app := this.rs; app != "" {
+		str += fmt.Sprintf(" app=%q", app)
+	}
 */

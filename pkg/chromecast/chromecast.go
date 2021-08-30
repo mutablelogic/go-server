@@ -45,6 +45,9 @@ func NewManager(cfg Config) *Manager {
 func (this *Manager) Run(ctx context.Context) error {
 	// TODO: Update status
 
+	// Wait for end of run
+	<-ctx.Done()
+
 	// Disconnect devices
 	var result error
 	for _, cast := range this.cast {

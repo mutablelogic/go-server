@@ -23,6 +23,7 @@ type service struct {
 	a       []net.IP
 	aaaa    []net.IP
 	txt     []string
+	keys    []string
 	ttl     time.Duration
 }
 
@@ -96,6 +97,43 @@ func (this *service) Addrs() []net.IP {
 
 func (this *service) Txt() []string {
 	return this.txt
+}
+
+func (this *service) Keys() []string {
+	if len(this.keys) == 0 {
+		this.keys = make([]string, 0, len(this.txt))
+		for _, value := range this.txt {
+			if kv := strings.SplitN(value, "=", 2); len(kv) < 2 {
+				continue
+			} else if kv[0] == "" {
+				continue
+			} else {
+				this.keys = append(this.keys, kv[0])
+			}
+		}
+	}
+	return this.keys
+}
+
+func (this *service) ValueForKey(key string) string {
+	// Cache keys
+	if len(this.keys) == 0 {
+		this.Keys()
+	}
+	// Find key in TXT values
+	key = key + "="
+	for _, t := range this.txt {
+		if strings.HasPrefix(t, key) {
+			t = t[len(key):]
+			if unquoted, err := Unquote(t); err != nil {
+				return unquoted
+			} else {
+				return t
+			}
+		}
+	}
+	// Return empty string if not found
+	return ""
 }
 
 ///////////////////////////////////////////////////////////////////////////////
