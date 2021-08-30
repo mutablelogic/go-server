@@ -21,14 +21,17 @@ Standard plugins provided include:
   * __mdns__ provides service discovery via mDNS.
 
 Many of these modules also provide a REST API for accessing information
-and controlling the plugin, and there are a number of "front ends"
-developed for display in a web browser.
+and control, and there are a number of "front ends" developed for display
+of plugin information in a web browser.
 
 The motivation for this module is to provide a generic server which
 can be developed and scaled over time. Ultimately the running process
 is a large "monolith" server which can be composed of many smaller 
-"plugins". Maybe this is a good balance between microservices and
-large (non-plugin) monoliths.
+"plugins", which can be connected together loosely (using a queue in between)
+or tightly (by calling plugin methods directly).
+
+Maybe this design is a good balance between microservices and large (non-plugin) 
+monoliths?
 
 ## Requirements and Building
 
@@ -38,7 +41,32 @@ Any modern `go` compiler should be able to build the `server` command,
 In order to compile the front ends, `npm` is required which pulls in
 additional dependencies.
 
-TODO
+To build the server, plugins and frontends, run:
+
+```bash
+[bash] git clone git@github.com:djthorpe/go-server.git
+[bash] cd go-server && make
+```
+
+This places all the binaries in the `build` directory and all the
+frontend code in the `dist` folder of each NPM package.
+
+The folder structure is as follows:
+
+  * `cmd/server` contains the command line server tool. In order to build it,
+    run `make server`. This places the binary in the `build` folder;
+  * `etc` contains files which are used by the server, including a sample
+    configuration file;
+  * `npm` contains frontend NPM packages which can be built. To build the
+    `mdns` frontend for example, tune `make npm/mdns`. The compiled code
+     is then in the `dist` folder of each NPM package;
+  * `pkg` contains the main code for the server and plugins;
+  * `plugin` contains code for the plugins. To build the `httpserver` plugin for
+    example run `make plugin/httpserver`. This places the plugin (with `.plugin` 
+    file extension) in the `build` folder.
+
+The `provider.go` file contains the interfaces required if you develop plugins.
+More information about developing plugins is described below.
 
 ## Running the Server
 
