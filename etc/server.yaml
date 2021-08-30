@@ -6,11 +6,12 @@ plugins:
   - build/basicauth.plugin
   - build/ldapauth.plugin
   - build/sqlite.plugin
-  - build/eventbus.plugin
+  - build/eventqueue.plugin
   #- build/static.plugin
   - build/template.plugin
   - build/mdns.plugin
-
+  - build/chromecast.plugin
+  
 # HTTP Server parameters
 httpserver:
   addr: :80
@@ -76,8 +77,8 @@ sqlite:
     test: /tmp/test.sqlite
     eventbus: ":memory:"
 
-# Event bus
-eventbus:
+# Event queue
+eventqueue:
   # Which sqlite database to use
   database: eventbus
   # How long to retain events in database

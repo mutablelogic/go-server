@@ -2,11 +2,11 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"strconv"
 
 	// Modules
 	. "github.com/djthorpe/go-server"
-	provider "github.com/djthorpe/go-server/pkg/provider"
+	"github.com/djthorpe/go-server/pkg/provider"
 	sq "github.com/djthorpe/go-sqlite"
 )
 
@@ -19,6 +19,8 @@ type Config struct {
 
 type plugin struct {
 	sq.SQConnection
+	C chan Event
+	S map[string]chan<- Event
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -26,6 +28,7 @@ type plugin struct {
 
 const (
 	defaultDatabase = "main"
+	defaultCapacity = 100
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -34,6 +37,10 @@ const (
 // Create the eventbus module
 func New(ctx context.Context, provider Provider) Plugin {
 	this := new(plugin)
+
+	// Create receive and send channel
+	this.C = make(chan Event, defaultCapacity)
+	this.S = make(map[string]chan<- Event)
 
 	// Get sqlite
 	if conn, ok := provider.GetPlugin(ctx, "sqlite").(sq.SQConnection); !ok {
@@ -51,7 +58,7 @@ func New(ctx context.Context, provider Provider) Plugin {
 // STRINGIFY
 
 func (this *plugin) String() string {
-	str := "<eventbus"
+	str := "<eventqueue"
 	return str + ">"
 }
 
@@ -59,7 +66,7 @@ func (this *plugin) String() string {
 // PUBLIC METHODS - PLUGIN
 
 func Name() string {
-	return "eventbus"
+	return "eventqueue"
 }
 
 func (this *plugin) Run(ctx context.Context, provider Provider) error {
@@ -68,8 +75,27 @@ func (this *plugin) Run(ctx context.Context, provider Provider) error {
 		return err
 	}
 
-	// Wait until done
-	<-ctx.Done()
+	// Emit incoming events
+FOR_LOOP:
+	for {
+		select {
+		case evt := <-this.C:
+			for name, s := range this.S {
+				select {
+				case s <- evt:
+					// no-op
+				default:
+					provider.Print(ctx, "eventqueue: cannot send on blocked channel: ", name)
+				}
+			}
+		case <-ctx.Done():
+			break FOR_LOOP
+		}
+	}
+
+	// Release resources
+	close(this.C)
+	this.S = nil
 
 	// Return success
 	return nil
@@ -79,12 +105,26 @@ func (this *plugin) Run(ctx context.Context, provider Provider) error {
 // PUBLIC METHODS - EVENT BUS
 
 func (this *plugin) Post(ctx context.Context, evt Event) {
-	fmt.Println(provider.DumpContext(ctx), evt)
-	go func() {
-		this.indexEvent(ctx, evt)
-	}()
+	select {
+	case this.C <- evt:
+		go func() {
+			this.indexEvent(ctx, evt)
+		}()
+		break
+	default:
+		panic("eventqueue: cannot post on blocked channel")
+	}
 }
 
-func (this *plugin) Subscribe(ctx context.Context, _ chan<- Event) {
-	fmt.Println(provider.DumpContext(ctx), "TODO: Subscribe")
+func (this *plugin) Subscribe(ctx context.Context, s chan<- Event) error {
+	if name := provider.ContextPluginName(ctx); name == "" {
+		return ErrBadParameter.With("Subscribe")
+	} else if _, exists := this.S[name]; exists {
+		return ErrDuplicateEntry.With("Subscribe ", strconv.Quote(name))
+	} else {
+		this.S[name] = s
+	}
+
+	// Return success
+	return nil
 }

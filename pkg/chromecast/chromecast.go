@@ -7,7 +7,7 @@ import (
 	"time"
 
 	// Modules
-
+	. "github.com/djthorpe/go-server"
 	multierror "github.com/hashicorp/go-multierror"
 )
 
@@ -17,16 +17,16 @@ import (
 type Config struct {
 }
 
-type chromecast struct {
+type Manager struct {
 	sync.RWMutex
-	cast map[string]*device
+	cast map[string]*Cast
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 
 const (
-	serviceTypeCast       = "_googlecast._tcp."
+	ServiceName           = "_googlecast._tcp."
 	serviceConnectTimeout = time.Second * 15
 	serciceMessageTimeout = time.Second
 )
@@ -34,15 +34,15 @@ const (
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func New(cfg Config) error {
-	this := new(chromecast)
-	this.cast = make(map[string]*device)
+func NewManager(cfg Config) *Manager {
+	this := new(Manager)
+	this.cast = make(map[string]*Cast)
 
 	// Return success
-	return nil
+	return this
 }
 
-func (this *chromecast) Run(ctx context.Context) error {
+func (this *Manager) Run(ctx context.Context) error {
 	// TODO: Update status
 
 	// Disconnect devices
@@ -62,45 +62,53 @@ func (this *chromecast) Run(ctx context.Context) error {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS
+
+func (this *Manager) Add(instance Service) error {
+	key := instance.Instance()
+	if cast := this.Get(key); cast != nil {
+		fmt.Println("chromecast update", cast)
+	} else {
+		this.RWMutex.Lock()
+		defer this.RWMutex.Unlock()
+		this.cast[key] = NewCast(instance)
+		fmt.Println("chromecast added", this.cast[key])
+	}
+
+	// Return success
+	return nil
+}
+
+func (this *Manager) Remove(instance Service) error {
+	key := instance.Instance()
+	if cast := this.Get(key); cast != nil {
+		fmt.Println("chromecast deleted", cast)
+		this.RWMutex.Lock()
+		defer this.RWMutex.Unlock()
+		delete(this.cast, key)
+	}
+
+	// Return success
+	return nil
+}
+
+func (this *Manager) Get(id string) *Cast {
+	this.RWMutex.RLock()
+	defer this.RWMutex.RUnlock()
+	if cast, exists := this.cast[id]; !exists {
+		return nil
+	} else {
+		return cast
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
-func (this *chromecast) String() string {
+func (this *Manager) String() string {
 	str := "<chromecast"
 	for _, cast := range this.cast {
 		str += fmt.Sprint(" ", cast)
 	}
 	return str + ">"
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// PUBLIC METHODS
-
-func (this *chromecast) devices(ctx context.Context) ([]*device, error) {
-	// Perform the lookup
-	records, err := this.ServiceDiscovery.EnumerateInstances(ctx, serviceTypeCast)
-	if err != nil {
-		return nil, err
-	}
-
-	// Return any casts found
-	result := make([]*device, 0, len(records))
-	for _, record := range records {
-		/*
-			cast := NewCastFromRecord(record)
-			if cast == nil {
-				continue
-			}
-
-			// Add cast, emit event
-			if existing := this.getCastForId(cast.id); existing == nil {
-				this.castevent(cast)
-			}
-
-			// Append cast onto results
-			result = append(result, this.getCastForId(cast.id))
-		*/
-	}
-
-	// Return success
-	return result, nil
 }

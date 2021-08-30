@@ -13,7 +13,7 @@ import (
 type Provider interface {
 	Logger
 	Router
-	EventBus
+	EventQueue
 
 	// Plugins returns a list of registered plugin names
 	Plugins() []string
@@ -53,10 +53,10 @@ type Middleware interface {
 	AddMiddlewareFunc(context.Context, http.HandlerFunc) http.HandlerFunc
 }
 
-// EventBus allows subscription to events from other plugins
-type EventBus interface {
+// Queue allows posting events and subscription to events from other plugins
+type EventQueue interface {
 	Post(context.Context, Event)
-	Subscribe(context.Context, chan<- Event)
+	Subscribe(context.Context, chan<- Event) error
 }
 
 /////////////////////////////////////////////////////////////////////

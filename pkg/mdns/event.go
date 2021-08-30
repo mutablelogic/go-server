@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	// Modules
+	. "github.com/djthorpe/go-server"
 	dns "github.com/miekg/dns"
 )
 
@@ -26,6 +27,12 @@ type event struct {
 }
 
 type EventType int
+
+type ServiceEvent interface {
+	Event
+	Type() EventType
+	Service() Service
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 // GLOBALS
@@ -49,6 +56,14 @@ func (e event) Name() string {
 }
 
 func (e event) Value() interface{} {
+	return &e.service
+}
+
+func (e event) Type() EventType {
+	return e.EventType
+}
+
+func (e event) Service() Service {
 	return &e.service
 }
 
