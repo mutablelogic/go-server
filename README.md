@@ -58,7 +58,7 @@ The folder structure is as follows:
   * `etc` contains files which are used by the server, including a sample
     configuration file;
   * `npm` contains frontend NPM packages which can be built. To build the
-    `mdns` frontend for example, tune `make npm/mdns`. The compiled code
+    `mdns` frontend for example, run `make npm/mdns`. The compiled code
      is then in the `dist` folder of each NPM package;
   * `pkg` contains the main code for the server and plugins;
   * `plugin` contains code for the plugins. To build the `httpserver` plugin for
@@ -81,11 +81,50 @@ It is most likely that in a production environment you would want to install the
 server and any plugins with some sort of packaging (RPM or DEB) or from a Docker
 container. More information about packaging can be found in the next section.
 
-TODO
+The `-help` argument provides more information on the command line options:
+
+```bash
+[bash]  /opt/go-server/bin/server -help
+
+server: Monolith server
+
+Usage:
+  server <flags> config.yaml
+  server -help
+  server -help <plugin>
+
+Flags:
+  -addr string
+    	Override path to unix socket or listening address
+
+Version:
+  URL: https://github.com/djthorpe/go-server
+  Version: v1.0.6
+  Build Time: 2021-09-31T12:00:00Z
+  Go: go1.17 (darwin/amd64)
+```
 
 ## Configuration and Packaging
 
-TODO
+You can download the latest versions of the server, plugins and frontends 
+from [GitHub Releases](https://github.com/djthorpe/go-server/releases). These
+are packaged as DEB packages for Debian x86 and ARM 32-bit. If you need packaging for
+other operating systems or platforms (ARM 64-bit, RedHat, etc) please contact me
+and I can add it to the workflows.
+
+(Once tested I can also provide a container image for the most popular use cases
+perhaps)
+
+The packages install to `/opt/go-server` in the following folders:
+
+  * `/opt/go-server/bin` contains the server binary;
+  * `/opt/go-server/plugin` contains the plugin binaries;
+  * `/opt/go-server/etc` contains all configuration files;
+  * `/opt/go-server/htdocs` contains all frontend files.
+
+Whilst you can run the server without a reverse proxy, it is recommended that
+you use `nginx` or similar to serve the frontend files and communicate with the
+server using FastCGI with a unix socket.
 
 ## Developing Plugins
 
