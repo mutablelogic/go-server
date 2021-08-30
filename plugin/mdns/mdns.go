@@ -89,12 +89,16 @@ func (this *server) Run(ctx context.Context, provider Provider) error {
 
 		select {
 		case <-timer.C:
-			services, err := this.Server.EnumerateServices(ctx)
+			ctx2, cancel := context.WithTimeout(ctx, time.Second*5)
+			defer cancel()
+			services, err := this.Server.EnumerateServices(ctx2)
 			if err != nil {
 				provider.Print(ctx, "EnumerateServices: ", err)
 				return
 			}
-			if _, err = this.Server.EnumerateInstances(ctx, services...); err != nil {
+			ctx3, cancel := context.WithTimeout(ctx, time.Second*5)
+			defer cancel()
+			if _, err = this.Server.EnumerateInstances(ctx3, services...); err != nil {
 				provider.Print(ctx, "EnumerateInstances: ", err)
 				return
 			}

@@ -67,6 +67,15 @@ func ContextWithAuth(parent context.Context, user string, auth map[string]interf
 	return context.WithValue(context.WithValue(parent, ctxKeyUser, user), ctxKeyAuth, auth)
 }
 
+func ContextWithPrefix(ctx context.Context, prefix string) context.Context {
+	if handler, ok := ctx.Value(ctxKeyHandler).(config.Handler); !ok {
+		return nil
+	} else {
+		handler.Prefix = prefix
+		return ContextWithHandler(ctx, handler)
+	}
+}
+
 func ContextHandlerPrefix(ctx context.Context) string {
 	if handler, ok := ctx.Value(ctxKeyHandler).(config.Handler); !ok {
 		return ""

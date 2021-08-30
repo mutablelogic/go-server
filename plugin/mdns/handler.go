@@ -4,13 +4,11 @@ import (
 	"context"
 	"net/http"
 	"regexp"
-	"strings"
 	"time"
 
 	// Modules
 	. "github.com/djthorpe/go-server"
 	router "github.com/djthorpe/go-server/pkg/httprouter"
-	mdns "github.com/djthorpe/go-server/pkg/mdns"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -77,7 +75,9 @@ func (this *server) AddHandlers(ctx context.Context, provider Provider) error {
 // HANDLERS
 
 func (this *server) ServePing(w http.ResponseWriter, req *http.Request) {
-	instances, err := this.EnumerateInstances(req.Context())
+	ctx, cancel := context.WithTimeout(req.Context(), time.Second)
+	defer cancel()
+	instances, err := this.EnumerateInstances(ctx)
 	if err != nil {
 		router.ServeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -170,18 +170,9 @@ func instanceAddrs(instance Service) []string {
 }
 
 func instanceTxt(instance Service) map[string]string {
-	txt := instance.Txt()
-	result := make(map[string]string, len(txt))
-	for _, value := range txt {
-		if kv := strings.SplitN(value, "=", 2); len(kv) == 2 {
-			if unquoted, err := mdns.Unquote(kv[1]); err != nil {
-				result[kv[0]] = kv[1]
-			} else {
-				result[kv[0]] = unquoted
-			}
-		} else {
-			result[value] = ""
-		}
+	result := make(map[string]string)
+	for _, key := range instance.Keys() {
+		result[key] = instance.ValueForKey(key)
 	}
 	return result
 }

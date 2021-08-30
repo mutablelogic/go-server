@@ -7,11 +7,11 @@ plugins:
   - build/ldapauth.plugin
   - build/sqlite.plugin
   - build/eventqueue.plugin
-  #- build/static.plugin
+  - build/static.plugin
   - build/template.plugin
   - build/mdns.plugin
   - build/chromecast.plugin
-  
+
 # HTTP Server parameters
 httpserver:
   addr: :80
@@ -23,10 +23,10 @@ handlers:
     middleware:
       - log
       - basicauth
-  #static:
-  #  prefix: /api/static
-  #  middleware:
-  #    - log
+  static:
+    prefix: /api/static
+    middleware:
+      - log
   sqlite:
     prefix: /api/sqlite
     middleware:
@@ -68,19 +68,29 @@ ldapauth:
 
 # Where to serve static files from
 static:
-  "/mdns": npm/mdns/dist
-  "/sqlite": npm/sqlite/dist
+  "/": 
+    name: mDNS
+    path: npm/mdns/dist
+  "/sqlite": 
+    name: sqlite
+    path: npm/sqlite/dist
 
-# Databases to load
+#  "/basicauth": npm/sqlite/dist
+#  "/eventqueue": npm/sqlite/dist
+#  "/ldapauth": npm/sqlite/dist
+#  "/log": npm/sqlite/dist
+#  "/chromecast": npm/sqlite/dist
+
 sqlite:
+  # Databases to load and/or create
   databases:
     test: /tmp/test.sqlite
-    eventbus: ":memory:"
+    queue: ":memory:"
 
 # Event queue
 eventqueue:
   # Which sqlite database to use
-  database: eventbus
+  database: queue
   # How long to retain events in database
   retain: 1h
 
@@ -90,7 +100,7 @@ template:
   templates: etc/templates
   default: default.tmpl
 
-# home network service discovery services
+# local network service discovery
 mdns:
   # Services are defined from the following databases
   services:
