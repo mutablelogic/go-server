@@ -20,6 +20,7 @@ const (
 	ErrInternalAppError
 	ErrNotImplemented
 	ErrOutOfOrder
+	ErrChannelBlocked
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -45,6 +46,8 @@ func (e Error) Error() string {
 		return "ErrNotImplemented"
 	case ErrOutOfOrder:
 		return "ErrOutOfOrder"
+	case ErrChannelBlocked:
+		return "ErrChannelBlocked"
 	default:
 		return "[?? Invalid Error value]"
 	}

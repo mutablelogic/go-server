@@ -170,27 +170,24 @@ func (this *provider) Run(ctx context.Context) error {
 	var cancels []context.CancelFunc
 	var result error
 
-	// Channel to receive errors
-	errs := make(chan error)
-
 	// Receive any errors
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case err := <-errs:
-				result = multierror.Append(result, err)
-
-				// Send terminate signal to process
-				if err := syscall.Kill(syscall.Getpid(), syscall.SIGINT); err != nil {
+	/*
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case err := <-errs:
 					result = multierror.Append(result, err)
+
+					// Send terminate signal to process
+
 				}
 			}
-		}
-	}()
+		}()
+	*/
 
 	// Run all plugins and wait until done
 	this.Print(ctx, "Running plugins:")
@@ -202,7 +199,11 @@ func (this *provider) Run(ctx context.Context) error {
 			defer wg.Done()
 			this.Print(ctx, " ", name, " running")
 			if err := cfg.plugin.Run(ContextWithHandler(ContextWithPluginName(ctx, name), cfg.handler), this); err != nil {
-				errs <- err
+				this.Print(ctx, " ", name, " error: ", err)
+				result = multierror.Append(result, err)
+				if err := syscall.Kill(syscall.Getpid(), syscall.SIGINT); err != nil {
+					result = multierror.Append(result, err)
+				}
 			}
 			this.Print(ctx, " ", name, " stopped")
 		}(name, cfg)

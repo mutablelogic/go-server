@@ -9,6 +9,7 @@ import (
 	. "github.com/djthorpe/go-server"
 	provider "github.com/djthorpe/go-server/pkg/provider"
 	sq "github.com/djthorpe/go-sqlite"
+	. "github.com/djthorpe/go-sqlite/pkg/lang"
 	sqobj "github.com/djthorpe/go-sqlite/pkg/sqobj"
 )
 
@@ -34,12 +35,9 @@ const (
 
 func (this *plugin) createTables(context.Context) error {
 	return this.Do(func(txn sq.SQTransaction) error {
-		if _, err := txn.Exec(sqobj.CreateTable(tableNameEvent, SQEvent{}).IfNotExists()); err != nil {
-			return err
-		}
-		indexes := sqobj.CreateIndexes(tableNameEvent, SQEvent{})
-		for _, index := range indexes {
-			if _, err := txn.Exec(index.IfNotExists()); err != nil {
+		source := N(tableNameEvent).WithSchema(this.schema)
+		for _, statement := range sqobj.CreateTableAndIndexes(source, true, SQEvent{}) {
+			if _, err := txn.Exec(statement); err != nil {
 				return err
 			}
 		}

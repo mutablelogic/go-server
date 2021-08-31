@@ -7,10 +7,11 @@ plugins:
   - build/ldapauth.plugin
   - build/sqlite.plugin
   - build/eventqueue.plugin
-  - build/static.plugin
+#  - build/static.plugin
   - build/template.plugin
   - build/mdns.plugin
   - build/chromecast.plugin
+  - build/indexer.plugin
 
 # HTTP Server parameters
 httpserver:
@@ -23,10 +24,10 @@ handlers:
     middleware:
       - log
       - basicauth
-  static:
-    prefix: /api/static
-    middleware:
-      - log
+#  static:
+#    prefix: /api/static
+#    middleware:
+#      - log
   sqlite:
     prefix: /api/sqlite
     middleware:
@@ -86,6 +87,7 @@ sqlite:
   databases:
     test: /tmp/test.sqlite
     queue: ":memory:"
+    indexer: ":memory:"
 
 # Event queue
 eventqueue:
@@ -106,3 +108,14 @@ mdns:
   services:
     - https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.xml
     - etc/service-names-port-numbers.xml
+
+# File indexer
+indexer:
+  name: home
+  database: indexer
+  path: /Users/djt
+  exclude: 
+    # When files start with / they are path prefixes to exclude
+    - /Library
+    # When files start with . they are file extensions to exclude
+    - .DS_Store

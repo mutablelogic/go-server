@@ -32,21 +32,30 @@ type ImportJob struct {
 
 const (
 	ImportStatusRunning ImportStatus = "running"
+	tableNameConfig                  = "import_config"
+	tableNameJob                     = "import_job"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
 func (this *sq) CreateImportTables(schema string) error {
-	if _, err := this.Exec(sqobj.CreateTable("import_config", SQImportConfig{}).IfNotExists().WithTemporary()); err != nil {
-		return err
-	}
-	if _, err := this.Exec(sqobj.CreateTable("import_job", ImportJob{}).IfNotExists().WithTemporary()); err != nil {
-		return err
-	}
-
-	// Return success
-	return nil
+	tableConfig := N(tableNameConfig)
+	tableJob := N(tableNameJob)
+	return this.Do(func(txn SQTransaction) error {
+		for _, statement := range sqobj.CreateTableAndIndexes(tableConfig, true, SQImportConfig{}) {
+			if _, err := txn.Exec(statement); err != nil {
+				return err
+			}
+		}
+		for _, statement := range sqobj.CreateTableAndIndexes(tableJob, true, ImportJob{}) {
+			if _, err := txn.Exec(statement); err != nil {
+				return err
+			}
+		}
+		// Return success
+		return nil
+	})
 }
 
 func (this *sq) AddImport(url *url.URL, cfg SQImportConfig) (int64, error) {

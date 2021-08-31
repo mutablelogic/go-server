@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 
 	// Modules
@@ -19,8 +20,9 @@ type Config struct {
 
 type plugin struct {
 	sq.SQConnection
-	C chan Event
-	S map[string]chan<- Event
+	schema string
+	C      chan Event
+	S      map[string]chan<- Event
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -50,6 +52,17 @@ func New(ctx context.Context, provider Provider) Plugin {
 		this.SQConnection = conn
 	}
 
+	// Set configuation
+	cfg := Config{
+		Database: defaultDatabase,
+	}
+	if err := provider.GetConfig(ctx, &cfg); err != nil {
+		provider.Print(ctx, "GetConfig: ", err)
+		return nil
+	} else {
+		this.schema = cfg.Database
+	}
+
 	// Return success
 	return this
 }
@@ -59,6 +72,9 @@ func New(ctx context.Context, provider Provider) Plugin {
 
 func (this *plugin) String() string {
 	str := "<eventqueue"
+	if this.schema != "" {
+		str += fmt.Sprintf(" schema=%q", this.schema)
+	}
 	return str + ">"
 }
 
