@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"sync"
 	"time"
@@ -113,6 +114,11 @@ func (this *plugin) Run(ctx context.Context, provider Provider) error {
 	var result error
 	var wg sync.WaitGroup
 
+	// Add HTTP handlers for indexer
+	if err := this.AddHandlers(ctx, provider); err != nil {
+		return err
+	}
+
 	// Process indexer events in background
 	wg.Add(1)
 	go func() {
@@ -124,11 +130,17 @@ func (this *plugin) Run(ctx context.Context, provider Provider) error {
 				break FOR_LOOP
 			case evt := <-this.c:
 				switch evt.Type() {
-				case indexer.EVENT_TYPE_ADDED, indexer.EVENT_TYPE_CHANGED:
+				case indexer.EVENT_TYPE_ADDED:
 					if id, err := this.Database.AddFile(evt.Key(), evt.Path(), evt.FileInfo()); err != nil {
-						provider.Print(ctx, "IndexerEvent: ", err)
+						provider.Print(ctx, "IndexerEvent: Added: ", err)
 					} else {
-						provider.Print(ctx, "IndexerEvent: ", id)
+						provider.Print(ctx, "IndexerEvent: Added: ", id)
+					}
+				case indexer.EVENT_TYPE_CHANGED:
+					if id, err := this.Database.AddFile(evt.Key(), evt.Path(), evt.FileInfo()); err != nil {
+						provider.Print(ctx, "IndexerEvent: Changed: ", err)
+					} else {
+						provider.Print(ctx, "IndexerEvent: Changed: ", id)
 					}
 				case indexer.EVENT_TYPE_RENAMED:
 					provider.Print(ctx, "IndexerEvent: ", evt)
@@ -139,6 +151,28 @@ func (this *plugin) Run(ctx context.Context, provider Provider) error {
 		}
 	}()
 
+	// Run process to index documents
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
+	FOR_LOOP:
+		for {
+			select {
+			case <-ctx.Done():
+				break FOR_LOOP
+			case <-ticker.C:
+				if id, err := this.Database.GetDocumentIdForIndexing(1); err != nil {
+					provider.Print(ctx, "IndexerEvent: ", err)
+				} else if len(id) == 0 {
+					// No documents to index
+				} else if err := this.Database.IndexDocumentWithId(id[0], this.renderDocument); err != nil {
+					provider.Print(ctx, "IndexerEvent: ", err)
+				}
+			}
+		}
+	}()
 	// Index filesystem in foreground after a short delay
 	<-time.After(time.Second * 3)
 	if err := this.Indexer.Walk(ctx); err != nil {
@@ -162,4 +196,12 @@ func (this *plugin) Run(ctx context.Context, provider Provider) error {
 
 	// Return success
 	return result
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+func (this *plugin) renderDocument(doc Document) error {
+	fmt.Println("TODO: Render doc", doc)
+	return nil
 }

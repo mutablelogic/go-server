@@ -11,7 +11,7 @@ plugins:
   - build/template.plugin
   - build/mdns.plugin
   - build/chromecast.plugin
-  - build/indexer.plugin
+#  - build/indexer.plugin
 
 # HTTP Server parameters
 httpserver:
@@ -32,13 +32,15 @@ handlers:
     prefix: /api/sqlite
     middleware:
       - log
-      - basicauth
   mdns:
     prefix: /api/mdns
     middleware:
       - log
-      - basicauth
-
+#  indexer:
+#    prefix: /api/indexer
+#    middleware:
+#      - log
+      
 # Basic Authentication
 basicauth:
   # Realm to report to client when rejecting authentication
@@ -85,9 +87,7 @@ static:
 sqlite:
   # Databases to load and/or create
   databases:
-    test: /tmp/test.sqlite
-    queue: ":memory:"
-    indexer: ":memory:"
+    main: ":memory:"
 
 # Event queue
 eventqueue:

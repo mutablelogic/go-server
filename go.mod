@@ -6,12 +6,11 @@ require (
 	github.com/GehirnInc/crypt v0.0.0-20200316065508-bb7000b8a962
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/djthorpe/go-marshaler v0.0.13
-	github.com/djthorpe/go-sqlite v1.0.23
+	github.com/djthorpe/go-sqlite v1.0.28
 	github.com/go-ldap/ldap/v3 v3.4.1
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/miekg/dns v1.1.43
 	github.com/pkg/term v1.1.0
-	github.com/rjeczalik/notify v0.9.2
 	golang.org/x/crypto v0.0.0-20210817164053-32db794688a5
 	golang.org/x/net v0.0.0-20210825183410-e898025ed96a
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b

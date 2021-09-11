@@ -2,7 +2,6 @@
 # Go files
 *.test
 *.out
-*.sum
 
 # Backup files etc
 .DS_Store

@@ -37,6 +37,7 @@ func (this *plugin) createTables(context.Context) error {
 	return this.Do(func(txn sq.SQTransaction) error {
 		source := N(tableNameEvent).WithSchema(this.schema)
 		for _, statement := range sqobj.CreateTableAndIndexes(source, true, SQEvent{}) {
+			fmt.Println(statement)
 			if _, err := txn.Exec(statement); err != nil {
 				return err
 			}

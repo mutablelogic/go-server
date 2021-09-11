@@ -44,6 +44,15 @@ func New(ctx context.Context, provider Provider) Plugin {
 	this.C = make(chan Event, defaultCapacity)
 	this.S = make(map[string]chan<- Event)
 
+	// Set configuation
+	cfg := Config{
+		Database: defaultDatabase,
+	}
+	if err := provider.GetConfig(ctx, &cfg); err != nil {
+		provider.Print(ctx, "GetConfig: ", err)
+		return nil
+	}
+
 	// Get sqlite
 	if conn, ok := provider.GetPlugin(ctx, "sqlite").(sq.SQConnection); !ok {
 		provider.Print(ctx, "missing sqlite dependency")
@@ -52,12 +61,9 @@ func New(ctx context.Context, provider Provider) Plugin {
 		this.SQConnection = conn
 	}
 
-	// Set configuation
-	cfg := Config{
-		Database: defaultDatabase,
-	}
-	if err := provider.GetConfig(ctx, &cfg); err != nil {
-		provider.Print(ctx, "GetConfig: ", err)
+	// Set schema
+	if this.hasSchema(cfg.Database) == false {
+		provider.Printf(ctx, "missing database: %q", cfg.Database)
 		return nil
 	} else {
 		this.schema = cfg.Database
@@ -86,6 +92,7 @@ func Name() string {
 }
 
 func (this *plugin) Run(ctx context.Context, provider Provider) error {
+	// Create tables for event queue
 	if err := this.createTables(ctx); err != nil {
 		provider.Print(ctx, "failed to create tables: ", err)
 		return err
@@ -101,7 +108,7 @@ FOR_LOOP:
 				case s <- evt:
 					// no-op
 				default:
-					provider.Print(ctx, "eventqueue: cannot send on blocked channel: ", name)
+					provider.Printf(ctx, "eventqueue: cannot send on blocked channel: %q", name)
 				}
 			}
 		case <-ctx.Done():
@@ -143,4 +150,16 @@ func (this *plugin) Subscribe(ctx context.Context, s chan<- Event) error {
 
 	// Return success
 	return nil
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+func (this *plugin) hasSchema(v string) bool {
+	for _, schema := range this.SQConnection.Schemas() {
+		if schema == v {
+			return true
+		}
+	}
+	return false
 }

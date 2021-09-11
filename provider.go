@@ -105,7 +105,7 @@ type Renderer interface {
 type Document interface {
 	Title() string
 	Description() string
-	Shortform() string
+	Shortform() template.HTML
 	Tags() []string
 	File() DocumentFile
 	Meta() map[DocumentKey]interface{}
