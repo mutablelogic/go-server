@@ -18,16 +18,18 @@ import (
 // TYPES
 
 type Endpoint struct {
+	// Prefix for the endpoint
+	Prefix string `json:"prefix"`
 	// Name of static serving which can be empty
-	Name string `yaml:"name,omitempty"`
+	Name string `yaml:"name,omitempty" json:"name,omitempty"`
 	// Filepath to serve static content
-	Path string `yaml:"path"`
+	Path string `yaml:"path" json:"-"`
 }
 
 type Config map[string]string
 
 type plugin struct {
-	alias map[string]Endpoint
+	alias []Endpoint
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -36,7 +38,6 @@ type plugin struct {
 // Root static file serving from a directory
 func New(ctx context.Context, provider Provider) Plugin {
 	this := new(plugin)
-	this.alias = make(map[string]Endpoint)
 
 	// Load configuration
 	cfg := Config{}
@@ -60,7 +61,7 @@ func New(ctx context.Context, provider Provider) Plugin {
 			provider.Print(ctx, "Not a folder: ", abspath)
 			return nil
 		} else {
-			this.alias[prefix] = Endpoint{prefix, abspath}
+			this.alias = append(this.alias, Endpoint{prefix, prefix, abspath})
 		}
 	}
 
@@ -73,8 +74,8 @@ func New(ctx context.Context, provider Provider) Plugin {
 
 func (this *plugin) String() string {
 	str := "<static"
-	for alias, endpoint := range this.alias {
-		str += fmt.Sprintf(" %q =>  %q", alias, endpoint)
+	for _, endpoint := range this.alias {
+		str += fmt.Sprintf(" %q => %q", endpoint.Prefix, endpoint.Path)
 	}
 	return str + ">"
 }
@@ -90,8 +91,8 @@ func (this *plugin) Run(ctx context.Context, provider Provider) error {
 	var result error
 
 	// Add handlers for static content
-	for alias, endpoint := range this.alias {
-		if err := provider.AddHandler(prv.ContextWithPrefix(ctx, alias), http.FileServer(http.Dir(endpoint.Path))); err != nil {
+	for _, endpoint := range this.alias {
+		if err := provider.AddHandler(prv.ContextWithPrefix(ctx, endpoint.Prefix), http.FileServer(http.Dir(endpoint.Path))); err != nil {
 			result = multierror.Append(result, err)
 		}
 	}
@@ -116,6 +117,6 @@ func (this *plugin) Run(ctx context.Context, provider Provider) error {
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS - HANDLER
 
-func (this *plugin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	router.ServeJSON(w, this.alias, http.StatusOK, 2)
+func (p *plugin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	router.ServeJSON(w, p.alias, http.StatusOK, 2)
 }
