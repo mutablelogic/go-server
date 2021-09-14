@@ -18,11 +18,13 @@ import (
 // TYPES
 
 type Endpoint struct {
-	Path string `json:"path"`
-	Name string `json:"name"`
+	// Name of static serving which can be empty
+	Name string `yaml:"name,omitempty"`
+	// Filepath to serve static content
+	Path string `yaml:"path"`
 }
 
-type Config map[string]Endpoint
+type Config map[string]string
 
 type plugin struct {
 	alias map[string]Endpoint
@@ -47,18 +49,18 @@ func New(ctx context.Context, provider Provider) Plugin {
 	}
 
 	// Make paths absolute
-	for prefix, endpoint := range cfg {
-		if abspath, err := filepath.Abs(endpoint.Path); err != nil {
+	for prefix, path := range cfg {
+		if abspath, err := filepath.Abs(path); err != nil {
 			provider.Print(ctx, err)
 			return nil
 		} else if stat, err := os.Stat(abspath); err != nil {
 			provider.Print(ctx, err)
 			return nil
 		} else if !stat.IsDir() {
-			provider.Print(ctx, "Not a folder: ", endpoint.Path)
+			provider.Print(ctx, "Not a folder: ", abspath)
 			return nil
 		} else {
-			this.alias[prefix] = Endpoint{endpoint.Name, endpoint.Path}
+			this.alias[prefix] = Endpoint{prefix, abspath}
 		}
 	}
 

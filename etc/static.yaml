@@ -1,0 +1,21 @@
+
+# Plugins to load, the order of these is important
+plugins:
+  - build/log.plugin
+  - build/httpserver.plugin
+  - build/static.plugin
+
+# HTTP Server parameters
+httpserver:
+  addr: :80
+
+# Handlers for serving plugins  
+handlers:
+  static:
+    prefix: /api/static
+    middleware:
+      - log
+
+# Where to serve static files from
+static:
+  "/": npm/mdns/dist
