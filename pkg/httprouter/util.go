@@ -141,6 +141,6 @@ func ServeError(w http.ResponseWriter, code int, reason ...string) error {
 
 func decodeValues(q url.Values, v interface{}) error {
 	// Add decoders for duration and time values
-	decoder := marshaler.NewDecoder("json", marshaler.ConvertQueryValues, marshaler.ConvertDuration, marshaler.ConvertTime)
+	decoder := marshaler.NewDecoder("json", marshaler.ConvertQueryValues, marshaler.ConvertStringToNumber, marshaler.ConvertDuration, marshaler.ConvertTime)
 	return decoder.DecodeQuery(q, v)
 }
