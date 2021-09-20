@@ -18,17 +18,18 @@ import (
 // TYPES
 
 type Config struct {
-	Path      string                 `yaml:"path"`
-	Templates string                 `yaml:"templates"`
-	Renderers map[string]interface{} `yaml:"renderers"`
-	Default   string                 `yaml:"default"`
+	Path      string   `yaml:"path"`
+	Templates string   `yaml:"templates"`
+	Renderers []string `yaml:"renderers"`
+	Default   string   `yaml:"default"`
 }
 
 type templates struct {
 	Config
 	*template.Cache
-	filefs fs.FS
-	log    Logger
+	filefs    fs.FS
+	log       Logger
+	mimetypes map[string]Renderer
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -91,30 +92,28 @@ func New(ctx context.Context, provider Provider) Plugin {
 		return nil
 	}
 
-	// TODO: Set template functions
-
-	/*
-		// Set renderers
-		for name, mimetypes := range this.Renderers {
-			if plugin := provider.GetModule(ctx, name); plugin == nil {
-				provider.Printf(ctx, "Failed to load renderer: %q", name)
-				return nil
-			} else if renderer, ok := plugin.(nginx.Renderer); ok == false || renderer == nil {
-				provider.Printf(ctx, "Failed to load renderer: %q", name)
-				return nil
-			} else if mimetypes, ok := mimetypes.([]interface{}); ok == false {
-				provider.Printf(ctx, "Failed to set renderer mimetypes: %q", name)
-				return nil
-			} else {
-				for _, mimetype := range mimetypes {
-					if err := this.renderers.Add(mimetype.(string), renderer); err != nil {
-						provider.Printf(ctx, "Failed to set renderer for %q: %v", name, err)
-						return nil
-					}
+	// Set renderers
+	this.mimetypes = make(map[string]Renderer)
+	for _, name := range this.Renderers {
+		fmt.Println(name)
+		if plugin := provider.GetPlugin(ctx, name); plugin == nil {
+			provider.Printf(ctx, "Failed to load renderer: %q", name)
+			return nil
+		} else if renderer, ok := plugin.(Renderer); !ok {
+			provider.Printf(ctx, "Failed to load renderer: %q", name)
+			return nil
+		} else {
+			for _, mimetype := range renderer.Mimetypes() {
+				if r, exists := this.mimetypes[mimetype]; exists {
+					provider.Printf(ctx, "Duplicate renderer for %q, will be handled by %v", mimetype, r)
+					return nil
+				} else {
+					this.mimetypes[mimetype] = renderer
 				}
 			}
 		}
-
+	}
+	/*
 		// Read templates
 		if err := this.read(this.tmplfs); err != nil {
 			provider.Print(ctx, "Failed to read templates: ", err)
@@ -149,8 +148,8 @@ func (this *templates) String() string {
 	if this.Cache != nil {
 		str += fmt.Sprint(" ", this.Cache)
 	}
-	for renderer, mimetypes := range this.Config.Renderers {
-		str += fmt.Sprintf(" %q=%q", renderer, mimetypes)
+	if len(this.Renderers) > 0 {
+		str += fmt.Sprintf(" renderers=%q", this.Renderers)
 	}
 	return str + ">"
 }

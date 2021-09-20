@@ -5,9 +5,10 @@ plugins:
   - build/httpserver.plugin
   - build/basicauth.plugin
   - build/ldapauth.plugin
-  - build/sqlite.plugin
-  - build/eventqueue.plugin
+#  - build/sqlite.plugin
+#  - build/eventqueue.plugin
 #  - build/static.plugin
+  - build/media.plugin
   - build/template.plugin
   - build/mdns.plugin
   - build/chromecast.plugin
@@ -19,6 +20,10 @@ httpserver:
 
 # Handlers for serving plugins  
 handlers:
+  template:
+    prefix: /
+    middleware:
+      - log
   basicauth:
     prefix: /api/basicauth
     middleware:
@@ -28,10 +33,10 @@ handlers:
 #    prefix: /api/static
 #    middleware:
 #      - log
-  sqlite:
-    prefix: /api/sqlite
-    middleware:
-      - log
+#  sqlite:
+#    prefix: /api/sqlite
+#    middleware:
+#      - log
   mdns:
     prefix: /api/mdns
     middleware:
@@ -101,6 +106,9 @@ template:
   path: .
   templates: etc/templates
   default: default.tmpl
+  # Enumerate plugins which can render content
+  renderers:
+    - media
 
 # local network service discovery
 mdns:

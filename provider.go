@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"html/template"
-	"io"
 	"net"
 	"net/http"
 	"regexp"
@@ -94,11 +93,13 @@ type Service interface {
 
 // Renderer translates a data stream into a document
 type Renderer interface {
+	Plugin
+
 	// Return default mimetypes and file extensions handled by this renderer
 	Mimetypes() []string
 
-	// Render a data stream into a document
-	Read(context.Context, io.Reader) (Document, error)
+	// Render a file into a document
+	Read(context.Context, string) (Document, error)
 }
 
 // Document to be rendered or indexed

@@ -25,6 +25,7 @@ server: dependencies mkdir
 
 plugins: $(PLUGIN_DIR)
 	@echo Build plugin media 
+	@${GO} get github.com/djthorpe/go-media
 	@${GO} build -buildmode=plugin -o ${BUILD_DIR}/media.plugin ${BUILD_FLAGS} github.com/djthorpe/go-media/plugin/media
 
 $(PLUGIN_DIR): FORCE
