@@ -9,8 +9,10 @@ import (
 	"time"
 
 	// Modules
-	. "github.com/djthorpe/go-server"
 	ldap "github.com/go-ldap/ldap/v3"
+
+	// Namespace imports
+	. "github.com/djthorpe/go-errors"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

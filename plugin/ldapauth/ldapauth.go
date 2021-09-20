@@ -9,6 +9,7 @@ import (
 	"time"
 
 	// Modules
+	. "github.com/djthorpe/go-errors"
 	. "github.com/djthorpe/go-server"
 )
 

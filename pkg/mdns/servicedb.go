@@ -9,8 +9,8 @@ import (
 	"os"
 	"strings"
 
-	// Modules
-	. "github.com/djthorpe/go-server"
+	// Namespace imports
+	. "github.com/djthorpe/go-errors"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

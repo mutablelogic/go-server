@@ -7,9 +7,11 @@ import (
 	"os"
 	"path/filepath"
 
+	// Packages
+	template "github.com/djthorpe/go-server/pkg/template"
+
 	// Modules
 	. "github.com/djthorpe/go-server"
-	template "github.com/djthorpe/go-server/pkg/template"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

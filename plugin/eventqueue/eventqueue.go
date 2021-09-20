@@ -9,6 +9,9 @@ import (
 	. "github.com/djthorpe/go-server"
 	"github.com/djthorpe/go-server/pkg/provider"
 	sq "github.com/djthorpe/go-sqlite"
+
+	// Namespace imports
+	. "github.com/djthorpe/go-errors"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

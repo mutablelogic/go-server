@@ -9,10 +9,12 @@ import (
 	"reflect"
 	"strings"
 
-	// Modules
+	// Packages
 	marshaler "github.com/djthorpe/go-marshaler"
-	. "github.com/djthorpe/go-server"
 	provider "github.com/djthorpe/go-server/pkg/provider"
+
+	// Namespace imports
+	. "github.com/djthorpe/go-errors"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

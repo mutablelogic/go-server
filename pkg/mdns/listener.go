@@ -8,12 +8,14 @@ import (
 	"sync"
 	"time"
 
-	// Modules
-	. "github.com/djthorpe/go-server"
+	// Packages
 	multierror "github.com/hashicorp/go-multierror"
 	dns "github.com/miekg/dns"
 	ipv4 "golang.org/x/net/ipv4"
 	ipv6 "golang.org/x/net/ipv6"
+
+	// Namespace imports
+	. "github.com/djthorpe/go-errors"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

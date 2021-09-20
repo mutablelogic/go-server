@@ -8,9 +8,11 @@ import (
 	"strconv"
 	"sync"
 
-	// Modules
-	. "github.com/djthorpe/go-server"
+	// Packages
 	multierror "github.com/hashicorp/go-multierror"
+
+	// Modules
+	. "github.com/djthorpe/go-errors"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

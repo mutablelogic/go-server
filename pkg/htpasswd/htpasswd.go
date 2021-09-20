@@ -9,8 +9,10 @@ import (
 
 	// Modules
 	"github.com/GehirnInc/crypt/apr1_crypt"
-	. "github.com/djthorpe/go-server"
 	"golang.org/x/crypto/bcrypt"
+
+	// Namespace imports
+	. "github.com/djthorpe/go-errors"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -13,11 +13,14 @@ import (
 	"sync"
 	"time"
 
-	// Modules
-	. "github.com/djthorpe/go-server"
+	// Packages
 	htpasswd "github.com/djthorpe/go-server/pkg/htpasswd"
 	router "github.com/djthorpe/go-server/pkg/httprouter"
-	"github.com/djthorpe/go-server/pkg/provider"
+	provider "github.com/djthorpe/go-server/pkg/provider"
+
+	// Namespace imports
+	. "github.com/djthorpe/go-errors"
+	. "github.com/djthorpe/go-server"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

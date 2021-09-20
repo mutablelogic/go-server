@@ -11,11 +11,14 @@ import (
 	"sync"
 	"syscall"
 
-	// Modules
+	// Packages
 	marshaler "github.com/djthorpe/go-marshaler"
-	. "github.com/djthorpe/go-server"
 	config "github.com/djthorpe/go-server/pkg/config"
 	multierror "github.com/hashicorp/go-multierror"
+
+	// Namespace imports
+	. "github.com/djthorpe/go-errors"
+	. "github.com/djthorpe/go-server"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

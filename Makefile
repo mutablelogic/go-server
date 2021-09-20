@@ -17,11 +17,15 @@ PLUGIN_DIR = $(wildcard plugin/*)
 
 .PHONY: all server dependencies mkdir clean 
 
-all: clean server $(PLUGIN_DIR)
+all: clean server plugins
 
 server: dependencies mkdir
 	@echo Build server
 	@${GO} build -o ${BUILD_DIR}/server ${BUILD_FLAGS} ./cmd/server
+
+plugins: $(PLUGIN_DIR)
+	@echo Build plugin media 
+	@${GO} build -buildmode=plugin -o ${BUILD_DIR}/media.plugin ${BUILD_FLAGS} github.com/djthorpe/go-media/plugin/media
 
 $(PLUGIN_DIR): FORCE
 	@echo Build plugin $(notdir $@)
