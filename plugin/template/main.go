@@ -6,11 +6,13 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
 	// Packages
 	template "github.com/djthorpe/go-server/pkg/template"
 
 	// Modules
+	. "github.com/djthorpe/go-errors"
 	. "github.com/djthorpe/go-server"
 )
 
@@ -75,7 +77,7 @@ func New(ctx context.Context, provider Provider) Plugin {
 		this.filefs = os.DirFS(this.Path)
 	}
 
-	//  Create cache for templates
+	// Create cache for templates
 	if stat, err := os.Stat(this.Config.Templates); err != nil || !stat.IsDir() {
 		provider.Printf(ctx, "Invalid template path: %q", this.Config.Templates)
 		return nil
@@ -86,16 +88,9 @@ func New(ctx context.Context, provider Provider) Plugin {
 		this.Cache = cache
 	}
 
-	// Add handler for templates
-	if err := provider.AddHandlerFunc(ctx, this.ServeHTTP); err != nil {
-		provider.Print(ctx, "Failed to add handler: ", err)
-		return nil
-	}
-
 	// Set renderers
 	this.mimetypes = make(map[string]Renderer)
 	for _, name := range this.Renderers {
-		fmt.Println(name)
 		if plugin := provider.GetPlugin(ctx, name); plugin == nil {
 			provider.Printf(ctx, "Failed to load renderer: %q", name)
 			return nil
@@ -104,31 +99,12 @@ func New(ctx context.Context, provider Provider) Plugin {
 			return nil
 		} else {
 			for _, mimetype := range renderer.Mimetypes() {
-				if r, exists := this.mimetypes[mimetype]; exists {
-					provider.Printf(ctx, "Duplicate renderer for %q, will be handled by %v", mimetype, r)
-					return nil
-				} else {
-					this.mimetypes[mimetype] = renderer
+				if err := this.setRenderer(mimetype, renderer); err != nil {
+					provider.Printf(ctx, err.Error())
 				}
 			}
 		}
 	}
-	/*
-		// Read templates
-		if err := this.read(this.tmplfs); err != nil {
-			provider.Print(ctx, "Failed to read templates: ", err)
-			return nil
-		}
-
-		// Initiate the indexer
-		if sqlite, ok := provider.GetModule(ctx, "sqlite").(nginx.SQPlugin); ok == false || sqlite == nil {
-			provider.Print(ctx, "Failed to initialize indexer")
-			return nil
-		} else if err := this.indexer.Init(sqlite); err != nil {
-			provider.Print(ctx, "Failed to initialize indexer: ", err)
-			return nil
-		}
-	*/
 
 	// Return success
 	return this
@@ -155,13 +131,42 @@ func (this *templates) String() string {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// PUBLIC METHODS - PLUGIN
+// PUBLIC METHODS
 
 func Name() string {
 	return "template"
 }
 
-func (this *templates) Run(ctx context.Context, _ Provider) error {
+func (t *templates) Run(ctx context.Context, provider Provider) error {
+	// Add handler for templates
+	if err := provider.AddHandlerFunc(ctx, t.ServeHTTP); err != nil {
+		return err
+	}
+
+	// Wait for end
 	<-ctx.Done()
+
+	// Return success
 	return nil
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+func (t *templates) setRenderer(key string, renderer Renderer) error {
+	key = strings.ToLower(key)
+	if r, exists := t.mimetypes[key]; exists {
+		return ErrDuplicateEntry.Withf("%q will be handled by %q", key, r)
+	}
+	t.mimetypes[key] = renderer
+	return nil
+}
+
+func (t *templates) getRenderer(key string) Renderer {
+	key = strings.ToLower(key)
+	if r, exists := t.mimetypes[key]; exists {
+		return r
+	} else {
+		return nil
+	}
 }

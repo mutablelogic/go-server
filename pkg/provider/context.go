@@ -18,6 +18,7 @@ const (
 	ctxKeyParams
 	ctxKeyUser
 	ctxKeyAuth
+	ctxKeyPath
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -92,8 +93,8 @@ func ContextHandlerMiddleware(ctx context.Context) []string {
 	}
 }
 
-func ContextWithParams(parent context.Context, params []string) context.Context {
-	return context.WithValue(parent, ctxKeyParams, params)
+func ContextWithPathParams(parent context.Context, path string, params []string) context.Context {
+	return context.WithValue(context.WithValue(parent, ctxKeyParams, params), ctxKeyPath, path)
 }
 
 func ContextParams(ctx context.Context) []string {
@@ -101,6 +102,14 @@ func ContextParams(ctx context.Context) []string {
 		return params
 	} else {
 		return nil
+	}
+}
+
+func ContextPath(ctx context.Context) string {
+	if path, ok := ctx.Value(ctxKeyPath).(string); ok {
+		return path
+	} else {
+		return ""
 	}
 }
 
@@ -133,10 +142,13 @@ func DumpContext(ctx context.Context) string {
 		str += fmt.Sprintf(" name=%q", name)
 	}
 	if path, ok := ctx.Value(ctxKeyPluginPath).([]string); ok {
-		str += fmt.Sprintf(" path=%q", path)
+		str += fmt.Sprintf(" plugin_path=%q", path)
 	}
 	if handler, ok := ctx.Value(ctxKeyHandler).(config.Handler); ok {
 		str += fmt.Sprintf(" handler=%v", handler)
+	}
+	if path, ok := ctx.Value(ctxKeyPath).(string); ok {
+		str += fmt.Sprintf(" req_path=%q", path)
 	}
 	if params, ok := ctx.Value(ctxKeyParams).([]string); ok {
 		str += fmt.Sprintf(" params=%q", params)

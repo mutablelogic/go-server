@@ -1,2 +1,76 @@
-TEST TEMPLATE
+<!DOCTYPE html>
+<html lang="en">
 
+<head>
+    <title>{{ .Title }}</title>
+    <meta name="description" content="{{ .Description }}">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-F3w7mX95PdgyTmZZMECAngseQB83DfGTowi0iMjiWaeVhAn4FJkqJByhZMI3AhiU" crossorigin="anonymous">
+</head>
+
+<body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">go-server</a>
+        </div>
+    </nav>
+
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-8 my-4">
+                <h1>{{ .Title }}</h1>
+                {{ if .Shortform }}<blockquote>{{ .Shortform }}</blockquote>{{ end }}
+                {{ range $i, $html := .HTML }}{{ template "html" $html }}{{ end }}
+            </div>
+            <div class="col-md-4 bg-light border-start">
+                <h5>Document</h5>
+                <dl>
+                    <dt>Title</dt>
+                    <dd>{{ .Title }}</dd>
+                    <dt>Description</dt>
+                    <dd>{{ .Description }}</dd>
+                    {{ if .Shortform }}<dt>Shortform</dt><dd>{{ .Shortform }}</dd>{{ end }}
+                    <dt>Tags</dt>
+                    <dd>{{ .Tags }}</dd>
+                </dl>
+                <hr>
+                <h5>File</h5>
+                <dl>
+                    <dt>Name</dt>
+                    <dd>{{ .Name }}</dd>
+                    <dt>Path</dt>
+                    <dd>{{ .Path }}</dd>
+                    <dt>Ext</dt>
+                    <dd>{{ .Ext }}</dd>
+                    <dt>ModTime</dt>
+                    <dd>{{ .ModTime }}</dd>
+                    <dt>Size</dt>
+                    <dd>{{ .Size }}</dd>
+                </dl>
+                {{ if .Meta }}
+                <hr>
+                <h5>Meta</h5>
+                <dl>
+                    {{ range $k, $v := .Meta }}<dt>{{ $k }}</dt><dd>{{ $v }}</dd>{{ end }}
+                </dl>
+                {{ end }}
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>
+
+{{ define "html" }}
+    <div{{ if .Class }} class="{{ .Class }}"{{ end }}>
+        {{ if .Title }}
+            {{ if .Level }}<h{{.Level}}>{{ end }}
+                {{ if .Anchor }}<a href="#{{ .Anchor }}">{{ end }}
+                  {{ .Title }}
+                {{ if .Anchor }}</a>{{ end }}
+            {{ if .Level }}</h{{.Level}}>{{ end }}
+        {{ end }}
+        {{ .HTML }}
+    </div>
+{{ end }}

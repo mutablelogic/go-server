@@ -1,7 +1,9 @@
 package main
 
 import (
+	"io"
 	"io/fs"
+	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -10,6 +12,9 @@ import (
 
 	// Modules
 	router "github.com/djthorpe/go-server/pkg/httprouter"
+
+	// Namespace imports
+	. "github.com/djthorpe/go-server"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -87,58 +92,72 @@ func (this *templates) ServeFile(w http.ResponseWriter, req *http.Request, file 
 		this.log.Printf(req.Context(), "Forbidden to serve %q", req.URL.Path)
 		return
 	}
-	router.ServeText(w, "Serve File "+info.Name(), http.StatusOK)
 
-	/*
-		// Obtain renderer by file extension
-		var renderer nginx.Renderer
-		if ext := filepath.Ext(info.Name()); ext != "" {
-			renderer = this.renderers.Lookup(ext)
-		}
+	// Obtain renderer from file extension
+	var renderer Renderer
+	if ext := filepath.Ext(info.Name()); ext != "" {
+		renderer = this.getRenderer(ext)
+	} else if t := mime.TypeByExtension(ext); t != "" {
+		renderer = this.getRenderer(t)
+	}
 
-		// TODO Obtain renderer by file mimetype
+	// Report error if no renderer available
+	if renderer == nil {
+		router.ServeError(w, http.StatusNotImplemented, "No renderer for ", req.URL.Path)
+		return
+	}
 
-		// Report error if no renderer available
-		if renderer == nil {
-			server.ServeError(w, http.StatusNotImplemented)
-			this.log.Printf(req.Context(), "No renderer for %q", req.URL.Path)
-			return
-		}
+	// Render document
+	doc, err := renderer.Read(req.Context(), file.(io.Reader), info)
+	if err != nil {
+		router.ServeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 
-		// Render document
-		doc, err := renderer.Render(req.Context(), file.(io.Reader), info)
-		if err != nil {
-			server.ServeError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
+	// Get template
+	tmpl, err := this.Cache.Lookup(this.Default)
+	if err != nil {
+		router.ServeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 
-		// Get template
-		tmpl, err := this.cache.Lookup(doc.Template(), this.tmplfs)
-		if err != nil {
-			server.ServeError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-
-		if err := tmpl.Execute(w, doc); err != nil {
-			this.log.Printf(req.Context(), "Template error for %q: %v", req.URL.Path, err)
-			return
-		}
-
-		// Index document in background
-		go func() {
-			if err := this.indexer.Add(req.URL.Path, doc); err != nil {
-				this.log.Printf(req.Context(), "Unable to index %q: %v", req.URL.Path, err)
-			}
-		}()
-	*/
+	// Render document through the template
+	if err := tmpl.Execute(w, doc); err != nil {
+		this.log.Printf(req.Context(), "Template error for %q: %v", req.URL.Path, err)
+	}
 }
 
 func (this *templates) ServeDir(w http.ResponseWriter, req *http.Request, file fs.ReadDirFile, info fs.FileInfo) {
 	// Forbidden if name is hidden folder
-	if strings.HasPrefix(info.Name(), ".") {
+	if strings.HasPrefix(info.Name(), ".") && info.Name() != "." {
 		router.ServeError(w, http.StatusForbidden)
 		this.log.Printf(req.Context(), "Forbidden to serve %q", req.URL.Path)
 		return
 	}
-	router.ServeText(w, "Serve Dir "+info.Name(), http.StatusOK)
+
+	// Obtain renderer
+	renderer := this.getRenderer(router.PathSeparator)
+	if renderer == nil {
+		router.ServeError(w, http.StatusNotImplemented, "No renderer for ", req.URL.Path)
+		return
+	}
+
+	// Render document
+	doc, err := renderer.ReadDir(req.Context(), file, info)
+	if err != nil {
+		router.ServeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// Get template
+	tmpl, err := this.Cache.Lookup(this.Default)
+	if err != nil {
+		router.ServeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// Render document through the template
+	if err := tmpl.Execute(w, doc); err != nil {
+		this.log.Printf(req.Context(), "Template error for %q: %v", req.URL.Path, err)
+	}
 }

@@ -163,7 +163,7 @@ func (this *route) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // PRIVATE METHODS
 
 func reqWithParams(r *http.Request, params []string) *http.Request {
-	return r.Clone(provider.ContextWithParams(r.Context(), params))
+	return r.Clone(provider.ContextWithPathParams(r.Context(), r.URL.Path, params))
 }
 
 func prefixForContext(ctx context.Context) string {

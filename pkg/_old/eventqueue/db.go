@@ -4,8 +4,6 @@ import (
 	"context"
 	"time"
 
-	// Modules
-
 	// Namespace imports
 	. "github.com/djthorpe/go-errors"
 	. "github.com/djthorpe/go-server"

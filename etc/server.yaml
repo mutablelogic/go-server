@@ -13,6 +13,8 @@ plugins:
   - build/mdns.plugin
   - build/chromecast.plugin
 #  - build/indexer.plugin
+  - build/text-renderer.plugin
+  - build/dir-renderer.plugin
 
 # HTTP Server parameters
 httpserver:
@@ -108,7 +110,8 @@ template:
   default: default.tmpl
   # Enumerate plugins which can render content
   renderers:
-    - media
+    - text-renderer
+    - dir-renderer
 
 # local network service discovery
 mdns:
