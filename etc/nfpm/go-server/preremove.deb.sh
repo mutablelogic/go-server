@@ -1,5 +1,12 @@
 #!/bin/bash
-if [ $1 -eq 0 ] ; then 
-  systemctl --no-reload disable go-server.service
-  systemctl stop go-server.service
-fi
+
+# Daemon reload
+systemctl --system daemon-reload
+
+# Stop service
+deb-systemd-invoke stop go-server.service
+
+# Purge
+deb-systemd-helper purge go-server.service
+deb-systemd-helper unmask go-server.service
+
