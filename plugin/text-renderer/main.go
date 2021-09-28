@@ -4,7 +4,7 @@ import (
 	"context"
 
 	// Namespace Imports
-	. "github.com/djthorpe/go-server"
+	. "github.com/mutablelogic/go-server"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -6,7 +6,7 @@ import (
 	"time"
 
 	// Modules
-	"github.com/djthorpe/go-server/pkg/mdns"
+	"github.com/mutablelogic/go-server/pkg/mdns"
 	"golang.org/x/net/context"
 )
 

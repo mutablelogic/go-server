@@ -57,7 +57,7 @@ additional dependencies.
 To build the server, plugins and frontends, run:
 
 ```bash
-[bash] git clone git@github.com:djthorpe/go-server.git
+[bash] git clone git@github.com:mutablelogic/go-server.git
 [bash] cd go-server && make
 ```
 
@@ -111,7 +111,7 @@ Flags:
     	Override path to unix socket or listening address
 
 Version:
-  URL: https://github.com/djthorpe/go-server
+  URL: https://github.com/mutablelogic/go-server
   Version: v1.0.6
   Build Time: 2021-09-31T12:00:00Z
   Go: go1.17 (darwin/amd64)
@@ -120,7 +120,7 @@ Version:
 ## Configuration and Packaging
 
 You can download the latest versions of the server, plugins and frontends 
-from [GitHub Releases](https://github.com/djthorpe/go-server/releases). These
+from [GitHub Releases](https://github.com/mutablelogic/go-server/releases). These
 are packaged as DEB packages for Debian x86 and ARM 32-bit. If you need packaging for
 other operating systems or platforms (ARM 64-bit, RedHat, etc) please contact me
 and I can add it to the workflows.
@@ -149,5 +149,5 @@ This module is currently __in development__ and is not yet ready for any product
 
 ## Community & License
 
-  * [File an issue or question](http://github.com/djthorpe/go-server/issues) on github.
+  * [File an issue or question](http://github.com/mutablelogic/go-server/issues) on github.
   * Licensed under Apache 2.0, please read that license about using and forking. The main conditions require preservation of copyright and license notices. Contributors provide an express grant of patent rights. Licensed works, modifications, and larger works may be distributed under different terms and without source code.

@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	// Modules
-	. "github.com/djthorpe/go-server"
 	dns "github.com/miekg/dns"
+	. "github.com/mutablelogic/go-server"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

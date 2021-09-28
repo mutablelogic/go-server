@@ -10,8 +10,8 @@ import (
 	"syscall"
 
 	// Modules
-	config "github.com/djthorpe/go-server/pkg/config"
-	provider "github.com/djthorpe/go-server/pkg/provider"
+	config "github.com/mutablelogic/go-server/pkg/config"
+	provider "github.com/mutablelogic/go-server/pkg/provider"
 )
 
 const (

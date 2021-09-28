@@ -8,12 +8,12 @@ import (
 	"time"
 
 	// Modules
-	indexer "github.com/djthorpe/go-server/pkg/indexer"
+	indexer "github.com/mutablelogic/go-server/pkg/indexer"
 	sq "github.com/djthorpe/go-sqlite"
 	multierror "github.com/hashicorp/go-multierror"
 
 	// Namespace imports
-	. "github.com/djthorpe/go-server"
+	. "github.com/mutablelogic/go-server"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

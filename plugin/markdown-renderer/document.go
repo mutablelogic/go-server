@@ -10,7 +10,7 @@ import (
 	"time"
 
 	// Namespace imports
-	. "github.com/djthorpe/go-server"
+	. "github.com/mutablelogic/go-server"
 
 	// Package imports
 	ast "github.com/gomarkdown/markdown/ast"
@@ -83,8 +83,6 @@ func NewDocument(path string, info fs.FileInfo, root ast.Node) *document {
 			return renderer.RenderNode(section, node, entering)
 		}
 	})
-
-	fmt.Printf("%q\n", buf)
 
 	// Append markdown tag
 	doc.appendTags([]string{"markdown"})

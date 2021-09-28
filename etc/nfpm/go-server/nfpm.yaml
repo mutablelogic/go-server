@@ -8,7 +8,7 @@ maintainer: "David Thorpe <djt@mutablelogic.com>"
 description: |
   Plugggable go-server monolith: httpserver
 vendor: "mutablelogic.com"
-homepage: "https://github.com/djthorpe/go-server"
+homepage: "https://github.com/mutablelogic/go-server"
 
 contents:
   - src: ./build/server

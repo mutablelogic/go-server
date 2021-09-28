@@ -7,8 +7,8 @@ import (
 	"time"
 
 	// Modules
-	. "github.com/djthorpe/go-server"
-	router "github.com/djthorpe/go-server/pkg/httprouter"
+	. "github.com/mutablelogic/go-server"
+	router "github.com/mutablelogic/go-server/pkg/httprouter"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

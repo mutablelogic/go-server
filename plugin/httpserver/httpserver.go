@@ -10,11 +10,11 @@ import (
 	"time"
 
 	// Modules
-	. "github.com/djthorpe/go-server"
-	fcgi "github.com/djthorpe/go-server/pkg/fcgi"
-	httprouter "github.com/djthorpe/go-server/pkg/httprouter"
-	prv "github.com/djthorpe/go-server/pkg/provider"
 	multierror "github.com/hashicorp/go-multierror"
+	. "github.com/mutablelogic/go-server"
+	fcgi "github.com/mutablelogic/go-server/pkg/fcgi"
+	httprouter "github.com/mutablelogic/go-server/pkg/httprouter"
+	prv "github.com/mutablelogic/go-server/pkg/provider"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

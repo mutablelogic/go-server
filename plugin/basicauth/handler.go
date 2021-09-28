@@ -7,10 +7,12 @@ import (
 	"regexp"
 
 	// Modules
-	. "github.com/djthorpe/go-server"
-	"github.com/djthorpe/go-server/pkg/htpasswd"
-	router "github.com/djthorpe/go-server/pkg/httprouter"
-	"github.com/djthorpe/go-server/pkg/provider"
+	htpasswd "github.com/mutablelogic/go-server/pkg/htpasswd"
+	router "github.com/mutablelogic/go-server/pkg/httprouter"
+	provider "github.com/mutablelogic/go-server/pkg/provider"
+
+	// Namespace imports
+	. "github.com/mutablelogic/go-server"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

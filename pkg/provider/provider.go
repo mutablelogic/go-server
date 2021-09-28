@@ -13,12 +13,12 @@ import (
 
 	// Packages
 	marshaler "github.com/djthorpe/go-marshaler"
-	config "github.com/djthorpe/go-server/pkg/config"
 	multierror "github.com/hashicorp/go-multierror"
+	config "github.com/mutablelogic/go-server/pkg/config"
 
 	// Namespace imports
 	. "github.com/djthorpe/go-errors"
-	. "github.com/djthorpe/go-server"
+	. "github.com/mutablelogic/go-server"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

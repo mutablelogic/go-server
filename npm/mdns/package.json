@@ -1,5 +1,5 @@
 {
-  "name": "@djthorpe/go-server-mdns",
+  "name": "@mutablelogic/go-server-mdns",
   "version": "0.0.0",
   "description": "go-server mdns frontend",
   "main": "dist/index.js",
@@ -19,16 +19,16 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/djthorpe/go-server.git"
+    "url": "git+https://github.com/mutablelogic/go-server.git"
   },
   "publishConfig": {
     "registry": "https://npm.pkg.github.com"
   },
   "author": "David Thorpe",
   "bugs": {
-    "url": "https://github.com/djthorpe/go-server/issues"
+    "url": "https://github.com/mutablelogic/go-server/issues"
   },
-  "homepage": "https://github.com/djthorpe/go-server#readme",
+  "homepage": "https://github.com/mutablelogic/go-server#readme",
   "devDependencies": {
     "esbuild": "^0.12.14",
     "eslint": "^7.30.0",

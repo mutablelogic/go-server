@@ -10,8 +10,8 @@ import (
 	"time"
 
 	// Modules
-	. "github.com/djthorpe/go-server"
 	multierror "github.com/hashicorp/go-multierror"
+	. "github.com/mutablelogic/go-server"
 	term "github.com/pkg/term"
 )
 

@@ -11,10 +11,10 @@ import (
 	"time"
 
 	// Modules
-	router "github.com/djthorpe/go-server/pkg/httprouter"
+	router "github.com/mutablelogic/go-server/pkg/httprouter"
 
 	// Namespace imports
-	. "github.com/djthorpe/go-server"
+	. "github.com/mutablelogic/go-server"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

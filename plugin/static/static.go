@@ -8,10 +8,10 @@ import (
 	"path/filepath"
 
 	// Modules
-	. "github.com/djthorpe/go-server"
-	router "github.com/djthorpe/go-server/pkg/httprouter"
-	prv "github.com/djthorpe/go-server/pkg/provider"
 	multierror "github.com/hashicorp/go-multierror"
+	. "github.com/mutablelogic/go-server"
+	router "github.com/mutablelogic/go-server/pkg/httprouter"
+	prv "github.com/mutablelogic/go-server/pkg/provider"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

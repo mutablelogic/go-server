@@ -8,8 +8,8 @@ import (
 	"sync"
 
 	// Modules
-	. "github.com/djthorpe/go-server"
-	"github.com/djthorpe/go-server/pkg/provider"
+	. "github.com/mutablelogic/go-server"
+	"github.com/mutablelogic/go-server/pkg/provider"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

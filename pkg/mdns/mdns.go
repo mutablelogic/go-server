@@ -7,8 +7,8 @@ import (
 	"time"
 
 	// Modules
-	. "github.com/djthorpe/go-server"
 	"github.com/hashicorp/go-multierror"
+	. "github.com/mutablelogic/go-server"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

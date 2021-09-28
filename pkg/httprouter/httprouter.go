@@ -10,7 +10,7 @@ import (
 	"sync"
 
 	// Modules
-	provider "github.com/djthorpe/go-server/pkg/provider"
+	provider "github.com/mutablelogic/go-server/pkg/provider"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

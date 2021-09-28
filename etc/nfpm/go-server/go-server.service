@@ -1,6 +1,6 @@
 [Unit]
 Description=Plugggable go-server monolith: httpserver
-Documentation=https://github.com/djthorpe/go-server
+Documentation=https://github.com/mutablelogic/go-server
 After=network-online.target
 
 [Service]

@@ -7,9 +7,9 @@ import (
 	"time"
 
 	// Modules
-	. "github.com/djthorpe/go-server"
-	"github.com/djthorpe/go-server/pkg/mdns"
 	"github.com/hashicorp/go-multierror"
+	. "github.com/mutablelogic/go-server"
+	"github.com/mutablelogic/go-server/pkg/mdns"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

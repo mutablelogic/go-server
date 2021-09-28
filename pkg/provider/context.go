@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	// Modules
-	config "github.com/djthorpe/go-server/pkg/config"
+	config "github.com/mutablelogic/go-server/pkg/config"
 )
 
 type contextKey int

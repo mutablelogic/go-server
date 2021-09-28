@@ -11,7 +11,7 @@ import (
 
 	// Packages
 	marshaler "github.com/djthorpe/go-marshaler"
-	provider "github.com/djthorpe/go-server/pkg/provider"
+	provider "github.com/mutablelogic/go-server/pkg/provider"
 
 	// Namespace imports
 	. "github.com/djthorpe/go-errors"

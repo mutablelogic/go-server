@@ -6,7 +6,7 @@ NFPM=$(shell which nfpm)
 # Paths to locations, etc
 BUILD_DIR = "build"
 PLUGIN_DIR = $(wildcard plugin/*)
-BUILD_MODULE = "github.com/djthorpe/go-server"
+BUILD_MODULE = "github.com/mutablelogic/go-server"
 BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/config.GitSource=${BUILD_MODULE}
 BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/config.GitTag=$(shell git describe --tags)
 BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/config.GitBranch=$(shell git name-rev HEAD --name-only --always)

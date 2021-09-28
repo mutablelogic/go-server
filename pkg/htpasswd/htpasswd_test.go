@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	. "github.com/djthorpe/go-server/pkg/htpasswd"
+	. "github.com/mutablelogic/go-server/pkg/htpasswd"
 )
 
 func Test_000(t *testing.T) {

@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	// Modules
-	"github.com/djthorpe/go-server/pkg/template"
+	"github.com/mutablelogic/go-server/pkg/template"
 )
 
 const (

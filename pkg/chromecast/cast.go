@@ -5,7 +5,7 @@ import (
 	"strconv"
 
 	// Modules
-	. "github.com/djthorpe/go-server"
+	. "github.com/mutablelogic/go-server"
 )
 
 ////////////////////////////////////////////////////////////////////////////////

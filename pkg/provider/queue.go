@@ -4,8 +4,10 @@ import (
 	"context"
 
 	// Modules
-	. "github.com/djthorpe/go-server"
 	"github.com/hashicorp/go-multierror"
+
+	// Namespace imports
+	. "github.com/mutablelogic/go-server"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -9,11 +9,11 @@ import (
 	"strings"
 
 	// Packages
-	template "github.com/djthorpe/go-server/pkg/template"
+	template "github.com/mutablelogic/go-server/pkg/template"
 
 	// Modules
 	. "github.com/djthorpe/go-errors"
-	. "github.com/djthorpe/go-server"
+	. "github.com/mutablelogic/go-server"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

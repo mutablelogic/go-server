@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"testing"
 
-	. "github.com/djthorpe/go-server/pkg/mdns"
+	. "github.com/mutablelogic/go-server/pkg/mdns"
 )
 
 var (

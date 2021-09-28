@@ -3,7 +3,7 @@ package mdns_test
 import (
 	"testing"
 
-	. "github.com/djthorpe/go-server/pkg/mdns"
+	. "github.com/mutablelogic/go-server/pkg/mdns"
 )
 
 func Test_ServiceDatabase_001(t *testing.T) {

@@ -5,9 +5,9 @@ import (
 	"sync"
 
 	// Modules
-	. "github.com/djthorpe/go-server"
-	rotel "github.com/djthorpe/go-server/pkg/rotel"
 	multierror "github.com/hashicorp/go-multierror"
+	. "github.com/mutablelogic/go-server"
+	rotel "github.com/mutablelogic/go-server/pkg/rotel"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
