@@ -4,7 +4,7 @@ on:
     types: [ created ]
 jobs:
   build-arm:
-    runs-on: [self-hosted, linux, ARM]
+    runs-on: [self-hosted, linux, arm]
     steps:
       - uses: actions/checkout@v2
       - uses: actions/setup-go@v2
