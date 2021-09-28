@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"regexp"
 	"strings"
 
 	// Modules
@@ -41,6 +42,10 @@ const (
 	SHA
 )
 
+var (
+	rePOSIXName = regexp.MustCompile(`^[a-zA-Z][-_a-zA-Z0-9]*$`)
+)
+
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
@@ -62,6 +67,8 @@ func Read(r io.Reader) (*Htpasswd, error) {
 			continue
 		} else if passwd := strings.SplitN(line, passwordSeparator, 2); len(passwd) != 2 {
 			continue
+		} else if !rePOSIXName.MatchString(passwd[0]) {
+			return nil, ErrBadParameter.With(passwd[0])
 		} else {
 			this.passwords[passwd[0]] = passwd[1]
 		}
@@ -112,10 +119,18 @@ func (this *Htpasswd) Users() []string {
 	return users
 }
 
+// Return true if a user exists
+func (this *Htpasswd) Exists(user string) bool {
+	_, exists := this.passwords[user]
+	return exists
+}
+
 // Set a password for a user with a named hashing algorithm
 func (this *Htpasswd) Set(name, passwd string, hash HashAlgorithm) error {
 	if name == "" {
 		return ErrBadParameter.With("name")
+	} else if !rePOSIXName.MatchString(name) {
+		return ErrBadParameter.With(name)
 	}
 	if passwd == "" {
 		return ErrBadParameter.With("passwd")
