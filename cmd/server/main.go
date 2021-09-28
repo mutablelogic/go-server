@@ -51,15 +51,15 @@ func main() {
 		os.Exit(-1)
 	}
 
-	// Read configuration file
+	// Context with flags
+	ctx := DefineContext(context.Background(), flags)
+
+	// Read configuration files
 	cfg, err := config.New(flags.Arg(0))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
 	}
-
-	// Context with flags
-	ctx := DefineContext(context.Background(), flags)
 
 	// Create a provider with the configuration
 	provider, err := provider.NewProvider(ctx, wd, cfg)
@@ -67,6 +67,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
 	}
+	provider.Print(ctx, "Config: ", cfg)
 
 	// Report on loaded plugins
 	provider.Print(ctx, "Loaded plugins:")

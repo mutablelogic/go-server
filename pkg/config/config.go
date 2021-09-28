@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"sort"
 
 	// Modules
 	yaml "gopkg.in/yaml.v3"
@@ -27,13 +29,23 @@ type Handler struct {
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func New(path string) (*Config, error) {
+func New(pattern string) (*Config, error) {
 	this := new(Config)
 
-	// Read configuration file
-	if r, err := os.Open(path); err != nil {
+	// Glob files, sort alphabetically
+	files, err := filepath.Glob(pattern)
+	if err != nil {
 		return nil, err
-	} else {
+	}
+	sort.Strings(files)
+
+	// yaml decode plugins and handlers
+	for _, path := range files {
+		// Read configuration file
+		r, err := os.Open(path)
+		if err != nil {
+			return nil, err
+		}
 		defer r.Close()
 		dec := yaml.NewDecoder(r)
 		if err := dec.Decode(&this); err != nil {
@@ -42,9 +54,12 @@ func New(path string) (*Config, error) {
 	}
 
 	// In the second pass, read plugin configurations
-	if r, err := os.Open(path); err != nil {
-		return nil, err
-	} else {
+	for _, path := range files {
+		// Read configuration file
+		r, err := os.Open(path)
+		if err != nil {
+			return nil, err
+		}
 		defer r.Close()
 		dec := yaml.NewDecoder(r)
 		if err := dec.Decode(&this.Config); err != nil {
@@ -58,6 +73,14 @@ func New(path string) (*Config, error) {
 
 ///////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
+
+func (c *Config) String() string {
+	str := "<config"
+	if len(c.Plugin) > 0 {
+		str += fmt.Sprintf(" plugins=%q", c.Plugin)
+	}
+	return str + ">"
+}
 
 func (h Handler) String() string {
 	str := "<handler"

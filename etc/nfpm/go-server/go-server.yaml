@@ -1,10 +1,10 @@
 
 # Plugins to load, the order of these is important
 plugins:
-  - build/log.plugin
-  - build/httpserver.plugin
-  - build/static.plugin
-  - build/basicauth.plugin
+  - plugin/log.plugin
+  - plugin/httpserver.plugin
+  - plugin/static.plugin
+  - plugin/basicauth.plugin
 
 # HTTP Server parameters
 httpserver:
@@ -33,6 +33,4 @@ basicauth:
 
 # Where to serve static files from
 static:
-  "/": 
-    name: Document Root
-    path: docs
+  "/": docs
