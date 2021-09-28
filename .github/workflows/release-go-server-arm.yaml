@@ -9,7 +9,12 @@ jobs:
       - uses: actions/checkout@v2
       - uses: actions/setup-go@v2
         with:
-          go-version: '1.17'      
+          go-version: '^1.17'      
+        id: go
+        if: ${{ !contains(matrix.os, 'ARM') }}
+      - name: Install Go for ARM
+        run: "echo /usr/local/go/bin >> $GITHUB_PATH; rm -rf /usr/local/go && mkdir -p /usr/local/go && curl -s -L https://golang.org/dl/go1.17.linux-armv6l.tar.gz | tar -C /usr/local -xz"
+        if: ${{ contains(matrix.os, 'ARM') }}          
       - name: Build for Linux on ARM
         run: |
           make deb
