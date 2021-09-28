@@ -20,7 +20,6 @@ require (
 require (
 	github.com/Azure/go-ntlmssp v0.0.0-20200615164410-66371956d46c // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/djthorpe/go-media v1.0.5 // indirect
 	github.com/go-asn1-ber/asn1-ber v1.5.3 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/stretchr/testify v1.7.0 // indirect
