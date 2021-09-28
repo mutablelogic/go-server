@@ -28,9 +28,9 @@ basicauth:
   # Realm to report to client when rejecting authentication
   realm: "go-server"
   # Path to the user/password file
-  passwords: etc/htpasswd
+  passwords: var/htpasswd
   # Path to the groups file
-  groups: etc/htgroups
+  groups: var/htgroups
   # Anyone in admin group can create, modify and delete users through the API
   admin: "@admin"
 

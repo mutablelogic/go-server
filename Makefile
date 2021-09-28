@@ -34,16 +34,25 @@ $(PLUGIN_DIR): FORCE
 
 FORCE:
 
-deb: nfpm go-server-deb
+deb: nfpm go-server-httpserver-deb go-server-mdns-deb
 
-go-server-deb: server plugin/httpserver plugin/log plugin/basicauth plugin/static
-	@echo Build go-server deb package
+go-server-httpserver-deb: server plugin/httpserver plugin/log plugin/basicauth plugin/static
+	@echo Build go-server-httpserver deb package
 	@${SED} \
 		-e 's/^version:.*$$/version: $(BUILD_VERSION)/'  \
 		-e 's/^arch:.*$$/arch: $(BUILD_ARCH)/' \
 		-e 's/^platform:.*$$/platform: $(BUILD_PLATFORM)/' \
 		etc/nfpm/go-server/nfpm.yaml > $(BUILD_DIR)/go-server-nfpm.yaml
 	@${NFPM} pkg -f $(BUILD_DIR)/go-server-nfpm.yaml --packager deb --target $(BUILD_DIR)
+
+go-server-mdns-deb: plugin/mdns
+	@echo Build go-server-mdns deb package
+	@${SED} \
+		-e 's/^version:.*$$/version: $(BUILD_VERSION)/'  \
+		-e 's/^arch:.*$$/arch: $(BUILD_ARCH)/' \
+		-e 's/^platform:.*$$/platform: $(BUILD_PLATFORM)/' \
+		etc/nfpm/go-server-mdns/nfpm.yaml > $(BUILD_DIR)/go-server-mdns-nfpm.yaml
+	@${NFPM} pkg -f $(BUILD_DIR)/go-server-mdns-nfpm.yaml --packager deb --target $(BUILD_DIR)
 
 nfpm:
 	@echo Installing nfpm
