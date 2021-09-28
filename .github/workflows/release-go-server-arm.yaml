@@ -9,10 +9,9 @@ jobs:
       - uses: actions/checkout@v2
       - name: Install Go for ARM
         run: |
-          rm -rf /usr/local/go
-          mkdir -p /usr/local/go
-          curl -s -L https://golang.org/dl/go1.17.linux-armv6l.tar.gz | tar -C /usr/local -xz
-          echo /usr/local/go/bin >> $GITHUB_PATH
+          install -d ${RUNNER_TEMP}/go
+          curl -s -L https://golang.org/dl/go1.17.linux-armv6l.tar.gz | tar -C ${RUNNER_TEMP} -xz
+          echo ${RUNNER_TEMP}/go/bin >> $GITHUB_PATH
       - name: Build for Linux on ARM
         run: |
           make deb
