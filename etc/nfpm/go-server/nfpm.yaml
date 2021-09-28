@@ -32,6 +32,9 @@ contents:
   - src: ./etc/htpasswd
     dst: /opt/go-server/var/htpasswd
     type: config
+  - src: ./etc/htgroups
+    dst: /opt/go-server/var/htgroups
+    type: config
   - src: ./etc/docs/index.html
     dst: /opt/go-server/docs/index.html
     type: config    
