@@ -76,8 +76,11 @@ type DocumentSection interface {
 type DocumentKey string
 
 const (
-	DocumentKeyAuthor    DocumentKey = "author"
-	DocumentKeyArtwork   DocumentKey = "artwork"
-	DocumentKeyThumbnail DocumentKey = "thumbnail"
-	DocumentKeyMimetype  DocumentKey = "mimetype"
+	DocumentKeyTitle       DocumentKey = "title"
+	DocumentKeyDescription DocumentKey = "description"
+	DocumentKeyShortform   DocumentKey = "shortform"
+	DocumentKeyAuthor      DocumentKey = "author"
+	DocumentKeyArtwork     DocumentKey = "artwork"
+	DocumentKeyThumbnail   DocumentKey = "thumbnail"
+	DocumentKeyMimetype    DocumentKey = "mimetype"
 )

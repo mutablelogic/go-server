@@ -11,13 +11,13 @@ github.com/djthorpe/go-errors v1.0.2 h1:kZuNLhb6Yo1iNHaenGa9s5CpRbOG6KxbUtrME4Lr
 github.com/djthorpe/go-errors v1.0.2/go.mod h1:HtfrZnMd6HsX75Mtbv9Qcnn0BqOrrFArvCaj3RMnZhY=
 github.com/djthorpe/go-marshaler v0.0.15 h1:ZXq5YHCsbREbbYJtc0ie9hz7HJ7vIeeDlMbe7cGh0C0=
 github.com/djthorpe/go-marshaler v0.0.15/go.mod h1:xCXhTzj52UL3YStRsqUSfrKses7ofmfTXYQfVedn8Lw=
-github.com/djthorpe/go-media v1.0.5 h1:heHryiLrqrjTYQvK/SCWZOKxGI4P2TONFeB+jjOy26E=
-github.com/djthorpe/go-media v1.0.5/go.mod h1:lE5/F8Dv4IC20BBElXAeXnC/AprhJn8N6PI0xbfUHug=
 github.com/go-asn1-ber/asn1-ber v1.5.1/go.mod h1:hEBeB/ic+5LoWskz+yKT7vGhhPYkProFKoKdwZRWMe0=
 github.com/go-asn1-ber/asn1-ber v1.5.3 h1:u7utq56RUFiynqUzgVMFDymapcOtQ/MZkh3H4QYkxag=
 github.com/go-asn1-ber/asn1-ber v1.5.3/go.mod h1:hEBeB/ic+5LoWskz+yKT7vGhhPYkProFKoKdwZRWMe0=
 github.com/go-ldap/ldap/v3 v3.4.1 h1:fU/0xli6HY02ocbMuozHAYsaHLcnkLjvho2r5a34BUU=
 github.com/go-ldap/ldap/v3 v3.4.1/go.mod h1:iYS1MdmrmceOJ1QOTnRXrIs7i3kloqtmGQjRvjKpyMg=
+github.com/gomarkdown/markdown v0.0.0-20210918233619-6c1113f12c4a h1:syEwbl3pF5Y1mnIStrPwqd50vNU1AAKuAy8HFCPAgUc=
+github.com/gomarkdown/markdown v0.0.0-20210918233619-6c1113f12c4a/go.mod h1:JDGcbDT52eL4fju3sZ4TeHGsQwhG9nbDV21aMyhwPoA=
 github.com/hashicorp/errwrap v1.0.0/go.mod h1:YH+1FKiLXxHSkmPseP+kNlulaMuP3n2brvKWEqk/Jc4=
 github.com/hashicorp/errwrap v1.1.0 h1:OxrOeh75EUXMY8TBjag2fzXGZ40LB6IKw45YeGUDY2I=
 github.com/hashicorp/errwrap v1.1.0/go.mod h1:YH+1FKiLXxHSkmPseP+kNlulaMuP3n2brvKWEqk/Jc4=

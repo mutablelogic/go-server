@@ -1,0 +1,14 @@
+[Unit]
+Description=Plugggable go-server monolith: httpserver
+Documentation=https://github.com/djthorpe/go-server
+After=network-online.target
+
+[Service]
+User=nginx
+EnvironmentFile=/opt/go-server/etc/go-server.env
+WorkingDirectory=/opt/go-server
+ExecStart=/opt/go-server/bin/server -addr "${GOSERVER_ADDR}" etc/*.yaml
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

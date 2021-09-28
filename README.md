@@ -1,3 +1,16 @@
+% This is the title for the document
+% This is the description for the document, what it does, and how to use it.
+% Second line of the description.
+%
+% Tags: server, golang, http, rest, json, api, documentation
+% Author: David Thorpe
+
+> This module provides a generic server, which serves requests
+over `HTTP` and `FastCGI` and can also run tasks in the background. Unlike
+many other go servers, this one can be composed of many
+"plugins" which can be added, developed and removed to the
+server.
+
 # go-server
 
 This module provides a generic server, which serves requests

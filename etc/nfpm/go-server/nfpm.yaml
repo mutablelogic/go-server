@@ -1,0 +1,31 @@
+name: "go-server-httpserver"
+arch: ""
+platform: ""
+version: ""
+section: "default"
+priority: "extra"
+maintainer: "David Thorpe <djt@mutablelogic.com>"
+description: |
+  Plugggable go-server monolith: httpserver
+vendor: "mutablelogic.com"
+homepage: "https://github.com/djthorpe/go-server"
+
+contents:
+  - src: ./build/server
+    dst: /opt/go-server/bin/server
+  - src: ./build/httpserver.plugin
+    dst: /opt/go-server/plugin/httpserver.plugin
+  - src: ./build/log.plugin
+    dst: /opt/go-server/plugin/log.plugin
+  - src: ./build/basicauth.plugin
+    dst: /opt/go-server/plugin/basicauth.plugin
+  - src: ./etc/nfpm/go-server/go-server.yaml
+    dst: /opt/go-server/etc/go-server.yaml
+  - src: ./etc/nfpm/go-server/go-server.service
+    dst: /opt/go-server/etc/go-server.service
+  - src: ./etc/htpasswd
+    dst: /opt/go-server/etc/htpasswd
+
+scripts:
+  postinstall: ./etc/nfpm/go-server/postinstall.sh
+  preremove: ./etc/nfpm/go-server/preremove.sh

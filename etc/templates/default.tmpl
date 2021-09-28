@@ -31,8 +31,7 @@
                     <dt>Description</dt>
                     <dd>{{ .Description }}</dd>
                     {{ if .Shortform }}<dt>Shortform</dt><dd>{{ .Shortform }}</dd>{{ end }}
-                    <dt>Tags</dt>
-                    <dd>{{ .Tags }}</dd>
+                    {{ if .Tags }}{{ template "tags" .Tags }}{{ end }}
                 </dl>
                 <hr>
                 <h5>File</h5>
@@ -48,13 +47,7 @@
                     <dt>Size</dt>
                     <dd>{{ .Size }}</dd>
                 </dl>
-                {{ if .Meta }}
-                <hr>
-                <h5>Meta</h5>
-                <dl>
-                    {{ range $k, $v := .Meta }}<dt>{{ $k }}</dt><dd>{{ $v }}</dd>{{ end }}
-                </dl>
-                {{ end }}
+                {{ if .Meta }}{{ template "meta" .Meta }}{{ end }}
             </div>
         </div>
     </div>
@@ -73,4 +66,17 @@
         {{ end }}
         {{ .HTML }}
     </div>
+{{ end }}
+
+{{ define "meta" }}
+<hr>
+<h5>Meta</h5>
+<dl>
+    {{ range $k, $v := . }}<dt>{{ $k }}</dt><dd>{{ $v }}</dd>{{ end }}
+</dl>
+{{ end }}
+
+{{ define "tags" }}
+<dt>Tags</dt>
+<dd>{{ range $i, $tag := . }}<div class="badge bg-primary me-1 text-uppercase">{{ $tag }}</div>{{ end }}</dd>
 {{ end }}

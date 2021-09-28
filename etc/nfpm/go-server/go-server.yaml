@@ -1,0 +1,38 @@
+
+# Plugins to load, the order of these is important
+plugins:
+  - build/log.plugin
+  - build/httpserver.plugin
+  - build/static.plugin
+  - build/basicauth.plugin
+
+# HTTP Server parameters
+httpserver:
+  addr: :80
+
+# Handlers for serving plugins  
+handlers:
+  basicauth:
+    prefix: /api/basicauth
+    middleware:
+      - log
+      - basicauth
+  static:
+    prefix: /api/static
+    middleware:
+      - log
+      
+# Basic Authentication
+basicauth:
+  # Realm to report to client when rejecting authentication
+  realm: "go-server"
+  # Path to the user/password file
+  path: etc/htpasswd
+  # Admin users who can create, modify and delete users through the API
+  admin: root
+
+# Where to serve static files from
+static:
+  "/": 
+    name: Document Root
+    path: docs
