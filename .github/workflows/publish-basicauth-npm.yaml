@@ -1,4 +1,4 @@
-name: publish go-server-sqlite.npm
+name: publish go-server-basicauth.npm
 on:
   release:
     types: [published]
@@ -6,14 +6,14 @@ jobs:
   build:
     runs-on: ubuntu-18.04
     env:
-      working_directory: ./npm/sqlite
+      working_directory: ./npm/basicauth
     steps:
       - uses: actions/checkout@v2
       - uses: actions/setup-node@v2
         with:
           node-version: "16.x"
           registry-url: 'https://npm.pkg.github.com'
-          scope: '@djthorpe'
+          scope: '@mutablelogic'
       - name: Install dependendies
         run: npm install
         working-directory: ${{ env.working_directory }}

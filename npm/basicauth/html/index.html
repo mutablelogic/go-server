@@ -36,6 +36,47 @@
             <div class="toast-body _reason"></div>
         </div>
     </div>
+    <!-- USERS -->
+    <div class="container-fluid">
+        <table class="table table-hover" id="users">
+            <thead>
+                <tr>
+                    <th scope="col">User</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr class="_template">
+                    <td class="_name"></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    <!-- GROUPS -->
+    <div class="container-fluid">
+        <table class="table table-hover" id="groups">
+            <thead>
+                <tr>
+                    <th scope="col">Group</th>
+                    <th scope="col">Members</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr class="_template">
+                    <td class="_name"></td>
+                    <td class="_members"></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    <!-- ACTION BUTTONS -->
+    <div class="position-sticky bottom-0 end-0">
+        <div class="position-absolute bottom-0 end-0 d-flex flex-column">
+            <button id="action-user" class="btn btn-circle bg-danger text-white m-2" data-bs-toggle="tooltip"
+                title="Add User"><i class="bi bi-person-plus" style="font-size:60%"></i></button>
+            <button id="action-group" class="btn btn-circle bg-danger text-white m-2" data-bs-toggle="tooltip"
+                title="Add Group"><i class="bi bi-folder-plus" style="font-size:60%"></i></button>
+        </div>
+    </div>
 </body>
 
 </html>
