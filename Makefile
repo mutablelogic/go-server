@@ -1,7 +1,6 @@
 # Paths to packages
 GO=$(shell which go)
 SED=$(shell which sed)
-NFPM=$(shell which nfpm)
 
 # Paths to locations, etc
 BUILD_DIR = "build"
@@ -43,7 +42,7 @@ go-server-httpserver-deb: server plugin/httpserver plugin/log plugin/basicauth p
 		-e 's/^arch:.*$$/arch: $(BUILD_ARCH)/' \
 		-e 's/^platform:.*$$/platform: $(BUILD_PLATFORM)/' \
 		etc/nfpm/go-server-httpserver/nfpm.yaml > $(BUILD_DIR)/go-server-httpserver-nfpm.yaml
-	@${NFPM} pkg -f $(BUILD_DIR)/go-server-httpserver-nfpm.yaml --packager deb --target $(BUILD_DIR)
+	@nfpm pkg -f $(BUILD_DIR)/go-server-httpserver-nfpm.yaml --packager deb --target $(BUILD_DIR)
 
 go-server-mdns-deb: plugin/mdns
 	@echo Build go-server-mdns deb package
@@ -52,7 +51,7 @@ go-server-mdns-deb: plugin/mdns
 		-e 's/^arch:.*$$/arch: $(BUILD_ARCH)/' \
 		-e 's/^platform:.*$$/platform: $(BUILD_PLATFORM)/' \
 		etc/nfpm/go-server-mdns/nfpm.yaml > $(BUILD_DIR)/go-server-mdns-nfpm.yaml
-	@${NFPM} pkg -f $(BUILD_DIR)/go-server-mdns-nfpm.yaml --packager deb --target $(BUILD_DIR)
+	@nfpm pkg -f $(BUILD_DIR)/go-server-mdns-nfpm.yaml --packager deb --target $(BUILD_DIR)
 
 
 go-server-ldapauth-deb: plugin/ldapauth
@@ -62,7 +61,7 @@ go-server-ldapauth-deb: plugin/ldapauth
 		-e 's/^arch:.*$$/arch: $(BUILD_ARCH)/' \
 		-e 's/^platform:.*$$/platform: $(BUILD_PLATFORM)/' \
 		etc/nfpm/go-server-ldapauth/nfpm.yaml > $(BUILD_DIR)/go-server-ldapauth-nfpm.yaml
-	@${NFPM} pkg -f $(BUILD_DIR)/go-server-ldapauth-nfpm.yaml --packager deb --target $(BUILD_DIR)
+	@nfpm pkg -f $(BUILD_DIR)/go-server-ldapauth-nfpm.yaml --packager deb --target $(BUILD_DIR)
 
 nfpm:
 	@echo Installing nfpm
