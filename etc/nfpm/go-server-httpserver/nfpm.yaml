@@ -21,12 +21,12 @@ contents:
     dst: /opt/go-server/plugin/basicauth.plugin
   - src: ./build/static.plugin
     dst: /opt/go-server/plugin/static.plugin
-  - src: ./etc/nfpm/go-server/go-server.service
+  - src: ./etc/nfpm/go-server-httpserver/go-server.service
     dst: /opt/go-server/etc/go-server.service
-  - src: ./etc/nfpm/go-server/go-server.yaml
+  - src: ./etc/nfpm/go-server-httpserver/go-server.yaml
     dst: /opt/go-server/etc/go-server.yaml
     type: config    
-  - src: ./etc/nfpm/go-server/go-server.env
+  - src: ./etc/nfpm/go-server-httpserver/go-server.env
     dst: /opt/go-server/etc/go-server.env
     type: config    
   - src: ./etc/htpasswd
@@ -40,5 +40,5 @@ contents:
     type: config    
 
 scripts:
-  postinstall: ./etc/nfpm/go-server/postinstall.deb.sh
-  preremove: ./etc/nfpm/go-server/preremove.deb.sh
+  postinstall: ./etc/nfpm/go-server-httpserver/postinstall.deb.sh
+  preremove: ./etc/nfpm/go-server-httpserver/preremove.deb.sh

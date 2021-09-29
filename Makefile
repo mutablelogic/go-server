@@ -42,8 +42,8 @@ go-server-httpserver-deb: server plugin/httpserver plugin/log plugin/basicauth p
 		-e 's/^version:.*$$/version: $(BUILD_VERSION)/'  \
 		-e 's/^arch:.*$$/arch: $(BUILD_ARCH)/' \
 		-e 's/^platform:.*$$/platform: $(BUILD_PLATFORM)/' \
-		etc/nfpm/go-server/nfpm.yaml > $(BUILD_DIR)/go-server-nfpm.yaml
-	@${NFPM} pkg -f $(BUILD_DIR)/go-server-nfpm.yaml --packager deb --target $(BUILD_DIR)
+		etc/nfpm/go-server-httpserver/nfpm.yaml > $(BUILD_DIR)/go-server-httpserver-nfpm.yaml
+	@${NFPM} pkg -f $(BUILD_DIR)/go-server-httpserver-nfpm.yaml --packager deb --target $(BUILD_DIR)
 
 go-server-mdns-deb: plugin/mdns
 	@echo Build go-server-mdns deb package
