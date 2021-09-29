@@ -55,7 +55,7 @@ func main() {
 	ctx := DefineContext(context.Background(), flags)
 
 	// Read configuration files
-	cfg, err := config.New(flags.Arg(0))
+	cfg, err := config.New(flags.Args()...)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)

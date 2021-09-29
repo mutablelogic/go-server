@@ -23,8 +23,8 @@ contents:
     dst: /opt/go-server/plugin/static.plugin
   - src: ./etc/nfpm/go-server-httpserver/go-server.service
     dst: /opt/go-server/etc/go-server.service
-  - src: ./etc/nfpm/go-server-httpserver/go-server.yaml
-    dst: /opt/go-server/etc/go-server.yaml
+  - src: ./etc/nfpm/go-server-httpserver/go-server-00-httpserver.yaml
+    dst: /opt/go-server/etc/go-server-00-httpserver.yaml
     type: config    
   - src: ./etc/nfpm/go-server-httpserver/go-server.env
     dst: /opt/go-server/etc/go-server.env

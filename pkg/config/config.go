@@ -10,6 +10,9 @@ import (
 
 	// Modules
 	yaml "gopkg.in/yaml.v3"
+
+	// Namespace imports
+	. "github.com/djthorpe/go-errors"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -29,17 +32,24 @@ type Handler struct {
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func New(pattern string) (*Config, error) {
+func New(patterns ...string) (*Config, error) {
 	this := new(Config)
+	this.Handler = make(map[string]Handler)
 
 	// Glob files, sort alphabetically
-	files, err := filepath.Glob(pattern)
-	if err != nil {
-		return nil, err
+	var files []string
+	for _, pattern := range patterns {
+		files_, err := filepath.Glob(pattern)
+		if err != nil {
+			return nil, err
+		} else if len(files_) == 0 {
+			return nil, ErrNotFound.Withf("%q", pattern)
+		}
+		files = append(files, files_...)
 	}
 	sort.Strings(files)
 
-	// yaml decode plugins and handlers
+	// yaml decode plugins and handlers and merge into a single
 	for _, path := range files {
 		// Read configuration file
 		r, err := os.Open(path)
@@ -47,9 +57,27 @@ func New(pattern string) (*Config, error) {
 			return nil, err
 		}
 		defer r.Close()
-		dec := yaml.NewDecoder(r)
-		if err := dec.Decode(&this); err != nil {
-			return nil, err
+
+		// Decode into a configuration
+		var config Config
+		if err := yaml.NewDecoder(r).Decode(&config); err != nil {
+			return nil, fmt.Errorf("%q: %w", path, err)
+		}
+
+		// Merge in plugins, ignore duplicates
+		for _, plugin := range config.Plugin {
+			if !sliceContains(this.Plugin, plugin) {
+				this.Plugin = append(this.Plugin, plugin)
+			}
+		}
+
+		// Marge in handlers, error when there are duplicates
+		for key, handler := range config.Handler {
+			if _, exists := this.Handler[key]; exists {
+				return nil, ErrDuplicateEntry.Withf("Handler: %q", key)
+			} else {
+				this.Handler[key] = handler
+			}
 		}
 	}
 
@@ -113,4 +141,16 @@ func Usage(w io.Writer, flags *flag.FlagSet) {
 	fmt.Fprintln(w, "\nVersion:")
 	PrintVersion(w)
 	fmt.Fprintln(w, "")
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+func sliceContains(arr []string, elem string) bool {
+	for _, v := range arr {
+		if v == elem {
+			return true
+		}
+	}
+	return false
 }
