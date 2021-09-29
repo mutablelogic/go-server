@@ -7,6 +7,8 @@ jobs:
     runs-on: [self-hosted, linux, arm]
     steps:
       - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
       - name: Install Go for ARM
         run: |
           install -d ${RUNNER_TEMP}/go
