@@ -1,0 +1,23 @@
+name: "go-server-ldapauth"
+arch: ""
+version: ""
+section: "default"
+priority: "extra"
+maintainer: "David Thorpe <djt@mutablelogic.com>"
+description: |
+  Plugggable go-server monolith: ldapauth
+vendor: "mutablelogic.com"
+homepage: "https://github.com/mutablelogic/go-server"
+depends:
+  - go-server-httpserver
+
+contents:
+  - src: ./build/ldapauth.plugin
+    dst: /opt/go-server/plugin/ldapauth.plugin
+  - src: ./etc/nfpm/go-server-ldapauth/go-server-20-ldapauth.yaml
+    dst: /opt/go-server/etc/go-server-20-ldapauth.yaml
+    type: config    
+
+scripts:
+  postinstall: ./etc/nfpm/go-server-ldapauth/postinstall.deb.sh
+  postremove: ./etc/nfpm/go-server-ldapauth/postremove.deb.sh
