@@ -33,10 +33,10 @@ $(PLUGIN_DIR): FORCE
 
 FORCE:
 
-deb: nfpm go-server-httpserver-deb go-server-mdns-deb go-server-ldapauth-deb
+deb: nfpm go-server-httpserver-deb go-server-mdns-deb go-server-ldapauth-deb go-server-template-deb
 
 go-server-httpserver-deb: server plugin/httpserver plugin/log plugin/basicauth plugin/static
-	@echo Build go-server-httpserver deb package
+	@echo Package go-server-httpserver deb
 	@${SED} \
 		-e 's/^version:.*$$/version: $(BUILD_VERSION)/'  \
 		-e 's/^arch:.*$$/arch: $(BUILD_ARCH)/' \
@@ -45,7 +45,7 @@ go-server-httpserver-deb: server plugin/httpserver plugin/log plugin/basicauth p
 	@nfpm pkg -f $(BUILD_DIR)/go-server-httpserver-nfpm.yaml --packager deb --target $(BUILD_DIR)
 
 go-server-mdns-deb: plugin/mdns
-	@echo Build go-server-mdns deb package
+	@echo Package go-server-mdns deb
 	@${SED} \
 		-e 's/^version:.*$$/version: $(BUILD_VERSION)/'  \
 		-e 's/^arch:.*$$/arch: $(BUILD_ARCH)/' \
@@ -53,15 +53,23 @@ go-server-mdns-deb: plugin/mdns
 		etc/nfpm/go-server-mdns/nfpm.yaml > $(BUILD_DIR)/go-server-mdns-nfpm.yaml
 	@nfpm pkg -f $(BUILD_DIR)/go-server-mdns-nfpm.yaml --packager deb --target $(BUILD_DIR)
 
-
 go-server-ldapauth-deb: plugin/ldapauth
-	@echo Build go-server-ldapauth deb package
+	@echo Package go-server-ldapauth deb
 	@${SED} \
 		-e 's/^version:.*$$/version: $(BUILD_VERSION)/'  \
 		-e 's/^arch:.*$$/arch: $(BUILD_ARCH)/' \
 		-e 's/^platform:.*$$/platform: $(BUILD_PLATFORM)/' \
 		etc/nfpm/go-server-ldapauth/nfpm.yaml > $(BUILD_DIR)/go-server-ldapauth-nfpm.yaml
 	@nfpm pkg -f $(BUILD_DIR)/go-server-ldapauth-nfpm.yaml --packager deb --target $(BUILD_DIR)
+
+go-server-template-deb: plugin/template plugin/text-renderer plugin/dir-renderer plugin/markdown-renderer
+	@echo Package go-server-template deb
+	@${SED} \
+		-e 's/^version:.*$$/version: $(BUILD_VERSION)/'  \
+		-e 's/^arch:.*$$/arch: $(BUILD_ARCH)/' \
+		-e 's/^platform:.*$$/platform: $(BUILD_PLATFORM)/' \
+		etc/nfpm/go-server-template/nfpm.yaml > $(BUILD_DIR)/go-server-template-nfpm.yaml
+	@nfpm pkg -f $(BUILD_DIR)/go-server-template-nfpm.yaml --packager deb --target $(BUILD_DIR)
 
 nfpm:
 	@echo Installing nfpm
