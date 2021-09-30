@@ -41,7 +41,7 @@
         <table class="table table-hover" id="users">
             <thead>
                 <tr>
-                    <th scope="col">User</th>
+                    <th scope="col"><i class="bi bi-person pe-1"></i>User</th>
                 </tr>
             </thead>
             <tbody>
@@ -56,7 +56,7 @@
         <table class="table table-hover" id="groups">
             <thead>
                 <tr>
-                    <th scope="col">Group</th>
+                    <th scope="col"><i class="bi bi-folder pe-1"></i>Group</th>
                     <th scope="col">Members</th>
                 </tr>
             </thead>
@@ -75,6 +75,60 @@
                 title="Add User"><i class="bi bi-person-plus" style="font-size:60%"></i></button>
             <button id="action-group" class="btn btn-circle bg-danger text-white m-2" data-bs-toggle="tooltip"
                 title="Add Group"><i class="bi bi-folder-plus" style="font-size:60%"></i></button>
+        </div>
+    </div>
+    <!-- MODEL: ADD OR CHANGE USER -->
+    <div class="modal" tabindex="-1" id="modal-user">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">User</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form>
+                        <div class="row mb-3">
+                            <label for="input-name" class="col-sm-4 col-form-label">Name</label>
+                            <div class="col-sm-8">
+                                <input type="text" class="form-control" id="input-name" name="name" pattern="^[a-zA-Z][-_a-zA-Z0-9]*$" placeholder="Alphanumeric characters, underscore or dash allowed" required>
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <label for="input-password" class="col-sm-4 col-form-label">Password</label>
+                            <div class="col-sm-8">
+                                <input type="password" class="form-control" id="input-password" name="password" required>
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <label for="input-password-repeat" class="col-sm-4 col-form-label">Repeat Password</label>
+                            <div class="col-sm-8">
+                                <input type="password" class="form-control" id="input-password-repeat" required>
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-sm-12">
+                                <button type="submit" class="btn btn-primary">Add User</button>                        
+                            </div>    
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- MODEL: ADD OR CHANGE GROUP -->
+    <div class="modal" tabindex="-1" id="modal-group">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Group</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form>
+                        <p>Modal body text goes here.</p>
+                    </form>
+                </div>
+            </div>
         </div>
     </div>
 </body>

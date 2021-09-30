@@ -2,7 +2,7 @@
 # Plugins to load, the order of these is important
 plugins:
   - build/mdns.plugin
-  - build/static.plugin
+  - build/basicauth.plugin
 
 # Handlers for serving plugins  
 handlers:

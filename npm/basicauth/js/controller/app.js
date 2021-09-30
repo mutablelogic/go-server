@@ -1,5 +1,5 @@
 import {
-  Controller, Nav, Toast, Provider, List,
+  Controller, Nav, Toast, Provider, List, Button, Form,
 } from '@djthorpe/js-framework';
 import Service from '../model/basicauth/service';
 import Node from '../view/node';
@@ -55,6 +55,36 @@ export default class App extends Controller {
     const groupsNode = document.querySelector('#groups tbody');
     if (groupsNode) {
       super.define('groups', new List(groupsNode, '_template'));
+    }
+
+    // Actions
+    const actionUserNode = document.querySelector('#action-user');
+    if (actionUserNode) {
+      super.define('actionuser', new Button(actionUserNode));
+      this.actionuser.addEventListener('button:click', () => {
+        if (this.modaluser) {
+          this.modaluser.show();
+        }
+      });
+    }
+    const actionGroupNode = document.querySelector('#action-group');
+    if (actionGroupNode) {
+      super.define('actiongroup', new Button(actionGroupNode));
+      this.actiongroup.addEventListener('button:click', () => {
+        if (this.modalgroup) {
+          this.modalgroup.show();
+        }
+      });
+    }
+
+    // Modals
+    const modalUserNode = document.querySelector('#modal-user');
+    if (modalUserNode) {
+      super.define('modaluser', new Form(modalUserNode));
+    }
+    const modalGroupNode = document.querySelector('#modal-group');
+    if (modalGroupNode) {
+      super.define('modalgroup', new Form(modalGroupNode));
     }
   }
 

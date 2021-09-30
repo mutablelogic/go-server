@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"plugin"
+	"reflect"
 	"strconv"
 	"sync"
 	"syscall"
@@ -31,6 +32,7 @@ type provider struct {
 	names      []string
 	loggers    []Logger
 	routers    []Router
+	env        []Env
 	middleware map[string]Middleware
 	queue      []EventQueue
 }
@@ -55,6 +57,10 @@ const (
 	funcName  = "Name"
 	funcUsage = "Usage"
 	funcNew   = "New"
+)
+
+var (
+	stringType = reflect.TypeOf("")
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -173,25 +179,6 @@ func (this *provider) Run(ctx context.Context) error {
 	var cancels []context.CancelFunc
 	var result error
 
-	// Receive any errors
-	/*
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case err := <-errs:
-					result = multierror.Append(result, err)
-
-					// Send terminate signal to process
-
-				}
-			}
-		}()
-	*/
-
 	// Run all plugins and wait until done
 	this.Print(ctx, "Running plugins:")
 	for name, cfg := range this.plugins {
@@ -271,6 +258,9 @@ func (this *provider) setPlugin(ctx context.Context, name string, plugin Plugin)
 	if queue, ok := plugin.(EventQueue); ok {
 		this.queue = append(this.queue, queue)
 	}
+	if env, ok := plugin.(Env); ok {
+		this.env = append(this.env, env)
+	}
 	return nil
 }
 
@@ -284,7 +274,7 @@ func (this *provider) GetConfig(ctx context.Context, v interface{}) error {
 		// No configuration for this plugin
 		return nil
 	} else {
-		return marshaler.NewDecoder("yaml", marshaler.ConvertIntUint, marshaler.ConvertMapInterface, marshaler.ConvertDuration, marshaler.ConvertTime).Decode(plugincfg.config, v)
+		return marshaler.NewDecoder("yaml", this.ExpandEnv, marshaler.ConvertIntUint, marshaler.ConvertMapInterface, marshaler.ConvertDuration, marshaler.ConvertTime).Decode(plugincfg.config, v)
 	}
 }
 
@@ -364,4 +354,26 @@ func (this *provider) pluginWithPath(ctx context.Context, name, path string) (Pl
 
 	// Return success
 	return plugincfg.plugin, nil
+}
+
+// ExpandEnv expands any ${KEY} elements in strings
+func (this *provider) ExpandEnv(v reflect.Value, dest reflect.Type) (reflect.Value, error) {
+	var result error
+
+	// Return value if not a string type
+	if v.Type() != stringType {
+		return v, nil
+	}
+
+	// Expand environment variables
+	value := os.Expand(v.String(), func(key string) string {
+		value, err := this.GetString(key)
+		if err != nil {
+			result = multierror.Append(result, err)
+		}
+		return value
+	})
+
+	// Return any errors
+	return reflect.ValueOf(value), result
 }

@@ -1,0 +1,24 @@
+
+# Plugins to load, the order of these is important
+plugins:
+  - build/basicauth.plugin
+  - build/log.plugin
+
+# Handler for basicauth
+handlers:
+  basicauth:
+    prefix: /api/basicauth
+    middleware:
+      - log
+      - basicauth
+   
+# Basic Authentication
+basicauth:
+  # Realm to report to client when rejecting authentication
+  realm: "go-server"
+  # Path to the user/password file
+  passwords: etc/htpasswd
+  # Path to the groups file
+  groups: etc/htgroups
+  # Anyone in admin group can create, modify and delete users through the API
+  admin: "@admin"

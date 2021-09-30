@@ -14,6 +14,7 @@ import (
 type Provider interface {
 	Logger
 	Router
+	Env
 	EventQueue
 
 	// Plugins returns a list of registered plugin names
