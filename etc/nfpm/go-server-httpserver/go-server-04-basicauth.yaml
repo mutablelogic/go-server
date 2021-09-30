@@ -1,38 +1,24 @@
 
 # Plugins to load, the order of these is important
 plugins:
-  - plugin/httpserver.plugin
-  - plugin/static.plugin
-  - plugin/basicauth.plugin
+  - build/basicauth.plugin
+  - build/log.plugin
 
-# HTTP Server parameters
-httpserver:
-  # Which port to listen on, or socket path. This may be overridden by the -addr variable
-  addr: :80
-
-# Handlers for serving plugins  
+# Handler for basicauth
 handlers:
   basicauth:
     prefix: /api/basicauth
     middleware:
       - log
       - basicauth
-  static:
-    prefix: /api/static
-    middleware:
-      - log
-      
+   
 # Basic Authentication
 basicauth:
   # Realm to report to client when rejecting authentication
   realm: "go-server"
   # Path to the user/password file
-  passwords: var/htpasswd
+  passwords: etc/htpasswd
   # Path to the groups file
-  groups: var/htgroups
+  groups: etc/htgroups
   # Anyone in admin group can create, modify and delete users through the API
   admin: "@admin"
-
-# Where to serve static files from
-static:
-  "/": docs

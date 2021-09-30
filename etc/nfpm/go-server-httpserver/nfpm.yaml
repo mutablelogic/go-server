@@ -21,13 +21,27 @@ contents:
     dst: /opt/go-server/plugin/basicauth.plugin
   - src: ./build/static.plugin
     dst: /opt/go-server/plugin/static.plugin
+  - src: ./build/env.plugin
+    dst: /opt/go-server/plugin/env.plugin
   - src: ./etc/nfpm/go-server-httpserver/go-server.service
     dst: /opt/go-server/etc/go-server.service
+  - src: ./etc/nfpm/go-server-httpserver/go-server.env
+    dst: /opt/go-server/etc/go-server.env
+    type: config    
   - src: ./etc/nfpm/go-server-httpserver/go-server-00-httpserver.yaml
     dst: /opt/go-server/etc/go-server-00-httpserver.yaml
     type: config    
-  - src: ./etc/nfpm/go-server-httpserver/go-server.env
-    dst: /opt/go-server/etc/go-server.env
+  - src: ./etc/nfpm/go-server-httpserver/go-server-01-env.yaml
+    dst: /opt/go-server/etc/go-server-01-env.yaml
+    type: config    
+  - src: ./etc/nfpm/go-server-httpserver/go-server-02-log.yaml
+    dst: /opt/go-server/etc/go-server-02-log.yaml
+    type: config    
+  - src: ./etc/nfpm/go-server-httpserver/go-server-03-static.yaml
+    dst: /opt/go-server/etc/go-server-03-static.yaml
+    type: config    
+  - src: ./etc/nfpm/go-server-httpserver/go-server-04-basicauth.yaml
+    dst: /opt/go-server/etc/go-server-04-basicauth.yaml
     type: config    
   - src: ./etc/htpasswd
     dst: /opt/go-server/var/htpasswd

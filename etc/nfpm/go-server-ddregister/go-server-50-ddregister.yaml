@@ -1,0 +1,17 @@
+
+# Plugins to load, the order of these is important
+plugins:
+  - build/env.plugin
+  - build/ddregister.plugin
+       
+# Registration of address for Google Domains (Dynamic DNS)
+ddregister:
+  # Request timeout in seconds
+  timeout: 10s
+  # Request delta between registrations
+  delta: 15m
+  # Add hostnames, user and password separated by space
+  # You should store secrets (user and password) in your .env file
+  # located in /opt/go-server/etc/go-server.env
+  #hosts:
+  #  - "host ${DDREGISTER_USER} ${DDREGISTER_PASSWORD}"

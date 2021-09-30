@@ -1,0 +1,23 @@
+name: "go-server-ddregister"
+arch: ""
+version: ""
+section: "default"
+priority: "extra"
+maintainer: "David Thorpe <djt@mutablelogic.com>"
+description: |
+  Plugggable go-server monolith: ddregister
+vendor: "mutablelogic.com"
+homepage: "https://github.com/mutablelogic/go-server"
+depends:
+  - go-server-httpserver
+
+contents:
+  - src: ./build/ddregister.plugin
+    dst: /opt/go-server/plugin/ddregister.plugin
+  - src: ./etc/nfpm/go-server-ddregister/go-server-50-ddregister.yaml
+    dst: /opt/go-server/etc/go-server-50-ddregister.yaml
+    type: config    
+
+scripts:
+  postinstall: ./etc/nfpm/go-server-ddregister/postinstall.deb.sh
+  postremove: ./etc/nfpm/go-server-ddregister/postremove.deb.sh

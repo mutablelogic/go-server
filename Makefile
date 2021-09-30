@@ -33,9 +33,9 @@ $(PLUGIN_DIR): FORCE
 
 FORCE:
 
-deb: nfpm go-server-httpserver-deb go-server-mdns-deb go-server-ldapauth-deb go-server-template-deb
+deb: nfpm go-server-httpserver-deb go-server-mdns-deb go-server-ldapauth-deb go-server-template-deb go-server-ddregister-deb
 
-go-server-httpserver-deb: server plugin/httpserver plugin/log plugin/basicauth plugin/static
+go-server-httpserver-deb: server plugin/httpserver plugin/log plugin/basicauth plugin/static plugin/env
 	@echo Package go-server-httpserver deb
 	@${SED} \
 		-e 's/^version:.*$$/version: $(BUILD_VERSION)/'  \
@@ -70,6 +70,15 @@ go-server-template-deb: plugin/template plugin/text-renderer plugin/dir-renderer
 		-e 's/^platform:.*$$/platform: $(BUILD_PLATFORM)/' \
 		etc/nfpm/go-server-template/nfpm.yaml > $(BUILD_DIR)/go-server-template-nfpm.yaml
 	@nfpm pkg -f $(BUILD_DIR)/go-server-template-nfpm.yaml --packager deb --target $(BUILD_DIR)
+
+go-server-ddregister-deb: plugin/ddregister
+	@echo Package go-server-ddregister deb
+	@${SED} \
+		-e 's/^version:.*$$/version: $(BUILD_VERSION)/'  \
+		-e 's/^arch:.*$$/arch: $(BUILD_ARCH)/' \
+		-e 's/^platform:.*$$/platform: $(BUILD_PLATFORM)/' \
+		etc/nfpm/go-server-ddregister/nfpm.yaml > $(BUILD_DIR)/go-server-ddregister-nfpm.yaml
+	@nfpm pkg -f $(BUILD_DIR)/go-server-ddregister-nfpm.yaml --packager deb --target $(BUILD_DIR)
 
 nfpm:
 	@echo Installing nfpm

@@ -2,6 +2,8 @@
 # Plugins to load, the order of these is important
 plugins:
   - plugin/mdns.plugin
+  - plugin/basicauth.plugin
+  - plugin/log.plugin
 
 # Handlers for serving plugins  
 handlers:
