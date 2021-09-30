@@ -1,4 +1,4 @@
 
 # Load the logging plugin
 plugins:
-  - build/log.plugin
+  - plugin/log.plugin

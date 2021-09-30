@@ -1,8 +1,8 @@
 
 # Plugins to load, the order of these is important
 plugins:
-  - build/env.plugin
-  - build/ddregister.plugin
+  - plugin/env.plugin
+  - plugin/ddregister.plugin
        
 # Registration of address for Google Domains (Dynamic DNS)
 ddregister:

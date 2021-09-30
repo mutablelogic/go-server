@@ -1,8 +1,8 @@
 
 # Plugins to load, the order of these is important
 plugins:
-  - build/basicauth.plugin
-  - build/log.plugin
+  - plugin/basicauth.plugin
+  - plugin/log.plugin
 
 # Handler for basicauth
 handlers:

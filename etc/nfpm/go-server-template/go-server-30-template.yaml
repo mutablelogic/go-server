@@ -5,6 +5,7 @@ plugins:
   - plugin/text-renderer.plugin
   - plugin/dir-renderer.plugin
   - plugin/markdown-renderer.plugin
+  - plugin/log.plugin
 
 handlers:
   # Templates are served from the / directory
