@@ -274,6 +274,7 @@ func (this *provider) GetConfig(ctx context.Context, v interface{}) error {
 		// No configuration for this plugin
 		return nil
 	} else {
+		// TODO: Don't include this.ExpandEnv if no environment plugin is installed
 		return marshaler.NewDecoder("yaml", this.ExpandEnv, marshaler.ConvertIntUint, marshaler.ConvertMapInterface, marshaler.ConvertDuration, marshaler.ConvertTime).Decode(plugincfg.config, v)
 	}
 }
