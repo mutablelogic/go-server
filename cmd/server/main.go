@@ -12,6 +12,7 @@ import (
 	// Modules
 	config "github.com/mutablelogic/go-server/pkg/config"
 	provider "github.com/mutablelogic/go-server/pkg/provider"
+	version "github.com/mutablelogic/go-server/pkg/version"
 )
 
 const (
@@ -98,7 +99,7 @@ func DefineFlags(args []string) (*flag.FlagSet, error) {
 	// Define flags and usage
 	flags.String(flagAddr, "", "Override path to unix socket or listening address")
 	flags.Usage = func() {
-		config.Usage(os.Stdout, flags)
+		version.Usage(os.Stdout, flags)
 	}
 
 	// Parse flags from comand line, return on error

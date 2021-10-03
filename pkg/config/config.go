@@ -1,9 +1,7 @@
 package config
 
 import (
-	"flag"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -119,28 +117,6 @@ func (h Handler) String() string {
 		str += fmt.Sprintf(" middleware=%q", h.Middleware)
 	}
 	return str + ">"
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// USAGE
-
-func Usage(w io.Writer, flags *flag.FlagSet) {
-	name := flags.Name()
-
-	flags.SetOutput(w)
-
-	fmt.Fprintf(w, "%s: Monolith server\n", name)
-	fmt.Fprintf(w, "\nUsage:\n")
-	fmt.Fprintf(w, "  %s <flags> config.yaml\n", name)
-	fmt.Fprintf(w, "  %s -help\n", name)
-	fmt.Fprintf(w, "  %s -help <plugin>\n", name)
-
-	fmt.Fprintln(w, "\nFlags:")
-	flags.PrintDefaults()
-
-	fmt.Fprintln(w, "\nVersion:")
-	PrintVersion(w)
-	fmt.Fprintln(w, "")
 }
 
 ///////////////////////////////////////////////////////////////////////////////
