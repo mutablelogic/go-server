@@ -1,6 +1,5 @@
 # Paths to packages
 GO=$(shell which go)
-SED=$(shell which sed)
 
 # Paths to locations, etc
 BUILD_DIR = "build"
@@ -23,9 +22,6 @@ server: dependencies mkdir
 	@${GO} build -o ${BUILD_DIR}/server ${BUILD_FLAGS} ./cmd/server
 
 plugins: $(PLUGIN_DIR)
-#	@echo Build plugin media 
-#	@${GO} get github.com/djthorpe/go-media
-#	@${GO} build -buildmode=plugin -o ${BUILD_DIR}/media.plugin ${BUILD_FLAGS} github.com/djthorpe/go-media/plugin/media
 
 $(PLUGIN_DIR): FORCE
 	@echo Build plugin $(notdir $@)
@@ -33,64 +29,9 @@ $(PLUGIN_DIR): FORCE
 
 FORCE:
 
-deb: nfpm go-server-httpserver-deb go-server-mdns-deb go-server-ldapauth-deb go-server-template-deb go-server-ddregister-deb
-
-go-server-httpserver-deb: server plugin/httpserver plugin/log plugin/basicauth plugin/static plugin/env
-	@echo Package go-server-httpserver deb
-	@${SED} \
-		-e 's/^version:.*$$/version: $(BUILD_VERSION)/'  \
-		-e 's/^arch:.*$$/arch: $(BUILD_ARCH)/' \
-		-e 's/^platform:.*$$/platform: $(BUILD_PLATFORM)/' \
-		etc/nfpm/go-server-httpserver/nfpm.yaml > $(BUILD_DIR)/go-server-httpserver-nfpm.yaml
-	@nfpm pkg -f $(BUILD_DIR)/go-server-httpserver-nfpm.yaml --packager deb --target $(BUILD_DIR)
-
-go-server-mdns-deb: plugin/mdns
-	@echo Package go-server-mdns deb
-	@${SED} \
-		-e 's/^version:.*$$/version: $(BUILD_VERSION)/'  \
-		-e 's/^arch:.*$$/arch: $(BUILD_ARCH)/' \
-		-e 's/^platform:.*$$/platform: $(BUILD_PLATFORM)/' \
-		etc/nfpm/go-server-mdns/nfpm.yaml > $(BUILD_DIR)/go-server-mdns-nfpm.yaml
-	@nfpm pkg -f $(BUILD_DIR)/go-server-mdns-nfpm.yaml --packager deb --target $(BUILD_DIR)
-
-go-server-ldapauth-deb: plugin/ldapauth
-	@echo Package go-server-ldapauth deb
-	@${SED} \
-		-e 's/^version:.*$$/version: $(BUILD_VERSION)/'  \
-		-e 's/^arch:.*$$/arch: $(BUILD_ARCH)/' \
-		-e 's/^platform:.*$$/platform: $(BUILD_PLATFORM)/' \
-		etc/nfpm/go-server-ldapauth/nfpm.yaml > $(BUILD_DIR)/go-server-ldapauth-nfpm.yaml
-	@nfpm pkg -f $(BUILD_DIR)/go-server-ldapauth-nfpm.yaml --packager deb --target $(BUILD_DIR)
-
-go-server-template-deb: plugin/template plugin/text-renderer plugin/dir-renderer plugin/markdown-renderer
-	@echo Package go-server-template deb
-	@${SED} \
-		-e 's/^version:.*$$/version: $(BUILD_VERSION)/'  \
-		-e 's/^arch:.*$$/arch: $(BUILD_ARCH)/' \
-		-e 's/^platform:.*$$/platform: $(BUILD_PLATFORM)/' \
-		etc/nfpm/go-server-template/nfpm.yaml > $(BUILD_DIR)/go-server-template-nfpm.yaml
-	@nfpm pkg -f $(BUILD_DIR)/go-server-template-nfpm.yaml --packager deb --target $(BUILD_DIR)
-
-go-server-ddregister-deb: plugin/ddregister
-	@echo Package go-server-ddregister deb
-	@${SED} \
-		-e 's/^version:.*$$/version: $(BUILD_VERSION)/'  \
-		-e 's/^arch:.*$$/arch: $(BUILD_ARCH)/' \
-		-e 's/^platform:.*$$/platform: $(BUILD_PLATFORM)/' \
-		etc/nfpm/go-server-ddregister/nfpm.yaml > $(BUILD_DIR)/go-server-ddregister-nfpm.yaml
-	@nfpm pkg -f $(BUILD_DIR)/go-server-ddregister-nfpm.yaml --packager deb --target $(BUILD_DIR)
-
-nfpm:
-	@echo Installing nfpm
-	@${GO} mod tidy
-	@${GO} install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.3.1	
-
 dependencies:
 ifeq (,${GO})
         $(error "Missing go binary")
-endif
-ifeq (,${SED})
-        $(error "Missing sed binary")
 endif
 
 mkdir:

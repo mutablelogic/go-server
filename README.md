@@ -1,23 +1,9 @@
-% This is the title for the document
-% This is the description for the document, what it does, and how to use it.
-% Second line of the description.
-%
-% Tags: server, golang, http, rest, json, api, documentation
-% Author: David Thorpe
-
-> This module provides a generic server, which serves requests
-over `HTTP` and `FastCGI` and can also run tasks in the background. Unlike
-many other go servers, this one can be composed of many
-"plugins" which can be added, developed and removed to the
-server.
-
 # go-server
 
 This module provides a generic server, which serves requests
 over HTTP and FastCGI and can also run tasks in the background. Unlike
-many other go servers, this one can be composed of many
-"plugins" which can be added, developed and removed to the
-server.
+many other servers, this one is composed of many
+"plugins" which can be added to the server.
 
 Standard plugins provided include:
 
@@ -25,13 +11,12 @@ Standard plugins provided include:
     routing of requests to plugins;
   * __log__ which provides logging for requests and any other
     tasks;
+  * __env__ which allows retrieval of environment variables and
+    use in configuration files;
   * __basicauth__ provides basic authentication for requests;
   * __ldapauth__ provides LDAP authentication for requests;
   * __static__ provides static file serving;
-  * __template__ provides dynamic file serving through templates;
-  * __sqlite__ provides SQLite database support;
-  * __eventqueue__ provides a queue for messaging between plugins;
-  * __mdns__ provides service discovery via mDNS.
+  * __template__ provides dynamic file serving through templates.
 
 Many of these modules also provide a REST API for accessing information
 and control, and there are a number of "front ends" developed for display
@@ -49,22 +34,16 @@ monoliths?
 ## Requirements and Building
 
 Any modern `go` compiler should be able to build the `server` command,
-1.16 and above. It has been tested on MacOS and Linux.
-
-In order to compile the front ends, `npm` is required which pulls in
-additional dependencies.
-
-To build the server, plugins and frontends, run:
+1.17 and above. It has been tested on MacOS and Linux. To build the server
+and plugins, run:
 
 ```bash
 [bash] git clone git@github.com:mutablelogic/go-server.git
 [bash] cd go-server && make
 ```
 
-This places all the binaries in the `build` directory and all the
-frontend code in the `dist` folder of each NPM package.
-
-The folder structure is as follows:
+This places all the binaries in the `build` directory. The folder structure
+of the repository is as follows:
 
   * `cmd/server` contains the command line server tool. In order to build it,
     run `make server`. This places the binary in the `build` folder;
@@ -72,7 +51,8 @@ The folder structure is as follows:
     configuration file;
   * `npm` contains frontend NPM packages which can be built. To build the
     `mdns` frontend for example, run `make npm/mdns`. The compiled code
-     is then in the `dist` folder of each NPM package;
+     is then in the `dist` folder of each NPM package. These may eventually be
+    moved to a separate repository;
   * `pkg` contains the main code for the server and plugins;
   * `plugin` contains code for the plugins. To build the `httpserver` plugin for
     example run `make plugin/httpserver`. This places the plugin (with `.plugin` 
@@ -119,21 +99,8 @@ Version:
 
 ## Configuration and Packaging
 
-You can download the latest versions of the server, plugins and frontends 
-from [GitHub Releases](https://github.com/mutablelogic/go-server/releases). These
-are packaged as DEB packages for Debian x86 and ARM 32-bit. If you need packaging for
-other operating systems or platforms (ARM 64-bit, RedHat, etc) please contact me
-and I can add it to the workflows.
-
-(Once tested I can also provide a container image for the most popular use cases
-perhaps)
-
-The packages install to `/opt/go-server` in the following folders:
-
-  * `/opt/go-server/bin` contains the server binary;
-  * `/opt/go-server/plugin` contains the plugin binaries;
-  * `/opt/go-server/etc` contains all configuration files;
-  * `/opt/go-server/htdocs` contains all frontend files.
+Packaging for binaries is available in the [pkg-server](https://github.com/mutablelogic/pkg-server)
+repository for download.
 
 Whilst you can run the server without a reverse proxy, it is recommended that
 you use `nginx` or similar to serve the frontend files and communicate with the

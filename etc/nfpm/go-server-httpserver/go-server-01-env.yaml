@@ -1,4 +1,0 @@
-
-# Load the env plugin which provides environment variable data source
-plugins:
-  - plugin/env.plugin

@@ -1,4 +1,0 @@
-
-# Load the logging plugin
-plugins:
-  - plugin/log.plugin
