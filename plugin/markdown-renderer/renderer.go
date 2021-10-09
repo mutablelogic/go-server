@@ -21,7 +21,7 @@ func (p *plugin) Mimetypes() []string {
 	return []string{"text/markdown", ".md"}
 }
 
-func (p *plugin) Read(ctx context.Context, r io.Reader, info fs.FileInfo) (Document, error) {
+func (p *plugin) Read(ctx context.Context, r io.Reader, mimetype string, info fs.FileInfo) (Document, error) {
 	// Check arguments
 	if info != nil && !info.Mode().IsRegular() {
 		return nil, ErrBadParameter.With("Read")

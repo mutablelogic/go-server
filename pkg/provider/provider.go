@@ -168,6 +168,9 @@ func (this *plugincfg) String() string {
 	if this.plugin != nil {
 		str += fmt.Sprintf(" plugin=%v", this.plugin)
 	}
+	if this.config != nil {
+		str += fmt.Sprintf(" config=%v", this.config)
+	}
 	return str + ">"
 }
 

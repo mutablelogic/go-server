@@ -17,7 +17,7 @@ func (p *plugin) Mimetypes() []string {
 	return []string{"/"}
 }
 
-func (p *plugin) Read(ctx context.Context, r io.Reader, info fs.FileInfo) (Document, error) {
+func (p *plugin) Read(ctx context.Context, r io.Reader, mimetype string, info fs.FileInfo) (Document, error) {
 	return nil, ErrNotImplemented.With("Read")
 }
 

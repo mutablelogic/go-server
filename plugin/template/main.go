@@ -6,13 +6,11 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 
 	// Packages
 	template "github.com/mutablelogic/go-server/pkg/template"
 
-	// Modules
-	. "github.com/djthorpe/go-errors"
+	// Namespace imports
 	. "github.com/mutablelogic/go-server"
 )
 
@@ -20,18 +18,16 @@ import (
 // TYPES
 
 type Config struct {
-	Path      string   `yaml:"path"`
-	Templates string   `yaml:"templates"`
-	Renderers []string `yaml:"renderers"`
-	Default   string   `yaml:"default"`
+	Path      string `yaml:"path"`
+	Templates string `yaml:"templates"`
+	Default   string `yaml:"default"`
 }
 
 type templates struct {
 	Config
+	Renderer
 	*template.Cache
-	filefs    fs.FS
-	log       Logger
-	mimetypes map[string]Renderer
+	filefs fs.FS
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -47,12 +43,12 @@ func New(ctx context.Context, provider Provider) Plugin {
 		return nil
 	}
 
-	// Get logger
-	if logger := provider.GetPlugin(ctx, "log").(Logger); logger == nil {
-		provider.Print(ctx, "GetLogger: missing logger")
+	// Get renderer
+	if renderer, ok := provider.GetPlugin(ctx, "renderer").(Renderer); !ok {
+		provider.Print(ctx, "GetPlugin: missing renderer")
 		return nil
 	} else {
-		this.log = logger
+		this.Renderer = renderer
 	}
 
 	// Make paths absolute
@@ -88,24 +84,6 @@ func New(ctx context.Context, provider Provider) Plugin {
 		this.Cache = cache
 	}
 
-	// Set renderers
-	this.mimetypes = make(map[string]Renderer)
-	for _, name := range this.Renderers {
-		if plugin := provider.GetPlugin(ctx, name); plugin == nil {
-			provider.Printf(ctx, "Failed to load renderer: %q", name)
-			return nil
-		} else if renderer, ok := plugin.(Renderer); !ok {
-			provider.Printf(ctx, "Failed to load renderer: %q", name)
-			return nil
-		} else {
-			for _, mimetype := range renderer.Mimetypes() {
-				if err := this.setRenderer(mimetype, renderer); err != nil {
-					provider.Printf(ctx, err.Error())
-				}
-			}
-		}
-	}
-
 	// Return success
 	return this
 }
@@ -123,9 +101,6 @@ func (this *templates) String() string {
 	}
 	if this.Cache != nil {
 		str += fmt.Sprint(" ", this.Cache)
-	}
-	if len(this.Renderers) > 0 {
-		str += fmt.Sprintf(" renderers=%q", this.Renderers)
 	}
 	return str + ">"
 }
@@ -148,25 +123,4 @@ func (t *templates) Run(ctx context.Context, provider Provider) error {
 
 	// Return success
 	return nil
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// PRIVATE METHODS
-
-func (t *templates) setRenderer(key string, renderer Renderer) error {
-	key = strings.ToLower(key)
-	if r, exists := t.mimetypes[key]; exists {
-		return ErrDuplicateEntry.Withf("%q will be handled by %q", key, r)
-	}
-	t.mimetypes[key] = renderer
-	return nil
-}
-
-func (t *templates) getRenderer(key string) Renderer {
-	key = strings.ToLower(key)
-	if r, exists := t.mimetypes[key]; exists {
-		return r
-	} else {
-		return nil
-	}
 }

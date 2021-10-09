@@ -18,8 +18,8 @@ type Renderer interface {
 	// Return default mimetypes and file extensions handled by this renderer
 	Mimetypes() []string
 
-	// Render a file into a document, with reader and optional file info
-	Read(context.Context, io.Reader, fs.FileInfo) (Document, error)
+	// Render a file into a document, with reader and optional mimetype and file info
+	Read(context.Context, io.Reader, string, fs.FileInfo) (Document, error)
 
 	// Render a directory into a document, with optional file info
 	ReadDir(context.Context, fs.ReadDirFile, fs.FileInfo) (Document, error)
