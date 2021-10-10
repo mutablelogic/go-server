@@ -3,6 +3,9 @@ package main
 import (
 	"context"
 
+	// Package imports
+	highlight "github.com/zyedidia/highlight"
+
 	// Namespace Imports
 	. "github.com/mutablelogic/go-server"
 )
@@ -11,6 +14,7 @@ import (
 // TYPES
 
 type plugin struct {
+	defs []*highlight.Def
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -18,7 +22,19 @@ type plugin struct {
 
 // Create the text-renderer module
 func New(ctx context.Context, provider Provider) Plugin {
-	return new(plugin)
+	p := new(plugin)
+
+	// Read in all definitions
+	defs, err := highlight.AddDefs()
+	if err != nil {
+		provider.Print(ctx, "Failed to load highlight definitions: %s", err)
+		return nil
+	} else {
+		p.defs = defs
+	}
+
+	// Return success
+	return p
 }
 
 ///////////////////////////////////////////////////////////////////////////////

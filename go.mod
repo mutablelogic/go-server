@@ -2,6 +2,8 @@ module github.com/mutablelogic/go-server
 
 go 1.17
 
+replace github.com/zyedidia/highlight => github.com/djthorpe/highlight master
+
 require (
 	github.com/GehirnInc/crypt v0.0.0-20200316065508-bb7000b8a962
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
