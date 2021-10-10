@@ -49,14 +49,14 @@ func New(ctx context.Context, provider Provider) Plugin {
 	// Set renderers
 	p.mimetypes = make(map[string]Renderer)
 	for _, name := range cfg.Renderers {
-		if renderer, ok := provider.GetPlugin(ctx, name).(Renderer); !ok {
-			provider.Printf(ctx, "Failed to load renderer: %q", name)
-			return nil
-		} else {
-			for _, mimetype := range renderer.Mimetypes() {
-				if err := p.setRenderer(mimetype, renderer); err != nil {
-					provider.Printf(ctx, err.Error())
-				}
+		renderer, ok := provider.GetPlugin(ctx, name).(Renderer)
+		if !ok {
+			provider.Printf(ctx, "Warning: Failed to load renderer: %q", name)
+			continue
+		}
+		for _, mimetype := range renderer.Mimetypes() {
+			if err := p.setRenderer(mimetype, renderer); err != nil {
+				provider.Printf(ctx, err.Error())
 			}
 		}
 	}
