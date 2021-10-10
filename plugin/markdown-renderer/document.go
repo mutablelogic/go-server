@@ -4,10 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"html/template"
-	"io/fs"
-	"path/filepath"
 	"strings"
-	"time"
 
 	// Namespace imports
 	. "github.com/mutablelogic/go-server"
@@ -21,8 +18,7 @@ import (
 // TYPES
 
 type document struct {
-	path     string
-	info     fs.FileInfo
+	name     string
 	root     ast.Node
 	meta     map[DocumentKey]interface{}
 	sections []DocumentSection
@@ -36,17 +32,11 @@ type section struct {
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func NewDocument(path string, info fs.FileInfo, root ast.Node, meta map[DocumentKey]interface{}) *document {
+func NewDocument(name string, root ast.Node, meta map[DocumentKey]interface{}) *document {
 	doc := new(document)
 
-	// Check parameters
-	if info == nil {
-		return nil
-	}
-
 	// Set up document
-	doc.path = path
-	doc.info = info
+	doc.name = name
 	doc.root = root
 	doc.meta = make(map[DocumentKey]interface{})
 	doc.tags = make(map[string]string)
@@ -114,21 +104,6 @@ func (d *document) String() string {
 	if tags := d.Tags(); len(tags) > 0 {
 		str += fmt.Sprintf(" tags=%q", tags)
 	}
-	if name := d.Name(); name != "" {
-		str += fmt.Sprintf(" name=%q", name)
-	}
-	if path := d.Path(); path != "" {
-		str += fmt.Sprintf(" path=%q", path)
-	}
-	if ext := d.Ext(); ext != "" {
-		str += fmt.Sprintf(" ext=%q", ext)
-	}
-	if modtime := d.ModTime(); !modtime.IsZero() {
-		str += fmt.Sprint(" modtime=", modtime.Format(time.RFC3339))
-	}
-	if size := d.Size(); size > 0 {
-		str += fmt.Sprint(" size=", size)
-	}
 	return str + ">"
 }
 
@@ -139,7 +114,7 @@ func (d *document) Title() string {
 	if v, ok := d.meta[DocumentKeyTitle].(string); ok {
 		return v
 	} else {
-		return d.info.Name()
+		return d.name
 	}
 }
 
@@ -167,44 +142,12 @@ func (d *document) Tags() []string {
 	return tags
 }
 
-func (d *document) File() DocumentFile {
-	return d
-}
-
 func (d *document) Meta() map[DocumentKey]interface{} {
 	return d.meta
 }
 
 func (d *document) HTML() []DocumentSection {
 	return d.sections
-}
-
-func (d *document) Name() string {
-	return d.Title()
-}
-
-func (d *document) Path() string {
-	return d.path
-}
-
-func (d *document) Ext() string {
-	if d.info != nil {
-		return filepath.Ext(d.info.Name())
-	} else {
-		return ".txt"
-	}
-}
-
-func (d *document) ModTime() time.Time {
-	if d.info != nil {
-		return d.info.ModTime()
-	} else {
-		return time.Time{}
-	}
-}
-
-func (d *document) Size() int64 {
-	return d.info.Size()
 }
 
 func (s *section) Title() string {

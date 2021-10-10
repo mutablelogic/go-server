@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>{{ .Title }}</title>
-    <meta name="description" content="{{ .Description }}">
+    <title>{{ .Document.Title }}</title>
+    <meta name="description" content="{{ .Document.Description }}">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
@@ -16,33 +16,33 @@
     <div class="container-fluid">
         <div class="row">
             <div class="col-md-8 my-4">
-                <h1>{{ .Title }}</h1>
-                {{ if .Shortform }}<blockquote>{{ .Shortform }}</blockquote>{{ end }}
-                {{ range $i, $html := .HTML }}{{ template "html" $html }}{{ end }}
+                <h1>{{ if .Parent }}<a href="{{ .Parent }}">..</a> / {{ end }}{{ .Document.Title }}</h1>
+                {{ if .Document.Shortform }}<blockquote>{{ .Document.Shortform }}</blockquote>{{ end }}
+                {{ range $i, $html := .Document.HTML }}{{ template "html" $html }}{{ end }}
             </div>
             <div class="col-md-4 bg-light border-start">
                 <h5>Document</h5>
                 <dl>
                     <dt>Title</dt>
-                    <dd>{{ .Title }}</dd>
+                    <dd>{{ .Document.Title }}</dd>
                     <dt>Description</dt>
-                    <dd>{{ .Description }}</dd>
-                    {{ if .Shortform }}<dt>Shortform</dt><dd>{{ .Shortform }}</dd>{{ end }}
-                    {{ if .Tags }}{{ template "tags" .Tags }}{{ end }}
+                    <dd>{{ .Document.Description }}</dd>
+                    {{ if .Document.Shortform }}<dt>Shortform</dt><dd>{{ .Document.Shortform }}</dd>{{ end }}
+                    {{ if .Document.Tags }}{{ template "tags" .Document.Tags }}{{ end }}
                 </dl>
                 <hr>
                 <h5>File</h5>
                 <dl>
                     <dt>Name</dt>
-                    <dd>{{ .Name }}</dd>
-                    <dt>Path</dt>
-                    <dd>{{ .Path }}</dd>
+                    <dd>{{ .File.Name }}</dd>
+                    {{ if .Path }}<dt>Path</dt><dd>{{ .Path }}</dd>{{ end }}
+                    {{ if .Parent }}<dt>Parent</dt><dd>{{ .Parent }}</dd>{{ end }}
                     {{ if .Ext }}<dt>Ext</dt><dd>{{ .Ext }}</dd>{{ end }}
                     <dt>ModTime</dt>
-                    <dd>{{ .ModTime }}</dd>
-                    {{ if .Size }}<dt>Size</dt><dd>{{ .Size }}</dd>{{ end }}
+                    <dd>{{ .File.ModTime }}</dd>
+                    {{ if .File.Size }}<dt>Size</dt><dd>{{ .File.Size }}</dd>{{ end }}
                 </dl>
-                {{ if .Meta }}{{ template "meta" .Meta }}{{ end }}
+                {{ if .Document.Meta }}{{ template "meta" .Document.Meta }}{{ end }}
             </div>
         </div>
     </div>

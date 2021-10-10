@@ -2,7 +2,7 @@ module github.com/mutablelogic/go-server
 
 go 1.17
 
-replace github.com/zyedidia/highlight => github.com/djthorpe/highlight master
+replace github.com/zyedidia/highlight => github.com/djthorpe/highlight v0.0.0-20211010083339-d90b2f7f5bae
 
 require (
 	github.com/GehirnInc/crypt v0.0.0-20200316065508-bb7000b8a962
@@ -14,6 +14,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/miekg/dns v1.1.43
 	github.com/pkg/term v1.1.0
+	github.com/zyedidia/highlight v0.0.0-00010101000000-000000000000
 	golang.org/x/crypto v0.0.0-20210920023735-84f357641f63
 	golang.org/x/net v0.0.0-20210917221730-978cfadd31cf
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
@@ -26,4 +27,5 @@ require (
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/stretchr/testify v1.7.0 // indirect
 	golang.org/x/sys v0.0.0-20210917161153-d61c044b1678 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 )

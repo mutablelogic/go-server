@@ -5,7 +5,6 @@ import (
 	"html/template"
 	"io"
 	"io/fs"
-	"time"
 )
 
 /////////////////////////////////////////////////////////////////////
@@ -31,27 +30,8 @@ type Document interface {
 	Description() string
 	Shortform() template.HTML
 	Tags() []string
-	File() DocumentFile
 	Meta() map[DocumentKey]interface{}
 	HTML() []DocumentSection
-}
-
-// DocumentFile represents a document materialized on a file system
-type DocumentFile interface {
-	// Name of the file, including the file extension
-	Name() string
-
-	// Parent path for the file, not including the filename
-	Path() string
-
-	// Extension for the file, including the "."
-	Ext() string
-
-	// Last modification time for the document
-	ModTime() time.Time
-
-	// Size in bytes
-	Size() int64
 }
 
 // DocumentSection represents document HTML, split into sections

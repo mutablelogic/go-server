@@ -13,6 +13,10 @@ import (
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
+type Config struct {
+	FileTypes []string `yaml:"types"`
+}
+
 type plugin struct {
 	defs []*highlight.Def
 }
@@ -24,10 +28,17 @@ type plugin struct {
 func New(ctx context.Context, provider Provider) Plugin {
 	p := new(plugin)
 
-	// Read in all definitions
-	defs, err := highlight.AddDefs()
+	// Read configuration
+	var cfg Config
+	if err := provider.GetConfig(ctx, &cfg); err != nil {
+		provider.Printf(ctx, "Error reading config: %s", err)
+		return nil
+	}
+
+	// Read definitions
+	defs, err := highlight.AllDefs(cfg.FileTypes...)
 	if err != nil {
-		provider.Print(ctx, "Failed to load highlight definitions: %s", err)
+		provider.Printf(ctx, "Failed to load highlight definitions: %s", err)
 		return nil
 	} else {
 		p.defs = defs
@@ -42,6 +53,9 @@ func New(ctx context.Context, provider Provider) Plugin {
 
 func (p *plugin) String() string {
 	str := "<text-renderer"
+	for _, def := range p.defs {
+		str += " " + def.FileType
+	}
 	return str + ">"
 }
 

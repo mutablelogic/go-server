@@ -4,9 +4,7 @@ import (
 	"fmt"
 	"html/template"
 	"io/fs"
-	"path/filepath"
 	"strings"
-	"time"
 
 	// Namespace imports
 	. "github.com/mutablelogic/go-server"
@@ -16,8 +14,7 @@ import (
 // TYPES
 
 type document struct {
-	path    string
-	info    fs.FileInfo
+	name    string
 	entries []DocumentSection
 	meta    map[DocumentKey]interface{}
 }
@@ -29,16 +26,14 @@ type direntry struct {
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func NewDocument(path string, info fs.FileInfo, entries []fs.DirEntry, meta map[DocumentKey]interface{}) *document {
+func NewDocument(name string, entries []fs.DirEntry, meta map[DocumentKey]interface{}) *document {
 	document := new(document)
-	// Return nil if info is nil
-	if info == nil || entries == nil {
+	if entries == nil {
 		return nil
 	}
 
 	// Set up document
-	document.path = path
-	document.info = info
+	document.name = name
 	document.meta = make(map[DocumentKey]interface{})
 
 	// Add documents array
@@ -77,21 +72,6 @@ func (d *document) String() string {
 	if tags := d.Tags(); len(tags) > 0 {
 		str += fmt.Sprintf(" tags=%q", tags)
 	}
-	if name := d.Name(); name != "" {
-		str += fmt.Sprintf(" name=%q", name)
-	}
-	if path := d.Path(); path != "" {
-		str += fmt.Sprintf(" path=%q", path)
-	}
-	if ext := d.Ext(); ext != "" {
-		str += fmt.Sprintf(" ext=%q", ext)
-	}
-	if modtime := d.ModTime(); !modtime.IsZero() {
-		str += fmt.Sprint(" modtime=", modtime.Format(time.RFC3339))
-	}
-	if size := d.Size(); size > 0 {
-		str += fmt.Sprint(" size=", size)
-	}
 	return str + ">"
 }
 
@@ -99,10 +79,10 @@ func (d *document) String() string {
 // PUBLIC METHODS
 
 func (d *document) Title() string {
-	if d.info.Name() == "." {
+	if d.name == "." {
 		return "/"
 	} else {
-		return d.info.Name()
+		return d.name
 	}
 }
 
@@ -118,48 +98,12 @@ func (d *document) Tags() []string {
 	return []string{"dir"}
 }
 
-func (d *document) File() DocumentFile {
-	if d.info != nil {
-		return d
-	} else {
-		return nil
-	}
-}
-
 func (d *document) Meta() map[DocumentKey]interface{} {
 	return d.meta
 }
 
 func (d *document) HTML() []DocumentSection {
 	return d.entries
-}
-
-func (d *document) Name() string {
-	return d.Title()
-}
-
-func (d *document) Path() string {
-	return d.path
-}
-
-func (d *document) Ext() string {
-	if d.info != nil {
-		return filepath.Ext(d.info.Name())
-	} else {
-		return "/"
-	}
-}
-
-func (d *document) ModTime() time.Time {
-	if d.info != nil {
-		return d.info.ModTime()
-	} else {
-		return time.Time{}
-	}
-}
-
-func (d *document) Size() int64 {
-	return 0
 }
 
 func (s *direntry) Title() string {

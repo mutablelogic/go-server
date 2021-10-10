@@ -4,9 +4,7 @@ import (
 	"fmt"
 	"html"
 	"html/template"
-	"io/fs"
-	"path/filepath"
-	"time"
+	"strings"
 
 	// Namespace imports
 	. "github.com/mutablelogic/go-server"
@@ -16,9 +14,9 @@ import (
 // TYPES
 
 type document struct {
-	path     string
-	info     fs.FileInfo
+	name     string
 	sections []DocumentSection
+	tags     []string
 	meta     map[DocumentKey]interface{}
 }
 
@@ -29,18 +27,16 @@ type textsection struct {
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func NewDocument(path string, info fs.FileInfo) *document {
+func NewDocument(name string) *document {
 	document := new(document)
-	document.meta = make(map[DocumentKey]interface{})
-
-	// Check parameters
-	if info == nil {
-		return nil
-	}
 
 	// Set up document
-	document.path = path
-	document.info = info
+	document.name = name
+	document.tags = make([]string, 0, 2)
+	document.meta = make(map[DocumentKey]interface{})
+
+	// Add "TEXT" tag
+	document.addTag("text")
 
 	// Return success
 	return document
@@ -63,21 +59,6 @@ func (d *document) String() string {
 	if tags := d.Tags(); len(tags) > 0 {
 		str += fmt.Sprintf(" tags=%q", tags)
 	}
-	if name := d.Name(); name != "" {
-		str += fmt.Sprintf(" name=%q", name)
-	}
-	if path := d.Path(); path != "" {
-		str += fmt.Sprintf(" path=%q", path)
-	}
-	if ext := d.Ext(); ext != "" {
-		str += fmt.Sprintf(" ext=%q", ext)
-	}
-	if modtime := d.ModTime(); !modtime.IsZero() {
-		str += fmt.Sprint(" modtime=", modtime.Format(time.RFC3339))
-	}
-	if size := d.Size(); size > 0 {
-		str += fmt.Sprint(" size=", size)
-	}
 	return str + ">"
 }
 
@@ -85,11 +66,11 @@ func (d *document) String() string {
 // PUBLIC METHODS
 
 func (d *document) Title() string {
-	return d.info.Name()
+	return d.name
 }
 
 func (d *document) Description() string {
-	return d.info.Name()
+	return d.name
 }
 
 func (d *document) Shortform() template.HTML {
@@ -97,11 +78,7 @@ func (d *document) Shortform() template.HTML {
 }
 
 func (d *document) Tags() []string {
-	return []string{"text"}
-}
-
-func (d *document) File() DocumentFile {
-	return d
+	return d.tags
 }
 
 func (d *document) Meta() map[DocumentKey]interface{} {
@@ -110,34 +87,6 @@ func (d *document) Meta() map[DocumentKey]interface{} {
 
 func (d *document) HTML() []DocumentSection {
 	return d.sections
-}
-
-func (d *document) Name() string {
-	return d.Title()
-}
-
-func (d *document) Path() string {
-	return d.path
-}
-
-func (d *document) Ext() string {
-	if d.info != nil {
-		return filepath.Ext(d.info.Name())
-	} else {
-		return ".txt"
-	}
-}
-
-func (d *document) ModTime() time.Time {
-	if d.info != nil {
-		return d.info.ModTime()
-	} else {
-		return time.Time{}
-	}
-}
-
-func (d *document) Size() int64 {
-	return d.info.Size()
 }
 
 func (s *textsection) Title() string {
@@ -169,6 +118,12 @@ func (d *document) setMeta(key DocumentKey, value interface{}) {
 	d.meta[key] = value
 }
 
+func (d *document) addTag(key string) {
+	key = strings.ToLower(key)
+	if !sliceContains(d.tags, key) {
+		d.tags = append(d.tags, key)
+	}
+}
 func (d *document) append(data string) {
 	d.sections = append(d.sections, &textsection{data})
 }

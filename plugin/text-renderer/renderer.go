@@ -7,6 +7,9 @@ import (
 	"io/fs"
 	"strings"
 
+	// Package imports
+	"github.com/zyedidia/highlight"
+
 	// Namespace imports
 	. "github.com/djthorpe/go-errors"
 	. "github.com/mutablelogic/go-server"
@@ -26,24 +29,35 @@ func (p *plugin) Read(ctx context.Context, r io.Reader, info fs.FileInfo, meta m
 	}
 
 	// Create a document
-	doc := NewDocument("/", info)
+	doc := NewDocument(info.Name())
 	data := []string{}
+	var def *highlight.Def
 
-	// Read in lines
+	// Read in lines, detect content type from first non-blank line
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
 		if scanner.Text() == "" {
 			doc.append(strings.Join(data, "\n"))
 			data = data[:0]
-		} else {
-			data = append(data, scanner.Text())
+			continue
 		}
+		if def == nil {
+			def = highlight.DetectFiletype(p.defs, info.Name(), []byte(scanner.Text()))
+		}
+		data = append(data, scanner.Text())
 	}
 	if err := scanner.Err(); err != nil {
 		return nil, err
 	}
 	if len(data) > 0 {
 		doc.append(strings.Join(data, "\n"))
+	}
+
+	// Highlight the document
+
+	// Set def metadata
+	if def != nil && def.FileType != "Unknown" {
+		doc.addTag(def.FileType)
 	}
 
 	// Apply additional metadata

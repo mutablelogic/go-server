@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"io"
 	"io/fs"
 	"net/http"
@@ -19,9 +18,25 @@ import (
 )
 
 ///////////////////////////////////////////////////////////////////////////////
+// TYPES
+
+type TemplateEnv struct {
+	Document Document
+	File     fs.FileInfo
+	Ext      string
+	Path     string
+	Parent   string
+}
+
+///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
 func (this *templates) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	// Modify request
+	if !strings.HasPrefix(req.URL.Path, "/") {
+		req.URL.Path = "/" + req.URL.Path
+	}
+
 	// Open file/directory for reading
 	file, err := this.filefs.Open(filepath.Join(".", req.URL.Path))
 	if os.IsNotExist(err) {
@@ -113,10 +128,15 @@ func (this *templates) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	// Set parent
+	parent := filepath.Dir(req.URL.Path)
+	if !strings.HasSuffix(parent, "/") {
+		parent = parent + "/"
+	}
+
 	// Render document through the template
-	if err := tmpl.Execute(w, doc); err != nil {
-		// TODO: Print out error
-		fmt.Println("TODO Template error for %q: %v", req.URL.Path, err)
+	if err := tmpl.Execute(w, TemplateEnv{doc, info, filepath.Ext(info.Name()), req.URL.Path, parent}); err != nil {
+		router.ServeError(w, http.StatusBadGateway, err.Error())
 	}
 }
 
@@ -135,9 +155,20 @@ func (this *templates) ServeDir(w http.ResponseWriter, req *http.Request, file f
 		return
 	}
 
+	// Set parent
+	parent := ""
+	if req.URL.Path != "/" {
+		parent = filepath.Dir(strings.TrimSuffix(req.URL.Path, "/"))
+		if parent == "." {
+			parent = "/"
+		}
+		if !strings.HasSuffix(parent, "/") {
+			parent = parent + "/"
+		}
+	}
+
 	// Render document through the template
-	if err := tmpl.Execute(w, doc); err != nil {
-		// TODO: Print out error
-		fmt.Println("TODO Template error for %q: %v", req.URL.Path, err)
+	if err := tmpl.Execute(w, TemplateEnv{doc, info, "/", req.URL.Path, parent}); err != nil {
+		router.ServeError(w, http.StatusBadGateway, err.Error())
 	}
 }

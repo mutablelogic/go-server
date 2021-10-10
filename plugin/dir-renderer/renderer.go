@@ -34,5 +34,5 @@ func (p *plugin) ReadDir(ctx context.Context, dir fs.ReadDirFile, info fs.FileIn
 	}
 
 	// Return document
-	return NewDocument("/", info, entries, meta), nil
+	return NewDocument(info.Name(), entries, meta), nil
 }

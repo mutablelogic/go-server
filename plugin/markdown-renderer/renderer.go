@@ -35,7 +35,7 @@ func (p *plugin) Read(ctx context.Context, r io.Reader, info fs.FileInfo, meta m
 	}
 
 	// Return document
-	return NewDocument("/", info, parser.Parse(data), meta), nil
+	return NewDocument(info.Name(), parser.Parse(data), meta), nil
 }
 
 func (p *plugin) ReadDir(context.Context, fs.ReadDirFile, fs.FileInfo, map[DocumentKey]interface{}) (Document, error) {
