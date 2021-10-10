@@ -18,11 +18,11 @@ type Renderer interface {
 	// Return default mimetypes and file extensions handled by this renderer
 	Mimetypes() []string
 
-	// Render a file into a document, with reader and optional mimetype and file info
-	Read(context.Context, io.Reader, string, fs.FileInfo) (Document, error)
+	// Render a file into a document, with reader and optional file info and metadata
+	Read(context.Context, io.Reader, fs.FileInfo, map[DocumentKey]interface{}) (Document, error)
 
-	// Render a directory into a document, with optional file info
-	ReadDir(context.Context, fs.ReadDirFile, fs.FileInfo) (Document, error)
+	// Render a directory into a document, with optional file info and metadata
+	ReadDir(context.Context, fs.ReadDirFile, fs.FileInfo, map[DocumentKey]interface{}) (Document, error)
 }
 
 // Document to be rendered or indexed
@@ -82,5 +82,6 @@ const (
 	DocumentKeyAuthor      DocumentKey = "author"
 	DocumentKeyArtwork     DocumentKey = "artwork"
 	DocumentKeyThumbnail   DocumentKey = "thumbnail"
-	DocumentKeyMimetype    DocumentKey = "mimetype"
+	DocumentKeyContentType DocumentKey = "mimetype"
+	DocumentKeyCharset     DocumentKey = "charset"
 )

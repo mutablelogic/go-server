@@ -35,9 +35,11 @@ ifeq (,${GO})
 endif
 
 mkdir:
+	@echo Mkdir ${BUILD_DIR}
 	@install -d ${BUILD_DIR}
 
 clean:
+	@echo Clean
 	@rm -fr $(BUILD_DIR)
-	@${GO} mod tidy
+#@${GO} mod tidy
 	@${GO} clean

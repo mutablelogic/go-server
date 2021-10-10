@@ -37,12 +37,10 @@
                     <dd>{{ .Name }}</dd>
                     <dt>Path</dt>
                     <dd>{{ .Path }}</dd>
-                    <dt>Ext</dt>
-                    <dd>{{ .Ext }}</dd>
+                    {{ if .Ext }}<dt>Ext</dt><dd>{{ .Ext }}</dd>{{ end }}
                     <dt>ModTime</dt>
                     <dd>{{ .ModTime }}</dd>
-                    <dt>Size</dt>
-                    <dd>{{ .Size }}</dd>
+                    {{ if .Size }}<dt>Size</dt><dd>{{ .Size }}</dd>{{ end }}
                 </dl>
                 {{ if .Meta }}{{ template "meta" .Meta }}{{ end }}
             </div>
@@ -56,7 +54,7 @@
     <div{{ if .Class }} class="{{ .Class }}"{{ end }}>
         {{ if .Title }}
             {{ if .Level }}<h{{.Level}}>{{ end }}
-                {{ if .Anchor }}<a href="#{{ .Anchor }}">{{ end }}
+                {{ if .Anchor }}<a href="{{ .Anchor }}">{{ end }}
                   {{ .Title }}
                 {{ if .Anchor }}</a>{{ end }}
             {{ if .Level }}</h{{.Level}}>{{ end }}

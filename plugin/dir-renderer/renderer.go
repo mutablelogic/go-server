@@ -17,11 +17,11 @@ func (p *plugin) Mimetypes() []string {
 	return []string{"/"}
 }
 
-func (p *plugin) Read(ctx context.Context, r io.Reader, mimetype string, info fs.FileInfo) (Document, error) {
+func (p *plugin) Read(context.Context, io.Reader, fs.FileInfo, map[DocumentKey]interface{}) (Document, error) {
 	return nil, ErrNotImplemented.With("Read")
 }
 
-func (p *plugin) ReadDir(ctx context.Context, dir fs.ReadDirFile, info fs.FileInfo) (Document, error) {
+func (p *plugin) ReadDir(ctx context.Context, dir fs.ReadDirFile, info fs.FileInfo, meta map[DocumentKey]interface{}) (Document, error) {
 	// Check arguments
 	if info != nil && !info.Mode().IsDir() {
 		return nil, ErrBadParameter.With("ReadDir")
@@ -34,5 +34,5 @@ func (p *plugin) ReadDir(ctx context.Context, dir fs.ReadDirFile, info fs.FileIn
 	}
 
 	// Return document
-	return NewDocument("/", info, entries), nil
+	return NewDocument("/", info, entries, meta), nil
 }

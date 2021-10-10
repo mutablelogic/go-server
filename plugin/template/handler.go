@@ -11,7 +11,11 @@ import (
 	"time"
 
 	// Modules
+
 	router "github.com/mutablelogic/go-server/pkg/httprouter"
+
+	// Namespace imports
+	. "github.com/mutablelogic/go-server"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -31,14 +35,14 @@ func (this *templates) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	defer file.Close()
 
 	// Obtain file information
-	stat, err := file.Stat()
+	info, err := file.Stat()
 	if err != nil {
 		router.ServeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	// Set headers
-	modified := stat.ModTime()
+	modified := info.ModTime()
 	w.Header().Set("Last-Modified", modified.Format(http.TimeFormat))
 
 	// Return not-modified
@@ -51,33 +55,52 @@ func (this *templates) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 
+	// Forbidden if file is hidden file
+	if strings.HasPrefix(info.Name(), ".") && info.Name() != "." {
+		router.ServeError(w, http.StatusForbidden, "Forbidden to serve: ", req.URL.Path)
+		return
+	}
+
 	// Serve as folder
-	if stat.IsDir() {
+	if info.IsDir() {
 		if !strings.HasSuffix(req.URL.Path, "/") {
 			req.URL.Path = req.URL.Path + "/"
 			http.Redirect(w, req, req.URL.String(), http.StatusPermanentRedirect)
 			return
 		}
-		this.ServeDir(w, req, file.(fs.ReadDirFile), stat)
-		return
-	} else if stat.Mode().IsRegular() {
-		this.ServeFile(w, req, file, stat)
+		this.ServeDir(w, req, file.(fs.ReadDirFile), info)
 		return
 	}
 
-	// If we reached here, something went wrong
-	router.ServeError(w, http.StatusInternalServerError, "Unable to serve: ", req.URL.Path)
-}
-
-func (this *templates) ServeFile(w http.ResponseWriter, req *http.Request, file fs.File, info fs.FileInfo) {
-	// Forbidden if file is hidden file
-	if strings.HasPrefix(info.Name(), ".") {
-		router.ServeError(w, http.StatusForbidden, "Forbidden to serve: ", req.URL.Path)
+	// Not a regular file
+	if !info.Mode().IsRegular() {
+		router.ServeError(w, http.StatusInternalServerError, "Unable to serve: ", req.URL.Path)
 		return
 	}
 
-	// Render document
-	doc, err := this.Read(req.Context(), file.(io.Reader), "", info)
+	// Detect content type
+	mimetype, charset, err := this.DetectContentType(file, info)
+	if err != nil {
+		router.ServeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// Close and re-open file
+	if err := file.Close(); err != nil {
+		router.ServeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	file, err = this.filefs.Open(filepath.Join(".", req.URL.Path))
+	if err != nil {
+		router.ServeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// Render document - TODO: Add support for charset
+	doc, err := this.Read(req.Context(), file.(io.Reader), info, map[DocumentKey]interface{}{
+		DocumentKeyContentType: mimetype,
+		DocumentKeyCharset:     charset,
+	})
 	if err != nil {
 		router.ServeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -98,14 +121,8 @@ func (this *templates) ServeFile(w http.ResponseWriter, req *http.Request, file 
 }
 
 func (this *templates) ServeDir(w http.ResponseWriter, req *http.Request, file fs.ReadDirFile, info fs.FileInfo) {
-	// Forbidden if name is hidden folder
-	if strings.HasPrefix(info.Name(), ".") && info.Name() != "." {
-		router.ServeError(w, http.StatusForbidden, "Forbidden to serve: ", req.URL.Path)
-		return
-	}
-
 	// Render document
-	doc, err := this.ReadDir(req.Context(), file, info)
+	doc, err := this.ReadDir(req.Context(), file, info, nil)
 	if err != nil {
 		router.ServeError(w, http.StatusInternalServerError, err.Error())
 		return

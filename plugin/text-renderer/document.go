@@ -19,6 +19,7 @@ type document struct {
 	path     string
 	info     fs.FileInfo
 	sections []DocumentSection
+	meta     map[DocumentKey]interface{}
 }
 
 type textsection struct {
@@ -30,6 +31,7 @@ type textsection struct {
 
 func NewDocument(path string, info fs.FileInfo) *document {
 	document := new(document)
+	document.meta = make(map[DocumentKey]interface{})
 
 	// Check parameters
 	if info == nil {
@@ -103,7 +105,7 @@ func (d *document) File() DocumentFile {
 }
 
 func (d *document) Meta() map[DocumentKey]interface{} {
-	return nil
+	return d.meta
 }
 
 func (d *document) HTML() []DocumentSection {
@@ -162,6 +164,10 @@ func (s *textsection) Class() string {
 
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
+
+func (d *document) setMeta(key DocumentKey, value interface{}) {
+	d.meta[key] = value
+}
 
 func (d *document) append(data string) {
 	d.sections = append(d.sections, &textsection{data})

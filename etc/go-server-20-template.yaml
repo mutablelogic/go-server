@@ -19,7 +19,7 @@ handlers:
 template:
   # Documents come from docs directory, and templates from the templates
   # directory
-  path: etc/docs
+  path: /home/djt
   templates: etc/templates
   default: default.tmpl
 

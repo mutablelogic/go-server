@@ -19,6 +19,7 @@ type document struct {
 	path    string
 	info    fs.FileInfo
 	entries []DocumentSection
+	meta    map[DocumentKey]interface{}
 }
 
 type direntry struct {
@@ -28,9 +29,8 @@ type direntry struct {
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func NewDocument(path string, info fs.FileInfo, entries []fs.DirEntry) *document {
+func NewDocument(path string, info fs.FileInfo, entries []fs.DirEntry, meta map[DocumentKey]interface{}) *document {
 	document := new(document)
-
 	// Return nil if info is nil
 	if info == nil || entries == nil {
 		return nil
@@ -39,6 +39,7 @@ func NewDocument(path string, info fs.FileInfo, entries []fs.DirEntry) *document
 	// Set up document
 	document.path = path
 	document.info = info
+	document.meta = make(map[DocumentKey]interface{})
 
 	// Add documents array
 	document.entries = make([]DocumentSection, 0, len(entries))
@@ -48,6 +49,11 @@ func NewDocument(path string, info fs.FileInfo, entries []fs.DirEntry) *document
 			continue
 		}
 		document.entries = append(document.entries, &direntry{entry})
+	}
+
+	// Add metadata
+	for key, value := range meta {
+		document.meta[key] = value
 	}
 
 	// Return success
@@ -121,7 +127,7 @@ func (d *document) File() DocumentFile {
 }
 
 func (d *document) Meta() map[DocumentKey]interface{} {
-	return nil
+	return d.meta
 }
 
 func (d *document) HTML() []DocumentSection {
@@ -157,7 +163,11 @@ func (d *document) Size() int64 {
 }
 
 func (s *direntry) Title() string {
-	return s.DirEntry.Name()
+	if s.DirEntry.IsDir() {
+		return s.DirEntry.Name() + "/"
+	} else {
+		return s.DirEntry.Name()
+	}
 }
 
 func (s *direntry) Level() uint {
@@ -169,7 +179,11 @@ func (s *direntry) HTML() template.HTML {
 }
 
 func (s *direntry) Anchor() string {
-	return ""
+	if s.DirEntry.IsDir() {
+		return s.DirEntry.Name() + "/"
+	} else {
+		return s.DirEntry.Name()
+	}
 }
 
 func (s *direntry) Class() string {

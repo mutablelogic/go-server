@@ -26,6 +26,7 @@ type Config struct {
 type templates struct {
 	Config
 	Renderer
+	*template.ContentTypeDetect
 	*template.Cache
 	filefs fs.FS
 }
@@ -36,6 +37,7 @@ type templates struct {
 // Create the template module
 func New(ctx context.Context, provider Provider) Plugin {
 	this := new(templates)
+	this.ContentTypeDetect = template.NewContentTypeDetect()
 
 	// Load configuration
 	if err := provider.GetConfig(ctx, &this.Config); err != nil {

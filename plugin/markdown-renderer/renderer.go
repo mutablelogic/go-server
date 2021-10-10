@@ -21,7 +21,7 @@ func (p *plugin) Mimetypes() []string {
 	return []string{"text/markdown", ".md"}
 }
 
-func (p *plugin) Read(ctx context.Context, r io.Reader, mimetype string, info fs.FileInfo) (Document, error) {
+func (p *plugin) Read(ctx context.Context, r io.Reader, info fs.FileInfo, meta map[DocumentKey]interface{}) (Document, error) {
 	// Check arguments
 	if info != nil && !info.Mode().IsRegular() {
 		return nil, ErrBadParameter.With("Read")
@@ -35,9 +35,9 @@ func (p *plugin) Read(ctx context.Context, r io.Reader, mimetype string, info fs
 	}
 
 	// Return document
-	return NewDocument("/", info, parser.Parse(data)), nil
+	return NewDocument("/", info, parser.Parse(data), meta), nil
 }
 
-func (p *plugin) ReadDir(context.Context, fs.ReadDirFile, fs.FileInfo) (Document, error) {
+func (p *plugin) ReadDir(context.Context, fs.ReadDirFile, fs.FileInfo, map[DocumentKey]interface{}) (Document, error) {
 	return nil, ErrNotImplemented.With("ReadDir")
 }

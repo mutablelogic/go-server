@@ -36,7 +36,7 @@ type section struct {
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func NewDocument(path string, info fs.FileInfo, root ast.Node) *document {
+func NewDocument(path string, info fs.FileInfo, root ast.Node, meta map[DocumentKey]interface{}) *document {
 	doc := new(document)
 
 	// Check parameters
@@ -84,9 +84,14 @@ func NewDocument(path string, info fs.FileInfo, root ast.Node) *document {
 		}
 	})
 
+	// Add metadata
+	for k, v := range meta {
+		doc.setMeta(k, v)
+	}
+
 	// Append markdown tag
 	doc.appendTags([]string{"markdown"})
-	doc.setMeta(string(DocumentKeyMimetype), "text/markdown")
+	doc.setMeta(DocumentKeyContentType, "text/markdown")
 
 	// Return success
 	return doc
@@ -240,13 +245,12 @@ func (d *document) appendTags(tags []string) {
 	}
 }
 
-func (d *document) setMeta(k, v string) {
-	key := DocumentKey(strings.TrimSpace(strings.ToLower(k)))
-	switch key {
+func (d *document) setMeta(k DocumentKey, v interface{}) {
+	switch k {
 	case DocumentKey("tags"):
-		d.appendTags(strings.FieldsFunc(v, func(c rune) bool { return c == ',' || c == ' ' }))
+		d.appendTags(strings.FieldsFunc(v.(string), func(c rune) bool { return c == ',' || c == ' ' }))
 	default:
-		d.meta[key] = strings.TrimSpace(v)
+		d.meta[k] = v
 	}
 }
 
@@ -269,7 +273,8 @@ func (d *document) setFromTitleBlock(node *ast.Heading) bool {
 			continue
 		} else if meta {
 			if kv := strings.SplitN(line, ":", 2); len(kv) == 2 {
-				d.setMeta(kv[0], kv[1])
+				key := DocumentKey(strings.TrimSpace(strings.ToLower(kv[0])))
+				d.setMeta(key, strings.TrimSpace(kv[1]))
 			}
 			continue
 		}

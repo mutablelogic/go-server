@@ -97,32 +97,33 @@ func (p *plugin) Mimetypes() []string {
 	return result
 }
 
-// Render a file into a document, with reader and optional file info
-func (p *plugin) Read(ctx context.Context, r io.Reader, mimetype string, info fs.FileInfo) (Document, error) {
-	if mimetype != "" {
-		if renderer := p.getRenderer(mimetype); renderer != nil {
-			return renderer.Read(ctx, r, mimetype, info)
-		}
-	}
+// Render a file into a document, with reader and optional file info.
+// We prefer file name, then file extension and finally mimetype to determine the renderer
+func (p *plugin) Read(ctx context.Context, r io.Reader, info fs.FileInfo, meta map[DocumentKey]interface{}) (Document, error) {
 	if info != nil {
+		if renderer := p.getRenderer(info.Name()); renderer != nil {
+			return renderer.Read(ctx, r, info, meta)
+		}
 		if ext := filepath.Ext(info.Name()); ext != "" {
 			if renderer := p.getRenderer(ext); renderer != nil {
-				return renderer.Read(ctx, r, mimetype, info)
+				return renderer.Read(ctx, r, info, meta)
 			}
 		}
-		if renderer := p.getRenderer(info.Name()); renderer != nil {
-			return renderer.Read(ctx, r, mimetype, info)
+	}
+	if mimetype, ok := meta[DocumentKeyContentType].(string); ok && mimetype != "" {
+		if renderer := p.getRenderer(mimetype); renderer != nil {
+			return renderer.Read(ctx, r, info, meta)
 		}
 	}
 	return nil, ErrNotFound.Withf("Read: no renderer found for %q", info.Name())
 }
 
 // Render a directory into a document, with optional file info
-func (p *plugin) ReadDir(ctx context.Context, dir fs.ReadDirFile, info fs.FileInfo) (Document, error) {
+func (p *plugin) ReadDir(ctx context.Context, dir fs.ReadDirFile, info fs.FileInfo, meta map[DocumentKey]interface{}) (Document, error) {
 	if renderer := p.getRenderer(pathSeparator); renderer == nil {
 		return nil, ErrNotFound.With("ReadDir: no renderer found")
 	} else {
-		return renderer.ReadDir(ctx, dir, info)
+		return renderer.ReadDir(ctx, dir, info, meta)
 	}
 }
 
