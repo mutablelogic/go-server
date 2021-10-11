@@ -5,18 +5,29 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"strings"
 	"sync"
 
 	// Modules
-	. "github.com/mutablelogic/go-server"
 	"github.com/mutablelogic/go-server/pkg/provider"
+
+	// Namespace imports
+	. "github.com/djthorpe/go-errors"
+	. "github.com/mutablelogic/go-server"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type logger struct {
+type Config struct {
+	Prefix string   `yaml:"prefix"`
+	Flags  []string `yaml:"flags"`
+}
+
+type plugin struct {
 	sync.Mutex
+	*log.Logger
 }
 
 type handler struct {
@@ -28,15 +39,41 @@ type handler struct {
 
 // Create the module
 func New(ctx context.Context, provider Provider) Plugin {
-	this := new(logger)
-	return this
+	p := new(plugin)
+
+	// Get Configuration
+	var cfg Config
+	if err := provider.GetConfig(ctx, &cfg); err != nil {
+		provider.Print(ctx, err)
+		return nil
+	}
+
+	// Get flags
+	flags, err := flagsForSlice(cfg.Flags)
+	if err != nil {
+		provider.Print(ctx, err)
+		return nil
+	}
+
+	// Make logger
+	if log := log.New(os.Stderr, cfg.Prefix, flags); log == nil {
+		provider.Print(ctx, "Cannot create logger")
+		return nil
+	} else {
+		p.Logger = log
+	}
+
+	return p
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
-func (this *logger) String() string {
+func (p *plugin) String() string {
 	str := "<log"
+	if prefix := p.Logger.Prefix(); prefix != "" {
+		str += fmt.Sprintf(" prefix=%q", prefix)
+	}
 	return str + ">"
 }
 
@@ -47,7 +84,7 @@ func Name() string {
 	return "log"
 }
 
-func (this *logger) Run(ctx context.Context, _ Provider) error {
+func (p *plugin) Run(ctx context.Context, _ Provider) error {
 	<-ctx.Done()
 	return nil
 }
@@ -55,42 +92,70 @@ func (this *logger) Run(ctx context.Context, _ Provider) error {
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS - LOG
 
-func (this *logger) Print(ctx context.Context, v ...interface{}) {
-	this.Mutex.Lock()
-	defer this.Mutex.Unlock()
+func (p *plugin) Print(ctx context.Context, v ...interface{}) {
+	p.Mutex.Lock()
+	defer p.Mutex.Unlock()
 	if name := provider.ContextPluginName(ctx); name != "" {
-		log.Print("["+name+"] ", fmt.Sprint(v...))
+		p.Logger.Print("["+name+"] ", fmt.Sprint(v...))
 	} else {
-		log.Print(v...)
+		p.Logger.Print(v...)
 	}
 }
 
-func (this *logger) Printf(ctx context.Context, f string, v ...interface{}) {
-	this.Mutex.Lock()
-	defer this.Mutex.Unlock()
+func (p *plugin) Printf(ctx context.Context, f string, v ...interface{}) {
+	p.Mutex.Lock()
+	defer p.Mutex.Unlock()
 	if name := provider.ContextPluginName(ctx); name != "" {
-		log.Print("["+name+"] ", fmt.Sprintf(f, v...))
+		p.Logger.Print("["+name+"] ", fmt.Sprintf(f, v...))
 	} else {
-		log.Printf(f, v...)
+		p.Logger.Printf(f, v...)
 	}
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS - MIDDLEWARE
 
-func (this *logger) AddMiddlewareFunc(ctx context.Context, h http.HandlerFunc) http.HandlerFunc {
+func (p *plugin) AddMiddlewareFunc(ctx context.Context, h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		this.Print(r.Context(), provider.ContextPluginName(ctx), " ", r.Method, " ", r.URL.Path)
+		p.Printf(ctx, "%s %s", r.Method, r.URL.Path)
 		h(w, r)
 	}
 }
 
-func (this *logger) AddMiddleware(ctx context.Context, h http.Handler) http.Handler {
+func (p *plugin) AddMiddleware(ctx context.Context, h http.Handler) http.Handler {
 	return &handler{
-		this.AddMiddlewareFunc(ctx, h.ServeHTTP),
+		p.AddMiddlewareFunc(ctx, h.ServeHTTP),
 	}
 }
 
-func (this *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	this.HandlerFunc(w, r)
+func (p *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	p.HandlerFunc(w, r)
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS - MIDDLEWARE
+
+func flagsForSlice(flags []string) (int, error) {
+	var result int
+	for _, flag := range flags {
+		flag = strings.ToLower(flag)
+		switch flag {
+		case "default", "standard", "std":
+			result |= log.LstdFlags
+		case "date":
+			result |= log.Ldate
+		case "time":
+			result |= log.Ltime
+		case "microseconds", "ms":
+			result |= log.Lmicroseconds
+		case "utc":
+			result |= log.LUTC
+		case "msgprefix", "prefix":
+			result |= log.Lmsgprefix
+		default:
+			return 0, ErrBadParameter.Withf("flag: %q", flag)
+		}
+	}
+	// Return success
+	return result, nil
 }

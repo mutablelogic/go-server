@@ -2,3 +2,15 @@
 # Load the logging plugin
 plugins:
   - build/log.plugin
+
+log:
+  # Include a prefix to each log line
+  prefix:
+  # Add information to the log:
+  flags:
+    #- default
+    #- date
+    #- time
+    #- microseconds
+    #- utc
+    #- msgprefix
