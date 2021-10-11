@@ -4,6 +4,10 @@ import (
 	"context"
 	"io"
 	"io/fs"
+	"strings"
+
+	// Package imports
+	document "github.com/mutablelogic/go-server/pkg/document"
 
 	// Namespace imports
 	. "github.com/djthorpe/go-errors"
@@ -27,12 +31,30 @@ func (p *plugin) ReadDir(ctx context.Context, dir fs.ReadDirFile, info fs.FileIn
 		return nil, ErrBadParameter.With("ReadDir")
 	}
 
+	// Create a document
+	name := info.Name()
+	if name == "." {
+		name = "/"
+	}
+	doc := document.New(name, meta, "dir")
+	doc.SetMeta(DocumentKeyDescription, "Directory")
+
 	// Read directory
 	entries, err := dir.ReadDir(-1)
 	if err != nil {
 		return nil, err
 	}
 
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), ".") {
+			continue
+		} else if info, err := entry.Info(); err != nil {
+			return nil, err
+		} else {
+			doc.AppendFileInfo(info, info.Name())
+		}
+	}
+
 	// Return document
-	return NewDocument(info.Name(), entries, meta), nil
+	return doc, nil
 }

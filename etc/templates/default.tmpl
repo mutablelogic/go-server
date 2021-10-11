@@ -5,6 +5,7 @@
     <meta name="description" content="{{ .Document.Description }}">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.5.0/font/bootstrap-icons.css">    
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-light bg-light border-bottom">
@@ -42,7 +43,7 @@
                     {{ if .Ext }}<dt>Ext</dt><dd>{{ .Ext }}</dd>{{ end }}
                     <dt>ModTime</dt>
                     <dd>{{ .File.ModTime }}</dd>
-                    {{ if .File.Size }}<dt>Size</dt><dd>{{ .File.Size }}</dd>{{ end }}
+                    {{ if and (not .File.IsDir) .File.Size }}<dt>Size</dt><dd>{{ .File.Size }}</dd>{{ end }}
                 </dl>
                 {{ if .Document.Meta }}{{ template "meta" .Document.Meta }}{{ end }}
             </div>
@@ -53,16 +54,20 @@
 </html>
 
 {{ define "html" }}
-    <div{{ if .Class }} class="{{ .Class }}"{{ end }}>
-        {{ if .Title }}
-            {{ if .Level }}<h{{.Level}}>{{ end }}
-                {{ if .Anchor }}<a href="{{ .Anchor }}">{{ end }}
-                  {{ .Title }}
-                {{ if .Anchor }}</a>{{ end }}
-            {{ if .Level }}</h{{.Level}}>{{ end }}
-        {{ end }}
-        {{ .HTML }}
-    </div>
+    {{ if eq .Class "fileinfo" }}
+      {{ template "fileinfo" . }}
+    {{ else }}
+        <div{{ if .Class }} class="{{ .Class }}"{{ end }}>
+            {{ if .Title }}
+                {{ if .Level }}<h{{.Level}}>{{ end }}
+                    {{ if .Anchor }}<a href="{{ .Anchor }}">{{ end }}
+                    {{ .Title }}
+                    {{ if .Anchor }}</a>{{ end }}
+                {{ if .Level }}</h{{.Level}}>{{ end }}
+            {{ end }}
+            {{ .HTML }}
+        </div>
+   {{ end }}
 {{ end }}
 
 {{ define "meta" }}
@@ -76,4 +81,12 @@
 {{ define "tags" }}
 <dt>Tags</dt>
 <dd>{{ range $i, $tag := . }}<div class="badge bg-primary me-1 text-uppercase">{{ $tag }}</div>{{ end }}</dd>
+{{ end }}
+
+{{ define "fileinfo" }}
+  <div class="fileinfo">
+    {{ if .IsDir }}<i class="bi bi-folder-fill"></i>{{ else }}<i class="bi bi-file-earmark"></i>{{ end }}
+    {{ if .Anchor }}<a href="{{ .Anchor }}">{{ end }}{{ .Title }}{{ if .Anchor }}</a>{{ end }}
+    {{ if and (not .IsDir) .Size }}<span class="badge bg-secondary mx-1">{{ .Size }}</span>{{ end }}<span class="badge bg-secondary mx-1">{{ .ModTime }}</span>
+  </div>
 {{ end }}

@@ -11,6 +11,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	// Package imports
+	document "github.com/mutablelogic/go-server/pkg/document"
+
 	// Namespace imports
 	. "github.com/djthorpe/go-errors"
 	. "github.com/mutablelogic/go-server"
@@ -30,7 +33,8 @@ func (p *plugin) Read(ctx context.Context, r io.Reader, info fs.FileInfo, meta m
 	}
 
 	// Create a document
-	doc := NewDocument(info.Name())
+	doc := document.New(info.Name(), meta, "archive", "dir")
+	doc.SetMeta(DocumentKeyDescription, "Archive File")
 
 	// Perform decompression
 	switch {
@@ -38,7 +42,7 @@ func (p *plugin) Read(ctx context.Context, r io.Reader, info fs.FileInfo, meta m
 		if err := readZip(ctx, r, info.Size(), doc); err != nil {
 			return nil, err
 		}
-		doc.addTag("zip")
+		doc.AddTag("zip")
 	case isTarCompressed(info):
 		gz, err := gzip.NewReader(r)
 		if err != nil {
@@ -48,22 +52,16 @@ func (p *plugin) Read(ctx context.Context, r io.Reader, info fs.FileInfo, meta m
 		if err := readTar(ctx, gz, doc); err != nil {
 			return nil, err
 		}
-		doc.addTag("tar")
-		doc.addTag("gzip")
+		doc.AddTag("tar")
+		doc.AddTag("gzip")
 	case isTar(info):
 		if err := readTar(ctx, r, doc); err != nil {
 			return nil, err
 		}
-		doc.addTag("tar")
+		doc.AddTag("tar")
 	default:
 		return nil, ErrBadParameter.With("Read: %s", info.Name())
 	}
-
-	// Apply additional metadata
-	for k, v := range meta {
-		doc.setMeta(k, v)
-	}
-	doc.addTag("dir")
 
 	// Return document
 	return doc, nil
@@ -91,7 +89,7 @@ func isTarCompressed(info fs.FileInfo) bool {
 	return strings.HasSuffix(name, ".tar.gz") || strings.HasSuffix(name, ".tgz")
 }
 
-func readZip(ctx context.Context, r io.Reader, size int64, doc *document) error {
+func readZip(ctx context.Context, r io.Reader, size int64, doc *document.Doc) error {
 	zip, err := zip.NewReader(NewReaderAt(r), size)
 	if err != nil {
 		return err
@@ -107,7 +105,7 @@ func readZip(ctx context.Context, r io.Reader, size int64, doc *document) error 
 	return nil
 }
 
-func readTar(ctx context.Context, r io.Reader, doc *document) error {
+func readTar(ctx context.Context, r io.Reader, doc *document.Doc) error {
 	tar := tar.NewReader(r)
 	for {
 		if ctx.Err() != nil {
@@ -119,7 +117,7 @@ func readTar(ctx context.Context, r io.Reader, doc *document) error {
 		} else if err != nil {
 			return err
 		}
-		doc.append(header.Name)
+		doc.AppendFileInfo(header.FileInfo(), "")
 	}
 
 	// Return success
