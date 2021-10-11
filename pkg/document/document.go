@@ -25,6 +25,14 @@ type fileinfo struct {
 	anchor string
 }
 
+type html struct {
+	title  string
+	level  uint
+	html   template.HTML
+	anchor string
+	class  string
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
@@ -134,6 +142,29 @@ func (s *fileinfo) Class() string {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS - HTML
+
+func (s *html) Title() string {
+	return s.title
+}
+
+func (s *html) Level() uint {
+	return s.level
+}
+
+func (s *html) HTML() template.HTML {
+	return s.html
+}
+
+func (s *html) Anchor() string {
+	return s.anchor
+}
+
+func (s *html) Class() string {
+	return s.class
+}
+
+///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
 func (d *Doc) SetMeta(key DocumentKey, value interface{}) {
@@ -146,6 +177,11 @@ func (d *Doc) AddTag(key string) {
 		d.tags = append(d.tags, key)
 	}
 }
+
 func (d *Doc) AppendFileInfo(info fs.FileInfo, anchor string) {
 	d.sections = append(d.sections, &fileinfo{info, anchor})
+}
+
+func (d *Doc) AppendHTML(heading string, level uint, body template.HTML, anchor string, class string) {
+	d.sections = append(d.sections, &html{heading, level, body, anchor, class})
 }

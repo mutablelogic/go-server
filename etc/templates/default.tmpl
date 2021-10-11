@@ -5,7 +5,34 @@
     <meta name="description" content="{{ .Document.Description }}">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.5.0/font/bootstrap-icons.css">    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.5.0/font/bootstrap-icons.css">
+    <style type="text/css">
+    div.document a {
+        text-decoration: none;
+    }
+    div.document a:hover {
+        text-decoration: underline;
+    }
+    pre {
+        background-color: #f6f8fa;
+        border: 1px solid #e0e2e4;
+        border-radius: 0.25em;
+        padding: 1em;
+        scroll: auto;
+    }
+    p code {
+        color: inherit;
+        background-color: #f6f8fa;
+        border: 1px solid #e0e2e4;
+        border-radius: 0.25em;
+        padding: 0.2em;
+    }
+    h1, h2 {
+        padding-top: 0.2em;
+        padding-bottom: 0.2em;
+        border-bottom: 1px solid #aaaaaa;
+    }
+    </style>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-light bg-light border-bottom">
@@ -19,7 +46,7 @@
             <div class="col-md-8 my-4">
                 <h1>{{ if .Parent }}<a href="{{ .Parent }}">..</a> / {{ end }}{{ .Document.Title }}</h1>
                 {{ if .Document.Shortform }}<blockquote>{{ .Document.Shortform }}</blockquote>{{ end }}
-                <div class="p-3 bg-light rounded">
+                <div class="p-3 bg-light rounded document">
                     {{ range $i, $html := .Document.HTML }}{{ template "html" $html }}{{ end }}
                 </div>
             </div>
