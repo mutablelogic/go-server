@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -158,4 +159,15 @@ func flagsForSlice(flags []string) (int, error) {
 	}
 	// Return success
 	return result, nil
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// USAGE
+
+func Usage(w io.Writer) {
+	fmt.Fprintln(w, "  Logs output to stderr and includes debugging information.")
+	fmt.Fprintln(w, "\n  prefix: <string>")
+	fmt.Fprintln(w, "    Optional, include a prefix before each log entry")
+	fmt.Fprintln(w, "\n  flags: <array of string>")
+	fmt.Fprintln(w, "    Optional, can include 'default', 'date', 'time', 'microseconds', 'utc' and 'msgprefix'")
 }

@@ -183,22 +183,21 @@ func (this *provider) Run(ctx context.Context) error {
 	var result error
 
 	// Run all plugins and wait until done
-	this.Print(ctx, "Running plugins:")
 	for name, cfg := range this.plugins {
 		wg.Add(1)
 		ctx, cancel := context.WithCancel(context.Background())
 		cancels = append(cancels, cancel)
 		go func(name string, cfg *plugincfg) {
 			defer wg.Done()
-			this.Print(ctx, " ", name, " running")
+			this.Print(ContextWithPluginName(ctx, name), "Running")
 			if err := cfg.plugin.Run(ContextWithHandler(ContextWithPluginName(ctx, name), cfg.handler), this); err != nil {
-				this.Print(ctx, " ", name, " error: ", err)
+				this.Print(ContextWithPluginName(ctx, name), "Error: ", err)
 				result = multierror.Append(result, err)
 				if err := syscall.Kill(syscall.Getpid(), syscall.SIGINT); err != nil {
 					result = multierror.Append(result, err)
 				}
 			}
-			this.Print(ctx, " ", name, " stopped")
+			this.Print(ContextWithPluginName(ctx, name), "Stopped")
 		}(name, cfg)
 	}
 
@@ -206,7 +205,6 @@ func (this *provider) Run(ctx context.Context) error {
 	<-ctx.Done()
 
 	// Cancel all plugins
-	this.Print(ctx, "Stopping plugins:")
 	for _, cancel := range cancels {
 		cancel()
 	}
