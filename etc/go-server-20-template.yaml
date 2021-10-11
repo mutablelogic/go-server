@@ -6,6 +6,7 @@ plugins:
   - build/text-renderer.plugin
   - build/dir-renderer.plugin
   - build/markdown-renderer.plugin
+  - build/zip-renderer.plugin
   - build/log.plugin
 
 handlers:
@@ -29,4 +30,5 @@ renderer:
   plugins:
     - markdown-renderer
     - text-renderer
+    - zip-renderer
     - dir-renderer
