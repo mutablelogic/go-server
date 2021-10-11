@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"io/fs"
 	"net/http"
@@ -128,14 +129,8 @@ func (this *templates) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// Set parent
-	parent := filepath.Dir(req.URL.Path)
-	if !strings.HasSuffix(parent, "/") {
-		parent = parent + "/"
-	}
-
 	// Render document through the template
-	if err := tmpl.Execute(w, TemplateEnv{doc, info, filepath.Ext(info.Name()), req.URL.Path, parent}); err != nil {
+	if err := tmpl.Execute(w, env(doc, info, req.URL.Path)); err != nil {
 		router.ServeError(w, http.StatusBadGateway, err.Error())
 	}
 }
@@ -155,20 +150,39 @@ func (this *templates) ServeDir(w http.ResponseWriter, req *http.Request, file f
 		return
 	}
 
-	// Set parent
-	parent := ""
-	if req.URL.Path != "/" {
-		parent = filepath.Dir(strings.TrimSuffix(req.URL.Path, "/"))
-		if parent == "." {
-			parent = "/"
-		}
-		if !strings.HasSuffix(parent, "/") {
-			parent = parent + "/"
-		}
-	}
-
 	// Render document through the template
-	if err := tmpl.Execute(w, TemplateEnv{doc, info, "/", req.URL.Path, parent}); err != nil {
+	if err := tmpl.Execute(w, env(doc, info, req.URL.Path)); err != nil {
 		router.ServeError(w, http.StatusBadGateway, err.Error())
 	}
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+func env(doc Document, info fs.FileInfo, path string) *TemplateEnv {
+	parent := filepath.Dir(strings.TrimSuffix(path, "/"))
+	if parent == "." {
+		parent = ""
+	} else if !strings.HasSuffix(parent, "/") {
+		parent = parent + "/"
+	}
+	return &TemplateEnv{
+		Document: doc,
+		File:     info,
+		Ext:      filepath.Ext(info.Name()),
+		Path:     path,
+		Parent:   parent,
+	}
+}
+
+func (t *TemplateEnv) FormatTime(d time.Time) string {
+	return d.Format(time.RFC3339)
+}
+
+func (t *TemplateEnv) FormatRelTime(d time.Time) string {
+	diff := time.Now().Sub(d)
+	if diff < 0 {
+		return t.FormatTime(d)
+	}
+	return fmt.Sprintf("%d ago", diff)
 }

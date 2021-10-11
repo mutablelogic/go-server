@@ -20,6 +20,26 @@
         padding: 1em;
         scroll: auto;
     }
+    pre span.comment {
+        color: red;
+    }
+    pre span.constant {
+        color: green;
+    }
+    pre span.identifier {
+        color: blue;
+    }
+    pre span.statement {
+        font-weight: bolder;
+    }
+    pre span.keyword {
+        font-weight: bolder;
+    }
+    div.text pre {
+        border: none;
+        border-radius: none;
+        padding: 0;
+    }
     p code {
         color: inherit;
         background-color: #f6f8fa;
@@ -67,9 +87,9 @@
                     <dd>{{ .File.Name }}</dd>
                     {{ if .Path }}<dt>Path</dt><dd>{{ .Path }}</dd>{{ end }}
                     {{ if .Parent }}<dt>Parent</dt><dd>{{ .Parent }}</dd>{{ end }}
-                    {{ if .Ext }}<dt>Ext</dt><dd>{{ .Ext }}</dd>{{ end }}
+                    {{ if and (not .File.IsDir) .Ext }}<dt>Ext</dt><dd>{{ .Ext }}</dd>{{ end }}
                     <dt>ModTime</dt>
-                    <dd>{{ .File.ModTime }}</dd>
+                    <dd>{{ .FormatTime .File.ModTime }}</dd>
                     {{ if and (not .File.IsDir) .File.Size }}<dt>Size</dt><dd>{{ .File.Size }}</dd>{{ end }}
                 </dl>
                 {{ if .Document.Meta }}{{ template "meta" .Document.Meta }}{{ end }}
