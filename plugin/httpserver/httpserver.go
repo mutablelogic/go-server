@@ -32,7 +32,6 @@ type server struct {
 	Router
 	srv  *http.Server
 	fcgi *fcgi.Server
-	log  Logger
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -49,9 +48,6 @@ const (
 func New(ctx context.Context, provider Provider) Plugin {
 	this := new(server)
 	this.Router = httprouter.New()
-
-	// Get logger
-	this.log = provider.GetPlugin(ctx, "log").(Logger)
 
 	// Get configuration
 	if err := provider.GetConfig(ctx, &this.Config); err != nil {
