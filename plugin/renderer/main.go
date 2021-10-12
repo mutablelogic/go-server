@@ -115,13 +115,13 @@ func (p *plugin) Read(ctx context.Context, r io.Reader, info fs.FileInfo, meta m
 			return renderer.Read(ctx, r, info, meta)
 		}
 	}
-	return nil, ErrNotFound.Withf("Read: no renderer found for %q", info.Name())
+	return nil, ErrNotFound.Withf("Read: no renderer found for %q (meta=%v)", info.Name(),meta)
 }
 
 // Render a directory into a document, with optional file info
 func (p *plugin) ReadDir(ctx context.Context, dir fs.ReadDirFile, info fs.FileInfo, meta map[DocumentKey]interface{}) (Document, error) {
 	if renderer := p.getRenderer(pathSeparator); renderer == nil {
-		return nil, ErrNotFound.With("ReadDir: no renderer found")
+		return nil, ErrNotFound.With("ReadDir: no renderer found for %q (meta=v)",info.Name(),meta)
 	} else {
 		return renderer.ReadDir(ctx, dir, info, meta)
 	}

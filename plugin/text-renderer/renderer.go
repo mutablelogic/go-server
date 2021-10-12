@@ -35,7 +35,7 @@ var (
 // PUBLIC METHODS
 
 func (p *plugin) Mimetypes() []string {
-	return []string{"text/plain", ".txt", ".md"}
+	return []string{"text/plain","text/html","text/xml", ".txt", ".md",".html",".xml",".htm"}
 }
 
 func (p *plugin) Read(ctx context.Context, r io.Reader, info fs.FileInfo, meta map[DocumentKey]interface{}) (Document, error) {
