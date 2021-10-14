@@ -10,7 +10,3 @@ handlers:
     prefix: /api/static
     middleware:
       - log
-
-# Where to serve static files from
-static:
-  "/": etc/docs
