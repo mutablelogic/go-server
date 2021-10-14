@@ -3,41 +3,34 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"strconv"
 
-	// Modules
-	sq "github.com/djthorpe/go-sqlite"
-	. "github.com/mutablelogic/go-server"
+	// Packages
 	"github.com/mutablelogic/go-server/pkg/provider"
 
 	// Namespace imports
 	. "github.com/djthorpe/go-errors"
+	. "github.com/mutablelogic/go-server"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type Config struct {
-	Database string `yaml:"database"`
-}
-
 type plugin struct {
-	sq.SQConnection
-	schema string
-	C      chan Event
-	S      map[string]chan<- Event
+	C chan Event
+	S map[string]chan<- Event
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 
 const (
-	defaultDatabase = "main"
 	defaultCapacity = 100
 )
 
 ///////////////////////////////////////////////////////////////////////////////
-// NEW
+// LIFECYCLE
 
 // Create the eventbus module
 func New(ctx context.Context, provider Provider) Plugin {
@@ -47,31 +40,6 @@ func New(ctx context.Context, provider Provider) Plugin {
 	this.C = make(chan Event, defaultCapacity)
 	this.S = make(map[string]chan<- Event)
 
-	// Set configuation
-	cfg := Config{
-		Database: defaultDatabase,
-	}
-	if err := provider.GetConfig(ctx, &cfg); err != nil {
-		provider.Print(ctx, "GetConfig: ", err)
-		return nil
-	}
-
-	// Get sqlite
-	if conn, ok := provider.GetPlugin(ctx, "sqlite").(sq.SQConnection); !ok {
-		provider.Print(ctx, "missing sqlite dependency")
-		return nil
-	} else {
-		this.SQConnection = conn
-	}
-
-	// Set schema
-	if this.hasSchema(cfg.Database) == false {
-		provider.Printf(ctx, "missing database: %q", cfg.Database)
-		return nil
-	} else {
-		this.schema = cfg.Database
-	}
-
 	// Return success
 	return this
 }
@@ -80,38 +48,47 @@ func New(ctx context.Context, provider Provider) Plugin {
 // STRINGIFY
 
 func (this *plugin) String() string {
-	str := "<eventqueue"
-	if this.schema != "" {
-		str += fmt.Sprintf(" schema=%q", this.schema)
+	str := "<events"
+	if len(this.S) > 0 {
+		n := make([]string, 0, len(this.S))
+		for name := range this.S {
+			n = append(n, name)
+		}
+		str += fmt.Sprintf(" subscribers=%q", n)
 	}
 	return str + ">"
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// USAGE
+
+func Usage(w io.Writer) {
+	fmt.Fprintln(w, "\n  Publish and subscribe to plugin events.")
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS - PLUGIN
 
 func Name() string {
-	return "eventqueue"
+	return "events"
 }
 
 func (this *plugin) Run(ctx context.Context, provider Provider) error {
-	// Create tables for event queue
-	if err := this.createTables(ctx); err != nil {
-		provider.Print(ctx, "failed to create tables: ", err)
-		return err
-	}
-
-	// Emit incoming events
 FOR_LOOP:
 	for {
 		select {
 		case evt := <-this.C:
+			if evt.Value() == nil {
+				provider.Printf(ctx, "events: %q", evt.Name())
+			} else {
+				provider.Printf(ctx, "events: %q: %v", evt.Name(), evt.Value())
+			}
 			for name, s := range this.S {
 				select {
 				case s <- evt:
 					// no-op
 				default:
-					provider.Printf(ctx, "eventqueue: cannot send on blocked channel: %q", name)
+					provider.Printf(ctx, "events: cannot send on blocked channel: %q", name)
 				}
 			}
 		case <-ctx.Done():
@@ -133,12 +110,9 @@ FOR_LOOP:
 func (this *plugin) Post(ctx context.Context, evt Event) {
 	select {
 	case this.C <- evt:
-		go func() {
-			this.indexEvent(ctx, evt)
-		}()
 		break
 	default:
-		panic("eventqueue: cannot post on blocked channel")
+		panic("events: cannot post on blocked channel")
 	}
 }
 
@@ -153,16 +127,4 @@ func (this *plugin) Subscribe(ctx context.Context, s chan<- Event) error {
 
 	// Return success
 	return nil
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// PRIVATE METHODS
-
-func (this *plugin) hasSchema(v string) bool {
-	for _, schema := range this.SQConnection.Schemas() {
-		if schema == v {
-			return true
-		}
-	}
-	return false
 }

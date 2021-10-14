@@ -1,0 +1,5 @@
+
+# Plugins to load, the order of these is important
+plugins:
+  - build/events.plugin
+  - build/log.plugin

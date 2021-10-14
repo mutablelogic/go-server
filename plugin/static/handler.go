@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -52,7 +53,7 @@ func (f *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // PRIVATE METHODS
 
 // Nicked this code from the net/http package
-func serveFile(w http.ResponseWriter, r *http.Request, fs fs.FS, name string, shouldRedirect bool) {
+func serveFile(w http.ResponseWriter, r *http.Request, filesystem fs.FS, name string, shouldRedirect bool) {
 	fmt.Println("SERVE", r.URL, name)
 	// redirect .../index.html to .../
 	if strings.HasSuffix(r.URL.Path, indexPage) {
@@ -61,9 +62,15 @@ func serveFile(w http.ResponseWriter, r *http.Request, fs fs.FS, name string, sh
 	}
 
 	// Open file
-	f, err := fs.Open(name)
-	if err != nil {
+	f, err := filesystem.Open(name)
+	if errors.Is(err, fs.ErrNotExist) {
 		router.ServeError(w, http.StatusNotFound, err.Error())
+		return
+	} else if errors.Is(err, fs.ErrPermission) {
+		router.ServeError(w, http.StatusForbidden, err.Error())
+		return
+	} else if err != nil {
+		router.ServeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	defer f.Close()
@@ -101,12 +108,11 @@ func serveFile(w http.ResponseWriter, r *http.Request, fs fs.FS, name string, sh
 
 		// use contents of index.html for directory, if present
 		index := strings.TrimSuffix(name, "/") + indexPage
-		ff, err := fs.Open(index)
+		ff, err := filesystem.Open(index)
 		if err == nil {
 			defer ff.Close()
 			dd, err := ff.Stat()
 			if err == nil {
-				name = index
 				d = dd
 				f = ff
 			}

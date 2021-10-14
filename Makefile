@@ -24,7 +24,6 @@ server: dependencies mkdir
 	@${GO} build -o ${BUILD_DIR}/server ${BUILD_FLAGS} ./cmd/server
 
 npm: dependencies $(NPM_DIR)
-	@echo Build frontends
 
 plugins: dependencies mkdir $(PLUGIN_DIR)
 
