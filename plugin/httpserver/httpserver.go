@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"time"
@@ -100,6 +101,20 @@ func New(ctx context.Context, provider Provider) Plugin {
 	return this
 }
 
+func (this *server) Run(ctx context.Context, _ Provider) error {
+	var result error
+	go func() {
+		<-ctx.Done()
+		if err := this.stop(); err != nil {
+			result = multierror.Append(result, err)
+		}
+	}()
+	if err := this.runInForeground(); err != nil && errors.Is(err, http.ErrServerClosed) == false {
+		result = multierror.Append(result, err)
+	}
+	return result
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
@@ -126,18 +141,21 @@ func Name() string {
 	return "httpserver"
 }
 
-func (this *server) Run(ctx context.Context, _ Provider) error {
-	var result error
-	go func() {
-		<-ctx.Done()
-		if err := this.stop(); err != nil {
-			result = multierror.Append(result, err)
-		}
-	}()
-	if err := this.runInForeground(); err != nil && errors.Is(err, http.ErrServerClosed) == false {
-		result = multierror.Append(result, err)
-	}
-	return result
+///////////////////////////////////////////////////////////////////////////////
+// USAGE
+
+func Usage(w io.Writer) {
+	fmt.Fprintln(w, "\n  Serve requests over HTTP or through a unix socket\n")
+	fmt.Fprintln(w, "  Configuration:")
+	fmt.Fprintln(w, "    addr: <string>")
+	fmt.Fprintln(w, "      Optional, listening network address or path for binding HTTP server")
+	fmt.Fprintln(w, "      can be overridden by -addr argument on command line")
+	fmt.Fprintln(w, "    timeout: <duration>")
+	fmt.Fprintln(w, "      Optional, read timeout on requests over network")
+	fmt.Fprintln(w, "    key: <path>")
+	fmt.Fprintln(w, "      Optional, location of TLS key file when serving over network")
+	fmt.Fprintln(w, "    cert: <path>")
+	fmt.Fprintln(w, "      Required if key is set, location of TLS certificate file when serving over network")
 }
 
 ///////////////////////////////////////////////////////////////////////////////

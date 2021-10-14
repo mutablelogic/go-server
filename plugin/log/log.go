@@ -165,9 +165,10 @@ func flagsForSlice(flags []string) (int, error) {
 // USAGE
 
 func Usage(w io.Writer) {
-	fmt.Fprintln(w, "  Logs output to stderr and includes debugging information.")
-	fmt.Fprintln(w, "\n  prefix: <string>")
-	fmt.Fprintln(w, "    Optional, include a prefix before each log entry")
-	fmt.Fprintln(w, "\n  flags: <array of string>")
-	fmt.Fprintln(w, "    Optional, can include 'default', 'date', 'time', 'microseconds', 'utc' and 'msgprefix'")
+	fmt.Fprintln(w, "\n  Logs output to stderr and includes debugging information.\n")
+	fmt.Fprintln(w, "  Configuration:")
+	fmt.Fprintln(w, "    prefix: <string>")
+	fmt.Fprintln(w, "      Optional, include a prefix before each log entry")
+	fmt.Fprintln(w, "    flags: <list of string>")
+	fmt.Fprintln(w, "      Optional, can include 'default', 'date', 'time', 'microseconds', 'utc' and 'msgprefix'")
 }

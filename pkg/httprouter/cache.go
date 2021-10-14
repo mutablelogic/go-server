@@ -1,6 +1,7 @@
 package httprouter
 
 import (
+	"fmt"
 	"net/http"
 	"sort"
 	"sync"
@@ -52,6 +53,7 @@ func (this *cache) Get(key string) (http.HandlerFunc, []string, uint) {
 	// Check cache
 	if handler, exists := this.cache[key]; exists {
 		handler.hits++
+		fmt.Println("get cache =>", key, " => ", handler.params, handler.hits)
 		return *handler.handler, handler.params, handler.hits
 	} else {
 		return nil, nil, 0
@@ -64,6 +66,7 @@ func (this *cache) Set(key string, handler http.HandlerFunc, params []string) {
 	go func() {
 		this.RWMutex.Lock()
 		defer this.RWMutex.Unlock()
+		fmt.Println("set cache =>", key, " => ", params)
 		this.cache[key] = &cachehandler{
 			params:  arrcopy(params),
 			handler: &handler,

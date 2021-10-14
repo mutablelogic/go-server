@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"os"
 
 	// Namespace imports
@@ -27,6 +29,13 @@ func New(ctx context.Context, provider Provider) Plugin {
 
 func (this *plugin) String() string {
 	return "<env>"
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// USAGE
+
+func Usage(w io.Writer) {
+	fmt.Fprintln(w, "\n  Resolves variables from the environment.")
 }
 
 ///////////////////////////////////////////////////////////////////////////////

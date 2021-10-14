@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"sync"
 	"time"
 
@@ -60,6 +61,24 @@ func (this *server) String() string {
 		str += " " + fmt.Sprint(this.Server)
 	}
 	return str + ">"
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// USAGE
+
+func Usage(w io.Writer) {
+	fmt.Fprintln(w, "\n  Registers and tracks local networking services using multicast")
+	fmt.Fprintln(w, "  DNS (mDNS).\n")
+	fmt.Fprintln(w, "  Configuration:")
+	fmt.Fprintln(w, "    interface: <string>")
+	fmt.Fprintln(w, "      Optional, which interface to listen for announcements on")
+	fmt.Fprintln(w, "    domain: <string>")
+	fmt.Fprintln(w, "      Optional, the domain used for services")
+	fmt.Fprintln(w, "    ttl: <number>")
+	fmt.Fprintln(w, "      Optional, time to live for registrations in seconds")
+	fmt.Fprintln(w, "    services: <list of url>")
+	fmt.Fprintln(w, "      Optional, list of service databases to load service names from;")
+	fmt.Fprintln(w, "      each entry can be a URL or path to a database on the filesystem.")
 }
 
 ///////////////////////////////////////////////////////////////////////////////

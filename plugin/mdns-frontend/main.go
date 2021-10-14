@@ -5,44 +5,57 @@ import (
 	"fmt"
 	"io"
 
-	// Namespace Imports
+	// Packages
+	frontend "github.com/mutablelogic/go-server/npm/mdns"
+
+	// Namespace imports
 	. "github.com/mutablelogic/go-server"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type plugin struct {
-}
+type plugin struct{}
 
 ///////////////////////////////////////////////////////////////////////////////
 // NEW
 
-// Create the text-renderer module
+// Create the template module
 func New(ctx context.Context, provider Provider) Plugin {
-	return new(plugin)
+	this := new(plugin)
+
+	// Setup static serving
+	if static, ok := provider.GetPlugin(ctx, "static").(Static); !ok {
+		provider.Print(ctx, "no static plugin")
+		return nil
+	} else if err := static.AddFS(ctx, frontend.Dist, "dist"); err != nil {
+		provider.Print(ctx, err)
+		return nil
+	}
+
+	// Return success
+	return this
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
 func (p *plugin) String() string {
-	str := "<markdown-renderer"
-	return str + ">"
+	return "<mdns-frontend>"
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // USAGE
 
 func Usage(w io.Writer) {
-	fmt.Fprintln(w, "\n  Renders markdown documents.")
+	fmt.Fprintln(w, "\n  Static files for HTML frontend for mDNS.\n")
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
 func Name() string {
-	return "markdown-renderer"
+	return "mdns-frontend"
 }
 
 func (p *plugin) Run(ctx context.Context, provider Provider) error {

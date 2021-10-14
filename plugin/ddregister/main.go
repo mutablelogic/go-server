@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"strings"
 	"time"
@@ -107,6 +108,20 @@ func (this *plugin) String() string {
 	}
 	str += " ]"
 	return str + ">"
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// USAGE
+
+func Usage(w io.Writer) {
+	fmt.Fprintln(w, "\n  Dynamic DNS registration for Google Domains\n")
+	fmt.Fprintln(w, "  Configuration:")
+	fmt.Fprintln(w, "    timeout: <duration>")
+	fmt.Fprintln(w, "      Optional, request timeout")
+	fmt.Fprintln(w, "    delta: <duration>")
+	fmt.Fprintln(w, "      Optional, the period between registrations")
+	fmt.Fprintln(w, "    hosts: <list of string>")
+	fmt.Fprintln(w, "      Optional, each entry contains the domain, user and password separated by whitespace or colons")
 }
 
 ///////////////////////////////////////////////////////////////////////////////

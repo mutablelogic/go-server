@@ -1,28 +1,11 @@
 package server
 
 import (
-	"context"
 	"html/template"
-	"io"
-	"io/fs"
 )
 
 /////////////////////////////////////////////////////////////////////
 // TEMPLATE & INDEXER INTERFACES
-
-// Renderer translates a data stream into a document
-type Renderer interface {
-	Plugin
-
-	// Return default mimetypes and file extensions handled by this renderer
-	Mimetypes() []string
-
-	// Render a file into a document, with reader and optional file info and metadata
-	Read(context.Context, io.Reader, fs.FileInfo, map[DocumentKey]interface{}) (Document, error)
-
-	// Render a directory into a document, with optional file info and metadata
-	ReadDir(context.Context, fs.ReadDirFile, fs.FileInfo, map[DocumentKey]interface{}) (Document, error)
-}
 
 // Document to be rendered or indexed
 type Document interface {

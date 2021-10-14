@@ -7,16 +7,32 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"syscall"
 
-	// Modules
+	// Packages
 	config "github.com/mutablelogic/go-server/pkg/config"
 	provider "github.com/mutablelogic/go-server/pkg/provider"
 	version "github.com/mutablelogic/go-server/pkg/version"
+
+	// Namespace imports
+	. "github.com/djthorpe/go-errors"
 )
+
+///////////////////////////////////////////////////////////////////////////////
+// TYPES
+
+type VarValue struct {
+	vars map[string]interface{}
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// GLOBALS
 
 const (
 	flagAddr = "addr"
+	flagVar  = "var"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -85,8 +101,11 @@ func main() {
 // METHODS
 
 func DefineContext(ctx context.Context, flags *flag.FlagSet) context.Context {
-	if addr := flags.Lookup(flagAddr); addr != nil {
+	if addr := flags.Lookup(flagAddr); addr != nil && addr.Value.String() != "" {
 		ctx = provider.ContextWithAddr(ctx, addr.Value.String())
+	}
+	if vars := flags.Lookup(flagVar); vars != nil {
+		ctx = provider.ContextWithVars(ctx, vars.Value.(*VarValue).vars)
 	}
 	return ctx
 }
@@ -96,6 +115,7 @@ func DefineFlags(args []string) (*flag.FlagSet, error) {
 
 	// Define flags and usage
 	flags.String(flagAddr, "", "Override path to unix socket or listening address")
+	flags.Var(new(VarValue), flagVar, "Set a variable (name=value)")
 	flags.Usage = func() {
 		version.Usage(os.Stdout, flags)
 	}
@@ -124,4 +144,39 @@ func HandleSignal() context.Context {
 		cancel()
 	}()
 	return ctx
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// VARVALUE IMPLEMENTATION
+
+func (v *VarValue) Set(s string) error {
+	if v.vars == nil {
+		v.vars = make(map[string]interface{})
+	}
+
+	// Split out key-value pair
+	kv := strings.SplitN(s, "=", 2)
+	switch len(kv) {
+	case 1:
+		v.vars[kv[0]] = true
+	case 2:
+		if strings.HasPrefix(kv[1], "\"") && strings.HasSuffix(kv[1], "\"") {
+			if q, err := strconv.Unquote(s); err != nil {
+				return err
+			} else {
+				v.vars[kv[0]] = q
+			}
+		} else {
+			v.vars[kv[0]] = kv[1]
+		}
+	default:
+		return ErrBadParameter.Withf("%q", s)
+	}
+
+	// Return success
+	return nil
+}
+
+func (v *VarValue) String() string {
+	return ""
 }

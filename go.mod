@@ -13,7 +13,6 @@ require (
 	github.com/gomarkdown/markdown v0.0.0-20210918233619-6c1113f12c4a
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/miekg/dns v1.1.43
-	github.com/pkg/term v1.1.0
 	github.com/zyedidia/highlight v0.0.0-00010101000000-000000000000
 	golang.org/x/crypto v0.0.0-20210920023735-84f357641f63
 	golang.org/x/net v0.0.0-20210917221730-978cfadd31cf

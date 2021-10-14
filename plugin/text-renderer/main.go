@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"io"
 
 	// Package imports
 	highlight "github.com/zyedidia/highlight"
@@ -57,6 +59,16 @@ func (p *plugin) String() string {
 		str += " " + def.FileType
 	}
 	return str + ">"
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// USAGE
+
+func Usage(w io.Writer) {
+	fmt.Fprintln(w, "\n  Renders text documents.\n")
+	fmt.Fprintln(w, "  Configuration:")
+	fmt.Fprintln(w, "    types: <list of string>")
+	fmt.Fprintln(w, "      Required, the type of documents which should be syntax highlighted")
 }
 
 ///////////////////////////////////////////////////////////////////////////////

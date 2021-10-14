@@ -1,8 +1,11 @@
 
 # Plugins to load, the order of these is important
 plugins:
-  - build/mdns.plugin
+  - build/static.plugin
   - build/basicauth.plugin
+  - build/log.plugin
+  - build/mdns.plugin
+  - build/mdns-frontend.plugin
 
 # Handlers for serving plugins  
 handlers:
@@ -11,7 +14,12 @@ handlers:
     middleware:
       - log
       - basicauth
-      
+  mdns-frontend:
+    prefix: /mdns
+    middleware:
+      - log
+      - basicauth
+
 # Multicast DNS for service discovery
 mdns:
   # Services are defined from the following databases

@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"io"
 
 	// Namespace Imports
 	. "github.com/mutablelogic/go-server"
@@ -27,6 +29,13 @@ func New(ctx context.Context, provider Provider) Plugin {
 func (p *plugin) String() string {
 	str := "<dir-renderer"
 	return str + ">"
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// USAGE
+
+func Usage(w io.Writer) {
+	fmt.Fprintln(w, "\n  Renderer for folders. There are no configuation options.")
 }
 
 ///////////////////////////////////////////////////////////////////////////////

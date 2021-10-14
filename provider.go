@@ -2,6 +2,8 @@ package server
 
 import (
 	"context"
+	"io"
+	"io/fs"
 	"net"
 	"net/http"
 	"regexp"
@@ -15,7 +17,6 @@ type Provider interface {
 	Logger
 	Router
 	Env
-	EventQueue
 
 	// Plugins returns a list of registered plugin names
 	Plugins() []string
@@ -46,6 +47,11 @@ type Router interface {
 	AddHandlerFuncEx(context.Context, *regexp.Regexp, http.HandlerFunc, ...string) error
 }
 
+// Serves static files from a fs.FS object with prefix
+type Static interface {
+	AddFS(context.Context, fs.FS, string) error
+}
+
 // Middleware intercepts HTTP requests
 type Middleware interface {
 	// Add a child handler object which intercepts a handler
@@ -55,19 +61,33 @@ type Middleware interface {
 	AddMiddlewareFunc(context.Context, http.HandlerFunc) http.HandlerFunc
 }
 
-// Queue allows posting events and subscription to events from other plugins
-type EventQueue interface {
-	Post(context.Context, Event)
-	Subscribe(context.Context, chan<- Event) error
+// Renderer translates a data stream into a document
+type Renderer interface {
+	Plugin
+
+	// Return default mimetypes and file extensions handled by this renderer
+	Mimetypes() []string
+
+	// Render a file into a document, with reader and optional file info and metadata
+	Read(context.Context, io.Reader, fs.FileInfo, map[DocumentKey]interface{}) (Document, error)
+
+	// Render a directory into a document, with optional file info and metadata
+	ReadDir(context.Context, fs.ReadDirFile, fs.FileInfo, map[DocumentKey]interface{}) (Document, error)
 }
+
+// Queue allows posting events and subscription to events from other plugins
+//type EventQueue interface {
+//	Post(context.Context, Event)
+//	Subscribe(context.Context, chan<- Event) error
+//}
 
 /////////////////////////////////////////////////////////////////////
 // EVENT INTERFACE
 
-type Event interface {
-	Name() string
-	Value() interface{}
-}
+//type Event interface {
+//	Name() string
+//	Value() interface{}
+//}
 
 /////////////////////////////////////////////////////////////////////
 // SERVICE DISCOVERY INTERFACE

@@ -128,6 +128,11 @@ func NewProvider(parent context.Context, basepath string, cfg *config.Config) (*
 		return nil, result
 	}
 
+	// The zero'th env plugin returns values from the context
+	if values := ContextVars(parent); values != nil {
+		this.env = append(this.env, NewEnvVars(values))
+	}
+
 	// Load all plugins
 	for _, name := range this.names {
 		// If already loaded then skip

@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"io"
 
 	// Package imports
 
@@ -32,6 +34,13 @@ func New(ctx context.Context, provider Provider) Plugin {
 func (p *plugin) String() string {
 	str := "<zip-renderer"
 	return str + ">"
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// USAGE
+
+func Usage(w io.Writer) {
+	fmt.Fprintln(w, "\n  Renders .ZIP and .TAR files.\n")
 }
 
 ///////////////////////////////////////////////////////////////////////////////

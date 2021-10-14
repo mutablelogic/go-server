@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -105,6 +106,20 @@ func (this *templates) String() string {
 		str += fmt.Sprint(" ", this.Cache)
 	}
 	return str + ">"
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// USAGE
+
+func Usage(w io.Writer) {
+	fmt.Fprintln(w, "\n  Serves rendered documents through templates.\n")
+	fmt.Fprintln(w, "  Configuration:")
+	fmt.Fprintln(w, "    path: <path>")
+	fmt.Fprintln(w, "      Required, folder that contains the files to be served")
+	fmt.Fprintln(w, "    templates: <path>")
+	fmt.Fprintln(w, "      Required, folder that contains the templates")
+	fmt.Fprintln(w, "    default: <filename>")
+	fmt.Fprintln(w, "      Required, the template which is used for rendering")
 }
 
 ///////////////////////////////////////////////////////////////////////////////

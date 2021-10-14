@@ -13,6 +13,7 @@ type contextKey int
 const (
 	ctxKeyPluginName contextKey = iota
 	ctxKeyAddr
+	ctxKeyVars
 	ctxKeyPluginPath
 	ctxKeyHandler
 	ctxKeyParams
@@ -133,11 +134,28 @@ func ContextAddr(ctx context.Context) string {
 	}
 }
 
+func ContextWithVars(parent context.Context, vars map[string]interface{}) context.Context {
+	return context.WithValue(parent, ctxKeyVars, vars)
+}
+
+func ContextVars(ctx context.Context) map[string]interface{} {
+	if v, ok := ctx.Value(ctxKeyVars).(map[string]interface{}); ok {
+		return v
+	} else {
+		return nil
+	}
+}
+
+func ContextVar(ctx context.Context, key string) interface{} {
+	if vars, ok := ctx.Value(ctxKeyVars).(map[string]interface{}); ok {
+		return vars[key]
+	} else {
+		return nil
+	}
+}
+
 func DumpContext(ctx context.Context) string {
 	str := "<context"
-	if addr, ok := ctx.Value(ctxKeyAddr).(string); ok {
-		str += fmt.Sprintf(" addr=%q", addr)
-	}
 	if name, ok := ctx.Value(ctxKeyPluginName).(string); ok {
 		str += fmt.Sprintf(" name=%q", name)
 	}
@@ -149,6 +167,12 @@ func DumpContext(ctx context.Context) string {
 	}
 	if path, ok := ctx.Value(ctxKeyPath).(string); ok {
 		str += fmt.Sprintf(" req_path=%q", path)
+	}
+	if addr, ok := ctx.Value(ctxKeyAddr).(string); ok {
+		str += fmt.Sprintf(" addr=%q", addr)
+	}
+	if vars, ok := ctx.Value(ctxKeyVars).(map[string]interface{}); ok {
+		str += fmt.Sprintf(" vars=%v", vars)
 	}
 	if params, ok := ctx.Value(ctxKeyParams).([]string); ok {
 		str += fmt.Sprintf(" params=%q", params)

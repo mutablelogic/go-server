@@ -2,15 +2,17 @@ package httprouter
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"os"
 	"regexp"
 	"strings"
 	"sync"
 
-	// Modules
+	// Packages
 	provider "github.com/mutablelogic/go-server/pkg/provider"
+
+	// Namespace imports
+	. "github.com/djthorpe/go-errors"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -125,7 +127,7 @@ func (this *route) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Find handler
 	handler, exists := this.methods[r.Method]
 	if !exists {
-		ServeError(w, http.StatusMethodNotAllowed, fmt.Sprintf("Method Not Allowed: %q", r.Method))
+		ServeError(w, http.StatusMethodNotAllowed, ErrBadParameter.With(r.Method).Error())
 		return
 	}
 
@@ -134,7 +136,7 @@ func (this *route) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Remove prefix from path
 	if !strings.HasPrefix(r.URL.Path, this.prefix) {
-		ServeError(w, http.StatusNotFound, fmt.Sprintf("Not Found: %q", r.URL.Path))
+		ServeError(w, http.StatusNotFound, ErrBadParameter.With(r.URL.Path).Error())
 	} else {
 		r.URL.Path = strings.TrimPrefix(r.URL.Path, this.prefix)
 	}
@@ -156,7 +158,7 @@ func (this *route) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Handler not found
-	ServeError(w, http.StatusNotFound, fmt.Sprintf("Not Found: %q", r.URL.Path))
+	ServeError(w, http.StatusNotFound, ErrBadParameter.With(r.URL.Path).Error())
 }
 
 ///////////////////////////////////////////////////////////////////////////////

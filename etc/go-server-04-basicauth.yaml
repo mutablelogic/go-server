@@ -2,12 +2,18 @@
 # Plugins to load, the order of these is important
 plugins:
   - build/basicauth.plugin
+  - build/basicauth-frontend.plugin
   - build/log.plugin
 
 # Handler for basicauth
 handlers:
   basicauth:
     prefix: /api/basicauth
+    middleware:
+      - log
+      - basicauth
+  basicauth-frontend:
+    prefix: /auth
     middleware:
       - log
       - basicauth

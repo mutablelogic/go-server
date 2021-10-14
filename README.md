@@ -16,7 +16,8 @@ Standard plugins provided include:
   * __basicauth__ provides basic authentication for requests;
   * __ldapauth__ provides LDAP authentication for requests;
   * __static__ provides static file serving;
-  * __template__ provides dynamic file serving through templates.
+  * __renderer__ converts files into HTML documents;
+  * __template__ provides dynamic file serving of documents through templates.
 
 Many of these modules also provide a REST API for accessing information
 and control, and there are a number of "front ends" developed for display
@@ -107,6 +108,21 @@ you use `nginx` or similar to serve the frontend files and communicate with the
 server using FastCGI with a unix socket.
 
 ## Developing Plugins
+
+You can develop different classes of plugins for the server, including:
+
+  * A task plugin, which can runs in the background;
+  * A frontend REST API plugin, which responds to requests over HTTP;
+  * A renderer plugin, which can convert files into structured documents
+    for display in a web browser or index into a search engine;
+  * A frontend plugin, which serves embedded files statically;
+  * A middleware plugin, which intercepts HTTP requests and can modify
+    the request or response;
+  * A logging plugin, which can log information from the server;
+  * A keystore plugin, which can store and retrieve keys and other information.
+
+Any plugin can utilize other plugins, or these plugin classes can be combined
+into a single plugin.
 
 TODO
 

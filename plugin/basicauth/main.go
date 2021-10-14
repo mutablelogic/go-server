@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -60,7 +61,7 @@ var (
 )
 
 ///////////////////////////////////////////////////////////////////////////////
-// NEW
+// LIFECYCLE
 
 // Create the module
 func New(ctx context.Context, provider Provider) Plugin {
@@ -119,30 +120,6 @@ func New(ctx context.Context, provider Provider) Plugin {
 	return this
 }
 
-///////////////////////////////////////////////////////////////////////////////
-// STRINGIFY
-
-func (this *basicauth) String() string {
-	str := "<basicauth"
-	if this.Realm != "" {
-		str += fmt.Sprintf(" realm=%q", this.Realm)
-	}
-	if this.Htpasswd != nil {
-		str += fmt.Sprint(" ", this.Htpasswd)
-	}
-	if this.Htgroups != nil {
-		str += fmt.Sprint(" ", this.Htgroups)
-	}
-	return str + ">"
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// PUBLIC METHODS - PLUGIN
-
-func Name() string {
-	return "basicauth"
-}
-
 func (this *basicauth) Run(ctx context.Context, provider Provider) error {
 	if err := this.addHandlers(ctx, provider); err != nil {
 		return err
@@ -197,6 +174,46 @@ func (this *basicauth) Run(ctx context.Context, provider Provider) error {
 			}
 		}
 	}
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// STRINGIFY
+
+func (this *basicauth) String() string {
+	str := "<basicauth"
+	if this.Realm != "" {
+		str += fmt.Sprintf(" realm=%q", this.Realm)
+	}
+	if this.Htpasswd != nil {
+		str += fmt.Sprint(" ", this.Htpasswd)
+	}
+	if this.Htgroups != nil {
+		str += fmt.Sprint(" ", this.Htgroups)
+	}
+	return str + ">"
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS - PLUGIN
+
+func Name() string {
+	return "basicauth"
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// USAGE
+
+func Usage(w io.Writer) {
+	fmt.Fprintln(w, "\n  Middleware to provide authentication through htpasswd file\n")
+	fmt.Fprintln(w, "  Configuration:")
+	fmt.Fprintln(w, "    passwords: <path>")
+	fmt.Fprintln(w, "      Optional, passwords file. If not provided, memory is used")
+	fmt.Fprintln(w, "    groups: <path>")
+	fmt.Fprintln(w, "      Optional, groups file. If not provided, memory is used")
+	fmt.Fprintln(w, "    realm: <string>")
+	fmt.Fprintln(w, "      Optional, the realm response when authentication challenge is made")
+	fmt.Fprintln(w, "    admin: <string>")
+	fmt.Fprintln(w, "      Optional, user or group who is able to use the API")
 }
 
 ///////////////////////////////////////////////////////////////////////////////
