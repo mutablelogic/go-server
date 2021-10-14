@@ -33,7 +33,8 @@ $(PLUGIN_DIR): FORCE
 
 $(NPM_DIR): FORCE
 	@echo Build frontend $(notdir $@)
-	@cd $@ && ${NPM} --silent install && ${NPM}  --silent run build
+	cd $@ && ${NPM} install
+	cd $@ && ${NPM} run build
 
 FORCE:
 
