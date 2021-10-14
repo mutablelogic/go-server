@@ -17,6 +17,7 @@ type Provider interface {
 	Logger
 	Router
 	Env
+	EventQueue
 
 	// Plugins returns a list of registered plugin names
 	Plugins() []string
@@ -76,18 +77,18 @@ type Renderer interface {
 }
 
 // Queue allows posting events and subscription to events from other plugins
-//type EventQueue interface {
-//	Post(context.Context, Event)
-//	Subscribe(context.Context, chan<- Event) error
-//}
+type EventQueue interface {
+	Post(context.Context, Event)
+	Subscribe(context.Context, chan<- Event) error
+}
 
 /////////////////////////////////////////////////////////////////////
 // EVENT INTERFACE
 
-//type Event interface {
-//	Name() string
-//	Value() interface{}
-//}
+type Event interface {
+	Name() string
+	Value() interface{}
+}
 
 /////////////////////////////////////////////////////////////////////
 // SERVICE DISCOVERY INTERFACE

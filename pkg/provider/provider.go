@@ -153,6 +153,11 @@ func NewProvider(parent context.Context, basepath string, cfg *config.Config) (*
 		}
 	}
 
+	// There can only be one event queue
+	if len(this.queue) > 1 {
+		result = multierror.Append(result, ErrBadParameter.With("Multiple event queues"))
+	}
+
 	// Return errors from initialisation
 	if result != nil {
 		return nil, result
