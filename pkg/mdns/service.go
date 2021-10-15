@@ -1,6 +1,7 @@
 package mdns
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"regexp"
@@ -14,7 +15,7 @@ import (
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type service struct {
+type Service struct {
 	service string
 	zone    string
 	name    string
@@ -39,8 +40,8 @@ var (
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func NewService(zone string) *service {
-	this := new(service)
+func NewService(zone string) *Service {
+	this := new(Service)
 	this.zone = zone
 	return this
 }
@@ -48,11 +49,13 @@ func NewService(zone string) *service {
 ///////////////////////////////////////////////////////////////////////////////
 // GET PROPERTIES
 
-func (this *service) Instance() string {
+// Instance returns the full instance name of the service
+func (this *Service) Instance() string {
 	return strings.TrimSuffix(fqn(this.name), this.zone)
 }
 
-func (this *service) Service() string {
+// Service returns the short service identifier
+func (this *Service) Service() string {
 	service := strings.TrimSuffix(fqn(this.service), this.zone)
 	if match := reIsSubService.FindStringSubmatch(service); match != nil {
 		return match[1]
@@ -65,7 +68,8 @@ func (this *service) Service() string {
 	}
 }
 
-func (this *service) Name() string {
+// Name returns the name of the service
+func (this *Service) Name() string {
 	name := this.name
 	if srv := this.Service(); srv != fqn(ServicesQuery) && name != "" {
 		name = strings.TrimSuffix(fqn(name), fqn(this.service))
@@ -76,30 +80,40 @@ func (this *service) Name() string {
 	return unfqn(name)
 }
 
-func (this *service) Host() string {
+// Host returns the host of the service
+func (this *Service) Host() string {
 	return this.host
 }
 
-func (this *service) Port() uint16 {
+// Port returns the port of the service
+func (this *Service) Port() uint16 {
 	return this.port
 }
 
-func (this *service) Zone() string {
+// Zone returns the fully qualified zone (usually local.) of the service
+func (this *Service) Zone() string {
 	return fqn(this.zone)
 }
 
-func (this *service) Addrs() []net.IP {
+// Addrs returns associated addresses for the service
+func (this *Service) Addrs() []net.IP {
 	addrs := []net.IP{}
 	addrs = append(addrs, this.a...)
 	addrs = append(addrs, this.aaaa...)
 	return addrs
 }
 
-func (this *service) Txt() []string {
-	return this.txt
+// Txt returns the txt records for the service
+func (this *Service) Txt() []string {
+	if len(this.txt) == 0 || (len(this.txt) == 1 && this.txt[0] == "") {
+		return []string{}
+	} else {
+		return this.txt
+	}
 }
 
-func (this *service) Keys() []string {
+// Keys returns the keys in the TXT record
+func (this *Service) Keys() []string {
 	if len(this.keys) == 0 {
 		this.keys = make([]string, 0, len(this.txt))
 		for _, value := range this.txt {
@@ -115,7 +129,9 @@ func (this *service) Keys() []string {
 	return this.keys
 }
 
-func (this *service) ValueForKey(key string) string {
+// ValueForKey return value for a key in the TXT record, or
+// empty string if not found
+func (this *Service) ValueForKey(key string) string {
 	// Cache keys
 	if len(this.keys) == 0 {
 		this.Keys()
@@ -132,40 +148,15 @@ func (this *service) ValueForKey(key string) string {
 			}
 		}
 	}
+
 	// Return empty string if not found
 	return ""
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// SET PROPERTIES
-
-func (this *service) SetPTR(ptr *dns.PTR) {
-	this.service = ptr.Hdr.Name
-	this.name = ptr.Ptr
-	this.ttl = time.Duration(ptr.Hdr.Ttl) * time.Second
-}
-
-func (this *service) SetSRV(host string, port uint16, priority uint16) {
-	this.host = host
-	this.port = port
-}
-
-func (this *service) SetTXT(txt []string) {
-	this.txt = txt
-}
-
-func (this *service) SetA(ip net.IP) {
-	this.a = append(this.a, ip)
-}
-
-func (this *service) SetAAAA(ip net.IP) {
-	this.aaaa = append(this.aaaa, ip)
-}
-
-///////////////////////////////////////////////////////////////////////////////
 // CHECK FOR EQUALITY
 
-func (this *service) Equals(other *service) bool {
+func (this *Service) Equals(other *Service) bool {
 	if this.Instance() != other.Instance() {
 		fmt.Println("instance changed", this.Instance(), other.Instance())
 		return false
@@ -215,33 +206,74 @@ func (this *service) Equals(other *service) bool {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+func (this *Service) setPTR(ptr *dns.PTR) {
+	this.service = ptr.Hdr.Name
+	this.name = ptr.Ptr
+	this.ttl = time.Duration(ptr.Hdr.Ttl) * time.Second
+}
+
+func (this *Service) setSRV(host string, port uint16, priority uint16) {
+	this.host = host
+	this.port = port
+}
+
+func (this *Service) setTXT(txt []string) {
+	this.txt = txt
+}
+
+func (this *Service) setA(ip net.IP) {
+	this.a = append(this.a, ip)
+}
+
+func (this *Service) setAAAA(ip net.IP) {
+	this.aaaa = append(this.aaaa, ip)
+}
+
+func (this *Service) txtMap() map[string]string {
+	result := make(map[string]string, len(this.txt))
+	for _, k := range this.Keys() {
+		if v := this.ValueForKey(k); v != "" {
+			result[k] = v
+		}
+	}
+	return result
+}
+
+///////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
-func (s service) String() string {
-	str := "<service"
-	if instance := s.Instance(); instance != "" {
-		str += fmt.Sprintf(" instance=%q", instance)
+func (s *Service) MarshalJSON() ([]byte, error) {
+	if s.Service() == fqn(ServicesQuery) {
+		return json.Marshal(struct {
+			Service string `json:"service,omitempty"`
+			Zone    string `json:"zone,omitempty"`
+		}{
+			Service: s.Instance(),
+			Zone:    s.Zone(),
+		})
+	} else {
+		return json.Marshal(struct {
+			Instance string            `json:"instance,omitempty"`
+			Service  string            `json:"service,omitempty"`
+			Name     string            `json:"name,omitempty"`
+			Zone     string            `json:"zone,omitempty"`
+			Host     string            `json:"host,omitempty"`
+			Port     uint16            `json:"port,omitempty"`
+			Addrs    []net.IP          `json:"addr,omitempty"`
+			Txt      []string          `json:"txt,omitempty"`
+			Map      map[string]string `json:"map,omitempty"`
+		}{
+			Instance: s.Instance(),
+			Service:  s.Service(),
+			Name:     s.Name(),
+			Zone:     s.Zone(),
+			Host:     s.Host(),
+			Port:     s.Port(),
+			Addrs:    s.Addrs(),
+			Txt:      s.Txt(),
+			Map:      s.txtMap(),
+		})
 	}
-	if service := s.Service(); service != "" {
-		str += fmt.Sprintf(" service=%q", service)
-	}
-	if name := s.Name(); name != "" {
-		str += fmt.Sprintf(" name=%q", name)
-	}
-	if zone := s.Zone(); zone != "" {
-		str += fmt.Sprintf(" zone=%q", zone)
-	}
-	if host, port := s.Host(), s.Port(); host != "" {
-		str += fmt.Sprintf(" host=%v", net.JoinHostPort(host, fmt.Sprint(port)))
-	}
-	if ips := s.Addrs(); len(ips) > 0 {
-		str += fmt.Sprintf(" addrs=%v", ips)
-	}
-	if txt := s.Txt(); len(s.txt) > 0 {
-		str += fmt.Sprintf(" txt=%q", txt)
-	}
-	if s.ttl != 0 {
-		str += fmt.Sprintf(" ttl=%v", s.ttl)
-	}
-	return str + ">"
 }

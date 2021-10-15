@@ -4,7 +4,6 @@ import (
 	"context"
 	"io"
 	"io/fs"
-	"net"
 	"net/http"
 	"regexp"
 )
@@ -88,22 +87,4 @@ type EventQueue interface {
 type Event interface {
 	Name() string
 	Value() interface{}
-}
-
-/////////////////////////////////////////////////////////////////////
-// SERVICE DISCOVERY INTERFACE
-
-type Service interface {
-	Instance() string
-	Service() string
-	Name() string
-	Host() string
-	Port() uint16
-	Zone() string
-	Addrs() []net.IP
-	Txt() []string
-
-	// Return TXT keys and value for a key
-	Keys() []string
-	ValueForKey(string) string
 }

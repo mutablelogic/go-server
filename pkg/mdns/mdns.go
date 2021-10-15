@@ -35,7 +35,7 @@ type enum struct {
 	sync.RWMutex
 	sync.Mutex
 	EventType
-	services map[string]*service
+	services map[string]*Service
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -188,7 +188,7 @@ func (this *Server) LookupServiceDescription(v string) ServiceDescription {
 	}
 }
 
-func (this *Server) EnumerateInstances(ctx context.Context, services ...string) ([]Service, error) {
+func (this *Server) EnumerateInstances(ctx context.Context, services ...string) ([]*Service, error) {
 	// Lock enumeration for receiving instances
 	this.enum.Lock(EVENT_TYPE_ADDED|EVENT_TYPE_CHANGED|EVENT_TYPE_REMOVED|EVENT_TYPE_EXPIRED, defaultCap)
 	defer this.enum.Unlock()
@@ -196,7 +196,7 @@ func (this *Server) EnumerateInstances(ctx context.Context, services ...string) 
 	// Return if no services specified, then return instances from database
 	if len(services) == 0 {
 		instances := this.Instances()
-		result := make([]Service, 0, len(instances))
+		result := make([]*Service, 0, len(instances))
 		for _, instance := range instances {
 			result = append(result, instance)
 		}
@@ -232,7 +232,7 @@ FOR_LOOP:
 	<-ctx.Done()
 
 	// Return services
-	result := make([]Service, 0, len(this.enum.services))
+	result := make([]*Service, 0, len(this.enum.services))
 	for _, instance := range this.enum.services {
 		result = append(result, instance)
 	}
@@ -244,7 +244,7 @@ FOR_LOOP:
 func (this *enum) Lock(t EventType, cap int) {
 	this.RWMutex.Lock()
 	this.EventType = t
-	this.services = make(map[string]*service, cap)
+	this.services = make(map[string]*Service, cap)
 }
 
 // Unlock enumeration
@@ -255,11 +255,11 @@ func (this *enum) Unlock() {
 }
 
 // Services returns enumerated services
-func (this *enum) Services() []*service {
+func (this *enum) Services() []*Service {
 	this.Mutex.Lock()
 	defer this.Mutex.Unlock()
 
-	result := make([]*service, 0, len(this.services))
+	result := make([]*Service, 0, len(this.services))
 	for _, service := range this.services {
 		// Make a copy of the service
 		result = append(result, service)
@@ -272,16 +272,16 @@ func (this *enum) Services() []*service {
 
 // add filters an added service in the enumeration
 func (this *enum) add(event event) {
-	if this.EventType == EVENT_TYPE_NONE || event.EventType&this.EventType != EVENT_TYPE_NONE {
+	if this.EventType == EVENT_TYPE_NONE || event.Type&this.EventType != EVENT_TYPE_NONE {
 		// Add or remove filtered event, keyed by service name
 		this.Mutex.Lock()
 		defer this.Mutex.Unlock()
 		if this.services != nil {
-			key := event.Instance()
-			if event.EventType&(EVENT_TYPE_REMOVED|EVENT_TYPE_EXPIRED) != EVENT_TYPE_NONE {
+			key := event.Service.Instance()
+			if event.Type&(EVENT_TYPE_REMOVED|EVENT_TYPE_EXPIRED) != EVENT_TYPE_NONE {
 				delete(this.services, key)
 			} else {
-				this.services[key] = &event.service
+				this.services[key] = event.Service
 			}
 		}
 	}

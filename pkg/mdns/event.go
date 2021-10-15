@@ -1,13 +1,13 @@
 package mdns
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"strings"
 
 	// Modules
 	dns "github.com/miekg/dns"
-	. "github.com/mutablelogic/go-server"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -22,17 +22,11 @@ type message struct {
 }
 
 type event struct {
-	EventType
-	service
+	Type    EventType
+	Service *Service
 }
 
 type EventType int
-
-type ServiceEvent interface {
-	Event
-	Type() EventType
-	Service() Service
-}
 
 ///////////////////////////////////////////////////////////////////////////////
 // GLOBALS
@@ -52,30 +46,34 @@ const (
 // EVENT IMPLEMENTATION
 
 func (e event) Name() string {
-	return e.service.Instance()
+	return "mdns"
 }
 
 func (e event) Value() interface{} {
-	return &e.service
-}
-
-func (e event) Type() EventType {
-	return e.EventType
-}
-
-func (e event) Service() Service {
-	return &e.service
+	return &e
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
+func (e *event) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Type    string   `json:"type,omitempty"`
+		Service *Service `json:"service,omitempty"`
+	}{
+		Type:    e.Type.String(),
+		Service: e.Service,
+	})
+}
+
 func (e event) String() string {
-	str := "<mdns.event"
-	if t := e.EventType; t != EVENT_TYPE_NONE {
-		str += " type=" + e.EventType.String()
+	str := "<event"
+	if t := e.Type; t != EVENT_TYPE_NONE {
+		str += " type=" + e.Type.String()
 	}
-	str += fmt.Sprint(" ", e.service)
+	if e.Service != nil {
+		str += fmt.Sprint(" ", e.Service)
+	}
 	return str + ">"
 }
 

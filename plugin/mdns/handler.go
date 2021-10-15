@@ -9,6 +9,7 @@ import (
 	// Modules
 	. "github.com/mutablelogic/go-server"
 	router "github.com/mutablelogic/go-server/pkg/httprouter"
+	"github.com/mutablelogic/go-server/pkg/mdns"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -133,7 +134,7 @@ func (this *server) ServeEnumerate(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (this *server) ServeInstances(w http.ResponseWriter, instances []Service) {
+func (this *server) ServeInstances(w http.ResponseWriter, instances []*mdns.Service) {
 	response := []InstanceResponse{}
 	for _, instance := range instances {
 		service := InstanceResponse{
@@ -160,7 +161,7 @@ func (this *server) ServeInstances(w http.ResponseWriter, instances []Service) {
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-func instanceAddrs(instance Service) []string {
+func instanceAddrs(instance *mdns.Service) []string {
 	addrs := instance.Addrs()
 	result := make([]string, len(addrs))
 	for i, addr := range addrs {
@@ -169,7 +170,7 @@ func instanceAddrs(instance Service) []string {
 	return result
 }
 
-func instanceTxt(instance Service) map[string]string {
+func instanceTxt(instance *mdns.Service) map[string]string {
 	result := make(map[string]string)
 	for _, key := range instance.Keys() {
 		result[key] = instance.ValueForKey(key)
