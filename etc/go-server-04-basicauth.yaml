@@ -4,6 +4,7 @@ plugins:
   - build/basicauth.plugin
   - build/basicauth-frontend.plugin
   - build/log.plugin
+  - build/static.plugin
 
 # Handler for basicauth
 handlers:

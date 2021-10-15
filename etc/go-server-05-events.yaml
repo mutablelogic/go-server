@@ -3,3 +3,12 @@
 plugins:
   - build/events.plugin
   - build/log.plugin
+  - build/basicauth.plugin
+
+# Handlers for serving plugins  
+handlers:
+  events:
+    prefix: /api/events
+    middleware:
+      - log
+      - basicauth
