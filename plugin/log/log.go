@@ -7,11 +7,12 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path"
 	"strings"
 	"sync"
 
-	// Modules
-	"github.com/mutablelogic/go-server/pkg/provider"
+	// Packages
+	provider "github.com/mutablelogic/go-server/pkg/provider"
 
 	// Namespace imports
 	. "github.com/djthorpe/go-errors"
@@ -118,7 +119,11 @@ func (p *plugin) Printf(ctx context.Context, f string, v ...interface{}) {
 
 func (p *plugin) AddMiddlewareFunc(ctx context.Context, h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		p.Printf(ctx, "%s %s", r.Method, r.URL.Path)
+		urlpath := r.URL.Path
+		if prefix := provider.ContextHandlerPrefix(ctx); prefix != "" {
+			urlpath = path.Join(prefix, urlpath)
+		}
+		p.Printf(ctx, "%s %s", r.Method, urlpath)
 		h(w, r)
 	}
 }

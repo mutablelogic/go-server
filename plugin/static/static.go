@@ -11,6 +11,7 @@ import (
 
 	// Packages
 	multierror "github.com/hashicorp/go-multierror"
+	"github.com/mutablelogic/go-server/pkg/config"
 	router "github.com/mutablelogic/go-server/pkg/httprouter"
 	prv "github.com/mutablelogic/go-server/pkg/provider"
 
@@ -29,6 +30,8 @@ type Endpoint struct {
 	Name string `json:"name,omitempty"`
 	// Handler for serving content, including middleware
 	Handler http.Handler `json:"-"`
+	// Middleware
+	Middleware []string `json:"-"`
 }
 
 type plugin struct {
@@ -60,7 +63,11 @@ func (p *plugin) Run(ctx context.Context, provider Provider) error {
 
 	// Add handlers for static content
 	for _, endpoint := range p.handlers {
-		if err := provider.AddHandler(prv.ContextWithPrefix(ctx, endpoint.Prefix), endpoint.Handler); err != nil {
+		child := prv.ContextWithHandler(ctx, config.Handler{
+			Prefix:     endpoint.Prefix,
+			Middleware: endpoint.Middleware,
+		})
+		if err := provider.AddHandler(child, endpoint.Handler); err != nil {
 			result = multierror.Append(result, err)
 		}
 	}
@@ -116,9 +123,10 @@ func (p *plugin) AddFS(ctx context.Context, fs fs.FS, suffix string) error {
 		return ErrBadParameter.With("Missing prefix")
 	}
 	p.handlers = append(p.handlers, Endpoint{
-		Prefix:  pathSeparator + strings.TrimPrefix(prefix, pathSeparator),
-		Name:    name,
-		Handler: NewFileSystemHandler(fs, suffix),
+		Prefix:     pathSeparator + strings.TrimPrefix(prefix, pathSeparator),
+		Name:       name,
+		Handler:    NewFileSystemHandler(fs, suffix),
+		Middleware: prv.ContextHandlerMiddleware(ctx),
 	})
 
 	// Return success

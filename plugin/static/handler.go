@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"io/fs"
 	"net/http"
@@ -39,9 +38,6 @@ func NewFileSystemHandler(fs fs.FS, prefix string) http.Handler {
 // PUBLIC METHODS
 
 func (f *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if !strings.HasPrefix(r.URL.Path, "/") {
-		r.URL.Path = "/" + r.URL.Path
-	}
 	name := r.URL.Path
 	if f.prefix != "" {
 		name = path.Join(f.prefix, name)
@@ -54,7 +50,6 @@ func (f *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // Nicked this code from the net/http package
 func serveFile(w http.ResponseWriter, r *http.Request, filesystem fs.FS, name string, shouldRedirect bool) {
-	fmt.Println("SERVE", r.URL, name)
 	// redirect .../index.html to .../
 	if strings.HasSuffix(r.URL.Path, indexPage) {
 		redirect(w, r, "./")

@@ -79,6 +79,11 @@ func (this *router) AddHandlerFuncEx(ctx context.Context, re *regexp.Regexp, han
 		methods = []string{http.MethodGet}
 	}
 
+	// Modify prefix to include a final slash
+	if !strings.HasSuffix(prefix, PathSeparator) {
+		prefix += PathSeparator
+	}
+
 	// Create a route (which can handle several methods and regular expressions)
 	r, exists := this.routes[prefix]
 	if !exists {
@@ -89,11 +94,7 @@ func (this *router) AddHandlerFuncEx(ctx context.Context, re *regexp.Regexp, han
 		this.routes[prefix] = r
 
 		// Add to ServeMux
-		if strings.HasSuffix(prefix, PathSeparator) {
-			this.ServeMux.HandleFunc(prefix, r.ServeHTTP)
-		} else {
-			this.ServeMux.HandleFunc(prefix+PathSeparator, r.ServeHTTP)
-		}
+		this.ServeMux.HandleFunc(prefix, r.ServeHTTP)
 	}
 
 	// Add handler to route
@@ -118,8 +119,18 @@ func (this *route) AddHandler(re *regexp.Regexp, handler http.HandlerFunc, metho
 }
 
 func (this *route) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Make cache key
+	key := r.Method + r.URL.Path
+
+	// Remove prefix from path
+	if !strings.HasPrefix(r.URL.Path, this.prefix) {
+		ServeError(w, http.StatusNotFound, ErrBadParameter.With(r.URL.Path).Error())
+	} else {
+		r.URL.Path = PathSeparator + strings.TrimPrefix(r.URL.Path, this.prefix)
+	}
+
 	// Check cache for existing handler
-	if handler, params, hits := this.cache.Get(r.Method + r.URL.Path); hits > 0 {
+	if handler, params, hits := this.cache.Get(key); hits > 0 {
 		handler(w, reqWithParams(r, params))
 		return
 	}
@@ -129,16 +140,6 @@ func (this *route) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !exists {
 		ServeError(w, http.StatusMethodNotAllowed, ErrBadParameter.With(r.Method).Error())
 		return
-	}
-
-	// Make cache key
-	key := r.Method + r.URL.Path
-
-	// Remove prefix from path
-	if !strings.HasPrefix(r.URL.Path, this.prefix) {
-		ServeError(w, http.StatusNotFound, ErrBadParameter.With(r.URL.Path).Error())
-	} else {
-		r.URL.Path = strings.TrimPrefix(r.URL.Path, this.prefix)
 	}
 
 	// Find regular expression handler

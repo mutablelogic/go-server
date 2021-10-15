@@ -1,7 +1,7 @@
 package httprouter
 
 import (
-	"fmt"
+	"math"
 	"net/http"
 	"sort"
 	"sync"
@@ -17,33 +17,24 @@ type cache struct {
 }
 
 type cachehandler struct {
-	hits    uint
+	hits    int64
 	params  []string
-	handler *http.HandlerFunc
+	handler http.HandlerFunc
 }
-
-type cachefreq struct {
-	hits uint
-	key  string
-}
-
-type cachefreqarr []cachefreq
 
 ///////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 
 const (
-	maxCacheSize = 1000
+	maxCacheSize = 100
 )
 
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
 // Get parameters and handler from cache
-func (this *cache) Get(key string) (http.HandlerFunc, []string, uint) {
+func (this *cache) Get(key string) (http.HandlerFunc, []string, int64) {
 	this.init()
-	this.RWMutex.RLock()
-	defer this.RWMutex.RUnlock()
 
 	// Prune cache in background
 	if len(this.cache) > maxCacheSize {
@@ -51,10 +42,13 @@ func (this *cache) Get(key string) (http.HandlerFunc, []string, uint) {
 	}
 
 	// Check cache
+	this.RWMutex.RLock()
+	defer this.RWMutex.RUnlock()
 	if handler, exists := this.cache[key]; exists {
-		handler.hits++
-		fmt.Println("get cache =>", key, " => ", handler.params, handler.hits)
-		return *handler.handler, handler.params, handler.hits
+		if handler.hits < math.MaxInt64 {
+			handler.hits++
+		}
+		return handler.handler, handler.params, handler.hits
 	} else {
 		return nil, nil, 0
 	}
@@ -66,10 +60,10 @@ func (this *cache) Set(key string, handler http.HandlerFunc, params []string) {
 	go func() {
 		this.RWMutex.Lock()
 		defer this.RWMutex.Unlock()
-		fmt.Println("set cache =>", key, " => ", params)
 		this.cache[key] = &cachehandler{
+			hits:    0,
 			params:  arrcopy(params),
-			handler: &handler,
+			handler: handler,
 		}
 	}()
 }
@@ -79,54 +73,50 @@ func (this *cache) Set(key string, handler http.HandlerFunc, params []string) {
 
 // Initialise the cache
 func (this *cache) init() {
-	if this.cache == nil {
-		this.RWMutex.Lock()
-		defer this.RWMutex.Unlock()
-		this.cache = make(map[string]*cachehandler)
+	if this.cache != nil {
+		return
 	}
+	this.RWMutex.Lock()
+	this.cache = make(map[string]*cachehandler)
+	this.RWMutex.Unlock()
 }
 
 // Clean the cache
 func (this *cache) clean() {
-	// Make sorted array of cache entries
-	arr := cachefreqarr{}
+	arr := make([]int64, 0, len(this.cache))
+
+	// Make sorted array of hits
 	this.RWMutex.RLock()
-	for key, handler := range this.cache {
-		arr = append(arr, cachefreq{hits: handler.hits, key: key})
+	for _, handler := range this.cache {
+		arr = append(arr, handler.hits)
 	}
-	sort.Sort(arr)
 	this.RWMutex.RUnlock()
+
+	// Return if no hits
+	n := len(arr)
+	if n == 0 {
+		return
+	}
+
+	// Sort the hits array
+	sort.Slice(arr, func(i, j int) bool {
+		return arr[i] > arr[j]
+	})
 
 	// Lock for cleaning the cache
 	this.RWMutex.Lock()
 	defer this.RWMutex.Unlock()
 
-	// Now remove entries
-	for i := (maxCacheSize << 1); i < len(arr); i++ {
-		delete(this.cache, arr[i].key)
-	}
-
-	// Remove one hit from each entry
+	// Remove all entries which are less than or equal to the median
+	// and reduce the hit counter for the remainder
+	median := arr[(n-1)/2]
 	for key, handler := range this.cache {
-		if handler.hits > 0 {
-			handler.hits--
-		} else {
+		if handler.hits <= median {
 			delete(this.cache, key)
+		} else if handler.hits > 0 {
+			handler.hits = handler.hits - 1
 		}
 	}
-}
-
-// Sort array
-func (this cachefreqarr) Len() int {
-	return len(this)
-}
-
-func (this cachefreqarr) Less(i, j int) bool {
-	return this[i].hits > this[j].hits
-}
-
-func (this cachefreqarr) Swap(i, j int) {
-	this[i], this[j] = this[j], this[i]
 }
 
 // Copy array

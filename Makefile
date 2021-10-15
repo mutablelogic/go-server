@@ -1,11 +1,12 @@
-# Paths to packages
-GO=$(shell which go)
-NPM=$(shell which npm)
+# Paths to tools needed in dependencies
+GO := $(shell which go)
+NPM := $(shell which npm)
 
 # Paths to locations, etc
-BUILD_DIR = "build"
-PLUGIN_DIR = $(wildcard plugin/*)
-NPM_DIR = $(wildcard npm/*)
+BUILD_DIR := "build"
+PLUGIN_DIR := $(wildcard plugin/*)
+NPM_DIR := $(wildcard npm/*)
+CMD_DIR := $(filter-out cmd/README.md, $(wildcard cmd/*))
 BUILD_MODULE = "github.com/mutablelogic/go-server"
 
 # Build flags
@@ -17,21 +18,23 @@ BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/version.GoBuildTime=$(shell date -u '+%
 BUILD_FLAGS = -ldflags "-s -w $(BUILD_LD_FLAGS)" 
 
 # Targets
-all: clean server npm plugins
+all: clean cmd npm plugins
 
-server: dependencies mkdir
-	@echo Build server
-	@${GO} build -o ${BUILD_DIR}/server ${BUILD_FLAGS} ./cmd/server
+cmd: $(CMD_DIR)
 
-npm: dependencies $(NPM_DIR)
+npm: $(NPM_DIR)
 
-plugins: dependencies mkdir $(PLUGIN_DIR)
+plugins: $(PLUGIN_DIR)
 
-$(PLUGIN_DIR): FORCE
+$(CMD_DIR): dependencies mkdir FORCE
+	@echo Build cmd $(notdir $@)
+	@${GO} build -o ${BUILD_DIR}/$(notdir $@) ${BUILD_FLAGS} ./$@
+
+$(PLUGIN_DIR): dependencies mkdir FORCE
 	@echo Build plugin $(notdir $@)
 	@${GO} build -buildmode=plugin -o ${BUILD_DIR}/$(notdir $@).plugin ${BUILD_FLAGS} ./$@
 
-$(NPM_DIR): FORCE
+$(NPM_DIR): dependencies FORCE
 	@echo Build frontend $(notdir $@)
 	cd $@ && ${NPM} install
 	cd $@ && ${NPM} run build
