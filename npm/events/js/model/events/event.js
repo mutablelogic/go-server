@@ -6,7 +6,7 @@ export default class Event extends Model {
       name: 'string',
       id: 'number',
       ts: 'date',
-    }, 'Group');
+    }, 'Event');
   }
 
   get key() {
