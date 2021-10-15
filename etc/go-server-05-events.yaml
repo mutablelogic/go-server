@@ -2,13 +2,20 @@
 # Plugins to load, the order of these is important
 plugins:
   - build/events.plugin
+  - build/events-frontend.plugin
   - build/log.plugin
+  - build/static.plugin
   - build/basicauth.plugin
 
 # Handlers for serving plugins  
 handlers:
   events:
     prefix: /api/events
+    middleware:
+      - log
+      - basicauth
+  events-frontend:
+    prefix: /events
     middleware:
       - log
       - basicauth

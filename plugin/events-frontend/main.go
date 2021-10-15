@@ -6,7 +6,7 @@ import (
 	"io"
 
 	// Packages
-	frontend "github.com/mutablelogic/go-server/npm/basicauth"
+	frontend "github.com/mutablelogic/go-server/npm/events"
 
 	// Namespace imports
 	. "github.com/mutablelogic/go-server"
@@ -41,21 +41,21 @@ func New(ctx context.Context, provider Provider) Plugin {
 // STRINGIFY
 
 func (p *plugin) String() string {
-	return "<basicauth-frontend>"
+	return "<events-frontend>"
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // USAGE
 
 func Usage(w io.Writer) {
-	fmt.Fprintln(w, "\n  Static files for HTML frontend for basicauth.")
+	fmt.Fprintln(w, "\n  Static files for HTML frontend for events.")
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
 func Name() string {
-	return "basicauth-frontend"
+	return "events-frontend"
 }
 
 func (p *plugin) Run(ctx context.Context, provider Provider) error {

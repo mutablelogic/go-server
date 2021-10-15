@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width">
+    <title>events</title>
+    <meta name="description" content="events frontend">
+    <link rel="icon" href="/assets/favicon/favicon.ico">
+    <link rel="stylesheet" href="./index.css" media="all">
+    <script src="./index.js"></script>
+</head>
+
+<body>
+    <!-- NAVIGATION -->
+    <nav class="navbar sticky-top navbar navbar-dark navbar-expand-md bg-primary border-bottom border-white" id="nav">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#"><strong>events</strong></a>
+            <div class="collapse navbar-collapse" id="navbar-items">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Home</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+    <!-- TOAST -->
+    <div class="toast-container position-absolute bottom-0 end-0 p-3 d-none" style="z-index: 9999;">
+        <div class="toast" id="toast" role="alert">
+            <div class="toast-header">
+                <strong class="me-auto _title"></strong>
+                <small class="text-muted _code"></small>
+                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+            <div class="toast-body _reason"></div>
+        </div>
+    </div>
+    <!-- EVENTS -->
+    <div class="container-fluid">
+        <table class="table table-hover" id="events">
+            <thead> 
+                <tr>
+                    <th scope="col"><i class="bi bi-bookmark pe-1"></i>Event</th>
+                    <th scope="col">Value</th>
+                    <th scope="col">Time</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr class="_template">
+                    <td class="_name"></td>
+                    <td class="_value"></td>
+                    <td class="_ts"></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</body>
+
+</html> 
