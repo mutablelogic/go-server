@@ -13,9 +13,7 @@ handlers:
     prefix: /api/events
     middleware:
       - log
-      - basicauth
   events-frontend:
     prefix: /events
     middleware:
       - log
-      - basicauth

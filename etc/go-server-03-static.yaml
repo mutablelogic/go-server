@@ -10,3 +10,7 @@ handlers:
     prefix: /api/static
     middleware:
       - log
+
+# Add additional static handling here
+static:
+  "/dev": "${HOME}/Projects/js-components/dist"

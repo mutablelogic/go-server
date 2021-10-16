@@ -80,9 +80,8 @@ func (p *plugin) String() string {
 // USAGE
 
 func Usage(w io.Writer) {
-	fmt.Fprintln(w, "\n  Renders files and folders into documents which can be")
-	fmt.Fprintln(w, "  served through HTML\n")
-	fmt.Fprintln(w, "  Configuration:")
+	fmt.Fprintln(w, "\n  Renders files and folders into documents which can be served through HTML")
+	fmt.Fprintln(w, "\n  Configuration:")
 	fmt.Fprintln(w, "    renderers: <list of string>")
 	fmt.Fprintln(w, "      Names of the renders which should be used. The order of the list")
 	fmt.Fprintln(w, "      defines which renderer takes priority for rendering. If any")

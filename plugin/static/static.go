@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"io/fs"
 	"net/http"
 	"os"
@@ -22,6 +23,8 @@ import (
 
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
+
+type Config map[string]string
 
 type Endpoint struct {
 	// Prefix for the endpoint
@@ -53,6 +56,29 @@ const (
 func New(ctx context.Context, provider Provider) Plugin {
 	p := new(plugin)
 	p.handlers = make([]Endpoint, 0)
+
+	// Get configuration
+	var cfg Config
+	if err := provider.GetConfig(ctx, &cfg); err != nil {
+		provider.Print(ctx, err)
+		return nil
+	}
+
+	// Add endpoints
+	for prefix, path := range cfg {
+		if stat, err := os.Stat(path); err != nil || !stat.IsDir() {
+			provider.Printf(ctx, "unable to add static path %q", path)
+			return nil
+		}
+		p.handlers = append(p.handlers, Endpoint{
+			Prefix:  prefix,
+			Name:    prefix,
+			Handler: http.FileServer(http.Dir(path)),
+			Middleware: []string{
+				"log",
+			},
+		})
+	}
 
 	// Return success
 	return p
@@ -98,6 +124,16 @@ func (p *plugin) String() string {
 		str += fmt.Sprintf(" %v=%q", endpoint.Name, endpoint.Prefix)
 	}
 	return str + ">"
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// USAGE
+
+func Usage(w io.Writer) {
+	fmt.Fprintln(w, "\n  Serves static files")
+	fmt.Fprintln(w, "\n  Configuration:")
+	fmt.Fprintln(w, "    <prefix>: <path>")
+	fmt.Fprintln(w, "      Serve files under path on a prefix URL")
 }
 
 ///////////////////////////////////////////////////////////////////////////////
