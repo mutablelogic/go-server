@@ -11,6 +11,7 @@ import (
 	// Modules
 	. "github.com/djthorpe/go-errors"
 	. "github.com/mutablelogic/go-server"
+	router "github.com/mutablelogic/go-server/pkg/httprouter"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -48,6 +49,14 @@ const (
 	TOKEN_NAME = "token"
 	TOKEN_PATH = "/"
 	KEY_SECRET = "LDAP_SECRET"
+)
+
+///////////////////////////////////////////////////////////////////////////////
+// GLOBALS
+
+const (
+	defaultRealm   = "Authorization Required"
+	defaultCharset = "UTF-8"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -203,9 +212,10 @@ func (this *plugin) validate(w http.ResponseWriter, req *http.Request) (url.Valu
 	token, err := req.Cookie(TOKEN_NAME)
 	if err != nil {
 		if err == http.ErrNoCookie {
-			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+			w.Header().Set("WWW-Authenticate", fmt.Sprintf("Basic realm=%q, charset=%q", defaultRealm, defaultCharset))
+			router.ServeError(w, http.StatusUnauthorized)
 		} else {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			router.ServeError(w, http.StatusBadRequest)
 		}
 		return nil, time.Time{}
 	}

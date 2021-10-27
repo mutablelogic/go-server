@@ -8,6 +8,7 @@ handlers:
   ldapauth:
     prefix: /api/ldap
     middleware:
+      - ldapauth
       - log
 
 ldapauth:
