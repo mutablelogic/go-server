@@ -16,6 +16,7 @@ import (
 	marshaler "github.com/djthorpe/go-marshaler"
 	multierror "github.com/hashicorp/go-multierror"
 	config "github.com/mutablelogic/go-server/pkg/config"
+	expand "github.com/mutablelogic/go-server/pkg/expand"
 
 	// Namespace imports
 	. "github.com/djthorpe/go-errors"
@@ -377,8 +378,10 @@ func (this *provider) ExpandEnv(v reflect.Value, dest reflect.Type) (reflect.Val
 		return v, nil
 	}
 
+	fmt.Println("TODO: Expanding ", v.String())
+
 	// Expand environment variables
-	value := os.Expand(v.String(), func(key string) string {
+	value := expand.Expand(v.String(), func(key string) string {
 		value, err := this.GetString(context.TODO(), key)
 		if err != nil {
 			result = multierror.Append(result, err)

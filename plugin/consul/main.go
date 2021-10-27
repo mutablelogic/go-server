@@ -140,7 +140,6 @@ func (p *plugin) Run(ctx context.Context, provider Provider) error {
 func (p *plugin) GetBytes(ctx context.Context, key string) ([]byte, error) {
 	key = p.key(key)
 	opts := consul.QueryOptions{}
-	fmt.Println(key)
 	if pair, _, err := p.client.KV().Get(key, opts.WithContext(ctx)); err != nil {
 		return nil, err
 	} else if pair == nil {

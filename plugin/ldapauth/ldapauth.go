@@ -17,14 +17,15 @@ import (
 // TYPES
 
 type Config struct {
-	Addr        string        `yaml:"url"`
-	User        string        `yaml:"user"`
-	Password    string        `yaml:"password"`
-	Expiry      time.Duration `yaml:"expiry"`
-	GroupFilter string        `yaml:"groupfilter"`
-	UserFilter  string        `yaml:"userfilter"`
-	BaseDN      string        `yaml:"basedn"`
-	Fields      []string      `yaml:"attrs"`
+	Addr         string        `yaml:"url"`
+	User         string        `yaml:"user"`
+	Password     string        `yaml:"password"`
+	Expiry       time.Duration `yaml:"expiry"`
+	GroupFilter  string        `yaml:"groupfilter"`
+	UserFilter   string        `yaml:"userfilter"`
+	SearchFilter string        `yaml:"searchfilter"`
+	BaseDN       string        `yaml:"basedn"`
+	Fields       []string      `yaml:"attrs"`
 }
 
 type plugin struct {
@@ -32,11 +33,12 @@ type plugin struct {
 	*Credentials
 	*JWT
 
-	userfilter  string
-	groupfilter string
-	basedn      string
-	fields      []string
-	secret      []byte
+	userfilter   string
+	groupfilter  string
+	searchfilter string
+	basedn       string
+	fields       []string
+	secret       []byte
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -73,6 +75,7 @@ func New(ctx context.Context, provider Provider) Plugin {
 	// Set filter, basedn and fields
 	this.userfilter = cfg.UserFilter
 	this.groupfilter = cfg.GroupFilter
+	this.searchfilter = cfg.SearchFilter
 	this.basedn = cfg.BaseDN
 	this.fields = cfg.Fields
 
@@ -105,6 +108,9 @@ func (this *plugin) String() string {
 	if filter := this.groupfilter; filter != "" {
 		str += fmt.Sprintf(" groupfilter=%q", filter)
 	}
+	if filter := this.searchfilter; filter != "" {
+		str += fmt.Sprintf(" searchfilter=%q", filter)
+	}
 	str += fmt.Sprint(" ", this.Credentials)
 	str += fmt.Sprint(" ", this.JWT)
 	return str + ">"
@@ -128,11 +134,13 @@ func Usage(output io.Writer) {
 	fmt.Fprintf(output, "  expiry:\n")
 	fmt.Fprintf(output, "\t  Expiry time for authenticated user (duration)\n")
 	fmt.Fprintf(output, "  userfilter:\n")
-	fmt.Fprintf(output, "\t  Filter term used in search for user in LDAP (string)\n")
+	fmt.Fprintf(output, "\t  Filter term used in search for all users in LDAP (string)\n")
 	fmt.Fprintf(output, "  groupfilter:\n")
-	fmt.Fprintf(output, "\t  Filter term used in search for group in LDAP (string)\n")
+	fmt.Fprintf(output, "\t  Filter term used in search for all groups in LDAP (string)\n")
+	fmt.Fprintf(output, "  searchfilter:\n")
+	fmt.Fprintf(output, "\t  Filter term used in search for a specific user in LDAP (string)\n")
 	fmt.Fprintf(output, "  basedn:\n")
-	fmt.Fprintf(output, "\t  Base DN used to locate user in LDAP (string)\n")
+	fmt.Fprintf(output, "\t  Base DN used to locate objects (string)\n")
 	fmt.Fprintf(output, "  attr:\n")
 	fmt.Fprintf(output, "\t  Fields that should be returned by a search (array)\n")
 }
@@ -157,7 +165,7 @@ func (this *plugin) Ping() error {
 }
 
 func (this *plugin) Search(params url.Values, password string) (url.Values, error) {
-	return this.Credentials.Search(this.userfilter, this.basedn, this.fields, params, password)
+	return this.Credentials.Search(this.searchfilter, this.basedn, this.fields, params, password)
 }
 
 func (this *plugin) ListUsers(limit uint) ([]url.Values, error) {

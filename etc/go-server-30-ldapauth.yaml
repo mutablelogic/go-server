@@ -6,17 +6,19 @@ plugins:
 
 handlers:
   ldapauth:
-    prefix: /
+    prefix: /api/ldap
     middleware:
       - log
 
 ldapauth:
-  url: ldaps://ldap.jumpcloud.com:636
+  url: ldaps://ldap.jumpcloud.com:636/
   user: ${LDAP_USER}
   password: ${LDAP_PASSWORD}
   basedn: ou=Users,o=${JUMPCLOUD_ORG_ID},dc=jumpcloud,dc=com
+  # Filter for groups, users and search for a user by username or email address
   groupfilter: (objectClass=groupOfNames)
   userfilter: (objectClass=inetOrgPerson)
+  searchfilter: "(&(objectClass=inetOrgPerson)(|(uid=\\${user})(mail=\\${email})))"
   expiry: 1h
   fields:
     - dn
