@@ -39,11 +39,11 @@ const (
 )
 
 var (
-	ErrUserNotFound       = fmt.Errorf("User not found")
-	ErrUserAmbiguity      = fmt.Errorf("More than one user found")
-	ErrInvalidCredentials = fmt.Errorf("Invalid Credentials")
-	ErrExpiredCredentials = fmt.Errorf("Expired Credentials")
-	ErrTooManyRetries     = fmt.Errorf("Too many retries")
+	ErrUserNotFound       = fmt.Errorf("user not found")
+	ErrUserAmbiguity      = fmt.Errorf("more than one user found")
+	ErrInvalidCredentials = fmt.Errorf("invalid credentials")
+	ErrExpiredCredentials = fmt.Errorf("expired credentials")
+	ErrTooManyRetries     = fmt.Errorf("too many retries")
 )
 
 /////////////////////////////////////////////////////////////////////
@@ -95,59 +95,35 @@ func (this *Credentials) Search(filter, basedn string, fields []string, params u
 	this.Lock()
 	defer this.Unlock()
 
-	// Call search now locked
-	return this.search(filter, basedn, fields, params, password, 0)
-}
-
-func (this *Credentials) search(filter, basedn string, fields []string, params url.Values, password string, depth uint) (url.Values, error) {
-	// Return if we have tried to search too many times
-	if depth >= LDAP_RETRY {
-		return nil, ErrTooManyRetries
-	}
-	// Get a connection
-	conn, err := this.getConn()
-	if err != nil {
-		return nil, err
-	}
-
-	// Bind and if there is a network error then retry
-	if err := conn.Bind(this.user, this.password); err != nil {
-		if isBindError(err) {
-			return nil, ErrInvalidCredentials
-		} else if isNetworkError(err) {
-			this.ctime = time.Time{}
-			time.Sleep(time.Duration(depth) * LDAP_BACKOFF_DELTA)
-			return this.search(filter, basedn, fields, params, password, depth+1)
-		} else {
-			return nil, err
-		}
-	}
 	// Fill in details with the filter template, for example "${uid}" or "$uid" is replaced.
-	filter, err = getFilter(filter, params)
+	filter, err := getFilter(filter, params)
 	if err != nil {
 		return nil, err
 	}
 
-	// Perform search, check for various errors
-	request := ldap.NewSearchRequest(basedn, ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false, filter, fields, nil)
-	response, err := conn.Search(request)
+	// Call search now locked
+	entries, err := this.search(filter, basedn, fields, 0, 0)
 	if err != nil {
 		return nil, err
-	} else if len(response.Entries) == 0 {
+	} else if len(entries) == 0 {
 		return nil, ErrUserNotFound
-	} else if len(response.Entries) > 1 {
+	} else if len(entries) > 1 {
 		return nil, ErrUserAmbiguity
 	}
 
 	// Fill in the attributes from the response
-	attrs := url.Values(make(map[string][]string))
-	for _, attr := range response.Entries[0].Attributes {
+	attrs := url.Values{}
+	for _, attr := range entries[0].Attributes {
 		attrs[attr.Name] = attr.Values
 	}
 
 	// If Password is given, then bind
 	if password != "" {
-		if err := conn.Bind(response.Entries[0].DN, password); isBindError(err) {
+		conn, err := this.getConn()
+		if err != nil {
+			return nil, err
+		}
+		if err := conn.Bind(entries[0].DN, password); isBindError(err) {
 			return attrs, ErrInvalidCredentials
 		} else if err != nil {
 			return attrs, err
@@ -156,6 +132,31 @@ func (this *Credentials) search(filter, basedn string, fields []string, params u
 
 	// Success
 	return attrs, nil
+
+}
+
+func (this *Credentials) List(filter, basedn string, fields []string, limit uint) ([]url.Values, error) {
+	this.Lock()
+	defer this.Unlock()
+
+	// Call search now locked
+	entries, err := this.search(filter, basedn, fields, limit, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	// Fill in the attributes from the response
+	results := make([]url.Values, 0, len(entries))
+	for _, entry := range entries {
+		result := url.Values{}
+		for _, attr := range entry.Attributes {
+			result[attr.Name] = attr.Values
+		}
+		results = append(results, result)
+	}
+
+	// Success
+	return results, nil
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -171,6 +172,40 @@ func (this *Credentials) String() string {
 
 /////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
+
+func (this *Credentials) search(filter, basedn string, fields []string, limit, depth uint) ([]*ldap.Entry, error) {
+	// Return if we have tried to search too many times
+	if depth >= LDAP_RETRY {
+		return nil, ErrTooManyRetries
+	}
+
+	// Get a connection
+	conn, err := this.getConn()
+	if err != nil {
+		return nil, err
+	}
+
+	// Bind and if there is a network error then retry
+	if err := conn.Bind(this.user, this.password); err != nil {
+		if isBindError(err) {
+			return nil, ErrInvalidCredentials
+		} else if isNetworkError(err) {
+			this.ctime = time.Time{}
+			time.Sleep(time.Duration(depth) * LDAP_BACKOFF_DELTA)
+			return this.search(filter, basedn, fields, limit, depth+1)
+		} else {
+			return nil, err
+		}
+	}
+
+	// Perform search
+	request := ldap.NewSearchRequest(basedn, ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, int(limit), 0, false, filter, fields, nil)
+	if response, err := conn.Search(request); err != nil {
+		return nil, err
+	} else {
+		return response.Entries, nil
+	}
+}
 
 func getFilter(template string, params url.Values) (string, error) {
 	var err error

@@ -6,10 +6,10 @@ replace github.com/zyedidia/highlight => github.com/djthorpe/highlight v0.0.0-20
 
 require (
 	github.com/GehirnInc/crypt v0.0.0-20200316065508-bb7000b8a962
-	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/djthorpe/go-errors v1.0.2
 	github.com/djthorpe/go-marshaler v0.0.15
 	github.com/go-ldap/ldap/v3 v3.4.1
+	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/gomarkdown/markdown v0.0.0-20210918233619-6c1113f12c4a
 	github.com/hashicorp/consul/api v1.11.0
 	github.com/hashicorp/go-multierror v1.1.1

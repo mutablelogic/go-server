@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	// Modules
-	"github.com/dgrijalva/jwt-go"
+	// Packages
+	"github.com/golang-jwt/jwt"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -1,0 +1,46 @@
+
+# Plugins to load, the order of these is important
+plugins:
+  - build/ldapauth.plugin
+  - build/log.plugin
+
+handlers:
+  ldapauth:
+    prefix: /
+    middleware:
+      - log
+
+ldapauth:
+  url: ldaps://ldap.jumpcloud.com:636
+  user: ${LDAP_USER}
+  password: ${LDAP_PASSWORD}
+  basedn: ou=Users,o=${JUMPCLOUD_ORG_ID},dc=jumpcloud,dc=com
+  groupfilter: (objectClass=groupOfNames)
+  userfilter: (objectClass=inetOrgPerson)
+  expiry: 1h
+  fields:
+    - dn
+    - uidNumber
+    - gidNumber
+    - givenName
+    - sn
+    - cn
+    - uid
+    - loginShell
+    - sshKey
+    - homeDirectory
+    - mail
+    - postalCode
+    - street
+    - homePhone
+    - mobile
+    - pager
+    - telephoneNumber
+    - facsimileTelephoneNumber
+    - l
+    - st
+    - postOfficeBox
+    - homePostalAddress
+    - postalAddress
+    - employeeNumber
+    - memberOf
