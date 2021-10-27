@@ -379,7 +379,7 @@ func (this *provider) ExpandEnv(v reflect.Value, dest reflect.Type) (reflect.Val
 
 	// Expand environment variables
 	value := os.Expand(v.String(), func(key string) string {
-		value, err := this.GetString(key)
+		value, err := this.GetString(context.TODO(), key)
 		if err != nil {
 			result = multierror.Append(result, err)
 		}

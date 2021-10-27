@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"context"
 	"fmt"
 
 	// Namespace imports
@@ -27,7 +28,7 @@ func NewEnvVars(v map[string]interface{}) Env {
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func (e *envvars) GetString(key string) (string, error) {
+func (e *envvars) GetString(ctx context.Context, key string) (string, error) {
 	if v, exists := e.v[key]; exists {
 		if v == nil {
 			return "", nil
@@ -42,9 +43,9 @@ func (e *envvars) GetString(key string) (string, error) {
 	return "", ErrNotFound.With(key)
 }
 
-func (p *provider) GetString(key string) (string, error) {
+func (p *provider) GetString(ctx context.Context, key string) (string, error) {
 	for _, env := range p.env {
-		if value, err := env.GetString(key); err == nil {
+		if value, err := env.GetString(ctx, key); err == nil {
 			return value, nil
 		}
 	}

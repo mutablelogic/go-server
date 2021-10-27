@@ -1,0 +1,10 @@
+
+# Load the consul plugin which provides key/value variable data source
+plugins:
+  - build/env.plugin
+  - build/consul.plugin
+
+consul:
+  url: "${CONSUL_HTTP_ADDR}"
+  path: "go-server"
+  token:

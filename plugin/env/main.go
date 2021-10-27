@@ -53,7 +53,7 @@ func (p *plugin) Run(ctx context.Context, provider Provider) error {
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS - ENV
 
-func (p *plugin) GetString(key string) (string, error) {
+func (p *plugin) GetString(_ context.Context, key string) (string, error) {
 	if value, exists := os.LookupEnv(key); exists {
 		return value, nil
 	} else {
