@@ -11,8 +11,8 @@ Standard plugins provided include:
     routing of requests to plugins;
   * __log__ which provides logging for requests and any other
     tasks;
-  * __env__ which allows retrieval of environment variables and
-    use in configuration files;
+  * __env__ and __consul__ which allow retrieval of values from keys
+    for use in configuration files;
   * __basicauth__ provides basic authentication for requests;
   * __ldapauth__ provides LDAP authentication for requests;
   * __static__ provides static file serving;
