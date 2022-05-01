@@ -12,7 +12,7 @@ import (
 	"syscall"
 
 	// Packages
-	config "github.com/mutablelogic/go-server/pkg/config"
+	config "github.com/mutablelogic/go-server/pkg/hclconfig"
 	provider "github.com/mutablelogic/go-server/pkg/provider"
 	version "github.com/mutablelogic/go-server/pkg/version"
 
@@ -31,8 +31,9 @@ type VarValue struct {
 // GLOBALS
 
 const (
-	flagAddr = "addr"
-	flagVar  = "var"
+	flagPlugins = "plugins"
+	flagAddr    = "addr"
+	flagVar     = "var"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -71,32 +72,27 @@ func main() {
 	}
 
 	// Create context with flags
-	ctx := DefineContext(context.Background(), flags)
+	//ctx := DefineContext(context.Background(), flags)
 
-	// Read configuration files
-	cfg, err := config.New(flags.Args()...)
-	if err != nil {
+	// Path where plugins are stored. Use same path as server binary if not
+	// specified
+	plugins, _ := filepath.Split(os.Args[0])
+	if path := flags.Lookup(flagPlugins); path != nil {
+		plugins = path.Value.String()
+	}
+
+	// Read plugins
+	if cfg, err := config.New(wd, plugins); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
-	}
-
-	// Create a provider with the configuration
-	prv, err := provider.NewProvider(ctx, wd, cfg)
-	if err != nil {
+	} else if err := cfg.Parse(wd, flags.Arg(0)); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
+	} else {
+		// Read configuration
+		fmt.Println(cfg)
 	}
 
-	// Report on loaded plugins
-	for _, name := range prv.Plugins() {
-		prv.Print(provider.ContextWithPluginName(ctx, name), "Loaded: ", prv.GetPlugin(ctx, name))
-	}
-
-	// Run the server and plugins
-	if err := prv.Run(HandleSignal()); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(-1)
-	}
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -117,6 +113,7 @@ func DefineFlags(args []string) (*flag.FlagSet, error) {
 	flags := flag.NewFlagSet(filepath.Base(args[0]), flag.ContinueOnError)
 
 	// Define flags and usage
+	flags.String(flagPlugins, "", "Set plugins path")
 	flags.String(flagAddr, "", "Override path to unix socket or listening address")
 	flags.Var(new(VarValue), flagVar, "Set a variable (name=value)")
 	flags.Usage = func() {
@@ -129,7 +126,7 @@ func DefineFlags(args []string) (*flag.FlagSet, error) {
 	}
 
 	// Check for arguments
-	if flags.NArg() < 1 {
+	if flags.NArg() != 1 {
 		return nil, fmt.Errorf("syntax error: expected configuration file argument")
 	}
 

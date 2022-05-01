@@ -1,0 +1,5 @@
+
+
+log "stdout" {
+    prefix = "test"
+}

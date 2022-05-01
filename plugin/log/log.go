@@ -23,8 +23,9 @@ import (
 // TYPES
 
 type Config struct {
-	Prefix string   `yaml:"prefix"`
-	Flags  []string `yaml:"flags"`
+	Label  string   `hcl:",label"`
+	Prefix string   `yaml:"prefix" hcl:"prefix"`
+	Flags  []string `yaml:"flags" hcl:"flags,optional"`
 }
 
 type plugin struct {
@@ -84,6 +85,10 @@ func (p *plugin) String() string {
 
 func Name() string {
 	return "log"
+}
+
+func GetConfig() interface{} {
+	return &Config{}
 }
 
 func (p *plugin) Run(ctx context.Context, _ Provider) error {

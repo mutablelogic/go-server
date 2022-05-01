@@ -22,10 +22,16 @@ import (
 // TYPES
 
 type Config struct {
-	Addr    string        `yaml:"addr"`    // Address or path for binding HTTP server
-	Timeout time.Duration `yaml:"timeout"` // Read timeout on HTTP requests
-	Key     string        `yaml:"key"`     // Path to TLS Private Key
-	Cert    string        `yaml:"cert"`    // Path to TLS Certificate
+	Label   string `hcl:"label,label"` // Label for HTTP server
+	private string
+	Addr    string        `hcl:"addr,optional"`    // Address or path for binding HTTP server
+	TLS     *TLS          `hcl:"tls,block"`        // TLS parameters
+	Timeout time.Duration `hcl:"timeout,optional"` // Read timeout on HTTP requests
+}
+
+type TLS struct {
+	Key  string `hcl:"key"`  // Path to TLS Private Key
+	Cert string `hcl:"cert"` // Path to TLS Certificate
 }
 
 type server struct {
@@ -71,8 +77,8 @@ func New(ctx context.Context, provider Provider) Plugin {
 
 	// If either key or cert is non-nil then create a TLSConfig
 	var tlsconfig *tls.Config
-	if this.Config.Key != "" || this.Config.Cert != "" {
-		if cert, err := tls.LoadX509KeyPair(this.Config.Cert, this.Config.Key); err != nil {
+	if this.Config.TLS != nil {
+		if cert, err := tls.LoadX509KeyPair(this.Config.TLS.Cert, this.Config.TLS.Key); err != nil {
 			provider.Print(ctx, err)
 			return nil
 		} else {
@@ -139,6 +145,10 @@ func (this *server) String() string {
 
 func Name() string {
 	return "httpserver"
+}
+
+func GetConfig() interface{} {
+	return &Config{}
 }
 
 ///////////////////////////////////////////////////////////////////////////////
