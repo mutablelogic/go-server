@@ -7,7 +7,7 @@ httpserver "b" {
   addr = ":8080"
   tls {
     key = "key"
-    cert = "cert"
+    cert = "cert" 
   }
 }
 
