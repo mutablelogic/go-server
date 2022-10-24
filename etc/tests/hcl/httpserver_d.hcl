@@ -1,5 +1,0 @@
-
-
-log "stdout" {
-    prefix = "test"
-}

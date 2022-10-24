@@ -1,7 +1,0 @@
-# Plugins to load, the order of these is important
-plugins:
-  - build/httpserver.plugin
-
-# HTTP Server parameters
-httpserver:
-  addr: :80
