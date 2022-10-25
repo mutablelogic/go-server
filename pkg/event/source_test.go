@@ -2,6 +2,7 @@ package event_test
 
 import (
 	"context"
+	"sync"
 	"testing"
 
 	// Packages
@@ -26,4 +27,25 @@ func Test_Source_002(t *testing.T) {
 	t.Log(&src)
 	src.Unsub(ch)
 	t.Log(&src)
+}
+
+func Test_Source_003(t *testing.T) {
+	var src event.Source
+	var wg sync.WaitGroup
+
+	evt := event.New(context.TODO(), "key", "value")
+	ch := src.Sub()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		e := <-ch
+		if e != evt {
+			t.Error("Expected", evt, " got ", e)
+		}
+	}()
+	if ok := src.Emit(evt); !ok {
+		t.Fatal("Got false from emit")
+	}
+	wg.Wait()
+	src.Unsub(ch)
 }
