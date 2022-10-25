@@ -15,9 +15,14 @@ type event struct {
 	key, value any
 }
 
+// Compile time check
+var _ Event = (*event)(nil)
+
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
+// Create a new event with context, key and value. Returns nil if the key
+// is nil.
 func New(ctx context.Context, key, value any) Event {
 	if key == nil {
 		return nil
@@ -25,6 +30,8 @@ func New(ctx context.Context, key, value any) Event {
 	return &event{ctx, key, value}
 }
 
+// Create a new error with context. Returns nil if the err parameter
+// is nil.
 func Error(ctx context.Context, err error) Event {
 	if err == nil {
 		return nil
@@ -53,4 +60,23 @@ func (e *event) Error() error {
 	} else {
 		return nil
 	}
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+func (e *event) Emit(ch chan<- Event) bool {
+	if ch == nil {
+		return false
+	}
+	if cap(ch) > 0 {
+		select {
+		case ch <- e:
+			return true
+		default:
+			return false
+		}
+	}
+	ch <- e
+	return true
 }

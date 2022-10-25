@@ -11,10 +11,11 @@ import (
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
+// Source of events, which can be subscribed to, or unsubscribed from
 type Source struct {
-	sync.RWMutex
-	Cap int          // Capacity of any created channels, zero means unbuffered
-	ch  []chan Event // subscribed channels
+	Cap  int          // Capacity of any created channels, setting to zero means unbuffered
+	ch   []chan Event // subscribed channels
+	lock sync.RWMutex
 }
 
 // Compile time check
@@ -23,6 +24,7 @@ var _ EventSource = (*Source)(nil)
 ///////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
+// Return source as a string object
 func (s *Source) String() string {
 	str := "<event.source"
 	if s.Cap > 0 {
@@ -43,9 +45,11 @@ func (s *Source) String() string {
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
+// Emit the event to subscribers. Returns false if any channel failed, due to
+// buffered channel being full or some other channel issue.
 func (s *Source) Emit(e Event) bool {
-	s.RLock()
-	defer s.RUnlock()
+	s.lock.RLock()
+	defer s.lock.RUnlock()
 
 	result := true
 	if e == nil {
@@ -53,7 +57,7 @@ func (s *Source) Emit(e Event) bool {
 	}
 	for _, ch := range s.ch {
 		if ch != nil {
-			if !s.emit(ch, e) {
+			if !e.Emit(ch) {
 				result = false
 			}
 		}
@@ -61,24 +65,49 @@ func (s *Source) Emit(e Event) bool {
 	return result
 }
 
+// Subscribe to the source of events. Returns the channel.
 func (s *Source) Sub() <-chan Event {
-	s.Lock()
-	defer s.Unlock()
+	s.lock.Lock()
+	defer s.lock.Unlock()
 	// s.Cap as zero means unbuffered channels
 	ch := make(chan Event, s.Cap)
 	s.ch = append(s.ch, ch)
 	return ch
 }
 
-func (s *Source) Unsub(<-chan Event) {
-	s.Lock()
-	defer s.Unlock()
-	// TODO
+// Unsubscribe a channel and close it. Removes the channel from the array
+// of channels.
+func (s *Source) Unsub(ch <-chan Event) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	// Identify channel
+	j := -1
+	for i := range s.ch {
+		if s.ch[i] == ch && ch != nil {
+			j = i
+			break
+		}
+	}
+
+	// Check to make sure channel was closed
+	if j < 0 {
+		panic("Unsub called with invalid channel")
+	}
+
+	// Close channel
+	close(s.ch[j])
+
+	// Remove channel from slice
+	s.ch[j] = s.ch[len(s.ch)-1] // Copy last element to index j
+	s.ch[len(s.ch)-1] = nil     // Erase last element
+	s.ch = s.ch[:len(s.ch)-1]   // Truncate slice
 }
 
+// Close all subscribed channels. Returns any errors (usually nil)
 func (s *Source) Close() error {
-	s.Lock()
-	defer s.Unlock()
+	s.lock.Lock()
+	defer s.lock.Unlock()
 	for _, ch := range s.ch {
 		if ch != nil {
 			close(ch)
@@ -86,20 +115,4 @@ func (s *Source) Close() error {
 	}
 	s.ch = nil
 	return nil
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// PRIVATE METHODS
-
-func (s *Source) emit(ch chan<- Event, e Event) bool {
-	if cap(ch) > 0 {
-		select {
-		case ch <- e:
-			return true
-		default:
-			return false
-		}
-	}
-	ch <- e
-	return true
 }
