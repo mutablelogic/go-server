@@ -33,3 +33,23 @@ type EventSource interface {
 type EventReceiver interface {
 	Rcv(context.Context, func(Event) error, ...EventSource) error
 }
+
+// Task is a long-running task which can be a source of events and errors
+type Task interface {
+	EventSource
+
+	// Run the task until the context is cancelled, and return any errors
+	Run(context.Context) error
+}
+
+// Plugin creates a task from a configuration
+type Plugin interface {
+	Name() string                                // Return the name of the task. This should be unique amongst all registered plugins
+	Label() string                               // Return the label for the task. This should be unique amongst all plugins with the same name
+	New(context.Context, Provider) (Task, error) // Create a new task with provider of other tasks
+}
+
+// Provider runs many tasks simultaneously
+type Provider interface {
+	Task
+}
