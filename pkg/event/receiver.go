@@ -5,9 +5,9 @@ import (
 	"sync"
 
 	// Package imports
-	multierror "github.com/hashicorp/go-multierror"
 
 	// Namespace imports
+	"github.com/hashicorp/go-multierror"
 	. "github.com/mutablelogic/go-server"
 )
 
@@ -48,22 +48,8 @@ func (r *Receiver) Rcv(ctx context.Context, fn func(Event) error, src ...EventSo
 		wg.Add(1)
 		go func(s EventSource) {
 			defer wg.Done()
-			ch := s.Sub()
-			defer s.Unsub(ch)
-		FOR_LOOP:
-			for {
-				select {
-				case <-ctx.Done():
-					if err := ctx.Err(); err != nil {
-						result = multierror.Append(err)
-					}
-					break FOR_LOOP
-				case e := <-ch:
-					if err := fn(e); err != nil {
-						result = multierror.Append(err)
-						break FOR_LOOP
-					}
-				}
+			if err := rcv(ctx, fn, s); err != nil {
+				result = multierror.Append(result, err)
 			}
 		}(s)
 	}
@@ -73,4 +59,25 @@ func (r *Receiver) Rcv(ctx context.Context, fn func(Event) error, src ...EventSo
 
 	// Return any errors
 	return result
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+func rcv(ctx context.Context, fn func(Event) error, s EventSource) error {
+	ch := s.Sub()
+	defer s.Unsub(ch)
+
+	// Loop until context cancelled, deadline exceeded or error returned
+	// from callback function
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case e := <-ch:
+			if err := fn(e); err != nil {
+				return err
+			}
+		}
+	}
 }
