@@ -30,14 +30,8 @@ func (s *Source) String() string {
 	if s.Cap > 0 {
 		str += fmt.Sprint(" cap=", s.Cap)
 	}
-	if len(s.ch) > 0 {
-		i := 0
-		for _, ch := range s.ch {
-			if ch != nil {
-				i++
-			}
-		}
-		str += fmt.Sprint(" subs=", i)
+	if l := s.Len(); l > 0 {
+		str += fmt.Sprint(" len=", l)
 	}
 	return str + ">"
 }
@@ -102,6 +96,13 @@ func (s *Source) Unsub(ch <-chan Event) {
 	s.ch[j] = s.ch[len(s.ch)-1] // Copy last element to index j
 	s.ch[len(s.ch)-1] = nil     // Erase last element
 	s.ch = s.ch[:len(s.ch)-1]   // Truncate slice
+}
+
+// Return number of subscribers
+func (s *Source) Len() int {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+	return len(s.ch)
 }
 
 // Close all subscribed channels. Returns any errors (usually nil)

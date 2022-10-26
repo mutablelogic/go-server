@@ -34,6 +34,7 @@ func Test_Receiver_001(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		if err := rcv.Rcv(ctx, func(e Event) error {
+			t.Log("Processing message", e)
 			if e != evt {
 				t.Error("Expected evt")
 			} else {
@@ -47,11 +48,14 @@ func Test_Receiver_001(t *testing.T) {
 
 	if ok := src.Emit(evt); !ok {
 		t.Error("Got false from emit function")
+	} else {
+		t.Log("Sent event", evt)
 	}
 
 	// Wait for timeout
 	wg.Wait()
 
+	// Check received messages
 	if !got {
 		t.Error("Expected event, but it wasn't emitted")
 	}

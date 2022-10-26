@@ -1,4 +1,8 @@
+github.com/djthorpe/go-errors v1.0.2 h1:kZuNLhb6Yo1iNHaenGa9s5CpRbOG6KxbUtrME4LrAkk=
+github.com/djthorpe/go-errors v1.0.2/go.mod h1:HtfrZnMd6HsX75Mtbv9Qcnn0BqOrrFArvCaj3RMnZhY=
 github.com/hashicorp/errwrap v1.0.0 h1:hLrqtEDnRye3+sgx6z4qVLNuviH3MR5aQ0ykNJa/UYA=
 github.com/hashicorp/errwrap v1.0.0/go.mod h1:YH+1FKiLXxHSkmPseP+kNlulaMuP3n2brvKWEqk/Jc4=
 github.com/hashicorp/go-multierror v1.1.1 h1:H5DkEtf6CXdFp0N0Em5UCwQpXMWke8IA0+lD48awMYo=
 github.com/hashicorp/go-multierror v1.1.1/go.mod h1:iw975J/qwKPdAO1clOe2L8331t/9/fmwbPZ6JB6eMoM=
+golang.org/x/exp v0.0.0-20221026004748-78e5e7837ae6 h1:mC6uOkPi9SUk8A59jZvw7//rlyc+MlELtQUCyOUSKZQ=
+golang.org/x/exp v0.0.0-20221026004748-78e5e7837ae6/go.mod h1:cyybsKvd6eL0RnXn6p/Grxp8F5bW7iYuBgsNCOHpMYE=
