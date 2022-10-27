@@ -3,8 +3,15 @@ package main
 import (
 	"errors"
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/mutablelogic/go-server/pkg/context"
+)
+
+const (
+	flagAddress = "address"
 )
 
 func main() {
@@ -22,8 +29,21 @@ func main() {
 		}
 	}
 
+	// Create a context, add flags to context
+	ctx := context.ContextForSignal(os.Interrupt)
+	ctx = context.WithAddress(ctx, flagset.Lookup(flagAddress).Value.String())
+
+	// Read configuration
+	for _, config := range flagset.Args() {
+		fmt.Fprintln(os.Stderr, "Reading configuration from", config)
+	}
+
+	// Run until done
+	fmt.Fprintln(os.Stderr, "Press CTRL+C to exit")
+	<-ctx.Done()
+	fmt.Fprintln(os.Stderr, "Done")
 }
 
 func registerArguments(f *flag.FlagSet) {
-	f.String("address", "", "Override address to listen on")
+	f.String(flagAddress, "", "Override address to listen on")
 }
