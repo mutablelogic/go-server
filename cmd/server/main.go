@@ -7,7 +7,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/mutablelogic/go-server/pkg/context"
+	// Packages
+	"github.com/hashicorp/go-multierror"
+	"github.com/mutablelogic/go-server/pkg/config"
+	context "github.com/mutablelogic/go-server/pkg/context"
 )
 
 const (
@@ -28,6 +31,38 @@ func main() {
 			os.Exit(-1)
 		}
 	}
+
+	// Get builtin plugins
+	plugins, err := BuiltinPlugins()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(-1)
+	}
+
+	// TODO: Load dynamic plugins if -plugins flag is set
+
+	// Read resources using JSON
+	var result error
+	var resources []config.Resource
+	var fs = os.DirFS("/")
+	for _, arg := range flagset.Args() {
+		if r, err := config.LoadForPattern(fs, arg); err != nil {
+			result = multierror.Append(result, err)
+		} else {
+			resources = append(resources, r...)
+		}
+	}
+	if result != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(-1)
+	}
+	if len(resources) == 0 {
+		fmt.Fprintln(os.Stderr, "No resources defined, use -help to see usage")
+		os.Exit(-1)
+	}
+
+	fmt.Println("plugins:", plugins)
+	fmt.Println("resources:", resources)
 
 	// Create a context, add flags to context
 	ctx := context.ContextForSignal(os.Interrupt)

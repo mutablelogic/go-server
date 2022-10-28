@@ -49,8 +49,6 @@ func (p Plugins) Register(v iface.Plugin) error {
 	}
 	if name := v.Name(); !types.IsIdentifier(name) {
 		return ErrBadParameter.Withf("Plugin with invalid name: %q", name)
-	} else if !types.IsIdentifier(v.Label()) {
-		return ErrBadParameter.Withf("Plugin with invalid label: %q", v.Label())
 	} else if _, exists := p[name]; exists {
 		return ErrDuplicateEntry.Withf("Plugin with duplicate name: %q", name)
 	} else {
