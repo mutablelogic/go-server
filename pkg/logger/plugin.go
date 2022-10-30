@@ -2,6 +2,8 @@ package logger
 
 import (
 	"context"
+	"log"
+	"strings"
 
 	// Package imports
 	iface "github.com/mutablelogic/go-server"
@@ -17,6 +19,9 @@ import (
 
 type Plugin struct {
 	task.Plugin
+	Prefix_ string   `json:"prefix" hcl:"prefix"`
+	Flags_  []string `json:"flags,omitempty" hcl:"flags,optional"`
+	flags   int
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -37,6 +42,12 @@ func (p Plugin) New(_ context.Context, _ iface.Provider) (iface.Task, error) {
 	if !types.IsIdentifier(p.Label()) {
 		return nil, ErrBadParameter.With("Invalid plugin label: %q", p.Label())
 	}
+	if flags, err := flagsForSlice(p.Flags_); err != nil {
+		return nil, err
+	} else {
+		p.flags = flags
+	}
+
 	return NewWithPlugin(p)
 }
 
@@ -49,4 +60,40 @@ func (p Plugin) Name() string {
 	} else {
 		return defaultName
 	}
+}
+
+func (p Plugin) Prefix() string {
+	if p.Prefix_ != "" {
+		return p.Prefix_
+	} else {
+		return p.Label()
+	}
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS - MIDDLEWARE
+
+func flagsForSlice(flags []string) (int, error) {
+	var result int
+	for _, flag := range flags {
+		flag = strings.ToLower(flag)
+		switch flag {
+		case "default", "standard", "std":
+			result |= log.LstdFlags
+		case "date":
+			result |= log.Ldate
+		case "time":
+			result |= log.Ltime
+		case "microseconds", "ms":
+			result |= log.Lmicroseconds
+		case "utc":
+			result |= log.LUTC
+		case "msgprefix", "prefix":
+			result |= log.Lmsgprefix
+		default:
+			return 0, ErrBadParameter.Withf("flag: %q", flag)
+		}
+	}
+	// Return success
+	return result, nil
 }

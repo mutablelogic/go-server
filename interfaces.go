@@ -52,9 +52,5 @@ type Plugin interface {
 // Provider runs many tasks simultaneously. It subscribes to events from the tasks
 // and emits them on its own event channel.
 type Provider interface {
-	EventSource
-
-	// Run creates tasks in the specific order, then runs the tasks.
-	// If any task fails, an error is returned, or else nil is returned.
-	Run(context.Context, ...Plugin) error
+	Task
 }

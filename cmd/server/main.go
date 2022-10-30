@@ -9,9 +9,10 @@ import (
 	"strings"
 
 	// Packages
-	"github.com/hashicorp/go-multierror"
-	"github.com/mutablelogic/go-server/pkg/config"
+	multierror "github.com/hashicorp/go-multierror"
+	config "github.com/mutablelogic/go-server/pkg/config"
 	context "github.com/mutablelogic/go-server/pkg/context"
+	"github.com/mutablelogic/go-server/pkg/task"
 )
 
 const (
@@ -33,8 +34,8 @@ func main() {
 		}
 	}
 
-	// Get builtin plugins
-	plugins, err := BuiltinPlugins()
+	// Get builtin plugin prototypes
+	protos, err := BuiltinPlugins()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
@@ -66,32 +67,37 @@ func main() {
 		fmt.Fprintln(os.Stderr, result)
 		os.Exit(-1)
 	}
-
 	if len(resources) == 0 {
 		fmt.Fprintln(os.Stderr, "No resources defined, use -help to see usage")
 		os.Exit(-1)
 	}
 
 	// Match resources to plugins
-	if plugins, err := config.LoadForResources(fs, resources, plugins); err != nil {
+	plugins, err := config.LoadForResources(fs, resources, protos)
+	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
-	} else {
-		fmt.Println("plugins=", plugins)
 	}
 
 	// Create a context, add flags to context
 	ctx := context.ContextForSignal(os.Interrupt)
 	ctx = context.WithAddress(ctx, flagset.Lookup(flagAddress).Value.String())
 
-	// Read configuration
-	for _, config := range flagset.Args() {
-		fmt.Fprintln(os.Stderr, "Reading configuration from", config)
+	// Create provider
+	provider, err := task.NewProvider(ctx, plugins)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(-1)
 	}
+
+	fmt.Println("provider=", provider)
 
 	// Run until done
 	fmt.Fprintln(os.Stderr, "Press CTRL+C to exit")
-	<-ctx.Done()
+	if err := provider.Run(ctx); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(-1)
+	}
 	fmt.Fprintln(os.Stderr, "Done")
 }
 

@@ -1,13 +1,13 @@
 package config
 
 import (
-	"fmt"
 	"io/fs"
 	"path/filepath"
 	"reflect"
 	"strings"
 
 	// Modules
+	"github.com/hashicorp/go-multierror"
 	json "github.com/mutablelogic/go-server/pkg/config/json"
 	task "github.com/mutablelogic/go-server/pkg/task"
 	types "github.com/mutablelogic/go-server/pkg/types"
@@ -77,7 +77,7 @@ func LoadForPattern(filesys fs.FS, pattern string) ([]Resource, error) {
 			} else if name := strings.TrimSpace(r.Name()); name == "" {
 				return ErrBadParameter.Withf("%q: Resource has no name", d.Name())
 			} else if !types.IsIdentifier(name) {
-				return ErrBadParameter.Withf("%q: Invalid resource with name: %q", path, name)
+				return ErrBadParameter.Withf("%q Invalid resource with name: %q", d.Name(), name)
 			} else {
 				resources = append(resources, r)
 			}
@@ -92,54 +92,55 @@ func LoadForPattern(filesys fs.FS, pattern string) ([]Resource, error) {
 }
 
 // LoadForResources returns plugins for a list of resources
-func LoadForResources(filesys fs.FS, resources []Resource, plugins task.Plugins) ([]Resource, error) {
-	// Parse each file for resource definition
+func LoadForResources(filesys fs.FS, resources []Resource, protos task.Plugins) (task.Plugins, error) {
+	var result error
+	var plugins = task.Plugins{}
+
+	// Parse each file for resource definition, then create a new plugin with all the
+	// configuration fields set
 	for _, resource := range resources {
-		// Create a new plugin
 		name := resource.Name()
-		if plugin, exists := plugins[name]; !exists {
-			return nil, ErrNotFound.Withf("Plugin %q", name)
-		} else if plugin_ := newPluginInstance(plugin); plugin_ == nil {
-			return nil, ErrBadParameter.Withf("Plugin %q is not a resource", name)
+		path := resource.Path
+		if proto, exists := protos[name]; !exists {
+			result = multierror.Append(result, ErrNotFound.Withf("Plugin %q", name))
+		} else if plugin := newPluginInstance(proto); plugin == nil {
+			result = multierror.Append(result, ErrInternalAppError.Withf("LoadForResources: %q", name))
+		} else if data, err := fs.ReadFile(filesys, path); err != nil {
+			result = multierror.Append(result, err)
+		} else if err := unmarshal(data, &plugin); err != nil {
+			result = multierror.Append(result, err)
+		} else if label := strings.TrimSpace(plugin.Label()); label == "" {
+			result = multierror.Append(result, ErrBadParameter.Withf("%v: Resource has no label", filepath.Base(path)))
+		} else if !types.IsIdentifier(label) {
+			result = multierror.Append(result, ErrBadParameter.Withf("%v: Invalid resource with label: %q", filepath.Base(path), label))
 		} else {
-			fmt.Println("LOAD", resource.Path, "PLUGIN", plugin_)
+			key := name + "." + label
+			if _, exists := plugins[key]; exists {
+				result = multierror.Append(result, ErrBadParameter.Withf("%v: Duplicate resource with label: %q", filepath.Base(path), key))
+			} else {
+				plugins[key] = plugin
+			}
 		}
 	}
 
 	// Return result
-	return resources, nil
+	return plugins, result
 }
-
-/*
-// ParseJSONResource will return a Plugin given a resource and a prototype
-func ParseJSONResource(filesys fs.FS, resource Resource, protos task.Plugins) (Plugin, error) {
-	plugin := newPluginInstance(protos, resource.Name)
-	if data, err := fs.ReadFile(filesys, resource.Path); err != nil {
-		return nil, err
-	} else if err := json.Unmarshal(data, plugin); err != nil {
-		return nil, err
-	}
-
-	// Return success
-	return plugin, nil
-}
-
-*/
 
 /////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-func unmarshal(data []byte, r *Resource) error {
-	ext := strings.ToLower(filepath.Ext(r.Path))
-	switch ext {
-	case fileExtJson:
-		return json.Unmarshal(data, r)
-	default:
-		return ErrBadParameter.Withf("%q: Unsupported file extension", filepath.Base(r.Path))
-	}
+// unmarshal decodes data into a data structure. TODO: need to support
+// formats other than JSON
+func unmarshal(data []byte, r any) error {
+	return json.Unmarshal(data, r)
 }
 
 // newPluginInstance returns a new plugin instance given a prototype
-func newPluginInstance(plugin Plugin) Plugin {
-	return reflect.New(reflect.TypeOf(plugin)).Interface().(task.Plugin)
+func newPluginInstance(proto Plugin) Plugin {
+	if plugin, ok := reflect.New(reflect.TypeOf(proto)).Interface().(Plugin); ok {
+		return plugin
+	} else {
+		return nil
+	}
 }
