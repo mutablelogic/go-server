@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	// Packages
 	"github.com/hashicorp/go-multierror"
@@ -46,23 +47,38 @@ func main() {
 	var resources []config.Resource
 	var fs = os.DirFS("/")
 	for _, arg := range flagset.Args() {
-		if r, err := config.LoadForPattern(fs, arg); err != nil {
+		// Make path absolute if not already
+		if !filepath.IsAbs(arg) {
+			if arg_, err := filepath.Abs(arg); err != nil {
+				result = multierror.Append(result, err)
+				continue
+			} else {
+				arg = arg_
+			}
+		}
+		if r, err := config.LoadForPattern(fs, strings.TrimPrefix(arg, string(os.PathSeparator))); err != nil {
 			result = multierror.Append(result, err)
 		} else {
 			resources = append(resources, r...)
 		}
 	}
 	if result != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(os.Stderr, result)
 		os.Exit(-1)
 	}
+
 	if len(resources) == 0 {
 		fmt.Fprintln(os.Stderr, "No resources defined, use -help to see usage")
 		os.Exit(-1)
 	}
 
-	fmt.Println("plugins:", plugins)
-	fmt.Println("resources:", resources)
+	// Match resources to plugins
+	if plugins, err := config.LoadForResources(fs, resources, plugins); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(-1)
+	} else {
+		fmt.Println("plugins=", plugins)
+	}
 
 	// Create a context, add flags to context
 	ctx := context.ContextForSignal(os.Interrupt)

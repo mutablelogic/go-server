@@ -1,13 +1,13 @@
 # Paths to tools needed in dependencies
 GO := $(shell which go)
-NPM := $(shell which npm)
+DOCKER := $(shell which docker)
 
-# Paths to locations, etc
-BUILD_DIR := "build"
-PLUGIN_DIR := $(wildcard plugin/*)
-NPM_DIR := $(wildcard npm/*)
-CMD_DIR := $(filter-out cmd/README.md, $(wildcard cmd/*))
-BUILD_MODULE = "github.com/mutablelogic/go-server"
+# nginx image and version
+NGINX := "library/nginx"
+VERSION := "1.23.1"
+IMAGE := "nginx-gateway"
+
+# target architectures: linux/amd64 linux/arm/v7 linux/arm64/v8
 
 # Build flags
 BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/version.GitSource=${BUILD_MODULE}
@@ -17,37 +17,49 @@ BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/version.GitHash=$(shell git rev-parse H
 BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/version.GoBuildTime=$(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
 BUILD_FLAGS = -ldflags "-s -w $(BUILD_LD_FLAGS)" 
 
+# Paths to locations, etc
+BUILD_DIR := "build"
+PLUGIN_DIR := $(wildcard plugin/*)
+CMD_DIR := $(wildcard cmd/*)
+
 # Targets
-all: clean cmd npm plugins
+all: clean cmd plugins
 
-cmd: $(CMD_DIR)
+cmd: $(filter-out cmd/README.md, $(wildcard cmd/*))
 
-npm: $(NPM_DIR)
+plugins: $(filter-out $(wildcard plugin/*.go), $(wildcard plugin/*))
 
-plugins: $(PLUGIN_DIR)
+test:
+	@${GO} mod tidy
+	@${GO} test -v ./pkg/...
 
-$(CMD_DIR): dependencies mkdir FORCE
+$(CMD_DIR): dependencies mkdir
 	@echo Build cmd $(notdir $@)
-	@${GO} build -o ${BUILD_DIR}/$(notdir $@) ${BUILD_FLAGS} ./$@
+	@${GO} build ${BUILD_FLAGS} -o ${BUILD_DIR}/$(notdir $@) ./$@
 
-$(PLUGIN_DIR): dependencies mkdir FORCE
+$(PLUGIN_DIR): dependencies mkdir
 	@echo Build plugin $(notdir $@)
-	@${GO} build -buildmode=plugin -o ${BUILD_DIR}/$(notdir $@).plugin ${BUILD_FLAGS} ./$@
+	@${GO} build -buildmode=plugin ${BUILD_FLAGS} -o ${BUILD_DIR}/$(notdir $@).plugin ./$@
 
-$(NPM_DIR): dependencies FORCE
-	@echo Build frontend $(notdir $@)
-	cd $@ && ${NPM} install
-	cd $@ && ${NPM} run build
+# Docker target will build the docker image for amd64, arm and arm66. The output image is
+# nginx-gateway:1.23.1 (or whatever is in the IMAGE and VERSION variables)
+# which can then be pushed to ghcr.io
+docker: dependencies docker-dependencies
+	@${DOCKER} build --tag ${IMAGE}-arm:${VERSION} --build-arg VERSION=${VERSION} --build-arg PLATFORM=linux/arm/v7 etc/docker
+	@${DOCKER} build --tag ${IMAGE}-arm64:${VERSION} --build-arg VERSION=${VERSION} --build-arg PLATFORM=linux/arm64/v8 etc/docker
+	@${DOCKER} build --tag ${IMAGE}-amd64:${VERSION} --build-arg VERSION=${VERSION} --build-arg PLATFORM=linux/amd64 etc/docker
+	@${DOCKER} manifest create ${IMAGE}:${VERSION} --amend ${IMAGE}-arm:${VERSION} --amend ${IMAGE}-arm64:${VERSION} --amend ${IMAGE}-amd64:${VERSION}
+	@${DOCKER} manifest annotate ${IMAGE}:${VERSION} ${IMAGE}-arm:${VERSION} --arch arm --os linux --variant v7
+	@${DOCKER} manifest annotate ${IMAGE}:${VERSION} ${IMAGE}-arm64:${VERSION} --arch arm64 --os linux --variant v8
+	@${DOCKER} manifest annotate ${IMAGE}:${VERSION} ${IMAGE}-amd64:${VERSION} --arch amd64 --os linux
 
 FORCE:
 
+docker-dependencies:
+	@test -x ${DOCKER} || (echo "Docker not found" && exit 1)
+
 dependencies:
-ifeq (,${GO})
-        $(error "Missing go binary")
-endif
-ifeq (,${NPM})
-        $(error "Missing npm binary")
-endif
+	@test -x ${GO} || (echo "Missing go binary" && exit 1)
 
 mkdir:
 	@echo Mkdir ${BUILD_DIR}
@@ -56,7 +68,6 @@ mkdir:
 clean:
 	@echo Clean
 	@rm -fr $(BUILD_DIR)
-	@find ${NPM_DIR} -name node_modules -type d -prune -exec rm -fr {} \;
-	@find ${NPM_DIR} -name dist -type d -prune -exec rm -fr {} \;
 	@${GO} mod tidy
 	@${GO} clean
+
