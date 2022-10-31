@@ -28,3 +28,10 @@ func Test_Plugin_001(t *testing.T) {
 		t.Error("Unexpected error", err)
 	}
 }
+
+func Test_Plugin_002(t *testing.T) {
+	var plugins = task.Plugins{}
+	if err := plugins.Register(task.Plugin{"name", "label"}, task.Plugin{"name", "label2"}); err != nil {
+		t.Error("Unexpected error", err)
+	}
+}

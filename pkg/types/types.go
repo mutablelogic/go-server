@@ -1,6 +1,7 @@
 package types
 
 import (
+	"fmt"
 	"time"
 
 	// Package imports
@@ -23,4 +24,17 @@ type String string
 type Task struct {
 	iface.Task
 	Ref string
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// STRINGIFY
+
+func (t Task) String() string {
+	if t.Task != nil {
+		return fmt.Sprint(t.Task)
+	} else if t.Ref != "" {
+		return fmt.Sprintf("<task ref=%q>", t.Ref)
+	} else {
+		return "<nil>"
+	}
 }

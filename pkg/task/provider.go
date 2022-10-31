@@ -28,15 +28,20 @@ type provider struct {
 
 // Register adds a plugin to the map of plugins. It will return errors if the
 // name or label is invalid, or the plugin with the same name already exists.
-func NewProvider(parent context.Context, plugins Plugins) (iface.Provider, error) {
+func NewProvider(parent context.Context, plugins ...iface.Plugin) (iface.Provider, error) {
 	this := new(provider)
 	this.tasks = make(map[string]iface.Task, len(plugins))
+	plugins_ := Plugins{}
+	if err := plugins_.Register(plugins...); err != nil {
+		return nil, err
+	}
 
 	// TODO: Re-order the plugins so that dependencies are satisfied
 
 	// Create the tasks sequentially, and return if any of the tasks
 	// returns an error
-	for key, plugin := range plugins {
+	for _, plugin := range plugins {
+		key := plugin.Name()
 		parent := ctx.WithNameLabel(parent, plugin.Name(), plugin.Label())
 		if task, err := plugin.New(parent, this); err != nil {
 			return nil, err

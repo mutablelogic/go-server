@@ -53,4 +53,5 @@ type Plugin interface {
 // and emits them on its own event channel.
 type Provider interface {
 	Task
+	//plugin.Log
 }

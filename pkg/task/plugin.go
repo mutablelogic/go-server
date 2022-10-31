@@ -43,20 +43,23 @@ const (
 
 // Register adds a plugin to the map of plugins. It will return errors if the
 // name or label is invalid, or the plugin with the same name already exists.
-func (p Plugins) Register(v iface.Plugin) error {
-	if v == nil {
+func (p Plugins) Register(v ...iface.Plugin) error {
+	var result error
+	if len(v) == 0 {
 		return ErrBadParameter.With("Register")
 	}
-	if name := v.Name(); !types.IsIdentifier(name) {
-		return ErrBadParameter.Withf("Plugin with invalid name: %q", name)
-	} else if _, exists := p[name]; exists {
-		return ErrDuplicateEntry.Withf("Plugin with duplicate name: %q", name)
-	} else {
-		p[name] = v
+	for _, plugin := range v {
+		if name := plugin.Name(); !types.IsIdentifier(name) {
+			result = multierror.Append(result, ErrBadParameter.Withf("Plugin with invalid name: %q", name))
+		} else if _, exists := p[name]; exists {
+			return multierror.Append(result, ErrDuplicateEntry.Withf("Plugin with duplicate name: %q", name))
+		} else {
+			p[name] = plugin
+		}
 	}
 
-	// Return success
-	return nil
+	// Return any errors
+	return result
 }
 
 // LoadPluginsForPattern will load and return a map of plugins for a given glob pattern,
