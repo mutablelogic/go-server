@@ -54,4 +54,9 @@ type Plugin interface {
 type Provider interface {
 	Task
 	//plugin.Log
+
+	// Create a new task from a plugin and return it. This should only
+	// be called during the initialisation phase of the provider, not once
+	// the provider is running.
+	New(context.Context, Plugin) (Task, error)
 }

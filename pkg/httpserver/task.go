@@ -33,18 +33,17 @@ type t struct {
 // Create a new logger task with provider of other tasks
 func NewWithPlugin(p Plugin) (*t, error) {
 	this := new(t)
-	this.Router = p.Router()
 
 	// Check listen for being (host, port). If not, then run as FCGI server
 	if _, _, err := net.SplitHostPort(p.listen); p.listen != "" && err != nil {
-		if fcgi, err := fcgiserver(p.listen, this.Router.(http.Handler)); err != nil {
+		if fcgi, err := fcgiserver(p.listen, p.router.(http.Handler)); err != nil {
 			return nil, err
 		} else {
 			this.fcgi = fcgi
 		}
 	} else {
 		// Create net server
-		if http, err := netserver(p.listen, p.tls, p.timeout, this.Router.(http.Handler)); err != nil {
+		if http, err := netserver(p.listen, p.tls, p.timeout, p.router.(http.Handler)); err != nil {
 			return nil, err
 		} else {
 			this.http = http

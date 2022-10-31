@@ -7,6 +7,7 @@ import (
 
 	// Package imports
 	iface "github.com/mutablelogic/go-server"
+	"github.com/mutablelogic/go-server/pkg/router"
 	task "github.com/mutablelogic/go-server/pkg/task"
 	types "github.com/mutablelogic/go-server/pkg/types"
 	plugin "github.com/mutablelogic/go-server/plugin"
@@ -25,7 +26,7 @@ type Plugin struct {
 	TLS_     *TLS           `json:"tls,omitempty"`    // TLS parameters
 	Timeout_ types.Duration `hcl:"timeout,optional"`  // Read timeout on HTTP requests
 
-	//router plugin.Router
+	router  plugin.Router
 	listen  string
 	tls     *tls.Config
 	timeout time.Duration
@@ -50,7 +51,7 @@ const (
 // LIFECYCLE
 
 // Create a new logger task with provider of other tasks
-func (p Plugin) New(_ context.Context, _ iface.Provider) (iface.Task, error) {
+func (p Plugin) New(ctx context.Context, provider iface.Provider) (iface.Task, error) {
 	// Check name and label
 	if !types.IsIdentifier(p.Name()) {
 		return nil, ErrBadParameter.Withf("Invalid plugin name: %q", p.Name())
@@ -66,6 +67,7 @@ func (p Plugin) New(_ context.Context, _ iface.Provider) (iface.Task, error) {
 		p.router = router
 	}*/
 
+	p.router = p.Router(ctx, provider)
 	p.listen = p.Listen()
 	p.timeout = p.Timeout()
 	if tls, err := p.TLS(); err != nil {
@@ -113,8 +115,19 @@ func (p Plugin) TLS() (*tls.Config, error) {
 	}
 }
 
-func (p Plugin) Router() plugin.Router {
-	if router, ok := p.Router_.Task.(plugin.Router); ok {
+func (p Plugin) Router(ctx context.Context, provider iface.Provider) plugin.Router {
+	if p.Router_.Task == nil {
+		if router, err := provider.New(ctx, router.Plugin{
+			task.Plugin{
+				Label_: types.String(p.Label()),
+			},
+		}); err != nil {
+			return nil
+		} else {
+			p.Router_.Task = router
+		}
+	}
+	if router, ok := p.Router_.Task.(plugin.Router); ok && router != nil {
 		return router
 	} else {
 		return nil

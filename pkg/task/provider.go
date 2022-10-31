@@ -1,15 +1,16 @@
 package task
 
 import (
-	// Package imports
 	"context"
 	"fmt"
 
+	// Package imports
 	iface "github.com/mutablelogic/go-server"
 	ctx "github.com/mutablelogic/go-server/pkg/context"
 	event "github.com/mutablelogic/go-server/pkg/event"
+
 	// Namespace imports
-	//. "github.com/djthorpe/go-errors"
+	. "github.com/djthorpe/go-errors"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -70,4 +71,8 @@ func (p *provider) String() string {
 func (p *provider) Run(ctx context.Context) error {
 	<-ctx.Done()
 	return ctx.Err()
+}
+
+func (p *provider) New(context.Context, iface.Plugin) (iface.Task, error) {
+	return nil, ErrNotImplemented
 }
