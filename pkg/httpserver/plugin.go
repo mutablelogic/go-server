@@ -7,13 +7,10 @@ import (
 
 	// Package imports
 	iface "github.com/mutablelogic/go-server"
-	"github.com/mutablelogic/go-server/pkg/router"
+	router "github.com/mutablelogic/go-server/pkg/router"
 	task "github.com/mutablelogic/go-server/pkg/task"
 	types "github.com/mutablelogic/go-server/pkg/types"
 	plugin "github.com/mutablelogic/go-server/plugin"
-
-	// Namespace imports
-	. "github.com/djthorpe/go-errors"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -23,7 +20,7 @@ type Plugin struct {
 	task.Plugin
 	Router_  types.Task     `json:"router,omitempty"` // The router object which serves the gateways
 	Listen_  types.String   `json:"listen,omitempty"` // Address or path for binding HTTP server
-	TLS_     *TLS           `json:"tls,omitempty"`    // TLS parameters
+	TLS_     *TLS           `json:"tls,omitempty"`    // TLS parameters, or nil if not using TLS
 	Timeout_ types.Duration `hcl:"timeout,optional"`  // Read timeout on HTTP requests
 
 	router  plugin.Router
@@ -52,12 +49,8 @@ const (
 
 // Create a new logger task with provider of other tasks
 func (p Plugin) New(ctx context.Context, provider iface.Provider) (iface.Task, error) {
-	// Check name and label
-	if !types.IsIdentifier(p.Name()) {
-		return nil, ErrBadParameter.Withf("Invalid plugin name: %q", p.Name())
-	}
-	if !types.IsIdentifier(p.Label()) {
-		return nil, ErrBadParameter.Withf("Invalid plugin label: %q", p.Label())
+	if err := p.HasNameLabel(); err != nil {
+		return nil, err
 	}
 
 	p.router = p.Router(ctx, provider)
@@ -110,11 +103,8 @@ func (p Plugin) TLS() (*tls.Config, error) {
 
 func (p Plugin) Router(ctx context.Context, provider iface.Provider) plugin.Router {
 	if p.Router_.Task == nil {
-		if router, err := provider.New(ctx, router.Plugin{
-			Plugin: task.Plugin{
-				Label_: types.String(p.Label()),
-			},
-		}); err != nil {
+		plugin := router.Plugin{}
+		if router, err := provider.New(ctx, plugin); err != nil {
 			// We currently panic if we get here, it's not expected
 			panic(err)
 		} else {

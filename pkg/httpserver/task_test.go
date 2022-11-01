@@ -14,9 +14,7 @@ import (
 
 func Test_Task_001(t *testing.T) {
 	// Create a provider, register http server and router
-	provider, err := task.NewProvider(context.Background(), httpserver.Plugin{
-		Plugin: task.Plugin{Label_: "label1"},
-	})
+	provider, err := task.NewProvider(context.Background(), httpserver.Plugin{}.WithLabel("label"))
 	if err != nil {
 		t.Fatal(err)
 	} else {

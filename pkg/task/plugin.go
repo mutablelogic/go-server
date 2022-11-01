@@ -49,7 +49,9 @@ func (p Plugins) Register(v ...iface.Plugin) error {
 		return ErrBadParameter.With("Register")
 	}
 	for _, plugin := range v {
-		if name := plugin.Name(); !types.IsIdentifier(name) {
+		if name := plugin.Name(); name == "" {
+			result = multierror.Append(result, ErrBadParameter.Withf("Plugin without name"))
+		} else if !types.IsIdentifier(name) {
 			result = multierror.Append(result, ErrBadParameter.Withf("Plugin with invalid name: %q", name))
 		} else if _, exists := p[name]; exists {
 			return multierror.Append(result, ErrDuplicateEntry.Withf("Plugin with duplicate name: %q", name))
@@ -111,15 +113,36 @@ func PluginWithPath(path string) (iface.Plugin, error) {
 	}
 }
 
-// Create a new default task from the plugin
-func (p Plugin) New(c context.Context, provider iface.Provider) (iface.Task, error) {
+// Return error if the plugin does not have a name or label
+func (p Plugin) HasNameLabel() error {
+	if p.Name() == "" {
+		return ErrBadParameter.With("Plugin has no name")
+	}
 	if !types.IsIdentifier(p.Name()) {
-		return nil, ErrBadParameter.Withf("name: %q", p.Name())
+		return ErrBadParameter.Withf("Invalid plugin name: %q", p.Name())
+	}
+	if p.Label() == "" {
+		return ErrBadParameter.Withf("Plugin %q has no label", p.Name())
 	}
 	if !types.IsIdentifier(p.Label()) {
-		return nil, ErrBadParameter.Withf("label: %q", p.Label())
+		return ErrBadParameter.Withf("Invalid plugin label: %q", p.Label())
+	}
+	return nil
+}
+
+// Create a new default task from the plugin
+func (p Plugin) New(c context.Context, provider iface.Provider) (iface.Task, error) {
+	if err := p.HasNameLabel(); err != nil {
+		return nil, err
 	}
 	return NewTask(ctx.WithNameLabel(c, p.Name(), p.Label()), provider)
+}
+
+// Create a new default task from the plugin
+func (p Plugin) WithLabel(label string) iface.Plugin {
+	p.Label_ = types.String(label)
+	fmt.Println("p", p)
+	return p
 }
 
 ///////////////////////////////////////////////////////////////////////////////

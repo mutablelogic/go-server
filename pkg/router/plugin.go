@@ -7,10 +7,6 @@ import (
 	// Namespace imports
 	iface "github.com/mutablelogic/go-server"
 	task "github.com/mutablelogic/go-server/pkg/task"
-	types "github.com/mutablelogic/go-server/pkg/types"
-
-	// Namespace imports
-	. "github.com/djthorpe/go-errors"
 )
 
 /////////////////////////////////////////////////////////////////////
@@ -34,12 +30,9 @@ const (
 
 // Create a new logger task with provider of other tasks
 func (p Plugin) New(_ context.Context, _ iface.Provider) (iface.Task, error) {
-	// Check name and label
-	if !types.IsIdentifier(p.Name()) {
-		return nil, ErrBadParameter.Withf("Invalid plugin name: %q", p.Name())
-	}
-	if !types.IsIdentifier(p.Label()) {
-		return nil, ErrBadParameter.Withf("Invalid plugin label: %q", p.Label())
+	// Check parameters
+	if err := p.HasNameLabel(); err != nil {
+		return nil, err
 	}
 
 	return NewWithPlugin(p)
