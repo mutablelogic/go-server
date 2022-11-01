@@ -60,13 +60,6 @@ func (p Plugin) New(ctx context.Context, provider iface.Provider) (iface.Task, e
 		return nil, ErrBadParameter.Withf("Invalid plugin label: %q", p.Label())
 	}
 
-	// Check router object
-	/*if router := p.Router(); router == nil {
-		return nil, ErrBadParameter.Withf("Invalid router: %v", p.Router_)
-	} else {
-		p.router = router
-	}*/
-
 	p.router = p.Router(ctx, provider)
 	p.listen = p.Listen()
 	p.timeout = p.Timeout()
@@ -118,11 +111,12 @@ func (p Plugin) TLS() (*tls.Config, error) {
 func (p Plugin) Router(ctx context.Context, provider iface.Provider) plugin.Router {
 	if p.Router_.Task == nil {
 		if router, err := provider.New(ctx, router.Plugin{
-			task.Plugin{
+			Plugin: task.Plugin{
 				Label_: types.String(p.Label()),
 			},
 		}); err != nil {
-			return nil
+			// We currently panic if we get here, it's not expected
+			panic(err)
 		} else {
 			p.Router_.Task = router
 		}

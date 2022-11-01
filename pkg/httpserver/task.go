@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -34,19 +35,21 @@ type t struct {
 func NewWithPlugin(p Plugin) (*t, error) {
 	this := new(t)
 
-	// Check listen for being (host, port). If not, then run as FCGI server
-	if _, _, err := net.SplitHostPort(p.listen); p.listen != "" && err != nil {
-		if fcgi, err := fcgiserver(p.listen, p.router.(http.Handler)); err != nil {
-			return nil, err
-		} else {
-			this.fcgi = fcgi
-		}
-	} else {
+	if isHostPort(p.listen) {
 		// Create net server
 		if http, err := netserver(p.listen, p.tls, p.timeout, p.router.(http.Handler)); err != nil {
 			return nil, err
 		} else {
 			this.http = http
+		}
+	} else if abs, err := filepath.Abs(p.listen); err != nil {
+		return nil, err
+	} else {
+		// Check listen for being (host, port). If not, then run as FCGI server
+		if fcgi, err := fcgiserver(abs, p.router.(http.Handler)); err != nil {
+			return nil, err
+		} else {
+			this.fcgi = fcgi
 		}
 	}
 
@@ -100,6 +103,21 @@ func (t *t) Run(ctx context.Context) error {
 
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
+
+// TODO: return true if:
+//  :<number|name> <ip4>:<number> <ip6>:<number> <iface>:<number|name>
+func isHostPort(listen string) bool {
+	// Empty string not acceptable
+	if listen == "" {
+		return false
+	}
+	// Check for host:port and if no error, return true
+	if _, _, err := net.SplitHostPort(listen); err == nil {
+		return true
+	} else {
+		return false
+	}
+}
 
 func fcgiserver(path string, handler http.Handler) (*fcgi.Server, error) {
 	fcgi := new(fcgi.Server)
