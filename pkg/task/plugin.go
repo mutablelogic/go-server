@@ -158,6 +158,15 @@ func (p Plugin) Label() string {
 	return string(p.Label_)
 }
 
+// Return plugins as an array
+func (p Plugins) Array() []iface.Plugin {
+	var result []iface.Plugin
+	for _, plugin := range p {
+		result = append(result, plugin)
+	}
+	return result
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 

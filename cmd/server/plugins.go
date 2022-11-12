@@ -1,14 +1,17 @@
 package main
 
 import (
-	logger "github.com/mutablelogic/go-server/pkg/logger"
+	// Package imports
+	log "github.com/mutablelogic/go-server/pkg/log"
 	task "github.com/mutablelogic/go-server/pkg/task"
 
 	// Namespace imports
 	. "github.com/mutablelogic/go-server"
 )
 
-var BuiltInPlugins = []Plugin{logger.Plugin{}}
+var BuiltInPlugins = []Plugin{
+	log.Plugin{},
+}
 
 // BuiltinPlugins returns the list of plugins which are compiled into the binary
 func BuiltinPlugins() (task.Plugins, error) {

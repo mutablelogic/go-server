@@ -12,11 +12,12 @@ import (
 	multierror "github.com/hashicorp/go-multierror"
 	config "github.com/mutablelogic/go-server/pkg/config"
 	context "github.com/mutablelogic/go-server/pkg/context"
-	"github.com/mutablelogic/go-server/pkg/task"
+	task "github.com/mutablelogic/go-server/pkg/task"
 )
 
 const (
 	flagAddress = "address"
+	flagPlugins = "plugins"
 )
 
 func main() {
@@ -84,7 +85,7 @@ func main() {
 	ctx = context.WithAddress(ctx, flagset.Lookup(flagAddress).Value.String())
 
 	// Create provider
-	provider, err := task.NewProvider(ctx, plugins)
+	provider, err := task.NewProvider(ctx, plugins.Array()...)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
@@ -103,4 +104,5 @@ func main() {
 
 func registerArguments(f *flag.FlagSet) {
 	f.String(flagAddress, "", "Override address to listen on")
+	f.String(flagPlugins, "", "Directory of plugins to load")
 }
