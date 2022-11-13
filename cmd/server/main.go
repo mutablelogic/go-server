@@ -42,7 +42,13 @@ func main() {
 		os.Exit(-1)
 	}
 
-	// TODO: Load dynamic plugins if -plugins flag is set
+	// Load dynamic plugins if -plugins flag is set
+	if plugins := flagset.Lookup(flagPlugins); plugins != nil && plugins.Value.String() != "" {
+		if err := protos.LoadPluginsForPattern(plugins.Value.String()); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(-1)
+		}
+	}
 
 	// Read resources using JSON
 	var result error

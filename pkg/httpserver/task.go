@@ -12,7 +12,7 @@ import (
 	"time"
 
 	// Package imports
-	"github.com/hashicorp/go-multierror"
+	multierror "github.com/hashicorp/go-multierror"
 	fcgi "github.com/mutablelogic/go-server/pkg/httpserver/fcgi"
 	task "github.com/mutablelogic/go-server/pkg/task"
 	plugin "github.com/mutablelogic/go-server/plugin"
@@ -105,7 +105,8 @@ func (t *t) Run(ctx context.Context) error {
 // PRIVATE METHODS
 
 // TODO: return true if:
-//  :<number|name> <ip4>:<number> <ip6>:<number> <iface>:<number|name>
+//
+//	:<number|name> <ip4>:<number> <ip6>:<number> <iface>:<number|name>
 func isHostPort(listen string) bool {
 	// Empty string not acceptable
 	if listen == "" {
