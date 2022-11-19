@@ -2,10 +2,12 @@ package task
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
 	// Package imports
+	"github.com/hashicorp/go-multierror"
 	iface "github.com/mutablelogic/go-server"
 	ctx "github.com/mutablelogic/go-server/pkg/context"
 	event "github.com/mutablelogic/go-server/pkg/event"
@@ -66,9 +68,40 @@ func (p *provider) String() string {
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func (p *provider) Run(ctx context.Context) error {
-	<-ctx.Done()
-	return ctx.Err()
+func (p *provider) Run(parent context.Context) error {
+	var wg sync.WaitGroup
+	var result error
+
+	// Make cancelable, so that on any error all tasks are stopped
+	ctx, cancel := context.WithCancel(parent)
+	defer cancel()
+
+	// Run all tasks
+	for label, task := range p.tasks {
+		wg.Add(2)
+
+		// Subscribe to events from task
+		go func(t iface.Task) {
+			defer wg.Done()
+			p.recv(ctx, task)
+		}(task)
+
+		// Run task
+		go func(label string, task iface.Task) {
+			defer wg.Done()
+			if err := task.Run(ctx); err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+				result = multierror.Append(result, fmt.Errorf("%v: %w", label, err))
+				// Cancel context
+				cancel()
+			}
+		}(label, task)
+	}
+
+	// Wait until all tasks are completed
+	wg.Wait()
+
+	// Return any errors
+	return result
 }
 
 // New creates a new task from a plugin. It should only be called from
@@ -99,10 +132,23 @@ func (p *provider) Keys() []string {
 	return result
 }
 
-func (p *provider) Get(key string) iface.Task {
+func (p *provider) Get(args ...string) iface.Task {
 	p.RLock()
 	defer p.RUnlock()
-	return p.tasks[key]
+
+	var key string
+	if len(args) == 1 {
+		key = args[0]
+	} else if len(args) == 2 {
+		key = args[0] + "." + args[1]
+	} else {
+		return nil
+	}
+	if task, exists := p.tasks[key]; exists {
+		return task
+	} else {
+		return nil
+	}
 }
 
 func (p *provider) Set(key string, task iface.Task) error {
@@ -113,4 +159,19 @@ func (p *provider) Set(key string, task iface.Task) error {
 	}
 	p.tasks[key] = task
 	return nil
+}
+
+func (p *provider) recv(ctx context.Context, task iface.Task) {
+	ch := task.Sub()
+	defer task.Unsub(ch)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case event := <-ch:
+			if event != nil && !p.Emit(event) {
+				panic(fmt.Sprintln("Unable to emit: ", event))
+			}
+		}
+	}
 }

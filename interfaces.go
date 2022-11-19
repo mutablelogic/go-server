@@ -59,4 +59,9 @@ type Provider interface {
 	// be called during the initialisation phase of the provider, not once
 	// the provider is running.
 	New(context.Context, Plugin) (Task, error)
+
+	// Return a task with name and label. Two arguments are required if the first argument is
+	// the task name and the second is the task label. Returns nil if there isn't exactly one
+	// task to return.
+	Get(...string) Task
 }

@@ -55,6 +55,12 @@ func (p Plugin) New(ctx context.Context, provider iface.Provider) (iface.Task, e
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
+func WithLabel(label string) Plugin {
+	return Plugin{
+		Plugin: task.WithLabel(defaultName, label),
+	}
+}
+
 func (p Plugin) Name() string {
 	if name := p.Plugin.Name(); name != "" {
 		return name

@@ -97,6 +97,7 @@ func main() {
 		os.Exit(-1)
 	}
 
+	// TODO: Receive events from provider
 	fmt.Println("provider=", provider)
 
 	// Run until done

@@ -148,6 +148,11 @@ func (p Plugin) WithLabel(label string) iface.Plugin {
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
+// Return a new task with the given label
+func WithLabel(name, label string) Plugin {
+	return Plugin{types.String(name), types.String(label)}
+}
+
 // Return name of the plugin
 func (p Plugin) Name() string {
 	return string(p.Name_)
