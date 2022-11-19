@@ -1,5 +1,12 @@
 {
     "name": "dnsregister",
-    "label": "main"
+    "label": "main",
+    "delta": "5m",
+    "records": [
+        {
+            "name": "dnsregister",
+            "type": "A",
+            "value": ""
+        }
+    ]
 }
-

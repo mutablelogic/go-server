@@ -2,6 +2,8 @@ package dnsregister
 
 import (
 	"context"
+	"fmt"
+	"net"
 	"time"
 
 	// Package imports
@@ -17,7 +19,7 @@ type Plugin struct {
 	task.Plugin
 	Timeout_ types.Duration `json:"timeout,omitempty"` // Read timeout on HTTP requests
 	Delta_   types.Duration `json:"delta,omitempty"`   // Time between updating information
-	Records  []Record       `json:"records"`           // Records to register
+	Records_ []Record       `json:"records"`           // Records to register
 }
 
 type Record struct {
@@ -53,6 +55,23 @@ func (p Plugin) New(ctx context.Context, provider iface.Provider) (iface.Task, e
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+// STRINIGFY
+
+func (r Record) String() string {
+	str := "<dnsregister.record"
+	if r.Name != "" {
+		str += fmt.Sprintf(" name=%q", r.Name)
+	}
+	if r.Address != "" {
+		str += fmt.Sprintf(" addr=%q", r.Name)
+	}
+	if r.User != "" {
+		str += fmt.Sprintf(" user=%q", r.User)
+	}
+	return str + ">"
+}
+
+///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
 func WithLabel(label string) Plugin {
@@ -67,6 +86,10 @@ func (p Plugin) Name() string {
 	} else {
 		return defaultName
 	}
+}
+
+func (p Plugin) Records() []Record {
+	return p.Records_
 }
 
 func (p Plugin) Timeout() time.Duration {
@@ -85,4 +108,14 @@ func (p Plugin) Delta() time.Duration {
 	} else {
 		return time.Duration(p.Delta_)
 	}
+}
+
+// Return true if this record is invalid (the name is nil)
+func (r Record) IsZero() bool {
+	return r.Name == ""
+}
+
+// Return the net.IP value for an address, or nil if invalid
+func (r Record) IP() net.IP {
+	return net.ParseIP(r.Address)
 }

@@ -41,6 +41,14 @@ func Error(ctx context.Context, err error) Event {
 	return &event{ctx, nil, err}
 }
 
+// Create an informational event
+func Infof(ctx context.Context, key any, format string, a ...any) Event {
+	if format == "" || key == nil {
+		return nil
+	}
+	return &event{ctx, key, fmt.Sprintf(format, a...)}
+}
+
 /////////////////////////////////////////////////////////////////////
 // STRINGIFY
 

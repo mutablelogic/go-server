@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	// Packages
 	multierror "github.com/hashicorp/go-multierror"
@@ -97,8 +98,17 @@ func main() {
 		os.Exit(-1)
 	}
 
-	// TODO: Receive events from provider
-	fmt.Println("provider=", provider)
+	// Receive events from provider
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		ch := provider.Sub()
+		for event := range ch {
+			fmt.Println("EVENT=", event)
+		}
+		fmt.Println("END")
+	}()
 
 	// Run until done
 	fmt.Fprintln(os.Stderr, "Press CTRL+C to exit")
@@ -106,6 +116,11 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
 	}
+
+	// Wait for goroutine to exit
+	wg.Wait()
+
+	// Exit
 	fmt.Fprintln(os.Stderr, "Done")
 }
 
