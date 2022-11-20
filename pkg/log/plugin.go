@@ -19,9 +19,8 @@ import (
 
 type Plugin struct {
 	task.Plugin
-	Prefix_ string   `json:"prefix" hcl:"prefix"`
-	Flags_  []string `json:"flags,omitempty" hcl:"flags,optional"`
-	flags   int
+	Flags_ []string `json:"flags,omitempty" hcl:"flags,optional"`
+	flags  int
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -59,14 +58,6 @@ func (p Plugin) Name() string {
 		return name
 	} else {
 		return defaultName
-	}
-}
-
-func (p Plugin) Prefix() string {
-	if p.Prefix_ != "" {
-		return p.Prefix_
-	} else {
-		return p.Label()
 	}
 }
 

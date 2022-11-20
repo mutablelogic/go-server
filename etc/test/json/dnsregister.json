@@ -4,9 +4,9 @@
     "delta": "5m",
     "records": [
         {
-            "name": "dnsregister",
-            "type": "A",
-            "value": ""
+            "hostname": "ceph.mutablelogic.com",
+            "user": "VTcCTsoo1AUsQ2H9",
+            "password": "F630bWSu86bCifxA"
         }
     ]
 }

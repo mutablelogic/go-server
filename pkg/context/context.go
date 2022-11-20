@@ -76,6 +76,12 @@ func Label(ctx context.Context) string {
 	return contextString(ctx, contextLabel)
 }
 
+// Return the name and label parameter from the context, or zero value if
+// not defined
+func NameLabel(ctx context.Context) string {
+	return Name(ctx) + "." + Label(ctx)
+}
+
 // Return the admin parameter from the context, or zero value if
 // not defined
 func Admin(ctx context.Context) bool {

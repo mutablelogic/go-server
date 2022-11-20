@@ -2,6 +2,9 @@ package server
 
 import (
 	"context"
+
+	// Interfaces
+	"github.com/mutablelogic/go-server/plugin"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -53,7 +56,7 @@ type Plugin interface {
 // and emits them on its own event channel.
 type Provider interface {
 	Task
-	//plugin.Log
+	plugin.Log
 
 	// Create a new task from a plugin and return it. This should only
 	// be called during the initialisation phase of the provider, not once

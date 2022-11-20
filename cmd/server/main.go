@@ -105,7 +105,11 @@ func main() {
 		defer wg.Done()
 		ch := provider.Sub()
 		for event := range ch {
-			fmt.Println("EVENT=", event)
+			if err := event.Error(); err != nil {
+				provider.Print(event.Context(), err)
+			} else {
+				provider.Print(event.Context(), event.Key(), ": ", event.Value())
+			}
 		}
 	}()
 

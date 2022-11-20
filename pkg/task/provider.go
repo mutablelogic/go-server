@@ -12,6 +12,7 @@ import (
 	iface "github.com/mutablelogic/go-server"
 	ctx "github.com/mutablelogic/go-server/pkg/context"
 	event "github.com/mutablelogic/go-server/pkg/event"
+	plugin "github.com/mutablelogic/go-server/plugin"
 
 	// Namespace imports
 	. "github.com/djthorpe/go-errors"
@@ -27,6 +28,7 @@ type provider struct {
 
 	// Enumeration of tasks, keyed by name.label
 	tasks map[string]iface.Task
+	log   []plugin.Log
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -121,16 +123,40 @@ func (p *provider) Run(parent context.Context) error {
 
 // New creates a new task from a plugin. It should only be called from
 // the 'new' function, not once the provider is in Run state.
-func (p *provider) New(parent context.Context, plugin iface.Plugin) (iface.Task, error) {
-	key := plugin.Name() + "." + plugin.Label()
+func (p *provider) New(parent context.Context, proto iface.Plugin) (iface.Task, error) {
+	key := proto.Name() + "." + proto.Label()
 	if task := p.Get(key); task != nil {
 		return nil, ErrDuplicateEntry.Withf("Duplicate task: %q", key)
-	} else if task, err := plugin.New(ctx.WithNameLabel(parent, plugin.Name(), plugin.Label()), p); err != nil {
+	}
+
+	// Create the task
+	task, err := proto.New(ctx.WithNameLabel(parent, proto.Name(), proto.Label()), p)
+	if err != nil {
 		return nil, err
 	} else if err := p.Set(key, task); err != nil {
 		return nil, err
-	} else {
-		return task, nil
+	}
+
+	// Check for log task
+	if log, ok := task.(plugin.Log); ok && log != nil {
+		p.log = append(p.log, log)
+	}
+
+	// Return success
+	return task, nil
+}
+
+// Print log message to any log tasks registered
+func (p *provider) Print(ctx context.Context, v ...any) {
+	for _, log := range p.log {
+		log.Print(ctx, v...)
+	}
+}
+
+// Format and print log message
+func (p *provider) Printf(ctx context.Context, format string, v ...any) {
+	for _, log := range p.log {
+		log.Printf(ctx, format, v...)
 	}
 }
 
