@@ -12,6 +12,7 @@ jobs:
         id: tags
         run: |
           echo ::set-output name=arch::arm64
+          echo ::set-output name=version::arm64
           echo ::set-output name=image::ghcr.io/${{ github.repository_owner }}/go-server-arm64
           echo ::set-output name=tag::${GITHUB_REF#refs/tags/v}          
       - name: Login
@@ -22,7 +23,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build
         run: |
-          make docker
+        	docker build --tag ${{ steps.tags.outputs.image }}:${{ steps.tags.outputs.tag }} --build-arg VERSION=1.23.2 --build-arg ARCH=${{ steps.tags.outputs.arch }} --build-arg PLATFORM=linux -f etc/docker/Dockerfile .
       - name: Push
         run: |
           docker push ${{ steps.tags.outputs.image }}:${{ steps.tags.outputs.tag }}
@@ -45,7 +46,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build
         run: |
-          make docker
+        	docker build --tag ${{ steps.tags.outputs.image }}:${{ steps.tags.outputs.tag }} --build-arg VERSION=1.23.2 --build-arg ARCH=${{ steps.tags.outputs.arch }} --build-arg PLATFORM=linux -f etc/docker/Dockerfile .
       - name: Push
         run: |
           docker push ${{ steps.tags.outputs.image }}:${{ steps.tags.outputs.tag }}
