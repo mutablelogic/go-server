@@ -27,7 +27,7 @@ jobs:
         run: |
           docker push ${{ steps.tags.outputs.image }}:${{ steps.tags.outputs.tag }}
   build-amd64:
-    runs-on: [linux, amd64]
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v2
