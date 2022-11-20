@@ -23,7 +23,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build
         run: |
-        	docker build --tag ${{ steps.tags.outputs.image }}:${{ steps.tags.outputs.tag }} --build-arg VERSION=1.23.2 --build-arg ARCH=${{ steps.tags.outputs.arch }} --build-arg PLATFORM=linux -f etc/docker/Dockerfile .
+          docker build --tag ${{ steps.tags.outputs.image }}:${{ steps.tags.outputs.tag }} --build-arg VERSION=1.23.2 --build-arg ARCH=${{ steps.tags.outputs.arch }} --build-arg PLATFORM=linux -f etc/docker/Dockerfile .
       - name: Push
         run: |
           docker push ${{ steps.tags.outputs.image }}:${{ steps.tags.outputs.tag }}
@@ -46,7 +46,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build
         run: |
-        	docker build --tag ${{ steps.tags.outputs.image }}:${{ steps.tags.outputs.tag }} --build-arg VERSION=1.23.2 --build-arg ARCH=${{ steps.tags.outputs.arch }} --build-arg PLATFORM=linux -f etc/docker/Dockerfile .
+          docker build --tag ${{ steps.tags.outputs.image }}:${{ steps.tags.outputs.tag }} --build-arg VERSION=1.23.2 --build-arg ARCH=${{ steps.tags.outputs.arch }} --build-arg PLATFORM=linux -f etc/docker/Dockerfile .
       - name: Push
         run: |
           docker push ${{ steps.tags.outputs.image }}:${{ steps.tags.outputs.tag }}
