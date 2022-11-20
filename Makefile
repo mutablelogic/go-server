@@ -3,11 +3,16 @@ GO := $(shell which go)
 DOCKER := $(shell which docker)
 
 # nginx image and version
-NGINX := "library/nginx"
-VERSION := "1.23.1"
-IMAGE := "nginx-gateway"
+NGINX := library/nginx
+VERSION := 1.23.1
 
-# target architectures: linux/amd64 linux/arm/v7 linux/arm64/v8
+# Target image name, architecture and version
+IMAGE := go-server
+ARCH := $(shell dpkg --print-architecture)
+PLATFORM := $(shell uname -s | tr '[:upper:]' '[:lower:]')
+TAG := $(shell git describe --tags)
+
+# target architectures: linux/amd64 linux/arm linux/arm64
 
 # Build flags
 BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/version.GitSource=${BUILD_MODULE}
@@ -41,17 +46,10 @@ $(PLUGIN_DIR): dependencies mkdir
 	@echo Build plugin $(notdir $@)
 	@${GO} build -buildmode=plugin ${BUILD_FLAGS} -o ${BUILD_DIR}/$(notdir $@).plugin ./$@
 
-# Docker target will build the docker image for amd64, arm and arm66. The output image is
-# nginx-gateway:1.23.1 (or whatever is in the IMAGE and VERSION variables)
-# which can then be pushed to ghcr.io
+# Docker target will build the docker image for amd64, arm and arm64
 docker: dependencies docker-dependencies
-	@${DOCKER} build --tag ${IMAGE}-arm:${VERSION} --build-arg VERSION=${VERSION} --build-arg PLATFORM=linux/arm/v7 etc/docker
-	@${DOCKER} build --tag ${IMAGE}-arm64:${VERSION} --build-arg VERSION=${VERSION} --build-arg PLATFORM=linux/arm64/v8 etc/docker
-	@${DOCKER} build --tag ${IMAGE}-amd64:${VERSION} --build-arg VERSION=${VERSION} --build-arg PLATFORM=linux/amd64 etc/docker
-	@${DOCKER} manifest create ${IMAGE}:${VERSION} --amend ${IMAGE}-arm:${VERSION} --amend ${IMAGE}-arm64:${VERSION} --amend ${IMAGE}-amd64:${VERSION}
-	@${DOCKER} manifest annotate ${IMAGE}:${VERSION} ${IMAGE}-arm:${VERSION} --arch arm --os linux --variant v7
-	@${DOCKER} manifest annotate ${IMAGE}:${VERSION} ${IMAGE}-arm64:${VERSION} --arch arm64 --os linux --variant v8
-	@${DOCKER} manifest annotate ${IMAGE}:${VERSION} ${IMAGE}-amd64:${VERSION} --arch amd64 --os linux
+	@echo Build ${IMAGE}-${ARCH}:${TAG} for platform ${PLATFORM}
+	@${DOCKER} build --tag ${IMAGE}-${ARCH}:${TAG} --build-arg VERSION=${VERSION} --build-arg ARCH=${ARCH} --build-arg PLATFORM=${PLATFORM} -f etc/docker/Dockerfile .
 
 FORCE:
 

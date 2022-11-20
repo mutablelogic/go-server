@@ -1,6 +1,5 @@
 {
     "name": "log",
     "label": "stderr",
-    "prefix": "server: ",
     "flags": [ "time","msgprefix" ]
 }
