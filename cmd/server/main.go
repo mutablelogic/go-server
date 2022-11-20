@@ -107,7 +107,6 @@ func main() {
 		for event := range ch {
 			fmt.Println("EVENT=", event)
 		}
-		fmt.Println("END")
 	}()
 
 	// Run until done

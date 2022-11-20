@@ -79,6 +79,8 @@ func (t *t) Run(ctx context.Context) error {
 					t.Emit(event.Error(ctx, err))
 				} else if changed {
 					t.Emit(event.Infof(ctx, ExternalIP, "External address changed to %q", t.addr))
+				} else {
+					t.Emit(event.Infof(ctx, NotModified, "External address not modified"))
 				}
 			} else if record := t.next(); !record.IsZero() {
 				if addr, err := t.register(record); errors.Is(err, ErrNotModified) {

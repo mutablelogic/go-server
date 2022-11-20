@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 
 	// Package imports
-	"github.com/hashicorp/go-multierror"
+	multierror "github.com/hashicorp/go-multierror"
 	iface "github.com/mutablelogic/go-server"
 	ctx "github.com/mutablelogic/go-server/pkg/context"
 	event "github.com/mutablelogic/go-server/pkg/event"
@@ -73,25 +74,34 @@ func (p *provider) Run(parent context.Context) error {
 	var result error
 
 	// Make cancelable, so that on any error all tasks are stopped
-	ctx, cancel := context.WithCancel(parent)
+	child, cancel := context.WithCancel(parent)
 	defer cancel()
 
 	// Run all tasks
 	for label, task := range p.tasks {
 		wg.Add(2)
 
+		// Add label to context
+		nameLabel := strings.SplitN(label, ".", 2)
+		if len(nameLabel) != 2 {
+			result = multierror.Append(result, ErrBadParameter.Withf("Invalid label: %q", label))
+			continue
+		}
+
+		grandchild := ctx.WithNameLabel(child, nameLabel[0], nameLabel[1])
+
 		// Subscribe to events from task
-		go func(t iface.Task) {
+		go func(label string, task iface.Task) {
 			defer wg.Done()
-			p.recv(ctx, task)
-		}(task)
+			p.recv(grandchild, task)
+		}(label, task)
 
 		// Run task
 		go func(label string, task iface.Task) {
 			defer wg.Done()
-			if err := task.Run(ctx); err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+			if err := task.Run(grandchild); err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+				// Cancel context - stop all when any error is received
 				result = multierror.Append(result, fmt.Errorf("%v: %w", label, err))
-				// Cancel context
 				cancel()
 			}
 		}(label, task)
@@ -99,6 +109,11 @@ func (p *provider) Run(parent context.Context) error {
 
 	// Wait until all tasks are completed
 	wg.Wait()
+
+	// Close the event source
+	if err := p.Close(); err != nil {
+		result = multierror.Append(result, err)
+	}
 
 	// Return any errors
 	return result
@@ -161,16 +176,16 @@ func (p *provider) Set(key string, task iface.Task) error {
 	return nil
 }
 
-func (p *provider) recv(ctx context.Context, task iface.Task) {
+func (p *provider) recv(child context.Context, task iface.Task) {
 	ch := task.Sub()
-	defer task.Unsub(ch)
 	for {
 		select {
-		case <-ctx.Done():
+		case <-child.Done():
+			task.Unsub(ch)
 			return
 		case event := <-ch:
-			if event != nil && !p.Emit(event) {
-				panic(fmt.Sprintln("Unable to emit: ", event))
+			if event != nil {
+				p.Emit(event)
 			}
 		}
 	}

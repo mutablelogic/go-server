@@ -23,7 +23,7 @@ type Plugin struct {
 }
 
 type Record struct {
-	Name     string `json:"name"`               // Name of record
+	Name     string `json:"hostname"`           // Name of record
 	Address  string `json:"address,omitempty"`  // Address of record
 	User     string `json:"user,omitempty"`     // Username for registration
 	Password string `json:"password,omitempty"` // Password for registration
