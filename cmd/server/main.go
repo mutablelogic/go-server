@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 
 	// Packages
 	multierror "github.com/hashicorp/go-multierror"
@@ -88,7 +89,7 @@ func main() {
 	}
 
 	// Create a context, add flags to context
-	ctx := context.ContextForSignal(os.Interrupt, os.Kill)
+	ctx := context.ContextForSignal(os.Interrupt, syscall.SIGQUIT)
 	ctx = context.WithAddress(ctx, flagset.Lookup(flagAddress).Value.String())
 
 	// Create provider
