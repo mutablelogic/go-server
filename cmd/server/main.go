@@ -88,7 +88,7 @@ func main() {
 	}
 
 	// Create a context, add flags to context
-	ctx := context.ContextForSignal(os.Interrupt)
+	ctx := context.ContextForSignal(os.Interrupt, os.Kill)
 	ctx = context.WithAddress(ctx, flagset.Lookup(flagAddress).Value.String())
 
 	// Create provider
