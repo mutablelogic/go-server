@@ -4,6 +4,46 @@
     "delta": "5m",
     "records": [
         {
+            "hostname": "hay.mutablelogic.com",
+            "user": "RfWN8mLTRicT2TMl",
+            "password": "XVoiC1p09WPs6Mzu"
+        },
+        {
+            "hostname": "dvb.mutablelogic.com",
+            "user": "izvVBzXOAeqVZgdN",
+            "password": "P2X45C2qlTTAqO9W"
+        },
+        {
+            "hostname": "grafana.mutablelogic.com",
+            "user": "XDItF9bAYO9VvY6a",
+            "password": "N5PVEbdjoXqOw1PA"
+        },
+        {
+            "hostname": "influxdb.mutablelogic.com",
+            "user": "OVId74iJ2n70xFlF",
+            "password": "yy0iMiuunxTgNz7c"
+        },
+        {
+            "hostname": "nomad.mutablelogic.com",
+            "user": "vxuFukq9xqDjKQVJ",
+            "password": "AhboVJRtaFVL1LFY"
+        },
+        {
+            "hostname": "rpi4b.mutablelogic.com",
+            "user": "Sud17z2uFvR17QBx",
+            "password": "j2rwPGAiOdyv2N0A"
+        },
+        {
+            "hostname": "emby.mutablelogic.com",
+            "user": "RENEq7OYAJjIGgM0",
+            "password": "Dtji5pKJhyaUvUPA"
+        },
+        {
+            "hostname": "photos.mutablelogic.com",
+            "user": "w5Kuu1CzxGw3pVxj",
+            "password": "U6NabKoINuC0V4Wf"
+        },
+        {
             "hostname": "ceph.mutablelogic.com",
             "user": "VTcCTsoo1AUsQ2H9",
             "password": "F630bWSu86bCifxA"
