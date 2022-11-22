@@ -4,7 +4,7 @@ on:
     types: [ created, edited ]
 jobs:
   build-arm64:
-    runs-on: [self-hosted, Linux, ARM64]
+    runs-on: [self-hosted, linux, arm64]
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -53,6 +53,7 @@ jobs:
   manifest:
     needs:
       - build-amd64
+      - build-arm64
     runs-on: ubuntu-latest
     steps:
       - name: Set tags
@@ -70,6 +71,6 @@ jobs:
           docker manifest create ${{ steps.tags.outputs.manifest }} \
             --amend ${{ steps.tags.outputs.manifest }}-amd64
           docker manifest annotate ${{ steps.tags.outputs.manifest }} \
-            ${{ steps.tags.outputs.manifest }}-amd64 --arch amd64
+            ${{ steps.tags.outputs.manifest }}-arm64 --arch arm64
           docker manifest push ${{ steps.tags.outputs.manifest }}
   
