@@ -70,8 +70,8 @@ jobs:
       - name: Create Manifest
         run: |
           docker manifest create ${{ steps.tags.outputs.manifest }}:${{ steps.tags.outputs.tag }} \
-            --amend ${{ steps.tags.outputs.manifest }}-amd64:${{ steps.tags.outputs.tag }}
-            --amend ${{ steps.tags.outputs.manifest }}-aarm64:${{ steps.tags.outputs.tag }}
+            --amend ${{ steps.tags.outputs.manifest }}-amd64:${{ steps.tags.outputs.tag }} \
+            --amend ${{ steps.tags.outputs.manifest }}-arm64:${{ steps.tags.outputs.tag }}
           docker manifest annotate --arch arm64 ${{ steps.tags.outputs.manifest }}:${{ steps.tags.outputs.tag }} \
             ${{ steps.tags.outputs.manifest }}-arm64:${{ steps.tags.outputs.tag }}
           docker manifest annotate --arch amd64 ${{ steps.tags.outputs.manifest }}:${{ steps.tags.outputs.tag }} \
