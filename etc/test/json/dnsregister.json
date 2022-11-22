@@ -1,7 +1,7 @@
 {
     "name": "dnsregister",
     "label": "main",
-    "delta": "5m",
+    "delta": "30m",
     "records": [
         {
             "hostname": "hay.mutablelogic.com",
