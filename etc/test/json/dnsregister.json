@@ -1,0 +1,12 @@
+{
+    "name": "dnsregister",
+    "label": "main",
+    "delta": "30m",
+    "records": [
+        {
+            "hostname": "test.mutablelogic.com",
+            "user": "",
+            "password": ""
+        }
+    ]
+}

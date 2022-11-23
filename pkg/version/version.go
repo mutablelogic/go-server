@@ -20,7 +20,7 @@ var (
 
 func PrintVersion(w io.Writer) {
 	if GitSource != "" {
-		fmt.Fprintf(w, "  URL: https://%v\n", GitSource)
+		fmt.Fprintf(w, "  Url: https://%v\n", GitSource)
 	}
 	if GitTag != "" || GitBranch != "" {
 		fmt.Fprintf(w, "  Version: %v (branch: %q hash:%q)\n", GitTag, GitBranch, GitHash)
@@ -34,16 +34,14 @@ func PrintVersion(w io.Writer) {
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func Usage(w io.Writer, flags *flag.FlagSet) {
+func Usage(flags *flag.FlagSet) {
 	name := flags.Name()
+	w := flags.Output()
 
-	flags.SetOutput(w)
-
-	fmt.Fprintf(w, "%s: monolith server\n", name)
+	fmt.Fprintf(w, "%s: monolithic task server\n", name)
 	fmt.Fprintf(w, "\nUsage:\n")
-	fmt.Fprintf(w, "  %s <flags> config.yaml\n", name)
+	fmt.Fprintf(w, "  %s <flags> config.json config.json ...\n", name)
 	fmt.Fprintf(w, "  %s -help\n", name)
-	fmt.Fprintf(w, "  %s -help <plugin>\n", name)
 
 	fmt.Fprintln(w, "\nFlags:")
 	flags.PrintDefaults()

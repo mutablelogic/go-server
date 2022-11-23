@@ -1,0 +1,30 @@
+package dnsregister
+
+///////////////////////////////////////////////////////////////////////////////
+// TYPES
+
+type DNSEvent uint
+
+///////////////////////////////////////////////////////////////////////////////
+// GLOBALS
+
+const (
+	ExternalIP DNSEvent = iota
+	NotModified
+	Modified
+)
+
+///////////////////////////////////////////////////////////////////////////////
+// STRINGIFY
+
+func (e DNSEvent) String() string {
+	switch e {
+	case ExternalIP:
+		return "ExternalIP"
+	case NotModified:
+		return "NotModified"
+	case Modified:
+		return "Modified"
+	}
+	return "[?? Invalid DNSEvent value]"
+}

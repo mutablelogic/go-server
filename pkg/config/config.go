@@ -1,132 +1,146 @@
 package config
 
 import (
-	"fmt"
-	"os"
+	"io/fs"
 	"path/filepath"
-	"sort"
+	"reflect"
+	"strings"
 
 	// Modules
-	yaml "gopkg.in/yaml.v3"
+	"github.com/hashicorp/go-multierror"
+	json "github.com/mutablelogic/go-server/pkg/config/json"
+	task "github.com/mutablelogic/go-server/pkg/task"
+	types "github.com/mutablelogic/go-server/pkg/types"
 
 	// Namespace imports
 	. "github.com/djthorpe/go-errors"
+	. "github.com/mutablelogic/go-server"
 )
 
-///////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////
 // TYPES
 
-type Config struct {
-	Plugin  []string           `yaml:"plugins"`
-	Handler map[string]Handler `yaml:"handlers"`
-	Config  map[string]interface{}
+// Resource is a plugin resource definition with name and label
+type Resource struct {
+	task.Plugin
+	Path string `json:"-"`
 }
 
-type Handler struct {
-	Prefix     string   `yaml:"prefix"`
-	Middleware []string `yaml:"middleware"`
-}
+/////////////////////////////////////////////////////////////////////
+// GLOBALS
 
-///////////////////////////////////////////////////////////////////////////////
-// LIFECYCLE
+const (
+	fileExtJson = ".json"
+)
 
-func New(patterns ...string) (*Config, error) {
-	this := new(Config)
-	this.Handler = make(map[string]Handler)
+/////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS
 
-	// Glob files, sort alphabetically
-	var files []string
-	for _, pattern := range patterns {
-		files_, err := filepath.Glob(pattern)
-		if err != nil {
-			return nil, err
-		} else if len(files_) == 0 {
-			return nil, ErrNotFound.Withf("%q", pattern)
-		}
-		files = append(files, files_...)
+// LoadForPattern returns resources for a pattern of files on a filesystem, in
+// no particular order. Currently only JSON files are supported, with a .json
+// extension or else an error is returned
+func LoadForPattern(filesys fs.FS, pattern string) ([]Resource, error) {
+	var result error
+	resources := []Resource{}
+
+	// Glob
+	paths, err := fs.Glob(filesys, pattern)
+	if err != nil {
+		return nil, err
 	}
-	sort.Strings(files)
+	if len(paths) == 0 {
+		return nil, ErrNotFound.Withf(pattern)
+	}
 
-	// yaml decode plugins and handlers and merge into a single
-	for _, path := range files {
-		// Read configuration file
-		r, err := os.Open(path)
-		if err != nil {
-			return nil, err
-		}
-		defer r.Close()
-
-		// Decode into a configuration
-		var config Config
-		if err := yaml.NewDecoder(r).Decode(&config); err != nil {
-			return nil, fmt.Errorf("%q: %w", path, err)
-		}
-
-		// Merge in plugins, ignore duplicates
-		for _, plugin := range config.Plugin {
-			if !sliceContains(this.Plugin, plugin) {
-				this.Plugin = append(this.Plugin, plugin)
+	// Parse each file for resource definition
+	for _, path := range paths {
+		if err := fs.WalkDir(filesys, path, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
 			}
-		}
-
-		// Marge in handlers, error when there are duplicates
-		for key, handler := range config.Handler {
-			if _, exists := this.Handler[key]; exists {
-				return nil, ErrDuplicateEntry.Withf("Handler: %q", key)
+			if d.IsDir() {
+				if strings.HasPrefix(d.Name(), ".") {
+					return fs.SkipDir
+				} else {
+					return nil
+				}
+			}
+			if !d.Type().IsRegular() {
+				return ErrBadParameter.Withf("Not a regular file: %q", d.Name())
+			}
+			// Read the resource
+			r := Resource{Path: path}
+			if data, err := fs.ReadFile(filesys, path); err != nil {
+				return err
+			} else if err := unmarshal(data, &r); err != nil {
+				return err
+			} else if name := strings.TrimSpace(r.Name()); name == "" {
+				return ErrBadParameter.Withf("%q: Resource has no name", d.Name())
+			} else if !types.IsIdentifier(name) {
+				return ErrBadParameter.Withf("%q Invalid resource with name: %q", d.Name(), name)
 			} else {
-				this.Handler[key] = handler
+				resources = append(resources, r)
+			}
+			return nil
+		}); err != nil {
+			return nil, err
+		}
+	}
+
+	// Return result
+	return resources, result
+}
+
+// LoadForResources returns plugins for a list of resources
+func LoadForResources(filesys fs.FS, resources []Resource, protos task.Plugins) (task.Plugins, error) {
+	var result error
+	var plugins = task.Plugins{}
+
+	// Parse each file for resource definition, then create a new plugin with all the
+	// configuration fields set
+	for _, resource := range resources {
+		name := resource.Name()
+		path := resource.Path
+		if proto, exists := protos[name]; !exists {
+			result = multierror.Append(result, ErrNotFound.Withf("Plugin %q", name))
+		} else if plugin := newPluginInstance(proto); plugin == nil {
+			result = multierror.Append(result, ErrInternalAppError.Withf("LoadForResources: %q", name))
+		} else if data, err := fs.ReadFile(filesys, path); err != nil {
+			result = multierror.Append(result, err)
+		} else if err := unmarshal(data, &plugin); err != nil {
+			result = multierror.Append(result, err)
+		} else if label := strings.TrimSpace(plugin.Label()); label == "" {
+			result = multierror.Append(result, ErrBadParameter.Withf("%v: Resource has no label", filepath.Base(path)))
+		} else if !types.IsIdentifier(label) {
+			result = multierror.Append(result, ErrBadParameter.Withf("%v: Invalid resource with label: %q", filepath.Base(path), label))
+		} else {
+			key := name + "." + label
+			if _, exists := plugins[key]; exists {
+				result = multierror.Append(result, ErrBadParameter.Withf("%v: Duplicate resource with label: %q", filepath.Base(path), key))
+			} else {
+				plugins[key] = plugin
 			}
 		}
 	}
 
-	// In the second pass, read plugin configurations
-	for _, path := range files {
-		// Read configuration file
-		r, err := os.Open(path)
-		if err != nil {
-			return nil, err
-		}
-		defer r.Close()
-		dec := yaml.NewDecoder(r)
-		if err := dec.Decode(&this.Config); err != nil {
-			return nil, err
-		}
-	}
-
-	// Return success
-	return this, nil
+	// Return result
+	return plugins, result
 }
 
-///////////////////////////////////////////////////////////////////////////////
-// STRINGIFY
-
-func (c *Config) String() string {
-	str := "<config"
-	if len(c.Plugin) > 0 {
-		str += fmt.Sprintf(" plugins=%q", c.Plugin)
-	}
-	return str + ">"
-}
-
-func (h Handler) String() string {
-	str := "<handler"
-	if h.Prefix != "" {
-		str += fmt.Sprintf(" prefix=%q", h.Prefix)
-	}
-	if len(h.Middleware) > 0 {
-		str += fmt.Sprintf(" middleware=%q", h.Middleware)
-	}
-	return str + ">"
-}
-
-///////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-func sliceContains(arr []string, elem string) bool {
-	for _, v := range arr {
-		if v == elem {
-			return true
-		}
+// unmarshal decodes data into a data structure. TODO: need to support
+// formats other than JSON
+func unmarshal(data []byte, r any) error {
+	return json.Unmarshal(data, r)
+}
+
+// newPluginInstance returns a new plugin instance given a prototype
+func newPluginInstance(proto Plugin) Plugin {
+	if plugin, ok := reflect.New(reflect.TypeOf(proto)).Interface().(Plugin); ok {
+		return plugin
+	} else {
+		return nil
 	}
-	return false
 }
