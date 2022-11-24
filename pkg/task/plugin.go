@@ -65,8 +65,9 @@ func (p Plugins) Register(v ...iface.Plugin) error {
 }
 
 // LoadPluginsForPattern will load and return a map of plugins for a given glob pattern,
-// keyed against the plugin name.
-func (p Plugins) LoadPluginsForPattern(pattern string) error {
+// keyed against the plugin name. Any plugins which already exist are replaced, if the
+// argument is true
+func (p Plugins) LoadPluginsForPattern(pattern string, replace bool) error {
 	var result error
 
 	// Seek plugins
@@ -85,7 +86,7 @@ func (p Plugins) LoadPluginsForPattern(pattern string) error {
 
 		// Check for duplicate plugins
 		name := plugin.Name()
-		if _, exists := p[name]; exists {
+		if _, exists := p[name]; !replace && exists {
 			result = multierror.Append(result, ErrDuplicateEntry.Withf("Duplicate plugin: %q", name))
 			continue
 		}
@@ -105,6 +106,7 @@ func PluginWithPath(path string) (iface.Plugin, error) {
 	} else if fn, err := plugin.Lookup(funcConfig); err != nil {
 		return nil, err
 	} else if fn_, ok := fn.(func() iface.Plugin); !ok {
+		_ = fn.(func() iface.Plugin)
 		return nil, ErrInternalAppError.With("New returned nil: ", path)
 	} else if config := fn_(); config == nil {
 		return nil, ErrInternalAppError.With("New returned nil: ", path)

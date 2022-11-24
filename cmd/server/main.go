@@ -52,7 +52,7 @@ func main() {
 
 	// Load dynamic plugins if -plugins flag is set
 	if plugins := flagset.Lookup(flagPlugins); plugins != nil && plugins.Value.String() != "" {
-		if err := protos.LoadPluginsForPattern(plugins.Value.String()); err != nil {
+		if err := protos.LoadPluginsForPattern(plugins.Value.String(), true); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(-1)
 		}
@@ -120,9 +120,14 @@ func main() {
 		}
 	}()
 
-	// Run until done
+	// Print out information
 	fmt.Fprintf(os.Stderr, "%s (%s)\n\n", version.GitSource, version.GitTag)
-	fmt.Fprintln(os.Stderr, "Press CTRL+C to exit")
+	for _, key := range provider.Keys() {
+		provider.Printf(ctx, "task: %s: %s\n", key, provider.Get(key))
+	}
+
+	// Run until done
+	fmt.Fprintln(os.Stderr, "\nPress CTRL+C to exit")
 	if err := provider.Run(ctx); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)

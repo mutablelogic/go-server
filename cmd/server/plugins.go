@@ -10,6 +10,7 @@ import (
 	. "github.com/mutablelogic/go-server"
 )
 
+// BuiltInPlugins is a list of plugins which are compiled into the binary
 var BuiltInPlugins = []Plugin{
 	log.Plugin{},
 	dnsregister.Plugin{},
