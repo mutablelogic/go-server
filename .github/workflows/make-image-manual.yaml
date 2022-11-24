@@ -13,6 +13,7 @@ jobs:
       - name: Set variables
         id: var
         run: |
+          env
           echo "arch=${{ matrix.arch }}" >> $GITHUB_OUTPUT
           echo "tag=${{ env.GITHUB_REF_NAME }}" >> $GITHUB_OUTPUT
           echo "image=ghcr.io/${{ github.repository }}-${{ matrix.arch }}" >> $GITHUB_OUTPUT
