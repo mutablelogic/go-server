@@ -5,17 +5,7 @@ jobs:
   build-arm-images:
     strategy:
       matrix:
-        label: [arm, arm64]
-    runs-on: ${{ matrix.label }}
-    steps:
-      - name: Build ARM image
-        uses: ./.github/workflows/make-image-target.yaml
-        with:
-          target: ${{ matrix.target }}
-  build-amd-images:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Build AMD image
-        uses: ./.github/workflows/make-image-target.yaml
-        with:
-          target: "amd64"
+        label: [arm, arm64, amd64]
+    uses: ./.github/workflows/make-image-target.yaml
+    with:
+      target: ${{ matrix.target }}
