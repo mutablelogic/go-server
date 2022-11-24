@@ -1,6 +1,13 @@
 name: Build go-server images (manual)
 on:
-  workflow_dispatch
+  release:
+    types: [ created, edited ]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'tag'
+        required: true
+        type: string
 jobs:
   var:
     name: Set variables
@@ -18,9 +25,13 @@ jobs:
       - name: Set variables
         id: var
         run: |
-          TAG="$(git describe --tags)" && echo "tag=${TAG#v}" >> $GITHUB_OUTPUT
+          if [ "${{ github.event_name }}" != "release" ] && [ "${{ inputs.tag }}" != "latest" ]; then
+            TAG="${{ inputs.tag }}" && echo "tag=${TAG#v}" >> $GITHUB_OUTPUT
+          else
+            TAG="$(git describe --tags)" && echo "tag=${TAG#v}" >> $GITHUB_OUTPUT
+          fi
   build:
-    name: Build docker images
+    name: Build
     needs: var
     strategy:
       matrix:
@@ -39,6 +50,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build
         run: |
+          git checkout ${{ needs.var.outputs.tag }}
           docker build \
             --tag ${{ needs.var.outputs.image }}-${{ matrix.arch }}:${{ needs.var.outputs.tag }} \
             --build-arg VERSION=${{ needs.var.outputs.nginx }} \
@@ -49,7 +61,7 @@ jobs:
         run: |
           docker push ${{ needs.var.outputs.image }}-${{ matrix.arch }}:${{ needs.var.outputs.tag }}
   manifest:
-    name: Create docker manifest
+    name: Manifest
     needs:
       - var 
       - build
