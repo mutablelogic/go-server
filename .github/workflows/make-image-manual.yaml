@@ -11,10 +11,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
       - name: Set tags
-        id: tags
+        id: var
         run: |
           echo "arch=${{ matrix.label }}" >> $GITHUB_OUTPUT
-          echo "image=ghcr.io/${{ github.repository_owner }}/go-server-${{ matrix.label }}:${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          echo "tag=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          echo "image=ghcr.io/${{ github.repository_owner }}/go-server-${{ matrix.label }}" >> $GITHUB_OUTPUT
           echo "nginx=1.23.2" >> $GITHUB_OUTPUT
           echo "platform=linux" >> $GITHUB_OUTPUT
       - name: Login
@@ -26,11 +27,11 @@ jobs:
       - name: Build
         run: |
           docker build \
-            --tag ${{ steps.tags.outputs.image }} \
-            --build-arg VERSION=${{ steps.tags.outputs.nginx }} \
-            --build-arg ARCH=${{ steps.tags.outputs.arch }} \
-            --build-arg PLATFORM=${{ steps.tags.outputs.platform }} \
+            --tag ${{ steps.var.outputs.image }}:${{ steps.var.outputs.tag }} \
+            --build-arg VERSION=${{ steps.var.outputs.nginx }} \
+            --build-arg ARCH=${{ steps.var.outputs.arch }} \
+            --build-arg PLATFORM=${{ steps.var.outputs.platform }} \
             -f etc/docker/Dockerfile .
       - name: Push
         run: |
-          docker push ${{ steps.tags.outputs.image }}
+          docker push ${{ steps.var.outputs.image }}:${{ steps.var.outputs.tag }}
