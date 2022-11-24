@@ -1,13 +1,36 @@
-name: Build go-server image for a target architecture
+name: Build go-server images (manual)
 on:
   workflow_dispatch
 jobs:
-  build:
+  build:  
     strategy:
       matrix:
-        label: [arm, arm64, amd64]
-    runs-on: ${{ matrix.label == 'amd64' && 'ubuntu-latest' || matrix.label }}
+        arch: [arm, arm64, amd64]
+    runs-on: ${{ matrix.arch == 'amd64' && 'ubuntu-latest' || matrix.arch }}
     steps:
-      - name: build ${{ matrix.label }}
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Set tags
+        id: tags
         run: |
-          echo "Building image for target ${{ matrix.label }}"
+          echo "arch=${{ matrix.label }}" >> $GITHUB_OUTPUT
+          echo "image=ghcr.io/${{ github.repository_owner }}/go-server-${{ matrix.label }}:${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          echo "nginx=1.23.2" >> $GITHUB_OUTPUT
+          echo "platform=linux" >> $GITHUB_OUTPUT
+      - name: Login
+        uses: docker/login-action@v1
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build
+        run: |
+          docker build \
+            --tag ${{ steps.tags.outputs.image }} \
+            --build-arg VERSION=${{ steps.tags.outputs.nginx }} \
+            --build-arg ARCH=${{ steps.tags.outputs.arch }} \
+            --build-arg PLATFORM=${{ steps.tags.outputs.platform }} \
+            -f etc/docker/Dockerfile .
+      - name: Push
+        run: |
+          docker push ${{ steps.tags.outputs.image }}
