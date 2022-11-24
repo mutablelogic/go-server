@@ -63,6 +63,10 @@ type Provider interface {
 	// the provider is running.
 	New(context.Context, Plugin) (Task, error)
 
+	// Return the task labels. Ideally these should be in the order they are created, to
+	// satisfy any dependencies.
+	Keys() []string
+
 	// Return a task with name and label. Two arguments are required if the first argument is
 	// the task name and the second is the task label. Returns nil if there isn't exactly one
 	// task to return.
