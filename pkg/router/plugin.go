@@ -41,6 +41,12 @@ func (p Plugin) New(_ context.Context, _ iface.Provider) (iface.Task, error) {
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
+func WithLabel(label string) Plugin {
+	return Plugin{
+		Plugin: task.WithLabel(defaultName, label),
+	}
+}
+
 func (p Plugin) Name() string {
 	if name := p.Plugin.Name(); name != "" {
 		return name

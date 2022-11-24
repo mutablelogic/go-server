@@ -132,9 +132,9 @@ func (p *provider) New(parent context.Context, proto iface.Plugin) (iface.Task, 
 	// Create the task
 	task, err := proto.New(ctx.WithNameLabel(parent, proto.Name(), proto.Label()), p)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%v: %w", key, err)
 	} else if err := p.Set(key, task); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%v: %w", key, err)
 	}
 
 	// Check for log task
