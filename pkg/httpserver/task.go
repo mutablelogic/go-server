@@ -94,18 +94,30 @@ func (t *t) Run(ctx context.Context) error {
 	var result error
 	var wg sync.WaitGroup
 
+	// Create cancelable context
+	child, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	// Stop server on context cancel
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		<-ctx.Done()
+		<-child.Done()
 		if err := t.stop(); err != nil {
 			result = multierror.Append(result, err)
 		}
 	}()
+
+	// Run server in foreground, cancel when done
 	if err := t.runInForeground(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		result = multierror.Append(result, err)
+		cancel()
 	}
+
+	// Wait for gorutines to finish
 	wg.Wait()
+
+	// Return any errors
 	return result
 }
 

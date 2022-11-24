@@ -90,6 +90,7 @@ func (p *provider) Run(parent context.Context) error {
 			continue
 		}
 
+		// Create a context for the specific task
 		grandchild := ctx.WithNameLabel(child, nameLabel[0], nameLabel[1])
 
 		// Subscribe to events from task
