@@ -7,7 +7,7 @@ import (
 	"plugin"
 
 	// Package imports
-	"github.com/hashicorp/go-multierror"
+	multierror "github.com/hashicorp/go-multierror"
 	iface "github.com/mutablelogic/go-server"
 	ctx "github.com/mutablelogic/go-server/pkg/context"
 	types "github.com/mutablelogic/go-server/pkg/types"

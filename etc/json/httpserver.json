@@ -1,0 +1,7 @@
+{
+    "name": "httpserver",
+    "label": "port-80",
+    "listen": ":80",
+    "tls": {},
+    "timeout": "10s"
+}
