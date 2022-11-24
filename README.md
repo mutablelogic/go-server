@@ -10,6 +10,8 @@ Standard plugins provided include:
 
   * __httpserver__ which provides a simple HTTP server and
     routing of requests to plugins;
+  * __dnsregister__ periodically registers the server's IP address
+    with a DNS server;
   * __log__ which provides logging for requests and any other
     tasks;
 
