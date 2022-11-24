@@ -9,8 +9,6 @@ import (
 	"strings"
 	"time"
 
-	// Package imports
-
 	// Namespace imports
 	. "github.com/djthorpe/go-errors"
 )
