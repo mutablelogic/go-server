@@ -56,9 +56,9 @@ jobs:
       - build
     strategy:
       matrix:
-        tag:
-          - ${{ steps.var.outputs.tag }}
-          - latest
+        include:
+          - tag: ${{ steps.var.outputs.tag }}
+          - tag: latest
     runs-on: ubuntu-latest
     steps:
       - name: Login
