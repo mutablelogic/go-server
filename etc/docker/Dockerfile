@@ -16,4 +16,3 @@ COPY etc/json/ /var/lib/go-server/json/
 # Entrypoint when running the server
 ENTRYPOINT [ "/server-entrypoint.sh" ]
 CMD [ "/usr/local/bin/server", "-plugins=/usr/local/bin/*.plugin", "/var/lib/go-server/json/*.json" ]
-#CMD ["/usr/local/bin/server","/var/lib/go-server/json/*.json"]
