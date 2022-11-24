@@ -13,9 +13,11 @@ jobs:
       - name: Set variables
         id: var
         run: |
+          TAG="$(git describe --tags)"
+          echo $TAG
+          echo "tag=${TAG#v}"
           echo "arch=${{ matrix.arch }}" >> $GITHUB_OUTPUT
-          TAG="$(git describe --tags)" && echo "tag=${TAG#v}" >> $GITHUB_OUTPUT
-          echo "tag=${{ env.GITHUB_REF_NAME }}" >> $GITHUB_OUTPUT
+          echo "tag=${TAG#v}" >> $GITHUB_OUTPUT
           echo "image=ghcr.io/${{ github.repository }}-${{ matrix.arch }}" >> $GITHUB_OUTPUT
           echo "nginx=1.23.2" >> $GITHUB_OUTPUT
           echo "platform=linux" >> $GITHUB_OUTPUT
