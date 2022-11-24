@@ -1,13 +1,14 @@
 package config
 
 import (
+	"fmt"
 	"io/fs"
 	"path/filepath"
 	"reflect"
 	"strings"
 
 	// Modules
-	"github.com/hashicorp/go-multierror"
+	multierror "github.com/hashicorp/go-multierror"
 	json "github.com/mutablelogic/go-server/pkg/config/json"
 	task "github.com/mutablelogic/go-server/pkg/task"
 	types "github.com/mutablelogic/go-server/pkg/types"
@@ -73,7 +74,7 @@ func LoadForPattern(filesys fs.FS, pattern string) ([]Resource, error) {
 			if data, err := fs.ReadFile(filesys, path); err != nil {
 				return err
 			} else if err := unmarshal(data, &r); err != nil {
-				return err
+				return fmt.Errorf("%s: %w", filepath.Base(path), err)
 			} else if name := strings.TrimSpace(r.Name()); name == "" {
 				return ErrBadParameter.Withf("%q: Resource has no name", d.Name())
 			} else if !types.IsIdentifier(name) {
@@ -108,7 +109,7 @@ func LoadForResources(filesys fs.FS, resources []Resource, protos task.Plugins) 
 		} else if data, err := fs.ReadFile(filesys, path); err != nil {
 			result = multierror.Append(result, err)
 		} else if err := unmarshal(data, &plugin); err != nil {
-			result = multierror.Append(result, err)
+			result = multierror.Append(result, fmt.Errorf("%s: %w", filepath.Base(path), err))
 		} else if label := strings.TrimSpace(plugin.Label()); label == "" {
 			result = multierror.Append(result, ErrBadParameter.Withf("%v: Resource has no label", filepath.Base(path)))
 		} else if !types.IsIdentifier(label) {
