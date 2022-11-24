@@ -1,6 +1,14 @@
 name: Build go-server images (manual)
 on:
-  workflow_dispatch
+  release:
+    types: [ created, edited ]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'tag'
+        required: true
+        default: 'latest'
+        type: string
 jobs:
   var:
     name: Set variables
@@ -18,9 +26,13 @@ jobs:
       - name: Set variables
         id: var
         run: |
-          TAG="$(git describe --tags)" && echo "tag=${TAG#v}" >> $GITHUB_OUTPUT
+          if [ "${{ github.event_name }}" != "release" ] && [ "${{ inputs.tag }}" != "latest" ]; then
+            TAG="${{ inputs.tag }}" && echo "tag=${TAG#v}" >> $GITHUB_OUTPUT
+          else
+            TAG="$(git describe --tags)" && echo "tag=${TAG#v}" >> $GITHUB_OUTPUT
+          fi
   build:
-    name: Build docker images
+    name: Build
     needs: var
     strategy:
       matrix:
@@ -32,13 +44,14 @@ jobs:
         with:
           fetch-depth: 0
       - name: Login
-        uses: docker/login-action@v1
+        uses: docker/login-action@v2
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build
         run: |
+          git checkout v${{ needs.var.outputs.tag }}
           docker build \
             --tag ${{ needs.var.outputs.image }}-${{ matrix.arch }}:${{ needs.var.outputs.tag }} \
             --build-arg VERSION=${{ needs.var.outputs.nginx }} \
@@ -49,19 +62,19 @@ jobs:
         run: |
           docker push ${{ needs.var.outputs.image }}-${{ matrix.arch }}:${{ needs.var.outputs.tag }}
   manifest:
-    name: Create docker manifest
+    name: Manifest
     needs:
       - var 
       - build
     strategy:
       matrix:
         include:
-          - tag: "2.0.12"
+          - tag: ${{ needs.var.outputs.tag }}
           - tag: latest
     runs-on: ubuntu-latest
     steps:
       - name: Login
-        uses: docker/login-action@v1
+        uses: docker/login-action@v2
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
@@ -73,12 +86,12 @@ jobs:
             --amend ${{ needs.var.outputs.image }}-arm64:${{ needs.var.outputs.tag }} \
             --amend ${{ needs.var.outputs.image }}-arm:${{ needs.var.outputs.tag }}
           docker manifest annotate --arch arm64 \
-            ${{ needs.tags.outputs.image }}:${{ matrix.tag  }} \
-            ${{ needs.tags.outputs.image }}-arm64:${{ needs.tags.outputs.tag }}
+            ${{ needs.var.outputs.image }}:${{ matrix.tag  }} \
+            ${{ needs.var.outputs.image }}-arm64:${{ needs.var.outputs.tag }}
           docker manifest annotate --arch amd64 \
-            ${{ needs.tags.outputs.image }}:${{ matrix.tag  }} \
-            ${{ needs.tags.outputs.manifest }}-amd64:${{ needs.tags.outputs.tag }}
+            ${{ needs.var.outputs.image }}:${{ matrix.tag  }} \
+            ${{ needs.var.outputs.image }}-amd64:${{ needs.var.outputs.tag }}
           docker manifest annotate --arch arm \
-            ${{ needs.tags.outputs.image }}:${{ matrix.tag  }} \
-            ${{ needs.tags.outputs.manifest }}-arm:${{ needs.tags.outputs.tag }}
-          docker manifest push ${{ needs.tags.outputs.image }}:${{ matrix.tag  }}
+            ${{ needs.var.outputs.image }}:${{ matrix.tag  }} \
+            ${{ needs.var.outputs.image }}-arm:${{ needs.var.outputs.tag }}
+          docker manifest push ${{ needs.var.outputs.image }}:${{ matrix.tag  }}
