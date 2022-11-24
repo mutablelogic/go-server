@@ -13,11 +13,11 @@ jobs:
       - name: Set variables
         id: var
         run: |
-          echo arch=${{ matrix.label }} >> $GITHUB_OUTPUT
-          echo tag=${GITHUB_REF#refs/tags/v} >> $GITHUB_OUTPUT
-          echo image=ghcr.io/${{ github.repository_owner }}/go-server-${{ matrix.label }} >> $GITHUB_OUTPUT
-          echo nginx=1.23.2 >> $GITHUB_OUTPUT
-          echo platform=linux >> $GITHUB_OUTPUT
+          echo "arch=${{ matrix.arch }}" >> $GITHUB_OUTPUT
+          echo "tag=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          echo "image=ghcr.io/${{ github.repository_owner }}/go-server-${{ matrix.arch }}" >> $GITHUB_OUTPUT
+          echo "nginx=1.23.2" >> $GITHUB_OUTPUT
+          echo "platform=linux" >> $GITHUB_OUTPUT
       - name: Login
         uses: docker/login-action@v1
         with:
