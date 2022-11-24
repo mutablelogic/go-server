@@ -9,7 +9,9 @@ jobs:
     runs-on: ${{ matrix.arch == 'amd64' && 'ubuntu-latest' || matrix.arch }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
       - name: Set variables
         id: var
         run: |
