@@ -73,12 +73,12 @@ jobs:
             --amend ${{ needs.var.outputs.image }}-arm64:${{ needs.var.outputs.tag }} \
             --amend ${{ needs.var.outputs.image }}-arm:${{ needs.var.outputs.tag }}
           docker manifest annotate --arch arm64 \
-            ${{ needs.tags.outputs.image }}:${{ matrix.tag  }} \
-            ${{ needs.tags.outputs.image }}-arm64:${{ needs.tags.outputs.tag }}
+            ${{ needs.var.outputs.image }}:${{ matrix.tag  }} \
+            ${{ needs.var.outputs.image }}-arm64:${{ needs.var.outputs.tag }}
           docker manifest annotate --arch amd64 \
-            ${{ needs.tags.outputs.image }}:${{ matrix.tag  }} \
-            ${{ needs.tags.outputs.manifest }}-amd64:${{ needs.tags.outputs.tag }}
+            ${{ needs.var.outputs.image }}:${{ matrix.tag  }} \
+            ${{ needs.var.outputs.manifest }}-amd64:${{ needs.var.outputs.tag }}
           docker manifest annotate --arch arm \
-            ${{ needs.tags.outputs.image }}:${{ matrix.tag  }} \
-            ${{ needs.tags.outputs.manifest }}-arm:${{ needs.tags.outputs.tag }}
-          docker manifest push ${{ needs.tags.outputs.image }}:${{ matrix.tag  }}
+            ${{ needs.var.outputs.image }}:${{ matrix.tag  }} \
+            ${{ needs.var.outputs.manifest }}-arm:${{ needs.var.outputs.tag }}
+          docker manifest push ${{ needs.var.outputs.image }}:${{ matrix.tag  }}
