@@ -56,7 +56,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - tag: "2.0.12"
+          - tag: ${{ needs.var.outputs.tag }}
           - tag: latest
     runs-on: ubuntu-latest
     steps:
@@ -77,8 +77,8 @@ jobs:
             ${{ needs.var.outputs.image }}-arm64:${{ needs.var.outputs.tag }}
           docker manifest annotate --arch amd64 \
             ${{ needs.var.outputs.image }}:${{ matrix.tag  }} \
-            ${{ needs.var.outputs.manifest }}-amd64:${{ needs.var.outputs.tag }}
+            ${{ needs.var.outputs.image }}-amd64:${{ needs.var.outputs.tag }}
           docker manifest annotate --arch arm \
             ${{ needs.var.outputs.image }}:${{ matrix.tag  }} \
-            ${{ needs.var.outputs.manifest }}-arm:${{ needs.var.outputs.tag }}
+            ${{ needs.var.outputs.image }}-arm:${{ needs.var.outputs.tag }}
           docker manifest push ${{ needs.var.outputs.image }}:${{ matrix.tag  }}
