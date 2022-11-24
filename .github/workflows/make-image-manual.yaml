@@ -1,21 +1,11 @@
 name: Build go-server image (manual)
 on:
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: "Image tag"
-        required: true
-        default: "latest"
+  workflow_dispatch
 jobs:
   build-arm-images:
     strategy:
       matrix:
-        label: [arm, arm66, amd64]
-        include:
-          - label: self-hosted
-          - label: linux
-    runs-on: ${{ matrix.label }}
-    steps:
-      - name: Build target image
-        run: |
-          echo "Build target image ${{ matrix.label }}"
+        label: [arm, arm64, amd64]
+    uses: ./.github/workflows/make-image-target.yaml
+    with:
+      target: ${{ matrix.target }}
