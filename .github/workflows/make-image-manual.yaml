@@ -6,7 +6,7 @@ jobs:
     strategy:
       matrix:
         label: [arm, arm64, amd64]
-    runs-on: ${{ matrix.label == 'amd64' && 'ubuntu-latest' || 'self-hosted, linux, ' + matrix.label }}
+    runs-on: ${{ matrix.label == 'amd64' && 'ubuntu-latest' || matrix.label }}
     steps:
       - name: build ${{ matrix.label }}
         run: |
