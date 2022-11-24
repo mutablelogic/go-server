@@ -3,6 +3,7 @@ package httpserver
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"time"
 
 	// Package imports
@@ -11,6 +12,9 @@ import (
 	task "github.com/mutablelogic/go-server/pkg/task"
 	types "github.com/mutablelogic/go-server/pkg/types"
 	plugin "github.com/mutablelogic/go-server/plugin"
+
+	// Namespace imports
+	. "github.com/djthorpe/go-errors"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -54,6 +58,10 @@ func (p Plugin) New(ctx context.Context, provider iface.Provider) (iface.Task, e
 	}
 
 	p.router = p.Router(ctx, provider)
+	if p.router == nil {
+		return nil, ErrInternalAppError.With("Router is nil")
+	}
+
 	p.listen = p.Listen()
 	p.timeout = p.Timeout()
 	if tls, err := p.TLS(); err != nil {
@@ -92,8 +100,11 @@ func (p Plugin) TLS() (*tls.Config, error) {
 	if p.TLS_ == nil {
 		return nil, nil
 	}
+	if p.TLS_.Cert_ == "" && p.TLS_.Key_ == "" {
+		return nil, nil
+	}
 	if cert, err := tls.LoadX509KeyPair(string(p.TLS_.Cert_), string(p.TLS_.Key_)); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("LoadX509KeyPair: %w", err)
 	} else {
 		return &tls.Config{
 			Certificates: []tls.Certificate{cert},
@@ -103,7 +114,7 @@ func (p Plugin) TLS() (*tls.Config, error) {
 
 func (p Plugin) Router(ctx context.Context, provider iface.Provider) plugin.Router {
 	if p.Router_.Task == nil {
-		plugin := router.Plugin{}
+		plugin := router.WithLabel(p.Label())
 		if router, err := provider.New(ctx, plugin); err != nil {
 			// We currently panic if we get here, it's not expected
 			panic(err)

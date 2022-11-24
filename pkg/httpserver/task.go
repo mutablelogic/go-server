@@ -16,6 +16,9 @@ import (
 	fcgi "github.com/mutablelogic/go-server/pkg/httpserver/fcgi"
 	task "github.com/mutablelogic/go-server/pkg/task"
 	plugin "github.com/mutablelogic/go-server/plugin"
+
+	// Namespace imports
+	. "github.com/djthorpe/go-errors"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -35,9 +38,14 @@ type t struct {
 func NewWithPlugin(p Plugin) (*t, error) {
 	this := new(t)
 
+	router, ok := p.router.(http.Handler)
+	if !ok {
+		return nil, ErrInternalAppError.Withf("Router %v does not implement http.Handler", router)
+	}
+
 	if isHostPort(p.listen) {
 		// Create net server
-		if http, err := netserver(p.listen, p.tls, p.timeout, p.router.(http.Handler)); err != nil {
+		if http, err := netserver(p.listen, p.tls, p.timeout, router); err != nil {
 			return nil, err
 		} else {
 			this.http = http
@@ -46,7 +54,7 @@ func NewWithPlugin(p Plugin) (*t, error) {
 		return nil, err
 	} else {
 		// Check listen for being (host, port). If not, then run as FCGI server
-		if fcgi, err := fcgiserver(abs, p.router.(http.Handler)); err != nil {
+		if fcgi, err := fcgiserver(abs, router); err != nil {
 			return nil, err
 		} else {
 			this.fcgi = fcgi
