@@ -57,7 +57,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - tag: ${{ steps.var.outputs.tag }}
+          - tag: "2.0.12"
           - tag: latest
     runs-on: ubuntu-latest
     steps:
