@@ -9,6 +9,7 @@ jobs:
       platform: "linux"
       nginx: 1.23.2
       image: "ghcr.io/${{ github.repository }}"
+      tag: ${{ steps.var.outputs.tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -39,14 +40,14 @@ jobs:
       - name: Build
         run: |
           docker build \
-            --tag ${{ steps.var.outputs.image }}-${{ matrix.arch }}:${{ steps.var.outputs.tag }} \
-            --build-arg VERSION=${{ steps.var.outputs.nginx }} \
+            --tag ${{ needs.var.outputs.image }}-${{ matrix.arch }}:${{ needs.var.outputs.tag }} \
+            --build-arg VERSION=${{ needs.var.outputs.nginx }} \
             --build-arg ARCH=${{ matrix.arch }} \
-            --build-arg PLATFORM=${{ steps.var.outputs.platform }} \
+            --build-arg PLATFORM=${{ needs.var.outputs.platform }} \
             -f etc/docker/Dockerfile .
       - name: Push
         run: |
-          docker push ${{ steps.var.outputs.image }}-${{ matrix.arch }}:${{ steps.var.outputs.tag }}
+          docker push ${{ needs.var.outputs.image }}-${{ matrix.arch }}:${{ needs.var.outputs.tag }}
   manifest:
     name: Create docker manifest
     needs:
@@ -67,17 +68,17 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Create Manifest
         run: |
-          docker manifest create ${{ steps.var.outputs.image }}:${{ matrix.tag }} \
-            --amend ${{ steps.var.outputs.image }}-amd64:${{ steps.var.outputs.tag }} \
-            --amend ${{ steps.var.outputs.image }}-arm64:${{ steps.var.outputs.tag }} \
-            --amend ${{ steps.var.outputs.image }}-arm:${{ steps.var.outputs.tag }}
+          docker manifest create ${{ needs.var.outputs.image }}:${{ matrix.tag }} \
+            --amend ${{ needs.var.outputs.image }}-amd64:${{ needs.var.outputs.tag }} \
+            --amend ${{ needs.var.outputs.image }}-arm64:${{ needs.var.outputs.tag }} \
+            --amend ${{ needs.var.outputs.image }}-arm:${{ needs.var.outputs.tag }}
           docker manifest annotate --arch arm64 \
-            ${{ steps.tags.outputs.image }}:${{ matrix.tag  }} \
-            ${{ steps.tags.outputs.image }}-arm64:${{ steps.tags.outputs.tag }}
+            ${{ needs.tags.outputs.image }}:${{ matrix.tag  }} \
+            ${{ needs.tags.outputs.image }}-arm64:${{ needs.tags.outputs.tag }}
           docker manifest annotate --arch amd64 \
-            ${{ steps.tags.outputs.image }}:${{ matrix.tag  }} \
-            ${{ steps.tags.outputs.manifest }}-amd64:${{ steps.tags.outputs.tag }}
+            ${{ needs.tags.outputs.image }}:${{ matrix.tag  }} \
+            ${{ needs.tags.outputs.manifest }}-amd64:${{ needs.tags.outputs.tag }}
           docker manifest annotate --arch arm \
-            ${{ steps.tags.outputs.image }}:${{ matrix.tag  }} \
-            ${{ steps.tags.outputs.manifest }}-arm:${{ steps.tags.outputs.tag }}
-          docker manifest push ${{ steps.tags.outputs.image }}:${{ matrix.tag  }}
+            ${{ needs.tags.outputs.image }}:${{ matrix.tag  }} \
+            ${{ needs.tags.outputs.manifest }}-arm:${{ needs.tags.outputs.tag }}
+          docker manifest push ${{ needs.tags.outputs.image }}:${{ matrix.tag  }}
