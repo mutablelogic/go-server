@@ -83,6 +83,7 @@ func (t *t) Run(ctx context.Context) error {
 					t.Emit(event.Infof(ctx, ExternalIP, "External address changed to %q", t.addr))
 				} else {
 					t.Emit(event.Infof(ctx, NotModified, "External address not modified"))
+					// TODO: Update all records to now, so that we don't try and update them
 				}
 			} else if record := t.next(); !record.IsZero() {
 				if addr, err := t.register(record); errors.Is(err, ErrNotModified) {
@@ -103,11 +104,7 @@ func (t *t) Run(ctx context.Context) error {
 // touch the modtime for the given hostname to see if we should re-register
 func (t *t) touch(key string) bool {
 	modtime, exists := t.modtime[key]
-	if !exists || modtime.IsZero() {
-		t.modtime[key] = time.Now()
-		return true
-	}
-	if time.Since(modtime) >= t.delta {
+	if !exists || modtime.IsZero() || time.Since(modtime) >= t.delta {
 		t.modtime[key] = time.Now()
 		return true
 	}

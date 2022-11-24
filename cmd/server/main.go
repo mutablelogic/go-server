@@ -15,18 +15,18 @@ import (
 	config "github.com/mutablelogic/go-server/pkg/config"
 	context "github.com/mutablelogic/go-server/pkg/context"
 	task "github.com/mutablelogic/go-server/pkg/task"
+	version "github.com/mutablelogic/go-server/pkg/version"
 )
 
 const (
 	flagAddress = "address"
 	flagPlugins = "plugins"
+	flagVersion = "version"
 )
 
 func main() {
 	// Create flags
-	name := filepath.Base(os.Args[0])
-	flagset := flag.NewFlagSet(name, flag.ContinueOnError)
-	registerArguments(flagset)
+	flagset := registerArguments(filepath.Base(os.Args[0]))
 
 	// Parse flags
 	if err := flagset.Parse(os.Args[1:]); err != nil {
@@ -35,6 +35,12 @@ func main() {
 		} else {
 			os.Exit(-1)
 		}
+	}
+
+	// Check for version flag
+	if flagset.Lookup(flagVersion).Value.(flag.Getter).Get().(bool) {
+		version.PrintVersion(flagset.Output())
+		os.Exit(0)
 	}
 
 	// Get builtin plugin prototypes
@@ -115,6 +121,7 @@ func main() {
 	}()
 
 	// Run until done
+	fmt.Fprintf(os.Stderr, "%s (%s)\n\n", version.GitSource, version.GitTag)
 	fmt.Fprintln(os.Stderr, "Press CTRL+C to exit")
 	if err := provider.Run(ctx); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -128,7 +135,13 @@ func main() {
 	fmt.Fprintln(os.Stderr, "Done")
 }
 
-func registerArguments(f *flag.FlagSet) {
-	f.String(flagAddress, "", "Override address to listen on")
-	f.String(flagPlugins, "", "Directory of plugins to load")
+func registerArguments(name string) *flag.FlagSet {
+	flagset := flag.NewFlagSet(name, flag.ContinueOnError)
+	flagset.Usage = func() {
+		version.Usage(flagset)
+	}
+	flagset.String(flagAddress, "", "Override address to listen on")
+	flagset.String(flagPlugins, "", "Directory of plugins to load")
+	flagset.Bool(flagVersion, false, "Print version and exit")
+	return flagset
 }
