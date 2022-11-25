@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	flagAddress = "address"
+	flagAddress = "addr"
 	flagPlugins = "plugins"
 	flagVersion = "version"
 )
@@ -124,7 +124,9 @@ func main() {
 	}()
 
 	// Print out information
-	fmt.Fprintf(os.Stderr, "%s (%s)\n\n", version.GitSource, version.GitTag)
+	if version.GitSource != "" && version.GitTag != "" {
+		fmt.Fprintf(os.Stderr, "%s (%s)\n\n", version.GitSource, version.GitTag)
+	}
 	for _, key := range provider.Keys() {
 		provider.Printf(ctx, "task: %s: %s\n", key, provider.Get(key))
 	}
