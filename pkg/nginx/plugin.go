@@ -2,15 +2,13 @@ package nginx
 
 import (
 	"context"
-	"os"
 
 	// Package imports
 	iface "github.com/mutablelogic/go-server"
 	task "github.com/mutablelogic/go-server/pkg/task"
 	types "github.com/mutablelogic/go-server/pkg/types"
-
 	// Namespace imports
-	. "github.com/djthorpe/go-errors"
+	//. "github.com/djthorpe/go-errors"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -18,9 +16,10 @@ import (
 
 type Plugin struct {
 	task.Plugin
-	Path_   types.String `json:"path,omitempty"`   // Path to the nginx binary
-	Config_ types.String `json:"config,omitempty"` // Path to the configuration file
-	Prefix_ types.String `json:"prefix,omitempty"` // Prefix for nginx configuration
+	Path_   types.Path              `json:"path,omitempty"`   // Path to the nginx binary
+	Config_ types.Path              `json:"config,omitempty"` // Path to the configuration file
+	Prefix_ types.Path              `json:"prefix,omitempty"` // Prefix for nginx configuration
+	Env_    map[string]types.String `json:"env,omitempty"`    // Environment variable map
 
 	path  string
 	flags []string
@@ -48,35 +47,29 @@ func (p Plugin) New(ctx context.Context, provider iface.Provider) (iface.Task, e
 
 	// Check for executable path
 	if p.Path_ == "" {
-		p.Path_ = types.String(defaultPath)
+		p.Path_ = types.Path(defaultPath)
 	}
-	if stat, err := os.Stat(string(p.Path_)); err != nil {
+	if abs, err := p.Path_.AbsFile(); err != nil {
 		return nil, err
-	} else if !IsExecAny(stat.Mode()) {
-		return nil, ErrBadParameter.Withf("path is not executable: %q", p.Path_)
 	} else {
-		p.path = string(p.Path_)
+		p.path = abs
 	}
 
 	// Check for configuration file
 	if p.Config_ != "" {
-		if stat, err := os.Stat(string(p.Config_)); err != nil {
+		if abs, err := p.Config_.AbsFile(); err != nil {
 			return nil, err
-		} else if stat.Mode().IsRegular() == false {
-			return nil, ErrBadParameter.Withf("config is not a regular file: %q", p.Config_)
 		} else {
-			p.flags = append(p.flags, "-c", string(p.Config_))
+			p.flags = append(p.flags, "-c", abs)
 		}
 	}
 
 	// Check for prefix path
 	if p.Prefix_ != "" {
-		if stat, err := os.Stat(string(p.Prefix_)); err != nil {
+		if abs, err := p.Config_.AbsDir(); err != nil {
 			return nil, err
-		} else if stat.Mode().IsDir() == false {
-			return nil, ErrBadParameter.Withf("prefix is not a directory: %q", p.Prefix_)
 		} else {
-			p.flags = append(p.flags, "-p", string(p.Prefix_))
+			p.flags = append(p.flags, "-p", abs)
 		}
 	}
 

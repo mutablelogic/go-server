@@ -73,7 +73,7 @@ func LoadForPattern(filesys fs.FS, pattern string) ([]Resource, error) {
 			r := Resource{Path: path}
 			if data, err := fs.ReadFile(filesys, path); err != nil {
 				return err
-			} else if err := unmarshal(data, &r); err != nil {
+			} else if err := unmarshal(path, data, &r); err != nil {
 				return fmt.Errorf("%s: %w", filepath.Base(path), err)
 			} else if name := strings.TrimSpace(r.Name()); name == "" {
 				return ErrBadParameter.Withf("%q: Resource has no name", d.Name())
@@ -108,7 +108,7 @@ func LoadForResources(filesys fs.FS, resources []Resource, protos task.Plugins) 
 			result = multierror.Append(result, ErrInternalAppError.Withf("LoadForResources: %q", name))
 		} else if data, err := fs.ReadFile(filesys, path); err != nil {
 			result = multierror.Append(result, err)
-		} else if err := unmarshal(data, &plugin); err != nil {
+		} else if err := unmarshal(path, data, &plugin); err != nil {
 			result = multierror.Append(result, fmt.Errorf("%s: %w", filepath.Base(path), err))
 		} else if label := strings.TrimSpace(plugin.Label()); label == "" {
 			result = multierror.Append(result, ErrBadParameter.Withf("%v: Resource has no label", filepath.Base(path)))
@@ -133,8 +133,12 @@ func LoadForResources(filesys fs.FS, resources []Resource, protos task.Plugins) 
 
 // unmarshal decodes data into a data structure. TODO: need to support
 // formats other than JSON
-func unmarshal(data []byte, r any) error {
-	return json.Unmarshal(data, r)
+func unmarshal(path string, data []byte, r any) error {
+	if err := json.Unmarshal(data, r); err != nil {
+		return err
+	}
+	fmt.Println("TODO: Resolve paths", path)
+	return nil
 }
 
 // newPluginInstance returns a new plugin instance given a prototype
