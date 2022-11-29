@@ -4,5 +4,4 @@
     "path": "/usr/sbin/nginx",
     "prefix": "/var/lib/nginx/html",
     "config": "/var/lib/nginx/nginx.conf"
-    // depends_on = [ "httpserver" ]
 }
