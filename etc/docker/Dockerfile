@@ -12,6 +12,7 @@ FROM --platform=${PLATFORM}/${ARCH} library/nginx:${VERSION}
 COPY --from=builder /usr/src/app/build/* /usr/local/bin/
 COPY etc/docker/server-entrypoint.sh .
 COPY etc/json/ /var/lib/go-server/json/
+COPY etc/nginx/ /var/lib/nginx/
 
 # Entrypoint when running the server
 ENTRYPOINT [ "/server-entrypoint.sh" ]

@@ -26,7 +26,7 @@ func PrintVersion(w io.Writer) {
 		fmt.Fprintf(w, "  Version: %v (branch: %q hash:%q)\n", GitTag, GitBranch, GitHash)
 	}
 	if GoBuildTime != "" {
-		fmt.Fprintf(w, "  Build Time: %v\n", GoBuildTime)
+		fmt.Fprintf(w, "  Built: %v\n", GoBuildTime)
 	}
 	fmt.Fprintf(w, "  Go: %v (%v/%v)\n", runtime.Version(), runtime.GOOS, runtime.GOARCH)
 }
@@ -41,12 +41,9 @@ func Usage(flags *flag.FlagSet) {
 	fmt.Fprintf(w, "%s: monolithic task server\n", name)
 	fmt.Fprintf(w, "\nUsage:\n")
 	fmt.Fprintf(w, "  %s <flags> config.json config.json ...\n", name)
+	fmt.Fprintf(w, "  %s -version\n", name)
 	fmt.Fprintf(w, "  %s -help\n", name)
 
 	fmt.Fprintln(w, "\nFlags:")
 	flags.PrintDefaults()
-
-	fmt.Fprintln(w, "\nVersion:")
-	PrintVersion(w)
-	fmt.Fprintln(w, "")
 }

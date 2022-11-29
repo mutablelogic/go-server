@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	flagAddress = "address"
+	flagAddress = "addr"
 	flagPlugins = "plugins"
 	flagVersion = "version"
 )
@@ -37,12 +37,6 @@ func main() {
 		}
 	}
 
-	// Check for version flag
-	if flagset.Lookup(flagVersion).Value.(flag.Getter).Get().(bool) {
-		version.PrintVersion(flagset.Output())
-		os.Exit(0)
-	}
-
 	// Get builtin plugin prototypes
 	protos, err := BuiltinPlugins()
 	if err != nil {
@@ -56,6 +50,15 @@ func main() {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(-1)
 		}
+	}
+
+	// Check for version flag
+	if flagset.Lookup(flagVersion).Value.(flag.Getter).Get().(bool) {
+		version.PrintVersion(flagset.Output())
+		for key := range protos {
+			fmt.Fprintf(flagset.Output(), "  Plugin: %q\n", key)
+		}
+		os.Exit(0)
 	}
 
 	// Read resources using JSON
@@ -121,7 +124,9 @@ func main() {
 	}()
 
 	// Print out information
-	fmt.Fprintf(os.Stderr, "%s (%s)\n\n", version.GitSource, version.GitTag)
+	if version.GitSource != "" && version.GitTag != "" {
+		fmt.Fprintf(os.Stderr, "%s (%s)\n\n", version.GitSource, version.GitTag)
+	}
 	for _, key := range provider.Keys() {
 		provider.Printf(ctx, "task: %s: %s\n", key, provider.Get(key))
 	}

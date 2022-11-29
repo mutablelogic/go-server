@@ -17,6 +17,7 @@ type UInt uint64
 type Float float64
 type Duration time.Duration
 type String string
+type Eval string // Evaluation into a different type
 
 // Task is a Task type, which can be either a reference to a task by name, or
 // the instance. Binding from reference to an instance is done after configuration

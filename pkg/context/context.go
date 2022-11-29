@@ -23,6 +23,7 @@ const (
 	contextParams
 	contextAdmin
 	contextAddress
+	contextPath
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -61,6 +62,11 @@ func WithAddress(ctx context.Context, addr string) context.Context {
 	return context.WithValue(ctx, contextAddress, addr)
 }
 
+// Return a context with the given path string
+func WithPath(ctx context.Context, path string) context.Context {
+	return context.WithValue(ctx, contextPath, path)
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // RETURN VALUES FROM CONTEXT
 
@@ -92,6 +98,12 @@ func Admin(ctx context.Context) bool {
 // not defined
 func Address(ctx context.Context) string {
 	return contextString(ctx, contextAddress)
+}
+
+// Return the path parameter from the context, or zero value if
+// not defined
+func Path(ctx context.Context) string {
+	return contextString(ctx, contextPath)
 }
 
 // Return the parameters from a HTTP request, or nil if
@@ -145,6 +157,9 @@ func DumpContext(ctx context.Context, w io.Writer) {
 	}
 	if value, ok := ctx.Value(contextAddress).(string); ok {
 		fmt.Fprintf(w, " address=%q", value)
+	}
+	if value, ok := ctx.Value(contextPath).(string); ok {
+		fmt.Fprintf(w, " path=%q", value)
 	}
 	fmt.Fprintf(w, ">")
 }

@@ -1,0 +1,7 @@
+{
+    "name": "nginx",
+    "label": "main",
+    "path": "/usr/sbin/nginx",
+    "prefix": "/var/lib/nginx/html",
+    "config": "/var/lib/nginx/nginx.conf"
+}
