@@ -2,6 +2,8 @@ package nginx
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 
 	// Package imports
 	iface "github.com/mutablelogic/go-server"
@@ -16,13 +18,10 @@ import (
 
 type Plugin struct {
 	task.Plugin
-	Path_   types.Path              `json:"path,omitempty"`   // Path to the nginx binary
-	Config_ types.Path              `json:"config,omitempty"` // Path to the configuration file
-	Prefix_ types.Path              `json:"prefix,omitempty"` // Prefix for nginx configuration
+	Path_   types.String            `json:"path,omitempty"`   // Path to the nginx binary
+	Config_ types.String            `json:"config,omitempty"` // Path to the configuration file
+	Prefix_ types.String            `json:"prefix,omitempty"` // Prefix for nginx configuration
 	Env_    map[string]types.String `json:"env,omitempty"`    // Environment variable map
-
-	path  string
-	flags []string
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -30,7 +29,7 @@ type Plugin struct {
 
 const (
 	defaultName = "nginx"
-	defaultPath = "/usr/sbin/nginx"
+	defaultPath = defaultName
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -40,37 +39,6 @@ const (
 func (p Plugin) New(ctx context.Context, provider iface.Provider) (iface.Task, error) {
 	if err := p.HasNameLabel(); err != nil {
 		return nil, err
-	}
-
-	// Switch off daemon setting
-	p.flags = append(p.flags, "-g", "daemon off;")
-
-	// Check for executable path
-	if p.Path_ == "" {
-		p.Path_ = types.Path(defaultPath)
-	}
-	if abs, err := p.Path_.AbsFile(); err != nil {
-		return nil, err
-	} else {
-		p.path = abs
-	}
-
-	// Check for configuration file
-	if p.Config_ != "" {
-		if abs, err := p.Config_.AbsFile(); err != nil {
-			return nil, err
-		} else {
-			p.flags = append(p.flags, "-c", abs)
-		}
-	}
-
-	// Check for prefix path
-	if p.Prefix_ != "" {
-		if abs, err := p.Config_.AbsDir(); err != nil {
-			return nil, err
-		} else {
-			p.flags = append(p.flags, "-p", abs)
-		}
 	}
 
 	// Return task from plugin
@@ -86,4 +54,51 @@ func (p Plugin) Name() string {
 	} else {
 		return defaultName
 	}
+}
+
+func (p Plugin) Path() string {
+	if p.Path_ == "" {
+		return defaultPath
+	} else {
+		return string(p.Path_)
+	}
+}
+
+func (p Plugin) Config() string {
+	if p.Config_ == "" {
+		return ""
+	} else if !filepath.IsAbs(string(p.Config_)) {
+		if wd, err := os.Getwd(); err == nil {
+			return filepath.Join(wd, string(p.Config_))
+		}
+	}
+	return string(p.Config_)
+}
+
+func (p Plugin) Flags() []string {
+	result := make([]string, 0, 5)
+
+	// Switch off daemon setting
+	result = append(result, "-g", "daemon off;")
+
+	// Check for configuration file
+	if p.Config_ != "" {
+		result = append(result, "-c", p.Config())
+	}
+
+	// Check for prefix path
+	if p.Prefix_ != "" {
+		result = append(result, "-p", string(p.Prefix_))
+	}
+
+	// Return flags
+	return result
+}
+
+func (p Plugin) Env() map[string]string {
+	result := make(map[string]string, len(p.Env_))
+	for k, v := range p.Env_ {
+		result[k] = string(v)
+	}
+	return result
 }

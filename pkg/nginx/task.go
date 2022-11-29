@@ -1,28 +1,39 @@
 package nginx
 
 import (
-	"bufio"
+	"bytes"
 	"context"
 	"fmt"
-	"io"
-	"os/exec"
-	"strings"
 	"sync"
+	"syscall"
+	"time"
 
 	// Package imports
-
-	"github.com/hashicorp/go-multierror"
-	"github.com/mutablelogic/go-server/pkg/event"
+	multierror "github.com/hashicorp/go-multierror"
+	iface "github.com/mutablelogic/go-server"
+	event "github.com/mutablelogic/go-server/pkg/event"
 	task "github.com/mutablelogic/go-server/pkg/task"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
+type state uint
+
 type t struct {
 	task.Task
-	*exec.Cmd
+	cmd, test *Cmd
 }
+
+const (
+	stateNone state = iota
+	stateRun
+	stateStop
+	stateTerm
+	stateKill
+	stateInfo
+	stateErr
+)
 
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
@@ -30,7 +41,26 @@ type t struct {
 // Create a new logger task with provider of other tasks
 func NewWithPlugin(p Plugin) (*t, error) {
 	this := new(t)
-	this.Cmd = exec.Command(p.path, p.flags...)
+
+	// Create the command
+	if cmd, err := NewWithCommand(p.Path(), p.Flags()...); err != nil {
+		return nil, err
+	} else if test, err := NewWithCommand(p.Path(), p.Flags()...); err != nil {
+		return nil, err
+	} else {
+		this.cmd = cmd
+		this.test = test
+		this.test.Args = append(this.test.Args, "-t")
+	}
+
+	// Add the environment variables
+	if err := this.cmd.Env(p.Env()); err != nil {
+		return nil, err
+	} else if err := this.test.Env(p.Env()); err != nil {
+		return nil, err
+	}
+
+	// Return success
 	return this, nil
 }
 
@@ -39,19 +69,58 @@ func NewWithPlugin(p Plugin) (*t, error) {
 
 func (t *t) String() string {
 	str := "<nginx"
-	if t.Cmd != nil {
-		str += fmt.Sprintf(" cmd=%q", t.Cmd.Path)
-		str += fmt.Sprintf(" args=%q", t.Cmd.Args)
+	if t.cmd != nil {
+		str += fmt.Sprintf(" cmd=%q", t.cmd)
 	}
 	return str + ">"
+}
+
+func (s state) String() string {
+	switch s {
+	case stateNone:
+		return "None"
+	case stateRun:
+		return "Run"
+	case stateStop:
+		return "Stop"
+	case stateTerm:
+		return "Term"
+	case stateKill:
+		return "Kill"
+	case stateInfo:
+		return "Info"
+	case stateErr:
+		return "Error"
+	default:
+		return fmt.Sprintf("Unknown(%d)", s)
+	}
 }
 
 /////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
+func (t *t) Emit(e iface.Event) {
+	t.Source.Emit(e)
+	//	fmt.Println(e)
+}
+
 func (t *t) Run(ctx context.Context) error {
 	var result error
 	var wg sync.WaitGroup
+
+	// Add stdout, stderr for the nginx command
+	t.cmd.Out = func(_ *Cmd, data []byte) {
+		s := bytes.TrimSpace(data)
+		t.Emit(event.Infof(ctx, stateInfo, string(s)))
+	}
+	t.cmd.Err = func(_ *Cmd, data []byte) {
+		s := bytes.TrimSpace(data)
+		t.Emit(event.Infof(ctx, stateInfo, string(s)))
+	}
+	t.test.Err = func(_ *Cmd, data []byte) {
+		s := bytes.TrimSpace(data)
+		t.Emit(event.Infof(ctx, stateInfo, string(s)))
+	}
 
 	// Create a cancelable context
 	child, cancel := context.WithCancel(ctx)
@@ -60,20 +129,56 @@ func (t *t) Run(ctx context.Context) error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if err := t.exec(child, t.Cmd); err != nil {
+		t.Emit(event.Infof(ctx, stateRun, "Starting nginx"))
+		if err := t.cmd.Run(); err != nil {
 			result = multierror.Append(result, err)
 			cancel()
 		}
 	}()
 
-	// Wait for context to be cancelled
+	// Wait for the context to be cancelled, indicate we're stopping the server
 	<-child.Done()
+	t.Emit(event.Infof(ctx, stateStop, "Stopping nginx"))
 
-	// Stop nginx server if not already stopped
-	if !t.Cmd.ProcessState.Exited() {
-		t.Emit(event.Infof(ctx, EventStop, "Stopping nginx"))
-		if err := t.Signal(ctx, "quit"); err != nil {
-			result = multierror.Append(result, err)
+	// Start ticker for monitoring the process
+	ticker := time.NewTimer(time.Second)
+	state := stateStop
+	defer ticker.Stop()
+FOR_LOOP:
+	for {
+		select {
+		case <-ticker.C:
+			// Check that the process is still running
+			pid := t.cmd.Pid()
+			if t.cmd.Exited() {
+				t.Emit(event.Infof(ctx, stateStop, "Process %d exited", pid))
+				break FOR_LOOP
+			} else {
+				t.Emit(event.Infof(ctx, state, "Sending shutdown signal to process %d", pid))
+			}
+			// Send signal to process
+			// https://docs.nginx.com/nginx/admin-guide/basic-functionality/runtime-control/
+			switch state {
+			case stateStop:
+				t.Emit(event.Infof(ctx, stateStop, "Graceful shutdown"))
+				if err := t.cmd.Signal(syscall.SIGQUIT); err != nil {
+					result = multierror.Append(result, err)
+				}
+				state = stateTerm
+			case stateTerm:
+				t.Emit(event.Infof(ctx, stateStop, "Immediate shutdown"))
+				if err := t.cmd.Signal(syscall.SIGTERM); err != nil {
+					result = multierror.Append(result, err)
+				}
+				state = stateKill
+			case stateKill:
+				t.Emit(event.Infof(ctx, stateStop, "Kill shutdown"))
+				if err := t.cmd.Signal(syscall.SIGKILL); err != nil {
+					result = multierror.Append(result, err)
+				}
+			}
+			// Reset the timer
+			ticker.Reset(5 * time.Second)
 		}
 	}
 
@@ -84,66 +189,20 @@ func (t *t) Run(ctx context.Context) error {
 	return result
 }
 
-func (t *t) Signal(ctx context.Context, cond string) error {
-	flags := []string{"-s", cond}
-	for _, flag := range t.Cmd.Args[1:] {
-		if flag != "-s" {
-			flags = append(flags, flag)
-		}
-	}
-	return t.exec(ctx, exec.Command(t.Cmd.Path, flags...))
+// Test configuration
+func (t *t) Test() error {
+	return t.test.Run()
 }
 
-// Execute the command in the foreground, and emit events
-// for stdout and stderr
-func (t *t) exec(ctx context.Context, cmd *exec.Cmd) error {
-	// Pipes for reading stdout and stderr
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
+// Test the configuration and then reload it (the SIGHUP signal)
+func (t *t) Reload() error {
+	if err := t.test.Run(); err != nil {
 		return err
 	}
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return err
-	}
-
-	// Start command
-	if err := cmd.Start(); err != nil {
-		return err
-	}
-
-	// Read from stdout and stderr in the background
-	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() {
-		defer wg.Done()
-		t.logger(ctx, EventInfo, stdout)
-	}()
-	go func() {
-		defer wg.Done()
-		t.logger(ctx, EventError, stderr)
-	}()
-
-	// Wait for stdout and stderr to be closed
-	wg.Wait()
-
-	// Wait for command to exit, return any errors
-	return cmd.Wait()
+	return t.cmd.Signal(syscall.SIGHUP)
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// PROCESS LOG FILES
-
-func (t *t) logger(ctx context.Context, key Event, fh io.Reader) {
-	buf := bufio.NewReader(fh)
-	for {
-		if line, err := buf.ReadBytes('\n'); err == io.EOF {
-			return
-		} else if err != nil {
-			fmt.Println("ERROR", err)
-			t.Emit(event.Error(ctx, err))
-		} else {
-			fmt.Println("LOG", key, strings.TrimSpace(string(line)))
-		}
-	}
+// Reopen log files (the SIGUSR1 signal)
+func (t *t) Reopen() error {
+	return t.cmd.Signal(syscall.SIGUSR1)
 }

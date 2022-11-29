@@ -1,6 +1,6 @@
 {
     "name": "nginx",
     "label": "main",
-    "path": "/usr/sbin/nginx",
-    "config": "../nginx/nginx.conf"
+    "path": "nginx",
+    "config": "etc/test/nginx/nginx.conf"
 }
