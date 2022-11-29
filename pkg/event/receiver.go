@@ -17,9 +17,6 @@ import (
 type Receiver struct {
 }
 
-// Compile time check
-var _ EventReceiver = (*Receiver)(nil)
-
 ///////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
