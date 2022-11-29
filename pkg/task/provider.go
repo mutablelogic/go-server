@@ -81,30 +81,21 @@ func (p *provider) Run(parent context.Context) error {
 
 	// Run all tasks
 	for label, task := range p.tasks {
-		wg.Add(2)
-
-		// Add label to context
+		// Add label to context - UGLY!
 		nameLabel := strings.SplitN(label, ".", 2)
 		if len(nameLabel) != 2 {
 			result = multierror.Append(result, ErrBadParameter.Withf("Invalid label: %q", label))
 			continue
 		}
 
-		// Create a context for the specific task
-		grandchild := ctx.WithNameLabel(child, nameLabel[0], nameLabel[1])
-
 		// Subscribe to events from task
+		wg.Add(1)
 		go func(label string, task iface.Task) {
 			defer wg.Done()
-			p.recv(grandchild, task)
-		}(label, task)
-
-		// Run task
-		go func(label string, task iface.Task) {
-			defer wg.Done()
-			if err := task.Run(grandchild); err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
-				// Cancel context - stop all when any error is received
-				result = multierror.Append(result, fmt.Errorf("%v: %w", label, err))
+			if err := p.run(ctx.WithNameLabel(child, nameLabel[0], nameLabel[1]), task); err != nil {
+				if !errors.Is(err, context.Canceled) && errors.Is(err, context.DeadlineExceeded) {
+					result = multierror.Append(result, fmt.Errorf("%v: %w", label, err))
+				}
 				cancel()
 			}
 		}(label, task)
@@ -203,17 +194,29 @@ func (p *provider) Set(key string, task iface.Task) error {
 	return nil
 }
 
-func (p *provider) recv(child context.Context, task iface.Task) {
-	ch := task.Sub()
-	for {
-		select {
-		case <-child.Done():
-			task.Unsub(ch)
-			return
-		case event := <-ch:
-			if event != nil {
+func (p *provider) run(child context.Context, task iface.Task) error {
+	var wg sync.WaitGroup
+
+	// Cancel on any error
+	ctx, cancel := context.WithCancel(context.Background())
+	wg.Add(1)
+	go func(ctx context.Context) {
+		defer wg.Done()
+		ch := task.Sub()
+		for {
+			select {
+			case <-ctx.Done():
+				task.Unsub(ch)
+				return
+			case event := <-ch:
 				p.Emit(event)
 			}
 		}
-	}
+	}(ctx)
+
+	// Start child, then cancel the event receiver - UGLY!
+	err := task.Run(child)
+	cancel()
+	wg.Wait()
+	return err
 }

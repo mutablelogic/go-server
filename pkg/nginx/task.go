@@ -10,7 +10,6 @@ import (
 
 	// Package imports
 	multierror "github.com/hashicorp/go-multierror"
-	iface "github.com/mutablelogic/go-server"
 	event "github.com/mutablelogic/go-server/pkg/event"
 	task "github.com/mutablelogic/go-server/pkg/task"
 )
@@ -98,11 +97,6 @@ func (s state) String() string {
 
 /////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
-
-func (t *t) Emit(e iface.Event) {
-	t.Source.Emit(e)
-	//	fmt.Println(e)
-}
 
 func (t *t) Run(ctx context.Context) error {
 	var result error
