@@ -9,8 +9,6 @@ import (
 	iface "github.com/mutablelogic/go-server"
 	task "github.com/mutablelogic/go-server/pkg/task"
 	types "github.com/mutablelogic/go-server/pkg/types"
-	// Namespace imports
-	//. "github.com/djthorpe/go-errors"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -18,10 +16,11 @@ import (
 
 type Plugin struct {
 	task.Plugin
-	Path_   types.String            `json:"path,omitempty"`   // Path to the nginx binary
-	Config_ types.String            `json:"config,omitempty"` // Path to the configuration file
-	Prefix_ types.String            `json:"prefix,omitempty"` // Prefix for nginx configuration
-	Env_    map[string]types.String `json:"env,omitempty"`    // Environment variable map
+	Path_      types.String            `json:"path,omitempty"`      // Path to the nginx binary
+	Config_    types.String            `json:"config,omitempty"`    // Path to the configuration file
+	Prefix_    types.String            `json:"prefix,omitempty"`    // Prefix for nginx configuration
+	Available_ types.String            `json:"available,omitempty"` // Path to available configurations
+	Env_       map[string]types.String `json:"env,omitempty"`       // Environment variable map
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -75,6 +74,28 @@ func (p Plugin) Config() string {
 	return string(p.Config_)
 }
 
+func (p Plugin) Prefix() string {
+	if p.Prefix_ == "" {
+		return ""
+	} else if !filepath.IsAbs(string(p.Prefix_)) {
+		if wd, err := os.Getwd(); err == nil {
+			return filepath.Join(wd, string(p.Prefix_))
+		}
+	}
+	return string(p.Prefix_)
+}
+
+func (p Plugin) Available() string {
+	if p.Available_ == "" {
+		return ""
+	} else if !filepath.IsAbs(string(p.Available_)) {
+		if wd, err := os.Getwd(); err == nil {
+			return filepath.Join(wd, string(p.Available_))
+		}
+	}
+	return string(p.Available_)
+}
+
 func (p Plugin) Flags() []string {
 	result := make([]string, 0, 5)
 
@@ -82,13 +103,13 @@ func (p Plugin) Flags() []string {
 	result = append(result, "-g", "daemon off;")
 
 	// Check for configuration file
-	if p.Config_ != "" {
-		result = append(result, "-c", p.Config())
+	if config := p.Config(); config != "" {
+		result = append(result, "-c", config)
 	}
 
 	// Check for prefix path
-	if p.Prefix_ != "" {
-		result = append(result, "-p", string(p.Prefix_))
+	if prefix := p.Prefix(); prefix != "" {
+		result = append(result, "-p", prefix)
 	}
 
 	// Return flags

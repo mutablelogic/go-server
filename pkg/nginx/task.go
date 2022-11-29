@@ -21,8 +21,12 @@ type state uint
 
 type t struct {
 	task.Task
+	cfg       *Config
 	cmd, test *Cmd
 }
+
+///////////////////////////////////////////////////////////////////////////////
+// GLOBALS
 
 const (
 	stateNone state = iota
@@ -57,6 +61,13 @@ func NewWithPlugin(p Plugin) (*t, error) {
 		return nil, err
 	} else if err := this.test.Env(p.Env()); err != nil {
 		return nil, err
+	}
+
+	// Add the available configurations
+	if cfg, err := NewConfig(p.Available()); err != nil {
+		return nil, err
+	} else {
+		this.cfg = cfg
 	}
 
 	// Return success
