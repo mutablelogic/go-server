@@ -64,7 +64,7 @@ func NewWithPlugin(p Plugin) (*t, error) {
 	}
 
 	// Add the available configurations
-	if cfg, err := NewConfig(p.Available()); err != nil {
+	if cfg, err := NewConfig(p.Available(), p.Enabled()); err != nil {
 		return nil, err
 	} else {
 		this.cfg = cfg

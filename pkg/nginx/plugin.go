@@ -20,6 +20,7 @@ type Plugin struct {
 	Config_    types.String            `json:"config,omitempty"`    // Path to the configuration file
 	Prefix_    types.String            `json:"prefix,omitempty"`    // Prefix for nginx configuration
 	Available_ types.String            `json:"available,omitempty"` // Path to available configurations
+	Enabled_   types.String            `json:"enabled,omitempty"`   // Path to enabled configurations
 	Env_       map[string]types.String `json:"env,omitempty"`       // Environment variable map
 }
 
@@ -94,6 +95,17 @@ func (p Plugin) Available() string {
 		}
 	}
 	return string(p.Available_)
+}
+
+func (p Plugin) Enabled() string {
+	if p.Enabled_ == "" {
+		return ""
+	} else if !filepath.IsAbs(string(p.Enabled_)) {
+		if wd, err := os.Getwd(); err == nil {
+			return filepath.Join(wd, string(p.Enabled_))
+		}
+	}
+	return string(p.Enabled_)
 }
 
 func (p Plugin) Flags() []string {
