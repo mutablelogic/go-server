@@ -88,18 +88,18 @@ func (f *File) Name() string {
 
 // Return the "enabled" name of the file
 func (f *File) AvailableBase() string {
-	if name, hash, ext := f.Name(), f.Hash(), f.Ext(); name == "" || hash == "" {
+	if name, ext := f.Name(), f.Ext(); name == "" {
 		return ""
 	} else {
-		return strings.Trim(name, "-") + "-" + hash + ext
+		return name + ext
 	}
 }
 
 // Return the "enabled" name of the file
 func (f *File) EnabledBase() string {
-	if name, ext := f.Name(), f.Ext(); name == "" {
+	if name, hash, ext := f.Name(), f.Hash(), f.Ext(); name == "" || hash == "" {
 		return ""
 	} else {
-		return name + ext
+		return strings.Trim(name, "-") + "-" + hash + ext
 	}
 }

@@ -1,9 +1,12 @@
 package nginx
 
 import (
+	"fmt"
 	"io/fs"
 	"path/filepath"
 	"strings"
+	"sync"
+	"text/template"
 
 	// Namespace imports
 	. "github.com/djthorpe/go-errors"
@@ -13,8 +16,13 @@ import (
 // TYPES
 
 type Config struct {
+	sync.RWMutex
+
 	// Configuration Files
 	Files map[string]*File
+
+	// Templates
+	t *template.Template
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -23,6 +31,7 @@ type Config struct {
 func NewConfig(available, enabled string) (*Config, error) {
 	this := new(Config)
 	this.Files = make(map[string]*File, 10)
+	tmpl := make([]string, 0, 10)
 
 	// Get available files
 	if available != "" {
@@ -31,16 +40,24 @@ func NewConfig(available, enabled string) (*Config, error) {
 			return nil, err
 		}
 		for _, file := range files {
-			key := file.AvailableBase()
+			key := file.EnabledBase()
 			if _, exists := this.Files[key]; !exists {
 				this.Files[key] = file
+				tmpl = append(tmpl, filepath.Join(available, file.Path))
 			} else {
 				return nil, ErrDuplicateEntry.Withf("Duplicate file: %q", file.Path)
 			}
 		}
 	}
 
-	// Get enabled files
+	// Compile templates for available files, and return any errors
+	if t, err := template.ParseFiles(tmpl...); err != nil {
+		return nil, err
+	} else {
+		this.t = t
+	}
+
+	// Set enabled flag on files
 	if enabled != "" {
 		files, err := enumerate(available, true)
 		if err != nil {
@@ -52,7 +69,6 @@ func NewConfig(available, enabled string) (*Config, error) {
 				file.Enabled = true
 			}
 		}
-		// TODO
 	}
 
 	// Return success
@@ -62,18 +78,42 @@ func NewConfig(available, enabled string) (*Config, error) {
 ///////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
+// Return a list of files which are available to be enabled
+func (c *Config) String() string {
+	c.RLock()
+	defer c.RUnlock()
+
+	str := "<nginx.config"
+	for _, file := range c.Files {
+		str += fmt.Sprint(" ", file)
+	}
+	return str + ">"
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
+// Return a list of files which are available to be enabled
 func (c *Config) Available() []string {
+	c.RLock()
+	defer c.RUnlock()
+
 	result := make([]string, 0, len(c.Files))
-	for _, file := range c.Files {
-		result = append(result, file.AvailableBase())
+	for key := range c.Files {
+		result = append(result, key)
 	}
 	return result
 }
 
-func (c *Config) Enable(key string) error {
+func (c *Config) Enable(key string, args ...any) error {
+	c.Lock()
+	defer c.Unlock()
+
+	_, exists := c.Files[key]
+	if !exists {
+		return ErrNotFound.With(key)
+	}
+
 	// TODO
 	return ErrNotImplemented
 }
