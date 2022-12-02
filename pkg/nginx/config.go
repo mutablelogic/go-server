@@ -110,6 +110,7 @@ func (c *Config) Enable(key string, args ...any) error {
 	defer c.Unlock()
 
 	_, exists := c.Files[key]
+	// Check to make sure configuration is available
 	if !exists {
 		return ErrNotFound.With(key)
 	}
