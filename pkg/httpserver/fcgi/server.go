@@ -22,6 +22,13 @@ type Server struct {
 	// handler to invoke, http.DefaultServeMux if nil
 	Handler http.Handler
 
+	// Owner, Group and Mode are used to set the permissions on the socket
+	// or -1 if no owner or group should be set
+	Owner, Group int
+
+	// File mode for the socket or 0 if no work should be done
+	Mode os.FileMode
+
 	// Private variables to flag shutdown
 	listener net.Listener
 	ctx      context.Context
@@ -67,6 +74,20 @@ func (s *Server) ListenAndServe() error {
 		s.Handler = http.DefaultServeMux
 	}
 
+	// Set owner, group and mode
+	if s.Owner >= 0 || s.Group >= 0 {
+		if err := os.Chown(s.Addr, s.Owner, s.Group); err != nil {
+			return err
+		}
+	}
+
+	// Set mode
+	if s.Mode > 0 {
+		if err := os.Chmod(s.Addr, s.Mode); err != nil {
+			return err
+		}
+	}
+
 	// Set up semapore which when closed ends the loop
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 
@@ -78,7 +99,9 @@ FOR_LOOP:
 			break FOR_LOOP
 		default:
 			rw, err := s.listener.Accept()
-			if err != nil {
+			if neterr, ok := err.(*net.OpError); ok && neterr.Err == net.ErrClosed {
+				break FOR_LOOP
+			} else if err != nil {
 				return err
 			}
 			c := newChild(rw, s.Handler)
@@ -98,9 +121,10 @@ FOR_LOOP:
 }
 
 func (s *Server) Close() error {
+	var result error
 	if s.cancel != nil {
-		s.listener.Close()
+		result = s.listener.Close()
 		s.cancel()
 	}
-	return nil
+	return result
 }

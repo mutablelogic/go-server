@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -35,26 +36,37 @@ type t struct {
 // LIFECYCLE
 
 // Create a new logger task with provider of other tasks
-func NewWithPlugin(p Plugin) (*t, error) {
+func NewWithPlugin(p Plugin, router plugin.Router) (*t, error) {
 	this := new(t)
 
-	router, ok := p.router.(http.Handler)
+	handler, ok := router.(http.Handler)
 	if !ok {
 		return nil, ErrInternalAppError.Withf("Router %v does not implement http.Handler", router)
 	}
 
-	if isHostPort(p.listen) {
+	listen := p.Listen()
+	if isHostPort(listen) {
+		// net socket parameters
+		timeout := p.Timeout()
+		tls, err := p.TLS()
+		if err != nil {
+			return nil, err
+		}
 		// Create net server
-		if http, err := netserver(p.listen, p.tls, p.timeout, router); err != nil {
+		if http, err := netserver(listen, tls, timeout, handler); err != nil {
 			return nil, err
 		} else {
 			this.http = http
 		}
-	} else if abs, err := filepath.Abs(p.listen); err != nil {
+	} else if abs, err := filepath.Abs(listen); err != nil {
 		return nil, err
 	} else {
-		// Check listen for being (host, port). If not, then run as FCGI server
-		if fcgi, err := fcgiserver(abs, router); err != nil {
+		// file socket parameters
+		if owner, err := p.Owner(); err != nil {
+			return nil, err
+		} else if group, err := p.Group(); err != nil {
+			return nil, err
+		} else if fcgi, err := fcgiserver(abs, owner, group, p.Mode(), handler); err != nil {
 			return nil, err
 		} else {
 			this.fcgi = fcgi
@@ -140,11 +152,14 @@ func isHostPort(listen string) bool {
 	}
 }
 
-func fcgiserver(path string, handler http.Handler) (*fcgi.Server, error) {
+func fcgiserver(path string, uid, gid int, mode os.FileMode, handler http.Handler) (*fcgi.Server, error) {
 	fcgi := new(fcgi.Server)
 	fcgi.Network = "unix"
 	fcgi.Addr = path
 	fcgi.Handler = handler
+	fcgi.Owner = uid
+	fcgi.Group = gid
+	fcgi.Mode = mode
 
 	// Return success
 	return fcgi, nil

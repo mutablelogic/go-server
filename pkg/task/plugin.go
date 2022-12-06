@@ -99,6 +99,15 @@ func (p Plugins) LoadPluginsForPattern(pattern string, replace bool) error {
 	return result
 }
 
+// Return a plugin by name, or nil if the plugin does not exist
+func (p Plugins) Get(name string) iface.Plugin {
+	if plugin, exists := p[name]; exists {
+		return plugin
+	} else {
+		return nil
+	}
+}
+
 // Create a new plugin from a filepath
 func PluginWithPath(path string) (iface.Plugin, error) {
 	if plugin, err := plugin.Open(path); err != nil {
@@ -143,7 +152,6 @@ func (p Plugin) New(c context.Context, provider iface.Provider) (iface.Task, err
 // Create a new default task from the plugin
 func (p Plugin) WithLabel(label string) iface.Plugin {
 	p.Label_ = types.String(label)
-	fmt.Println("p", p)
 	return p
 }
 

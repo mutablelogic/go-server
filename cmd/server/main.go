@@ -95,6 +95,8 @@ func main() {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
+	} else {
+		AddLogPlugin(plugins)
 	}
 
 	// Create a context, add flags to context
