@@ -99,13 +99,15 @@ func (p Plugins) LoadPluginsForPattern(pattern string, replace bool) error {
 	return result
 }
 
-// Return a plugin by name, or nil if the plugin does not exist
-func (p Plugins) Get(name string) iface.Plugin {
-	if plugin, exists := p[name]; exists {
-		return plugin
-	} else {
-		return nil
+// Return a plugins by name, or nil if the plugin does not exist
+func (p Plugins) WithName(name string) []iface.Plugin {
+	var result []iface.Plugin
+	for _, plugin := range p {
+		if plugin.Name() == name {
+			result = append(result, plugin)
+		}
 	}
+	return result
 }
 
 // Create a new plugin from a filepath

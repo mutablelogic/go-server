@@ -27,7 +27,7 @@ func BuiltinPlugins() (task.Plugins, error) {
 
 // Add log plugin if one does not exist
 func AddLogPlugin(plugins task.Plugins) error {
-	if plugin := plugins.Get(log.DefaultName); plugin == nil {
+	if p := plugins.WithName(log.DefaultName); len(p) == 0 {
 		return plugins.Register(log.WithLabel("main"))
 	}
 	return nil
