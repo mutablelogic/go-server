@@ -2,7 +2,6 @@ package main
 
 import (
 	// Package imports
-
 	log "github.com/mutablelogic/go-server/pkg/log"
 	task "github.com/mutablelogic/go-server/pkg/task"
 
@@ -24,4 +23,12 @@ func BuiltinPlugins() (task.Plugins, error) {
 		}
 	}
 	return builtins, nil
+}
+
+// Add log plugin if one does not exist
+func AddLogPlugin(plugins task.Plugins) error {
+	if plugin := plugins.Get(log.DefaultName); plugin == nil {
+		return plugins.Register(log.WithLabel("main"))
+	}
+	return nil
 }

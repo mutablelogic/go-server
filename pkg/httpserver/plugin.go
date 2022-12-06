@@ -4,6 +4,9 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"os"
+	"os/user"
+	"strconv"
 	"time"
 
 	// Package imports
@@ -12,9 +15,6 @@ import (
 	task "github.com/mutablelogic/go-server/pkg/task"
 	types "github.com/mutablelogic/go-server/pkg/types"
 	plugin "github.com/mutablelogic/go-server/plugin"
-
-	// Namespace imports
-	. "github.com/djthorpe/go-errors"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -22,15 +22,12 @@ import (
 
 type Plugin struct {
 	task.Plugin
-	Router_  types.Task     `json:"router,omitempty"` // The router object which serves the gateways
-	Listen_  types.String   `json:"listen,omitempty"` // Address or path for binding HTTP server
-	TLS_     *TLS           `json:"tls,omitempty"`    // TLS parameters, or nil if not using TLS
-	Timeout_ types.Duration `hcl:"timeout,optional"`  // Read timeout on HTTP requests
-
-	router  plugin.Router
-	listen  string
-	tls     *tls.Config
-	timeout time.Duration
+	Router_  types.Task     `json:"router,omitempty"`  // The router object which serves the gateways
+	Listen_  types.String   `json:"listen,omitempty"`  // Address or path for binding HTTP server
+	TLS_     *TLS           `json:"tls,omitempty"`     // TLS parameters, or nil if not using TLS (ignored for file sockets)
+	Timeout_ types.Duration `json:"timeout,omitempty"` // Read timeout on HTTP requests (ignored for file sockets)
+	Owner_   types.String   `json:"owner,omitempty"`   // Owner of the socket file (ignored for network sockets)
+	Group_   types.String   `json:"group,omitempty"`   // Owner Group of the socket file (ignored for network sockets)
 }
 
 type TLS struct {
@@ -46,6 +43,9 @@ const (
 	defaultListen    = ":http"
 	defaultListenTLS = ":https"
 	defaultTimeout   = types.Duration(10 * time.Second)
+	defaultMode      = os.FileMode(0600)
+	groupMode        = os.FileMode(0060)
+	allMode          = os.FileMode(0777)
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -57,20 +57,8 @@ func (p Plugin) New(ctx context.Context, provider iface.Provider) (iface.Task, e
 		return nil, err
 	}
 
-	p.router = p.Router(ctx, provider)
-	if p.router == nil {
-		return nil, ErrInternalAppError.With("Router is nil")
-	}
-
-	p.listen = p.Listen()
-	p.timeout = p.Timeout()
-	if tls, err := p.TLS(); err != nil {
-		return nil, err
-	} else {
-		p.tls = tls
-	}
-
-	return NewWithPlugin(p)
+	// Create the task and return and return any errors
+	return NewWithPlugin(p, p.Router(ctx, provider))
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -135,4 +123,38 @@ func (p Plugin) Timeout() time.Duration {
 	} else {
 		return time.Duration(p.Timeout_)
 	}
+}
+
+func (p Plugin) Owner() (int, error) {
+	if p.Owner_ == "" {
+		return -1, nil
+	}
+	if user, err := user.Lookup(string(p.Owner_)); err != nil {
+		return -1, err
+	} else if uid, err := strconv.ParseUint(user.Uid, 0, 32); err != nil {
+		return -1, err
+	} else {
+		return int(uid), nil
+	}
+}
+
+func (p Plugin) Group() (int, error) {
+	if p.Group_ == "" {
+		return -1, nil
+	}
+	if group, err := user.LookupGroup(string(p.Group_)); err != nil {
+		return -1, err
+	} else if gid, err := strconv.ParseUint(group.Gid, 0, 32); err != nil {
+		return -1, err
+	} else {
+		return int(gid), nil
+	}
+}
+
+func (p Plugin) Mode() os.FileMode {
+	mode := defaultMode
+	if gid, err := p.Group(); gid != -1 && err == nil {
+		mode |= groupMode
+	}
+	return mode & allMode
 }

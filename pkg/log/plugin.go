@@ -8,7 +8,6 @@ import (
 	// Package imports
 	iface "github.com/mutablelogic/go-server"
 	task "github.com/mutablelogic/go-server/pkg/task"
-	types "github.com/mutablelogic/go-server/pkg/types"
 
 	// Namespace imports
 	. "github.com/djthorpe/go-errors"
@@ -27,7 +26,7 @@ type Plugin struct {
 // GLOBALS
 
 const (
-	defaultName = "log"
+	DefaultName = "log"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -35,11 +34,8 @@ const (
 
 // Create a new logger task with provider of other tasks
 func (p Plugin) New(_ context.Context, _ iface.Provider) (iface.Task, error) {
-	if !types.IsIdentifier(p.Name()) {
-		return nil, ErrBadParameter.With("Invalid plugin name: %q", p.Name())
-	}
-	if !types.IsIdentifier(p.Label()) {
-		return nil, ErrBadParameter.With("Invalid plugin label: %q", p.Label())
+	if err := p.HasNameLabel(); err != nil {
+		return nil, err
 	}
 	if flags, err := flagsForSlice(p.Flags_); err != nil {
 		return nil, err
@@ -53,11 +49,17 @@ func (p Plugin) New(_ context.Context, _ iface.Provider) (iface.Task, error) {
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
+func WithLabel(label string) Plugin {
+	return Plugin{
+		Plugin: task.WithLabel(DefaultName, label),
+	}
+}
+
 func (p Plugin) Name() string {
 	if name := p.Plugin.Name(); name != "" {
 		return name
 	} else {
-		return defaultName
+		return DefaultName
 	}
 }
 

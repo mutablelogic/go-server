@@ -1,0 +1,5 @@
+{
+    "name": "httpserver",
+    "label": "fcgi",
+    "listen": "/tmp/httpserver.sock"
+}
