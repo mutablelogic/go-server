@@ -11,4 +11,7 @@ type Nginx interface {
 
 	// Reopen log files (the SIGUSR1 signal)
 	Reopen() error
+
+	// Version returns the version string from nginx
+	Version() string
 }
