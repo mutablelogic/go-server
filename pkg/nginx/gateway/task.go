@@ -115,7 +115,7 @@ func (t *t) RegisterHandlers(router plugin.Router) error {
 // HANDLERS
 
 func (t *t) StatusHandler(w http.ResponseWriter, r *http.Request) {
-	router.ResponseJSON(w, true, t.nginx.Version())
+	//	router.ResponseJSON(w, true, t.nginx.Version())
 }
 
 func (t *t) ReopenHandler(w http.ResponseWriter, r *http.Request) {
