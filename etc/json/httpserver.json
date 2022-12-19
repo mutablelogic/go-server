@@ -3,5 +3,14 @@
     "label": "fgi",
     "listen": "/run/httpserver.sock",
     "owner": "nginx",
-    "group": "nginx"
+    "group": "nginx",
+    "router": [
+        {
+            "path": "/api/v1/auth",
+            "handler": "tokenauth.main"
+        },{
+            "path": "/api/v1/nginx",
+            "handler": "nginx.main"
+        }
+    ]
 }
