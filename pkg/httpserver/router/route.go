@@ -26,11 +26,6 @@ type route struct {
 // LIFECYCLE
 
 func NewRoute(host_prefix string, path *regexp.Regexp, fn http.HandlerFunc, methods ...string) *route {
-	// Check hander is not nil
-	if fn == nil {
-		return nil
-	}
-
 	// If the prefix does not contain a '/' then assume it is a host/path
 	var host, prefix string
 	if !strings.Contains(host_prefix, pathSeparator) {
@@ -55,7 +50,7 @@ func NewRoute(host_prefix string, path *regexp.Regexp, fn http.HandlerFunc, meth
 	// Create route
 	return &route{
 		host:    normalizeHost(host),
-		prefix:  normalizePath(prefix, (path != nil)),
+		prefix:  normalizePath(prefix, false),
 		path:    path,
 		fn:      fn,
 		methods: methods,
@@ -97,6 +92,11 @@ func (route *route) Path() string {
 // Return a wild-carded host
 func (route *route) Host() string {
 	return "*" + route.host
+}
+
+// Return the prefix of the route (host/prefix or /prefix)
+func (route *route) Prefix() string {
+	return route.host + route.prefix
 }
 
 // Return the methods of the route

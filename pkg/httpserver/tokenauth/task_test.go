@@ -3,6 +3,7 @@ package tokenauth_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	// Packages
 	"github.com/mutablelogic/go-server/pkg/httpserver/tokenauth"
@@ -16,6 +17,17 @@ func Test_tokenauth_001(t *testing.T) {
 	assert.NoError(err)
 	assert.NotNil(provider)
 	t.Log(provider)
+}
+
+func Test_tokenauth_002(t *testing.T) {
+	assert := assert.New(t)
+	provider, err := task.NewProvider(context.Background(), tokenauth.WithLabel(t.Name()).WithPath(t.TempDir()))
+	assert.NoError(err)
+	assert.NotNil(provider)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	assert.NoError(provider.Run(ctx))
 }
 
 /*

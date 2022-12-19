@@ -1,11 +1,12 @@
 package plugin
 
 import (
+	"context"
 	"net/http"
 	"regexp"
 )
 
-// Router is a task which maps paths to routes
+// Router is a task which maps paths to handlers
 type Router interface {
 	http.Handler
 
@@ -14,7 +15,7 @@ type Router interface {
 	// then any path is matched. The methods which are supported by the
 	// handler are determined are provided by the final argument. If no
 	// methods are provided, then the GET method is assumed.
-	AddHandler(string, *regexp.Regexp, http.HandlerFunc, ...string)
+	AddHandler(context.Context, *regexp.Regexp, http.HandlerFunc, ...string)
 
 	// Register a middleware handler to the router given unique name
 	//AddMiddleware(string, func(http.HandlerFunc) http.HandlerFunc) error

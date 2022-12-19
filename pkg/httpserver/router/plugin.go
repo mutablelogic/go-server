@@ -4,17 +4,28 @@ import (
 	"context"
 	"os"
 
-	// Namespace imports
+	// Packages
 	iface "github.com/mutablelogic/go-server"
 	task "github.com/mutablelogic/go-server/pkg/task"
+	types "github.com/mutablelogic/go-server/pkg/types"
+	plugin "github.com/mutablelogic/go-server/plugin"
+
+	// Namespace imports
+	. "github.com/djthorpe/go-errors"
 )
 
 /////////////////////////////////////////////////////////////////////
 // TYPES
 
-// Plugin for the router does not currently contain any tunable values
+// Plugin for the router maps prefixes to gateways
 type Plugin struct {
 	task.Plugin
+	Gateways []Gateway `json:"gateway"`
+}
+
+type Gateway struct {
+	Prefix  string     `json:"prefix"`
+	Handler types.Task `json:"handler"`
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -36,7 +47,25 @@ func (p Plugin) New(_ context.Context, _ iface.Provider) (iface.Task, error) {
 		return nil, err
 	}
 
-	return NewWithPlugin(p)
+	// Return error if no gateways defined
+	if len(p.Gateways) == 0 {
+		return nil, ErrBadParameter.With("No gateways defined")
+	}
+
+	// Check gateway handlers are of type iface.Gateway
+	gateways := make(map[string]plugin.Gateway, len(p.Gateways))
+	for _, gateway := range p.Gateways {
+		route := NewRoute(gateway.Prefix, nil, nil).Prefix()
+		if handler, ok := gateway.Handler.Task.(plugin.Gateway); !ok {
+			return nil, ErrBadParameter.Withf("Handler for %q is not a gateway", gateway.Prefix)
+		} else if _, exists := gateways[route]; exists {
+			return nil, ErrDuplicateEntry.Withf("Duplicate prefix %q", gateway.Prefix)
+		} else {
+			gateways[route] = handler
+		}
+	}
+
+	return NewWithPlugin(p, gateways)
 }
 
 ///////////////////////////////////////////////////////////////////////////////

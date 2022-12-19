@@ -11,7 +11,6 @@ type EventType int
 const (
 	EventTypeNone EventType = iota
 	EventTypeWrite
-	EventTypeRotate
 )
 
 /////////////////////////////////////////////////////////////////////
@@ -23,8 +22,6 @@ func (t EventType) String() string {
 		return "none"
 	case EventTypeWrite:
 		return "write"
-	case EventTypeRotate:
-		return "rotate"
 	}
 	return "[?? Invalid EventType value]"
 }

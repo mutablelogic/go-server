@@ -11,6 +11,7 @@ import (
 	context "github.com/mutablelogic/go-server/pkg/context"
 	util "github.com/mutablelogic/go-server/pkg/httpserver/util"
 	task "github.com/mutablelogic/go-server/pkg/task"
+	plugin "github.com/mutablelogic/go-server/plugin"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -26,9 +27,15 @@ type t struct {
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-// Create a new logger task with provider of other tasks
-func NewWithPlugin(p Plugin) (*t, error) {
+// Create a new router task, and register routes from gateways
+func NewWithPlugin(p Plugin, gateways map[string]plugin.Gateway) (*t, error) {
 	this := new(t)
+
+	for prefix, gateway := range p.Gateways {
+		fmt.Println("TODO:", prefix, "=>", gateway)
+
+	}
+
 	return this, nil
 }
 

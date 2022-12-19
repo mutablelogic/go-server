@@ -51,6 +51,7 @@ func NewWithPlugin(p Plugin) (*tokenauth, error) {
 		return nil, err
 	} else {
 		this.path = path
+		this.delta = p.Delta()
 	}
 
 	// Read the file if it exists
@@ -102,7 +103,12 @@ func (tokenauth *tokenauth) Run(ctx context.Context) error {
 
 func (tokenauth *tokenauth) String() string {
 	str := "<httpserver-tokenauth"
+	str += fmt.Sprint(" delta=", tokenauth.delta)
 	str += fmt.Sprintf(" path=%q", tokenauth.path)
+	str += fmt.Sprintf(" tokens=%d", len(tokenauth.tokens))
+	if tokenauth.modified {
+		str += " modified"
+	}
 	return str + ">"
 }
 
