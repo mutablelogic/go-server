@@ -28,10 +28,10 @@ type t struct {
 // LIFECYCLE
 
 // Create a new router task, and register routes from gateways
-func NewWithPlugin(p Plugin, gateways map[string]plugin.Gateway) (*t, error) {
+func NewWithPlugin(p Plugin, routes map[string]plugin.Gateway) (*t, error) {
 	this := new(t)
 
-	for prefix, gateway := range p.Gateways {
+	for prefix, gateway := range routes {
 		fmt.Println("TODO:", prefix, "=>", gateway)
 
 	}

@@ -28,6 +28,7 @@ type Plugin struct {
 	Timeout_ types.Duration `json:"timeout,omitempty"` // Read timeout on HTTP requests (ignored for file sockets)
 	Owner_   types.String   `json:"owner,omitempty"`   // Owner of the socket file (ignored for network sockets)
 	Group_   types.String   `json:"group,omitempty"`   // Owner Group of the socket file (ignored for network sockets)
+	Routes   []router.Route `json:"routes"`            // Array of routes, required
 }
 
 type TLS struct {
@@ -102,7 +103,7 @@ func (p Plugin) TLS() (*tls.Config, error) {
 
 func (p Plugin) Router(ctx context.Context, provider iface.Provider) plugin.Router {
 	if p.Router_.Task == nil {
-		plugin := router.WithLabel(p.Label())
+		plugin := router.WithLabel(p.Label()).WithRoutes(p.Routes)
 		if router, err := provider.New(ctx, plugin); err != nil {
 			// We currently panic if we get here, it's not expected
 			panic(err)

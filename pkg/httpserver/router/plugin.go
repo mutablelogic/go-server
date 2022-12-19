@@ -20,10 +20,10 @@ import (
 // Plugin for the router maps prefixes to gateways
 type Plugin struct {
 	task.Plugin
-	Gateways []Gateway `json:"gateway"`
+	Routes []Route `json:"routes"`
 }
 
-type Gateway struct {
+type Route struct {
 	Prefix  string     `json:"prefix"`
 	Handler types.Task `json:"handler"`
 }
@@ -48,13 +48,13 @@ func (p Plugin) New(_ context.Context, _ iface.Provider) (iface.Task, error) {
 	}
 
 	// Return error if no gateways defined
-	if len(p.Gateways) == 0 {
-		return nil, ErrBadParameter.With("No gateways defined")
+	if len(p.Routes) == 0 {
+		return nil, ErrBadParameter.With("No routes defined")
 	}
 
 	// Check gateway handlers are of type iface.Gateway
-	gateways := make(map[string]plugin.Gateway, len(p.Gateways))
-	for _, gateway := range p.Gateways {
+	gateways := make(map[string]plugin.Gateway, len(p.Routes))
+	for _, gateway := range p.Routes {
 		route := NewRoute(gateway.Prefix, nil, nil).Prefix()
 		if handler, ok := gateway.Handler.Task.(plugin.Gateway); !ok {
 			return nil, ErrBadParameter.Withf("Handler for %q is not a gateway", gateway.Prefix)
@@ -75,6 +75,11 @@ func WithLabel(label string) Plugin {
 	return Plugin{
 		Plugin: task.WithLabel(defaultName, label),
 	}
+}
+
+func (p Plugin) WithRoutes(r []Route) Plugin {
+	p.Routes = r
+	return p
 }
 
 func (p Plugin) Name() string {
