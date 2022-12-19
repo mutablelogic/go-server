@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net/http"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -38,8 +37,14 @@ func WithCancel() (context.Context, context.CancelFunc) {
 // PUBLIC METHODS
 
 // Return a context with the given prefix and parameters
-func WithPrefixParams(ctx context.Context, prefix string, params []string) context.Context {
-	return context.WithValue(context.WithValue(ctx, contextParams, params), contextPrefix, prefix)
+func WithPrefixPathParams(ctx context.Context, prefix, path string, params []string) context.Context {
+	return context.WithValue(
+		context.WithValue(
+			context.WithValue(
+				ctx, contextParams, params,
+			),
+			contextPrefix, prefix),
+		contextPath, path)
 }
 
 // Return a context with the given name
@@ -106,32 +111,13 @@ func Path(ctx context.Context) string {
 	return contextString(ctx, contextPath)
 }
 
-// Return the parameters from a HTTP request, or nil if
-// not defined
-func ReqParams(req *http.Request) []string {
-	if value, ok := req.Context().Value(contextParams).([]string); ok {
-		return value
-	} else {
-		return nil
+// Return prefix and parameters from the context
+func PrefixPathParams(ctx context.Context) (string, string, []string) {
+	var params []string
+	if v, ok := ctx.Value(contextParams).([]string); ok {
+		params = v
 	}
-}
-
-// Return the prefix parameter from a HTTP request, or zero value if
-// not defined
-func ReqPrefix(req *http.Request) string {
-	return contextString(req.Context(), contextPrefix)
-}
-
-// Return the name parameter from a HTTP request, or zero value if
-// not defined
-func ReqName(req *http.Request) string {
-	return contextString(req.Context(), contextName)
-}
-
-// Return the admin parameter from a HTTP request, or zero value if
-// not defined
-func ReqAdmin(req *http.Request) bool {
-	return contextBool(req.Context(), contextAdmin)
+	return contextString(ctx, contextPrefix), contextString(ctx, contextPath), params
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -149,6 +135,9 @@ func DumpContext(ctx context.Context, w io.Writer) {
 	if value, ok := ctx.Value(contextPrefix).(string); ok {
 		fmt.Fprintf(w, " prefix=%q", value)
 	}
+	if value, ok := ctx.Value(contextPath).(string); ok {
+		fmt.Fprintf(w, " path=%q", value)
+	}
 	if value, ok := ctx.Value(contextParams).([]string); ok {
 		fmt.Fprintf(w, " params=%q", value)
 	}
@@ -157,9 +146,6 @@ func DumpContext(ctx context.Context, w io.Writer) {
 	}
 	if value, ok := ctx.Value(contextAddress).(string); ok {
 		fmt.Fprintf(w, " address=%q", value)
-	}
-	if value, ok := ctx.Value(contextPath).(string); ok {
-		fmt.Fprintf(w, " path=%q", value)
 	}
 	fmt.Fprintf(w, ">")
 }

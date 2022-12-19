@@ -11,7 +11,7 @@ import (
 
 	// Package imports
 	iface "github.com/mutablelogic/go-server"
-	router "github.com/mutablelogic/go-server/pkg/router"
+	router "github.com/mutablelogic/go-server/pkg/httpserver/router"
 	task "github.com/mutablelogic/go-server/pkg/task"
 	types "github.com/mutablelogic/go-server/pkg/types"
 	plugin "github.com/mutablelogic/go-server/plugin"

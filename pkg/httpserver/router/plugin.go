@@ -23,6 +23,7 @@ type Plugin struct {
 const (
 	defaultName   = "router"
 	pathSeparator = string(os.PathSeparator)
+	hostSeparator = "."
 )
 
 ///////////////////////////////////////////////////////////////////////////////
