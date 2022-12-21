@@ -66,18 +66,22 @@ func Test_route_001(t *testing.T) {
 		assert.Equal("*.host.com", route.Host())
 		assert.Equal("/test2", route.Path())
 		assert.Equal([]string{"POST", "PUT"}, route.Methods())
-		_, path, matches := route.MatchesPath("/test2")
-		assert.True(matches)
-		assert.Equal(path, "/")
-		_, path2, matches2 := route.MatchesPath("/test2/")
-		assert.True(matches2)
-		assert.Equal(path2, "/")
 		assert.True(route.MatchesMethod("POST"))
 		assert.True(route.MatchesMethod("PUT"))
 		assert.False(route.MatchesMethod("GET"))
+		if params, path, matches := route.MatchesPath("/test2"); matches {
+			assert.Equal(path, "/")
+			assert.Nil(params)
+		} else {
+			assert.Fail("no match")
+		}
+		if params, path, matches := route.MatchesPath("/test2/"); matches {
+			assert.Equal(path, "/")
+			assert.Nil(params)
+		}
 	})
 	t.Run("host.com/test/99", func(t *testing.T) {
-		route := router.NewRoute("host.com/test", regexp.MustCompile(`^(\d+)`), func(w http.ResponseWriter, req *http.Request) {})
+		route := router.NewRoute("host.com/test", regexp.MustCompile(`^/(\d+)`), func(w http.ResponseWriter, req *http.Request) {})
 		t.Log(route)
 		assert.NotNil(route)
 		if params, path, matches := route.MatchesPath("/test/99"); matches {

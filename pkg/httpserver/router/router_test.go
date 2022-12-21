@@ -12,6 +12,7 @@ import (
 	router "github.com/mutablelogic/go-server/pkg/httpserver/router"
 	util "github.com/mutablelogic/go-server/pkg/httpserver/util"
 	task "github.com/mutablelogic/go-server/pkg/task"
+	types "github.com/mutablelogic/go-server/pkg/types"
 	assert "github.com/stretchr/testify/assert"
 )
 
@@ -45,19 +46,28 @@ func Test_router_001(t *testing.T) {
 		prefix, path, params := util.ReqPrefixPathParams(req)
 		util.ServeJSON(w, response{"1", prefix, path, params}, http.StatusOK, 0)
 	})
-	router.AddHandlerEx("/test", regexp.MustCompile(`^(\d+)$`), func(w http.ResponseWriter, req *http.Request) {
+	router.AddHandlerEx("/test", regexp.MustCompile(`^/(\d+)$`), func(w http.ResponseWriter, req *http.Request) {
 		prefix, path, params := util.ReqPrefixPathParams(req)
 		util.ServeJSON(w, response{"2", prefix, path, params}, http.StatusOK, 0)
 	})
-	router.AddHandlerEx("/test", regexp.MustCompile(`(\d+)$`), func(w http.ResponseWriter, req *http.Request) {
+	router.AddHandlerEx("/test", regexp.MustCompile(`^/(\d+)`), func(w http.ResponseWriter, req *http.Request) {
 		prefix, path, params := util.ReqPrefixPathParams(req)
 		util.ServeJSON(w, response{"3", prefix, path, params}, http.StatusOK, 0)
 	})
-	router.AddHandlerEx("otherhost/test", regexp.MustCompile(`^(\d+)`), func(w http.ResponseWriter, req *http.Request) {
+	router.AddHandlerEx("otherhost/test", regexp.MustCompile(`^/(\d+)`), func(w http.ResponseWriter, req *http.Request) {
 		prefix, path, params := util.ReqPrefixPathParams(req)
 		util.ServeJSON(w, response{"4", prefix, path, params}, http.StatusOK, 0)
 	})
 
+	t.Run("localhost/", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		// Should match request #0, but method is not allowed
+		req, err := http.NewRequest("GET", "http://localhost/", nil)
+		assert.NoError(err)
+		assert.NotNil(req)
+		router.ServeHTTP(w, req)
+		assert.Equal(http.StatusNotFound, w.Result().StatusCode)
+	})
 	t.Run("localhost/test", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		// Should match request #1
@@ -68,15 +78,24 @@ func Test_router_001(t *testing.T) {
 		assert.Equal(http.StatusOK, w.Result().StatusCode)
 		assert.Equal(`{"Test":"1","Prefix":"/test","Path":"/","Params":null}`+"\n", body(w))
 	})
-	t.Run("localhost/test99", func(t *testing.T) {
+	t.Run("localhost/test/", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		// Should match request #1
-		req, err := http.NewRequest("GET", "http://localhost/test99", nil)
+		req, err := http.NewRequest("GET", "http://localhost/test/", nil)
 		assert.NoError(err)
 		assert.NotNil(req)
 		router.ServeHTTP(w, req)
 		assert.Equal(http.StatusOK, w.Result().StatusCode)
-		assert.Equal(`{"Test":"1","Prefix":"/test","Path":"/test99","Params":null}`+"\n", body(w))
+		assert.Equal(`{"Test":"1","Prefix":"/test","Path":"/","Params":null}`+"\n", body(w))
+	})
+	t.Run("localhost/test99", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		// Should return 404 error
+		req, err := http.NewRequest("GET", "http://localhost/test99", nil)
+		assert.NoError(err)
+		assert.NotNil(req)
+		router.ServeHTTP(w, req)
+		assert.Equal(http.StatusNotFound, w.Result().StatusCode)
 	})
 	t.Run("localhost/test/99", func(t *testing.T) {
 		w := httptest.NewRecorder()
@@ -86,17 +105,17 @@ func Test_router_001(t *testing.T) {
 		assert.NotNil(req)
 		router.ServeHTTP(w, req)
 		assert.Equal(http.StatusOK, w.Result().StatusCode)
-		assert.Equal(`{"Test":"2","Prefix":"/test","Params":["99"]}`+"\n", body(w))
+		assert.Equal(`{"Test":"2","Prefix":"/test","Path":"/99","Params":["99"]}`+"\n", body(w))
 	})
 	t.Run("localhost/test/99/98", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		// Should match request #3
-		req, err := http.NewRequest("GET", "http://localhost/test/99/98", nil)
+		req, err := http.NewRequest("GET", "http://localhost/test/90/99", nil)
 		assert.NoError(err)
 		assert.NotNil(req)
 		router.ServeHTTP(w, req)
 		assert.Equal(http.StatusOK, w.Result().StatusCode)
-		assert.Equal(`{"Test":"2","Prefix":"/test","Params":["98"]}`+"\n", body(w))
+		assert.Equal(`{"Test":"3","Prefix":"/test","Path":"/90/99","Params":["90"]}`+"\n", body(w))
 	})
 	t.Run("www.otherhost/test/99/98", func(t *testing.T) {
 		w := httptest.NewRecorder()
@@ -106,7 +125,7 @@ func Test_router_001(t *testing.T) {
 		assert.NotNil(req)
 		router.ServeHTTP(w, req)
 		assert.Equal(http.StatusOK, w.Result().StatusCode)
-		assert.Equal(`{"Test":"2","Prefix":"/test","Params":["99"]}`+"\n", body(w))
+		assert.Equal(`{"Test":"4","Prefix":"/test","Path":"/99/98","Params":["99"]}`+"\n", body(w))
 	})
 	t.Run("www.otherhost", func(t *testing.T) {
 		w := httptest.NewRecorder()
@@ -117,4 +136,30 @@ func Test_router_001(t *testing.T) {
 		router.ServeHTTP(w, req)
 		assert.Equal(http.StatusNotFound, w.Result().StatusCode)
 	})
+	t.Run("www.otherhost/test/99/98", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		// Should return MethodNotAllowed error
+		req, err := http.NewRequest("POST", "http://www.otherhost/test/99/98", nil)
+		assert.NoError(err)
+		assert.NotNil(req)
+		router.ServeHTTP(w, req)
+		assert.Equal(http.StatusMethodNotAllowed, w.Result().StatusCode)
+	})
+
+}
+
+func Test_router_002(t *testing.T) {
+	// Create router which registers itself as a gateway
+	plugin := router.WithLabel("main").WithRoutes([]router.Route{
+		{Prefix: "/api/v1/health", Handler: types.Task{Ref: "router.main"}},
+	})
+
+	// Create a provider, register router
+	provider, err := task.NewProvider(context.Background(), plugin)
+	if err != nil {
+		t.Fatal(err)
+	} else {
+		t.Log(provider)
+	}
+
 }
