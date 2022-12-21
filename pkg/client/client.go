@@ -3,20 +3,28 @@ package client
 import (
 	"bytes"
 	"encoding/json"
+	"encoding/xml"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"mime"
 	"net/http"
 	"net/url"
 	"os"
-	"reflect"
 	"sync"
 	"time"
 
 	// Namespace imports
 	. "github.com/djthorpe/go-errors"
 )
+
+///////////////////////////////////////////////////////////////////////////////
+// INTERFACES
+
+// Unmarshaler is an interface which can be implemented by a type to
+// unmarshal a response body
+type Unmarshaler interface {
+	Unmarshal(mimetype string, r io.Reader) error
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
@@ -39,11 +47,15 @@ type RequestOpt func(*http.Request) error
 // GLOBALS
 
 const (
-	DefaultTimeout   = time.Second * 10
-	DefaultUserAgent = "github.com/mutableloigc/go-server"
-	PathSeparator    = string(os.PathSeparator)
-	ContentTypeJson  = "application/json"
-	ContentTypeText  = "text/plain"
+	DefaultTimeout            = time.Second * 10
+	DefaultUserAgent          = "github.com/mutableloigc/go-server"
+	PathSeparator             = string(os.PathSeparator)
+	ContentTypeJson           = "application/json"
+	ContentTypeTextXml        = "text/xml"
+	ContentTypeApplicationXml = "application/xml"
+	ContentTypeTextPlain      = "text/plain"
+	ContentTypeTextHTML       = "text/html"
+	ContentTypeBinary         = "application/octet-stream"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -99,7 +111,7 @@ func (client *Client) Do(in Payload, out any, opts ...RequestOpt) error {
 	client.Mutex.Lock()
 	defer client.Mutex.Unlock()
 
-	// Check rate limit
+	// Check rate limit - sleep until next request can be made
 	now := time.Now()
 	if !client.ts.IsZero() && client.rate > 0.0 {
 		next := client.ts.Add(time.Duration(float32(time.Second) / client.rate))
@@ -114,23 +126,29 @@ func (client *Client) Do(in Payload, out any, opts ...RequestOpt) error {
 	}(now)
 
 	// Make a request
-	var data []byte
-	var err error
+	var body io.Reader
+	var method string = http.MethodGet
+	var accept string
 	if in != nil {
-		if data, err = json.Marshal(in); err != nil {
+		data, err := json.Marshal(in)
+		if err != nil {
 			return err
 		}
+		body = bytes.NewReader(data)
+		method = in.Method()
+		accept = in.Accept()
 	}
-	req, err := client.request(in.Method(), in.Accept(), bytes.NewReader(data))
+	req, err := client.request(method, accept, body)
 	if err != nil {
 		return err
 	}
 
+	// If debug, then log the payload
 	if debug, ok := client.Client.Transport.(*logtransport); ok {
 		debug.Payload(in)
 	}
 
-	return do(client.Client, req, in.Accept(), client.strict, out, opts...)
+	return do(client.Client, req, accept, client.strict, out, opts...)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -152,7 +170,9 @@ func (client *Client) request(method, accept string, body io.Reader) (*http.Requ
 	}
 
 	// Set the credentials and user agent
-	r.Header.Set("Content-Type", ContentTypeJson)
+	if body != nil {
+		r.Header.Set("Content-Type", ContentTypeJson)
+	}
 	if accept != "" {
 		r.Header.Set("Accept", accept)
 	}
@@ -180,30 +200,26 @@ func do(client *http.Client, req *http.Request, accept string, strict bool, out 
 	}
 	defer response.Body.Close()
 
-	// Decode body - this can be an array or an object, so we read the whole body
-	// and choose happy and sad paths
-	data, err := ioutil.ReadAll(response.Body)
+	// Get content type
+	mimetype, err := respContentType(response)
 	if err != nil {
-		return err
+		return ErrUnexpectedResponse.With(mimetype)
 	}
 
 	// Check status code
 	if response.StatusCode < 200 || response.StatusCode > 299 {
 		// Read any information from the body
-		var err string
-		if err := decodeString(&err, string(data)); err != nil {
+		data, err := io.ReadAll(response.Body)
+		if err != nil {
 			return err
 		}
-		return ErrUnexpectedResponse.With(response.Status, ": ", err)
+		return ErrUnexpectedResponse.With(response.Status, ": ", string(data))
 	}
 
 	// When in strict mode, check content type returned is as expected
 	if strict && accept != "" {
-		contenttype := response.Header.Get("Content-Type")
-		if mimetype, _, err := mime.ParseMediaType(contenttype); err != nil {
-			return ErrUnexpectedResponse.With(contenttype)
-		} else if mimetype != accept {
-			return ErrUnexpectedResponse.With(contenttype)
+		if mimetype != accept {
+			return ErrUnexpectedResponse.Withf("strict mode: unexpected responsse with %q", mimetype)
 		}
 	}
 
@@ -212,17 +228,21 @@ func do(client *http.Client, req *http.Request, accept string, strict bool, out 
 		return nil
 	}
 
-	// If JSON, then decode body
-	if accept == ContentTypeJson {
-		if err := json.NewDecoder(bytes.NewReader(data)).Decode(out); err == nil {
-			return nil
-		} else {
+	// Decode the body
+	switch mimetype {
+	case ContentTypeJson:
+		if err := json.NewDecoder(response.Body).Decode(out); err != nil {
 			return err
 		}
-	} else if accept == ContentTypeText {
-		// Decode as text
-		if err := decodeString(out, string(data)); err != nil {
+	case ContentTypeTextXml, ContentTypeApplicationXml:
+		if err := xml.NewDecoder(response.Body).Decode(out); err != nil {
 			return err
+		}
+	default:
+		if v, ok := out.(Unmarshaler); ok {
+			return v.Unmarshal(mimetype, response.Body)
+		} else {
+			return ErrInternalAppError.Withf("do: response does not implement Unmarshaler for %q", mimetype)
 		}
 	}
 
@@ -230,24 +250,22 @@ func do(client *http.Client, req *http.Request, accept string, strict bool, out 
 	return nil
 }
 
+// Parse the response content type
+func respContentType(resp *http.Response) (string, error) {
+	contenttype := resp.Header.Get("Content-Type")
+	if contenttype == "" {
+		return ContentTypeBinary, nil
+	}
+	if mimetype, _, err := mime.ParseMediaType(contenttype); err != nil {
+		return contenttype, ErrUnexpectedResponse.With(contenttype)
+	} else {
+		return mimetype, nil
+	}
+}
+
 // Remove any usernames and passwords before printing out
 func redactedUrl(url *url.URL) string {
 	url_ := *url // make a copy
 	url_.User = nil
 	return url_.String()
-}
-
-// Set string from data
-func decodeString(v interface{}, data string) error {
-	rv := reflect.ValueOf(v)
-	if rv.Kind() != reflect.Ptr {
-		return ErrInternalAppError.With("DecodeString")
-	} else {
-		rv = rv.Elem()
-	}
-	if rv.Kind() != reflect.String {
-		return ErrInternalAppError.With("DecodeString")
-	}
-	rv.Set(reflect.ValueOf(data))
-	return nil
 }

@@ -2,6 +2,7 @@ package client
 
 import (
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"strings"
 )
@@ -25,6 +26,19 @@ func OptToken(value string) RequestOpt {
 		if value != "" {
 			r.Header.Set("Authorization", "Bearer "+value)
 		}
+		return nil
+	}
+}
+
+// OptQuery adds query parameters to a request
+func OptQuery(value url.Values) RequestOpt {
+	return func(r *http.Request) error {
+		// Make a copy
+		url := *r.URL
+		// Append query
+		url.RawQuery = value.Encode()
+		// Set new query
+		r.URL = &url
 		return nil
 	}
 }

@@ -8,13 +8,15 @@ import (
 // TYPES
 
 type Payload interface {
+	Type() string
 	Method() string
 	Accept() string
 }
 
 type payload struct {
-	method string
-	accept string
+	method   string
+	accept   string
+	mimetype string
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -23,6 +25,7 @@ type payload struct {
 func NewGetPayload(accept string) Payload {
 	this := new(payload)
 	this.method = http.MethodGet
+	this.mimetype = ContentTypeJson
 	this.accept = accept
 	return this
 }
@@ -30,10 +33,14 @@ func NewGetPayload(accept string) Payload {
 ///////////////////////////////////////////////////////////////////////////////
 // PAYLOAD METHODS
 
-func (this *payload) Method() string {
-	return this.method
+func (payload *payload) Method() string {
+	return payload.method
 }
 
-func (this *payload) Accept() string {
-	return this.accept
+func (payload *payload) Accept() string {
+	return payload.accept
+}
+
+func (payload *payload) Type() string {
+	return payload.mimetype
 }

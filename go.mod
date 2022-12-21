@@ -7,6 +7,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/stretchr/testify v1.8.1
 	golang.org/x/exp v0.0.0-20221026004748-78e5e7837ae6
+	golang.org/x/net v0.4.0
 )
 
 require (
