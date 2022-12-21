@@ -20,9 +20,9 @@ const (
 	contextLabel
 	contextPrefix
 	contextParams
-	contextAdmin
 	contextAddress
 	contextPath
+	contextScope
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -57,11 +57,6 @@ func WithNameLabel(ctx context.Context, name, label string) context.Context {
 	return context.WithValue(context.WithValue(ctx, contextName, name), contextLabel, label)
 }
 
-// Return a context with the given admin flag
-func WithAdmin(ctx context.Context, admin bool) context.Context {
-	return context.WithValue(ctx, contextAdmin, admin)
-}
-
 // Return a context with the given address string
 func WithAddress(ctx context.Context, addr string) context.Context {
 	return context.WithValue(ctx, contextAddress, addr)
@@ -70,6 +65,15 @@ func WithAddress(ctx context.Context, addr string) context.Context {
 // Return a context with the given path string
 func WithPath(ctx context.Context, path string) context.Context {
 	return context.WithValue(ctx, contextPath, path)
+}
+
+// Return a context with the given set of scopes
+func WithScope(ctx context.Context, scope ...string) context.Context {
+	if len(scope) > 0 {
+		return context.WithValue(ctx, contextPath, scope)
+	} else {
+		return ctx
+	}
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -93,12 +97,6 @@ func NameLabel(ctx context.Context) string {
 	return Name(ctx) + "." + Label(ctx)
 }
 
-// Return the admin parameter from the context, or zero value if
-// not defined
-func Admin(ctx context.Context) bool {
-	return contextBool(ctx, contextAdmin)
-}
-
 // Return the address parameter from the context, or zero value if
 // not defined
 func Address(ctx context.Context) string {
@@ -119,11 +117,12 @@ func Prefix(ctx context.Context) string {
 
 // Return prefix and parameters from the context
 func PrefixPathParams(ctx context.Context) (string, string, []string) {
-	var params []string
-	if v, ok := ctx.Value(contextParams).([]string); ok {
-		params = v
-	}
-	return contextString(ctx, contextPrefix), contextString(ctx, contextPath), params
+	return contextString(ctx, contextPrefix), contextString(ctx, contextPath), contextStringSlice(ctx, contextParams)
+}
+
+// Return array of scopes from the context, or nil
+func Scope(ctx context.Context) []string {
+	return contextStringSlice(ctx, contextScope)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -147,9 +146,6 @@ func DumpContext(ctx context.Context, w io.Writer) {
 	if value, ok := ctx.Value(contextParams).([]string); ok {
 		fmt.Fprintf(w, " params=%q", value)
 	}
-	if value, ok := ctx.Value(contextBool).(bool); ok {
-		fmt.Fprintf(w, " admin=%v", value)
-	}
 	if value, ok := ctx.Value(contextAddress).(string); ok {
 		fmt.Fprintf(w, " address=%q", value)
 	}
@@ -167,10 +163,20 @@ func contextString(ctx context.Context, key contextType) string {
 	}
 }
 
+/*
 func contextBool(ctx context.Context, key contextType) bool {
 	if value, ok := ctx.Value(key).(bool); ok {
 		return value
 	} else {
 		return false
+	}
+}
+*/
+
+func contextStringSlice(ctx context.Context, key contextType) []string {
+	if value, ok := ctx.Value(key).([]string); ok {
+		return value
+	} else {
+		return nil
 	}
 }
