@@ -146,6 +146,9 @@ func DumpContext(ctx context.Context, w io.Writer) {
 	if value, ok := ctx.Value(contextParams).([]string); ok {
 		fmt.Fprintf(w, " params=%q", value)
 	}
+	if value, ok := ctx.Value(contextScope).([]string); ok {
+		fmt.Fprintf(w, " scope=%q", value)
+	}
 	if value, ok := ctx.Value(contextAddress).(string); ok {
 		fmt.Fprintf(w, " address=%q", value)
 	}
