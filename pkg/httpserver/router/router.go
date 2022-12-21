@@ -1,6 +1,7 @@
 package router
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -8,7 +9,7 @@ import (
 	"sync"
 
 	// Package imports
-	context "github.com/mutablelogic/go-server/pkg/context"
+	ctx "github.com/mutablelogic/go-server/pkg/context"
 	util "github.com/mutablelogic/go-server/pkg/httpserver/util"
 	task "github.com/mutablelogic/go-server/pkg/task"
 	plugin "github.com/mutablelogic/go-server/plugin"
@@ -17,19 +18,26 @@ import (
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type t struct {
+type router struct {
 	task.Task
 	sync.RWMutex
 
 	routes []*route
 }
 
+type Router interface {
+	plugin.Router
+	AddHandlerEx(string, *regexp.Regexp, http.HandlerFunc, ...string)
+}
+
+var _ Router = (*router)(nil)
+
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
 // Create a new router task, and register routes from gateways
-func NewWithPlugin(p Plugin, routes map[string]plugin.Gateway) (*t, error) {
-	this := new(t)
+func NewWithPlugin(p Plugin, routes map[string]plugin.Gateway) (*router, error) {
+	this := new(router)
 
 	for prefix, gateway := range routes {
 		fmt.Println("TODO:", prefix, "=>", gateway)
@@ -42,7 +50,7 @@ func NewWithPlugin(p Plugin, routes map[string]plugin.Gateway) (*t, error) {
 ///////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
-func (router *t) String() string {
+func (router *router) String() string {
 	str := "<httpserver-router"
 	for _, route := range router.routes {
 		str += fmt.Sprint(" ", route)
@@ -53,11 +61,17 @@ func (router *t) String() string {
 ///////////////////////////////////////////////////////////////////////////////
 // METHODS
 
-// AddHandler adds a handler to the router, for a specific host/prefix and http methods supported.
+// AddHandler adds a handler to the router, with the context passing the
+// prefix and authorization scopes.
+func (router *router) AddHandler(parent context.Context, path *regexp.Regexp, fn http.HandlerFunc, methods ...string) {
+	router.AddHandlerEx(ctx.Prefix(parent), path, fn, methods...)
+}
+
+// AddHandlerEx adds a handler to the router, for a specific host/prefix and http methods supported.
 // If path argument is nil, then any path under the prefix will match. If the path contains
 // a regular expression, then a match is made and any matched parameters of the regular
 // expression can be retrieved from the request context.
-func (router *t) AddHandler(prefix string, path *regexp.Regexp, fn http.HandlerFunc, methods ...string) {
+func (router *router) AddHandlerEx(prefix string, path *regexp.Regexp, fn http.HandlerFunc, methods ...string) {
 	router.routes = append(router.routes, NewRoute(prefix, path, fn, methods...))
 
 	// Sort routes by prefix length, longest first, and then by path != nil vs nil
@@ -74,7 +88,7 @@ func (router *t) AddHandler(prefix string, path *regexp.Regexp, fn http.HandlerF
 
 // MatchPath calls the provided function for each route that matches the request
 // host and path. Will bail out if true is returned from the function
-func (router *t) MatchPath(req *http.Request, fn func(*route, string, []string) bool) {
+func (router *router) MatchPath(req *http.Request, fn func(*route, string, []string) bool) {
 	for _, route := range router.routes {
 		if route.MatchesHost(req.Host) {
 			if params, rel, ok := route.MatchesPath(req.URL.Path); ok {
@@ -87,13 +101,13 @@ func (router *t) MatchPath(req *http.Request, fn func(*route, string, []string) 
 }
 
 // ServeHTTP implements the http.Handler interface
-func (router *t) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+func (router *router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	var matchedPath, matchedMethod bool
 	router.MatchPath(req, func(route *route, path string, params []string) bool {
 		matchedPath = true
 		if route.MatchesMethod(req.Method) {
 			matchedMethod = true
-			route.fn(w, req.Clone(context.WithPrefixPathParams(req.Context(), route.prefix, path, params)))
+			route.fn(w, req.Clone(ctx.WithPrefixPathParams(req.Context(), route.prefix, path, params)))
 			// TODO: Cache the route
 			return true
 		}

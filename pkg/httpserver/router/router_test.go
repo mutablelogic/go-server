@@ -13,9 +13,6 @@ import (
 	util "github.com/mutablelogic/go-server/pkg/httpserver/util"
 	task "github.com/mutablelogic/go-server/pkg/task"
 	assert "github.com/stretchr/testify/assert"
-
-	// Namespace imports
-	. "github.com/mutablelogic/go-server/plugin"
 )
 
 /////////////////////////////////////////////////////////////////////
@@ -39,23 +36,24 @@ func Test_router_001(t *testing.T) {
 	plugin := router.WithLabel("main")
 	provider, err := task.NewProvider(context.Background(), plugin)
 	assert.NoError(err)
-	router := provider.Get(plugin.Name(), plugin.Label()).(Router)
+	router, ok := provider.Get(plugin.Name(), plugin.Label()).(router.Router)
+	assert.True(ok)
 	assert.NotNil(router)
 
 	// Add request handlers
-	router.AddHandler("/test", nil, func(w http.ResponseWriter, req *http.Request) {
+	router.AddHandlerEx("/test", nil, func(w http.ResponseWriter, req *http.Request) {
 		prefix, path, params := util.ReqPrefixPathParams(req)
 		util.ServeJSON(w, response{"1", prefix, path, params}, http.StatusOK, 0)
 	})
-	router.AddHandler("/test", regexp.MustCompile(`^(\d+)$`), func(w http.ResponseWriter, req *http.Request) {
+	router.AddHandlerEx("/test", regexp.MustCompile(`^(\d+)$`), func(w http.ResponseWriter, req *http.Request) {
 		prefix, path, params := util.ReqPrefixPathParams(req)
 		util.ServeJSON(w, response{"2", prefix, path, params}, http.StatusOK, 0)
 	})
-	router.AddHandler("/test", regexp.MustCompile(`(\d+)$`), func(w http.ResponseWriter, req *http.Request) {
+	router.AddHandlerEx("/test", regexp.MustCompile(`(\d+)$`), func(w http.ResponseWriter, req *http.Request) {
 		prefix, path, params := util.ReqPrefixPathParams(req)
 		util.ServeJSON(w, response{"3", prefix, path, params}, http.StatusOK, 0)
 	})
-	router.AddHandler("otherhost/test", regexp.MustCompile(`^(\d+)`), func(w http.ResponseWriter, req *http.Request) {
+	router.AddHandlerEx("otherhost/test", regexp.MustCompile(`^(\d+)`), func(w http.ResponseWriter, req *http.Request) {
 		prefix, path, params := util.ReqPrefixPathParams(req)
 		util.ServeJSON(w, response{"4", prefix, path, params}, http.StatusOK, 0)
 	})

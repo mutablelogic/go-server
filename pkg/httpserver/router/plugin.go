@@ -47,11 +47,6 @@ func (p Plugin) New(_ context.Context, _ iface.Provider) (iface.Task, error) {
 		return nil, err
 	}
 
-	// Return error if no gateways defined
-	if len(p.Routes) == 0 {
-		return nil, ErrBadParameter.With("No routes defined")
-	}
-
 	// Check gateway handlers are of type iface.Gateway
 	gateways := make(map[string]plugin.Gateway, len(p.Routes))
 	for _, gateway := range p.Routes {

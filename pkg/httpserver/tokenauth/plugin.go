@@ -26,11 +26,23 @@ type Plugin struct {
 // GLOBALS
 
 const (
+	// Scope for reading tokens
+	ScopeRead = "github.com/mutablelogic/go-server/tokenauth:read"
+
+	// Scope for updating, deleting and creating tokens
+	ScopeWrite = "github.com/mutablelogic/go-server/tokenauth:write"
+)
+
+const (
 	AdminToken     = "admin"
 	defaultName    = "tokenauth"
 	defaultFileExt = ".json"
 	defaultLength  = 32
 	defaultDelta   = time.Second * 30
+)
+
+var (
+	adminScopes = []string{ScopeRead, ScopeWrite}
 )
 
 ///////////////////////////////////////////////////////////////////////////////

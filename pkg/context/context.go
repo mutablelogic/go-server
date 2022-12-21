@@ -111,6 +111,12 @@ func Path(ctx context.Context) string {
 	return contextString(ctx, contextPath)
 }
 
+// Return the prefix parameter from the context, or zero value if
+// not defined
+func Prefix(ctx context.Context) string {
+	return contextString(ctx, contextPrefix)
+}
+
 // Return prefix and parameters from the context
 func PrefixPathParams(ctx context.Context) (string, string, []string) {
 	var params []string

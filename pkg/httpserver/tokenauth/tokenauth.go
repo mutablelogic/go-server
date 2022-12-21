@@ -2,8 +2,6 @@ package tokenauth
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -63,8 +61,8 @@ func NewWithPlugin(p Plugin) (*tokenauth, error) {
 
 	// If the admin token does not exist, then create it
 	if _, ok := this.tokens[AdminToken]; !ok {
-		// Create a new token
-		this.tokens[AdminToken] = newToken(defaultLength)
+		// Create a new token with read and write scopes
+		this.tokens[AdminToken] = NewToken(defaultLength, 0, adminScopes...)
 	}
 
 	// Write tokens to disk
@@ -124,8 +122,9 @@ func (tokenauth *tokenauth) Exists(name string) bool {
 	return ok
 }
 
-// Create a new token associated with a name and return it.
-func (tokenauth *tokenauth) Create(name string) (string, error) {
+// Create a new token associated with a name, duration and scopes.
+// Return the token value. The duration can be zero for no expiry.
+func (tokenauth *tokenauth) Create(name string, duration time.Duration, scope ...string) (string, error) {
 	tokenauth.Lock()
 	defer tokenauth.Unlock()
 
@@ -143,7 +142,7 @@ func (tokenauth *tokenauth) Create(name string) (string, error) {
 	}
 
 	// Create a new token
-	tokenauth.tokens[name] = newToken(defaultLength)
+	tokenauth.tokens[name] = NewToken(defaultLength, duration, scope...)
 
 	// Set modified flag
 	tokenauth.setModified(true)
@@ -167,7 +166,7 @@ func (tokenauth *tokenauth) Revoke(name string) error {
 	var immediately bool
 	if name == AdminToken {
 		// Rotate the token
-		tokenauth.tokens[name] = newToken(defaultLength)
+		tokenauth.tokens[name] = NewToken(defaultLength, 0, adminScopes...)
 		// Write immediately
 		immediately = true
 	} else {
@@ -192,7 +191,7 @@ func (tokenauth *tokenauth) Revoke(name string) error {
 	return nil
 }
 
-// Return all token names and their last access times
+// Return all valid token names and their last access times
 func (tokenauth *tokenauth) Enumerate() map[string]time.Time {
 	tokenauth.RLock()
 	defer tokenauth.RUnlock()
@@ -206,15 +205,15 @@ func (tokenauth *tokenauth) Enumerate() map[string]time.Time {
 	return result
 }
 
-// Returns the name of the token if a value matches. Updates
-// the access time for the token. If token with value not
+// Returns the name of the token if a value matches and is
+// valid. Updates the access time for the token. If token with value not
 // found, then return empty string
 func (tokenauth *tokenauth) Matches(value string) string {
 	tokenauth.Lock()
 	defer tokenauth.Unlock()
 
 	for k, v := range tokenauth.tokens {
-		if v.Value == value {
+		if v.Value == value && v.IsValid() {
 			v.Time = time.Now()
 			tokenauth.setModified(true)
 			return k
@@ -223,6 +222,19 @@ func (tokenauth *tokenauth) Matches(value string) string {
 
 	// Token not found
 	return ""
+}
+
+// Returns true if the named token is valid, and the scope matches.
+func (tokenauth *tokenauth) MatchesScope(name, scope string) bool {
+	tokenauth.RLock()
+	defer tokenauth.RUnlock()
+
+	// Match token
+	if token, ok := tokenauth.tokens[name]; ok {
+		return token.IsValid() && token.IsScope(scope)
+	}
+	// No match
+	return false
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -296,19 +308,4 @@ func fileWrite(filename string, tokens map[string]*Token) error {
 
 	// Return success
 	return nil
-}
-
-func newToken(length int) *Token {
-	return &Token{
-		Value: generateToken(length),
-		Time:  time.Now(),
-	}
-}
-
-func generateToken(length int) string {
-	b := make([]byte, length)
-	if _, err := rand.Read(b); err != nil {
-		return ""
-	}
-	return hex.EncodeToString(b)
 }
