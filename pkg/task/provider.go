@@ -45,6 +45,9 @@ func NewProvider(parent context.Context, plugins ...iface.Plugin) (iface.Provide
 	}
 
 	// TODO: Re-order the plugins so that dependencies are satisfied
+	for _, plugin := range plugins {
+		fmt.Println("TODO:", plugin)
+	}
 
 	// Create the tasks sequentially, and return if any error is returned
 	for _, plugin := range plugins {

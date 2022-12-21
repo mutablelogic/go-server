@@ -15,11 +15,12 @@ import (
 
 // route is a (host, prefix, path, method) => hander mapping
 type route struct {
-	host    string
-	prefix  string
-	path    *regexp.Regexp
-	fn      http.HandlerFunc
-	methods []string
+	host     string
+	prefix   string
+	priority int
+	path     *regexp.Regexp
+	fn       http.HandlerFunc
+	methods  []string
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -49,11 +50,12 @@ func NewRoute(host_prefix string, path *regexp.Regexp, fn http.HandlerFunc, meth
 
 	// Create route
 	return &route{
-		host:    normalizeHost(host),
-		prefix:  normalizePath(prefix, false),
-		path:    path,
-		fn:      fn,
-		methods: methods,
+		host:     normalizeHost(host),
+		prefix:   normalizePath(prefix, false),
+		priority: 0,
+		path:     path,
+		fn:       fn,
+		methods:  methods,
 	}
 }
 
@@ -71,6 +73,9 @@ func (route *route) String() string {
 	if methods := route.Methods(); len(methods) > 0 {
 		str += fmt.Sprintf(" methods=%q", methods)
 	}
+	if route.priority > 0 {
+		str += fmt.Sprintf(" priority=%d", route.priority)
+	}
 	return str + ">"
 }
 
@@ -81,10 +86,7 @@ func (route *route) String() string {
 func (route *route) Path() string {
 	str := route.prefix
 	if route.path != nil {
-		re := route.path.String()
-		re = strings.TrimPrefix(re, "^")
-		re = strings.TrimSuffix(re, "$")
-		str += re
+		str += "[" + route.path.String() + "]"
 	}
 	return str
 }
@@ -109,12 +111,14 @@ func (route *route) Methods() []string {
 // and the remaining path.
 func (route *route) MatchesPath(path string) ([]string, string, bool) {
 	path = normalizePath(path, false)
-	if path == route.prefix {
+
+	// The case where the path is identical to the prefix, with no regular expression
+	if path == route.prefix && route.path == nil {
 		return nil, "/", true
 	}
 
 	// Check for default route: this is the route that matches everything
-	if !strings.HasPrefix(path, route.prefix) {
+	if !strings.HasPrefix(path, normalizePath(route.prefix, true)) {
 		return nil, "", false
 	} else if route.path == nil {
 		return nil, normalizePath(path[len(route.prefix):], false), true
@@ -122,6 +126,10 @@ func (route *route) MatchesPath(path string) ([]string, string, bool) {
 
 	// Check with a regular expression
 	relpath := path[len(route.prefix):]
+	if !strings.HasPrefix(relpath, pathSeparator) {
+		return nil, "", false
+	}
+
 	if params := route.path.FindStringSubmatch(relpath); params == nil {
 		return nil, "", false
 	} else {

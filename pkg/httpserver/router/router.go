@@ -72,14 +72,22 @@ func (router *router) AddHandler(parent context.Context, path *regexp.Regexp, fn
 // a regular expression, then a match is made and any matched parameters of the regular
 // expression can be retrieved from the request context.
 func (router *router) AddHandlerEx(prefix string, path *regexp.Regexp, fn http.HandlerFunc, methods ...string) {
-	router.routes = append(router.routes, NewRoute(prefix, path, fn, methods...))
+	route := NewRoute(prefix, path, fn, methods...)
+	// The priority is either 0 for default routes (where path is nil) or the number of routes, so that
+	// handlers are called in the order they are added
+	if path != nil {
+		route.priority = len(router.routes)
+	}
 
-	// Sort routes by prefix length, longest first, and then by path != nil vs nil
+	// Append the route to the list of routes
+	router.routes = append(router.routes, route)
+
+	// Sort routes by prefix length, longest first, and then by priority
 	sort.Slice(router.routes, func(i, j int) bool {
 		if len(router.routes[i].prefix) < len(router.routes[j].prefix) {
 			return false
 		}
-		if len(router.routes[i].prefix) == len(router.routes[j].prefix) && router.routes[i].path == nil {
+		if len(router.routes[i].prefix) == len(router.routes[j].prefix) && router.routes[i].priority < router.routes[j].priority {
 			return false
 		}
 		return true

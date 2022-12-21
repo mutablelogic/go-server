@@ -37,6 +37,10 @@ const (
 	hostSeparator = "."
 )
 
+const (
+	ScopeRead = "github.com/mutablelogic/go-server/router:read"
+)
+
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
