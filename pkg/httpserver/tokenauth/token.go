@@ -69,12 +69,14 @@ func (t *Token) IsValid() bool {
 }
 
 // Return true if the token has the specified scope, and is valid
-func (t *Token) IsScope(scope string) bool {
+func (t *Token) IsScope(scopes ...string) bool {
 	if !t.IsValid() {
 		return false
 	}
-	if slices.Contains(t.Scope, scope) {
-		return true
+	for _, scope := range scopes {
+		if slices.Contains(t.Scope, scope) {
+			return true
+		}
 	}
 	return false
 }

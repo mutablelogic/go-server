@@ -24,8 +24,8 @@ type TokenAuth interface {
 	// Returns the name of the token if a value matches and is
 	// valid. Updates the access time for the token. If token with value not
 	// found, then return empty string
-	Matches(string) string
+	MatchesValue(string) string
 
-	// Returns true if the named token is valid, and the scope matches.
-	MatchesScope(name, scope string) bool
+	// Returns true if the named token is valid, and one of the scopes match.
+	MatchesScope(string, ...string) bool
 }

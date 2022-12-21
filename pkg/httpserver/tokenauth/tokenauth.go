@@ -208,7 +208,7 @@ func (tokenauth *tokenauth) Enumerate() map[string]time.Time {
 // Returns the name of the token if a value matches and is
 // valid. Updates the access time for the token. If token with value not
 // found, then return empty string
-func (tokenauth *tokenauth) Matches(value string) string {
+func (tokenauth *tokenauth) MatchesValue(value string) string {
 	tokenauth.Lock()
 	defer tokenauth.Unlock()
 
@@ -225,13 +225,13 @@ func (tokenauth *tokenauth) Matches(value string) string {
 }
 
 // Returns true if the named token is valid, and the scope matches.
-func (tokenauth *tokenauth) MatchesScope(name, scope string) bool {
+func (tokenauth *tokenauth) MatchesScope(name string, scope ...string) bool {
 	tokenauth.RLock()
 	defer tokenauth.RUnlock()
 
 	// Match token
 	if token, ok := tokenauth.tokens[name]; ok {
-		return token.IsValid() && token.IsScope(scope)
+		return token.IsValid() && token.IsScope(scope...)
 	}
 	// No match
 	return false
