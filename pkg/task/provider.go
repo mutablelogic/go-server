@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"sync"
 
@@ -27,6 +28,7 @@ type provider struct {
 	sync.RWMutex
 
 	// Enumeration of tasks, keyed by name.label
+	order []string
 	tasks map[string]iface.Task
 	log   []plugin.Log
 }
@@ -38,19 +40,23 @@ type provider struct {
 // name or label is invalid, or the plugin with the same name already exists.
 func NewProvider(parent context.Context, plugins ...iface.Plugin) (iface.Provider, error) {
 	this := new(provider)
+	this.order = make([]string, 0, len(plugins))
 	this.tasks = make(map[string]iface.Task, len(plugins))
 	plugins_ := Plugins{}
 	if err := plugins_.Register(plugins...); err != nil {
 		return nil, err
 	}
 
-	// TODO: Re-order the plugins so that dependencies are satisfied
-	for _, plugin := range plugins {
-		fmt.Println("TODO:", plugin)
+	// Create a graph of the plugins
+	// Re-order the plugins so that dependencies are satisfied correctly
+	// The order returned is the order in which the plugins should be created
+	order, err := NewGraph(plugins...).Resolve()
+	if err != nil {
+		return nil, err
 	}
 
 	// Create the tasks sequentially, and return if any error is returned
-	for _, plugin := range plugins {
+	for _, plugin := range order {
 		if _, err := this.New(parent, plugin); err != nil {
 			return nil, err
 		}
@@ -119,10 +125,28 @@ func (p *provider) Run(parent context.Context) error {
 // New creates a new task from a plugin. It should only be called from
 // the 'new' function, not once the provider is in Run state.
 func (p *provider) New(parent context.Context, proto iface.Plugin) (iface.Task, error) {
-	key := proto.Name() + "." + proto.Label()
+	key := KeyForPlugin(proto)
 	if task := p.Get(key); task != nil {
 		return nil, ErrDuplicateEntry.Withf("Duplicate task: %q", key)
 	}
+
+	// Resolve dependencies
+	p.order = append(p.order, key)
+	resolveRef(key, reflect.ValueOf(proto), func(ref string) error {
+		var task iface.Task
+		if ref != "" {
+			task = p.Get(ref)
+			if task == nil {
+				return ErrNotFound.Withf("%v: Task not found: %q", key, ref)
+			}
+		}
+		if task == nil {
+			fmt.Printf("TODO: %q => <nil>\n", key)
+		} else {
+			fmt.Printf("TODO: %q => %s\n", key, task)
+		}
+		return nil
+	})
 
 	// Create the task
 	task, err := proto.New(ctx.WithNameLabel(parent, proto.Name(), proto.Label()), p)
@@ -158,6 +182,8 @@ func (p *provider) Printf(ctx context.Context, format string, v ...any) {
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
+// Keys returns the list of task keys in the provider, ordered as per the
+// order in which the tasks were added.
 func (p *provider) Keys() []string {
 	p.RLock()
 	defer p.RUnlock()
@@ -172,19 +198,19 @@ func (p *provider) Get(args ...string) iface.Task {
 	p.RLock()
 	defer p.RUnlock()
 
-	var key string
-	if len(args) == 1 {
-		key = args[0]
-	} else if len(args) == 2 {
-		key = args[0] + "." + args[1]
-	} else {
-		return nil
-	}
+	// Exact match
+	key := strings.Trim(strings.Join(args, "."), ".")
 	if task, exists := p.tasks[key]; exists {
 		return task
-	} else {
-		return nil
 	}
+	// Prefix match
+	for key2, task := range p.tasks {
+		if strings.HasPrefix(key2, key+".") {
+			return task
+		}
+	}
+	// No match
+	return nil
 }
 
 func (p *provider) Set(key string, task iface.Task) error {

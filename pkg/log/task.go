@@ -2,6 +2,7 @@ package log
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"sync"
@@ -28,6 +29,43 @@ func NewWithPlugin(p Plugin) (*t, error) {
 	this := new(t)
 	this.Logger = log.New(os.Stderr, p.Label(), p.flags)
 	return this, nil
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// STRINGIFY
+
+func (t *t) String() string {
+	str := "<log"
+	if w := t.Logger.Writer(); w != nil {
+		if f, ok := w.(*os.File); ok {
+			str += fmt.Sprintf(" writer=%q", f.Name())
+		}
+	}
+	if t.Logger.Flags()&log.Ldate != 0 {
+		str += " date"
+	}
+	if t.Logger.Flags()&log.Ltime != 0 {
+		str += " time"
+	}
+	if t.Logger.Flags()&log.Lmsgprefix != 0 {
+		str += " msgprefix"
+	}
+	if t.Logger.Flags()&log.Llongfile != 0 {
+		str += " longfile"
+	}
+	if t.Logger.Flags()&log.Lshortfile != 0 {
+		str += " shortfile"
+	}
+	if t.Logger.Flags()&log.LstdFlags != 0 {
+		str += " stdflags"
+	}
+	if t.Logger.Flags()&log.Lmicroseconds != 0 {
+		str += " microseconds"
+	}
+	if t.Logger.Flags()&log.LUTC != 0 {
+		str += " utc"
+	}
+	return str + ">"
 }
 
 ///////////////////////////////////////////////////////////////////////////////

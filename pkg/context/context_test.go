@@ -71,20 +71,3 @@ func Test_Context_005(t *testing.T) {
 	assert.Equal("path", path)
 	assert.Equal(params, params2)
 }
-
-func Test_Context_006(t *testing.T) {
-	ctx, cancel := context.WithCancel()
-	defer cancel()
-
-	ctx = context.WithAdmin(ctx, true)
-	if v := context.Admin(ctx); !v {
-		t.Error("Unexpected admin", v)
-	}
-	req, err := http.NewRequestWithContext(ctx, "GET", "http://localhost", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if v := util.ReqAdmin(req); !v {
-		t.Error("Unexpected admin", v)
-	}
-}
