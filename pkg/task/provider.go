@@ -13,6 +13,7 @@ import (
 	iface "github.com/mutablelogic/go-server"
 	ctx "github.com/mutablelogic/go-server/pkg/context"
 	event "github.com/mutablelogic/go-server/pkg/event"
+	"github.com/mutablelogic/go-server/pkg/types"
 	plugin "github.com/mutablelogic/go-server/plugin"
 
 	// Namespace imports
@@ -132,19 +133,24 @@ func (p *provider) New(parent context.Context, proto iface.Plugin) (iface.Task, 
 
 	// Resolve dependencies
 	p.order = append(p.order, key)
-	resolveRef(key, reflect.ValueOf(proto), func(ref string) error {
+	resolveRef(key, reflect.ValueOf(proto), func(ref string, v reflect.Value) error {
+		// Get the task from the reference
 		var task iface.Task
 		if ref != "" {
 			task = p.Get(ref)
 			if task == nil {
-				return ErrNotFound.Withf("%v: Task not found: %q", key, ref)
+				return ErrNotFound.Withf("%q: Task not found: %q", key, ref)
 			}
 		}
-		if task == nil {
-			fmt.Printf("TODO: %q => <nil>\n", key)
+
+		// Assign task to plugin
+		if t, ok := v.Interface().(types.Task); !ok {
+			return ErrBadParameter.Withf("%q: Invalid type: %v", key, v.Type())
 		} else {
-			fmt.Printf("TODO: %q => %s\n", key, task)
+			t.Task = task
 		}
+
+		// Return success
 		return nil
 	})
 

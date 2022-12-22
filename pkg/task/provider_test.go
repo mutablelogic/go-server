@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	// Package imports
 	log "github.com/mutablelogic/go-server/pkg/log"
@@ -70,6 +71,23 @@ func Test_provider_003(t *testing.T) {
 	// Circular reference error
 }
 
+func Test_provider_004(t *testing.T) {
+	assert := assert.New(t)
+	plugins := []Plugin{
+		log.WithLabel(t.Name()),
+		MockTaskPlugin{}.WithNameLabel("a", t.Name()).WithRef1("log", t.Name()).WithRef2("b", t.Name()),
+		MockTaskPlugin{}.WithNameLabel("b", t.Name()).WithRef1("log", t.Name()),
+		MockTaskPlugin{}.WithNameLabel("c", t.Name()).WithRef1("a", t.Name()).WithRef2("b", t.Name()),
+	}
+	provider, error := task.NewProvider(context.Background(), plugins...)
+	assert.NoError(error)
+	assert.NotNil(provider)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	err := provider.Run(ctx)
+	assert.NoError(err)
+}
+
 ////////
 
 type MockTaskPlugin struct {
@@ -96,4 +114,19 @@ func (p MockTaskPlugin) WithRef2(label ...string) MockTaskPlugin {
 
 func (p MockTaskPlugin) New(_ context.Context, _ Provider) (Task, error) {
 	return &task.Task{}, nil
+}
+
+func (p MockTaskPlugin) Run(ctx context.Context) error {
+	if p.Ref1.Ref != "" {
+		if p.Ref1.Task == nil {
+			return ErrInternalAppError.With("Ref1 not found", p.Ref1.Ref)
+		}
+	}
+	if p.Ref2.Ref != "" {
+		if p.Ref2.Task == nil {
+			return ErrInternalAppError.With("Ref2 not found", p.Ref2.Ref)
+		}
+	}
+	<-ctx.Done()
+	return nil
 }

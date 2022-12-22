@@ -113,7 +113,7 @@ func (graph *graph) addEdges(plugin iface.Plugin) {
 	key := KeyForPlugin(plugin)
 	graph.plugins[key] = plugin
 	graph.edges[key] = []string{}
-	resolveRef(key, reflect.ValueOf(plugin), func(ref string) error {
+	resolveRef(key, reflect.ValueOf(plugin), func(ref string, _ reflect.Value) error {
 		// If ref is not empty, then add a dependency
 		if ref != "" {
 			graph.edges[key] = append(graph.edges[key], ref)
@@ -143,14 +143,14 @@ func (graph *graph) resolve(key string, order []string, resolved, unresolved map
 }
 
 // resolveRef resolves the references in the plugin, to build a dependency graph
-func resolveRef(key string, v reflect.Value, fn func(string) error) error {
+func resolveRef(key string, v reflect.Value, fn func(string, reflect.Value) error) error {
 	if v.Kind() == reflect.Ptr {
 		v = v.Elem()
 	}
 	switch v.Kind() {
 	case reflect.Struct:
 		if v.Type() == typeTask {
-			return fn(v.Interface().(types.Task).Ref)
+			return fn(v.Interface().(types.Task).Ref, v)
 		}
 		for i := 0; i < v.NumField(); i++ {
 			if err := resolveRef(key, v.Field(i), fn); err != nil {
