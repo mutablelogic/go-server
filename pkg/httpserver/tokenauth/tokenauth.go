@@ -10,6 +10,7 @@ import (
 	"time"
 
 	// Module imports
+	iface "github.com/mutablelogic/go-server"
 	event "github.com/mutablelogic/go-server/pkg/event"
 	task "github.com/mutablelogic/go-server/pkg/task"
 	types "github.com/mutablelogic/go-server/pkg/types"
@@ -25,17 +26,20 @@ type tokenauth struct {
 	sync.RWMutex
 	task.Task
 
+	label    string
 	delta    time.Duration
 	path     string
 	tokens   map[string]*Token
 	modified bool
 }
 
+var _ iface.Task = (*tokenauth)(nil)
+
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
 // Create a new logger task with provider of other tasks
-func NewWithPlugin(p Plugin) (*tokenauth, error) {
+func NewWithPlugin(p Plugin, label string) (*tokenauth, error) {
 	this := new(tokenauth)
 
 	// Construct the path to the file

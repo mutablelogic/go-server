@@ -8,6 +8,7 @@ import (
 
 	// Namespace imports
 	iface "github.com/mutablelogic/go-server"
+	ctx "github.com/mutablelogic/go-server/pkg/context"
 	task "github.com/mutablelogic/go-server/pkg/task"
 )
 
@@ -49,13 +50,13 @@ var (
 // LIFECYCLE
 
 // Create a new logger task with provider of other tasks
-func (p Plugin) New(_ context.Context, _ iface.Provider) (iface.Task, error) {
+func (p Plugin) New(parent context.Context, _ iface.Provider) (iface.Task, error) {
 	// Check parameters
 	if err := p.HasNameLabel(); err != nil {
 		return nil, err
 	}
 
-	return NewWithPlugin(p)
+	return NewWithPlugin(p, ctx.NameLabel(parent))
 }
 
 ///////////////////////////////////////////////////////////////////////////////

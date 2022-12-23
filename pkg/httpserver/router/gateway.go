@@ -43,10 +43,18 @@ var (
 func (gateway *router) RegisterHandlers(parent context.Context, router plugin.Router) {
 	// GET /
 	//   Return list of prefixes and their handlers
-	router.AddHandler(ctx.WithDescription(ctx.WithScope(parent, ScopeRead), "Enumerate gateway services"), reRoot, gateway.ReqPrefix, http.MethodGet)
+	router.AddHandler(
+		ctx.WithDescription(ctx.WithScope(parent, ScopeRead), "Enumerate gateway services"),
+		reRoot, gateway.ReqPrefix,
+		http.MethodGet,
+	)
 	// GET /:prefix:
 	//   Return list of routes for a prefix
-	router.AddHandler(ctx.WithDescription(ctx.WithScope(parent, ScopeRead), "Return description of handlers for a gateway service"), reGateway, gateway.ReqRoutes, http.MethodGet)
+	router.AddHandler(
+		ctx.WithDescription(ctx.WithScope(parent, ScopeRead), "Return description of handlers for a gateway service"),
+		reGateway, gateway.ReqRoutes,
+		http.MethodGet,
+	)
 }
 
 ///////////////////////////////////////////////////////////////////////////////

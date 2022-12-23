@@ -57,7 +57,9 @@ func (p Plugin) New(parent context.Context, _ iface.Provider) (iface.Task, error
 	gateways := make(map[string]plugin.Gateway, len(p.Routes))
 	for _, gateway := range p.Routes {
 		route := NewRoute(gateway.Prefix, nil, nil).Prefix()
-		if handler, ok := gateway.Handler.Task.(plugin.Gateway); !ok {
+		if handler := gateway.Handler.Task; handler == nil {
+			return nil, ErrBadParameter.Withf("Handler for %q is nil (ref: %q)", gateway.Prefix, gateway.Handler.Ref)
+		} else if handler, ok := gateway.Handler.Task.(plugin.Gateway); !ok {
 			return nil, ErrBadParameter.Withf("Handler for %q is not a gateway", gateway.Prefix)
 		} else if _, exists := gateways[route]; exists {
 			return nil, ErrDuplicateEntry.Withf("Duplicate prefix %q", gateway.Prefix)
