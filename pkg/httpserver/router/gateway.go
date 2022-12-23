@@ -15,7 +15,7 @@ import (
 // GLOBALS
 
 var (
-	reRoot = regexp.MustCompile(`^/$`)
+	reRoot = regexp.MustCompile(`^/?$`)
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -24,13 +24,13 @@ var (
 // Register routes for router
 func (gateway *router) RegisterHandlers(parent context.Context, router plugin.Router) {
 	// GET /
-	//   Return health status for the router
-	router.AddHandler(ctx.WithScope(parent, ScopeRead), reRoot, gateway.ReqHealth, http.MethodGet)
+	//   Return list of prefixes and their handlers
+	router.AddHandler(ctx.WithScope(parent, ScopeRead), reRoot, gateway.ReqPrefix, http.MethodGet)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // HANDLERS
 
-func (gateway *router) ReqHealth(w http.ResponseWriter, r *http.Request) {
-	util.ServeError(w, http.StatusNotImplemented)
+func (gateway *router) ReqPrefix(w http.ResponseWriter, r *http.Request) {
+	util.ServeJSON(w, gateway.prefix, http.StatusOK, 2)
 }

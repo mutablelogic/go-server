@@ -22,12 +22,12 @@ import (
 
 type Plugin struct {
 	task.Plugin
-	Router_  types.Task     `json:"router,omitempty"`  // The router object which serves the gateways
 	Listen_  types.String   `json:"listen,omitempty"`  // Address or path for binding HTTP server
 	TLS_     *TLS           `json:"tls,omitempty"`     // TLS parameters, or nil if not using TLS (ignored for file sockets)
 	Timeout_ types.Duration `json:"timeout,omitempty"` // Read timeout on HTTP requests (ignored for file sockets)
 	Owner_   types.String   `json:"owner,omitempty"`   // Owner of the socket file (ignored for network sockets)
 	Group_   types.String   `json:"group,omitempty"`   // Owner Group of the socket file (ignored for network sockets)
+	Router_  types.Task     `json:"router,omitempty"`  // The router object which serves the gateways, optional.
 	Routes   []router.Route `json:"routes"`            // Array of routes, required
 }
 
@@ -64,6 +64,17 @@ func (p Plugin) New(ctx context.Context, provider iface.Provider) (iface.Task, e
 
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
+
+func WithLabel(label string) Plugin {
+	return Plugin{
+		Plugin: task.WithLabel(defaultName, label),
+	}
+}
+
+func (p Plugin) WithListen(listen string) Plugin {
+	p.Listen_ = types.String(listen)
+	return p
+}
 
 func (p Plugin) Name() string {
 	if name := p.Plugin.Name(); name != "" {

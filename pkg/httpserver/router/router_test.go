@@ -12,7 +12,7 @@ import (
 	router "github.com/mutablelogic/go-server/pkg/httpserver/router"
 	util "github.com/mutablelogic/go-server/pkg/httpserver/util"
 	task "github.com/mutablelogic/go-server/pkg/task"
-	types "github.com/mutablelogic/go-server/pkg/types"
+	iface "github.com/mutablelogic/go-server/plugin"
 	assert "github.com/stretchr/testify/assert"
 )
 
@@ -150,19 +150,24 @@ func Test_router_001(t *testing.T) {
 
 func Test_router_002(t *testing.T) {
 	// Create router which registers itself as a gateway
-	plugin := router.WithLabel("main").WithRoutes([]router.Route{
-		{
-			Prefix:  "/api/v1/health",
-			Handler: types.Task{Ref: "router.main"},
-		},
-	})
-
-	// Create a provider, register router
+	assert := assert.New(t)
+	plugin := router.WithLabel("main").WithRoutes([]router.Route{}).WithPrefix("/test")
 	provider, err := task.NewProvider(context.Background(), plugin)
-	if err != nil {
-		t.Fatal(err)
-	} else {
-		t.Log(provider)
-	}
+	assert.NoError(err)
+	assert.NotNil(provider)
 
+	// Get router
+	router := provider.Get("router").(iface.Router)
+	assert.NotNil(router)
+
+	// Get prefixes
+	t.Run("localhost/test/", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, err := http.NewRequest("GET", "http://localhost/test/", nil)
+		assert.NoError(err)
+		assert.NotNil(req)
+		router.ServeHTTP(w, req)
+		assert.Equal(http.StatusOK, w.Result().StatusCode)
+		t.Log(router, body(w))
+	})
 }

@@ -110,15 +110,16 @@ func (route *route) Methods() []string {
 // Also returns the parameters from the path if the route has a path,
 // and the remaining path.
 func (route *route) MatchesPath(path string) ([]string, string, bool) {
+	prefix := normalizePath(route.prefix, true)
 	path = normalizePath(path, false)
 
 	// The case where the path is identical to the prefix, with no regular expression
-	if path == route.prefix && route.path == nil {
+	if path == prefix && route.path == nil {
 		return nil, "/", true
 	}
 
 	// Check for default route: this is the route that matches everything
-	if !strings.HasPrefix(path, normalizePath(route.prefix, true)) {
+	if !strings.HasPrefix(path, route.prefix) {
 		return nil, "", false
 	} else if route.path == nil {
 		return nil, normalizePath(path[len(route.prefix):], false), true
@@ -126,10 +127,6 @@ func (route *route) MatchesPath(path string) ([]string, string, bool) {
 
 	// Check with a regular expression
 	relpath := path[len(route.prefix):]
-	if !strings.HasPrefix(relpath, pathSeparator) {
-		return nil, "", false
-	}
-
 	if params := route.path.FindStringSubmatch(relpath); params == nil {
 		return nil, "", false
 	} else {

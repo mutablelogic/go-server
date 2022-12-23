@@ -6,6 +6,7 @@ import (
 
 	// Packages
 	iface "github.com/mutablelogic/go-server"
+	ctx "github.com/mutablelogic/go-server/pkg/context"
 	task "github.com/mutablelogic/go-server/pkg/task"
 	types "github.com/mutablelogic/go-server/pkg/types"
 	plugin "github.com/mutablelogic/go-server/plugin"
@@ -20,7 +21,8 @@ import (
 // Plugin for the router maps prefixes to gateways
 type Plugin struct {
 	task.Plugin
-	Routes []Route `json:"routes"`
+	Prefix_ types.String `json:"prefix,omitempty"` // Prefix for serving the router schema, optional
+	Routes  []Route      `json:"routes"`           // Routes to add to the router, required
 }
 
 type Route struct {
@@ -45,7 +47,7 @@ const (
 // LIFECYCLE
 
 // Create a new logger task with provider of other tasks
-func (p Plugin) New(_ context.Context, _ iface.Provider) (iface.Task, error) {
+func (p Plugin) New(parent context.Context, _ iface.Provider) (iface.Task, error) {
 	// Check parameters
 	if err := p.HasNameLabel(); err != nil {
 		return nil, err
@@ -64,7 +66,7 @@ func (p Plugin) New(_ context.Context, _ iface.Provider) (iface.Task, error) {
 		}
 	}
 
-	return NewWithPlugin(p, gateways)
+	return NewWithPlugin(p, ctx.NameLabel(parent), gateways)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -74,6 +76,11 @@ func WithLabel(label string) Plugin {
 	return Plugin{
 		Plugin: task.WithLabel(defaultName, label),
 	}
+}
+
+func (p Plugin) WithPrefix(prefix string) Plugin {
+	p.Prefix_ = types.String(prefix)
+	return p
 }
 
 func (p Plugin) WithRoutes(r []Route) Plugin {
@@ -87,4 +94,8 @@ func (p Plugin) Name() string {
 	} else {
 		return defaultName
 	}
+}
+
+func (p Plugin) Prefix() string {
+	return string(p.Prefix_)
 }

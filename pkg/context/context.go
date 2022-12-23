@@ -36,6 +36,11 @@ func WithCancel() (context.Context, context.CancelFunc) {
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
+// Return a context with the given prefix
+func WithPrefix(ctx context.Context, prefix string) context.Context {
+	return context.WithValue(ctx, contextPrefix, prefix)
+}
+
 // Return a context with the given prefix and parameters
 func WithPrefixPathParams(ctx context.Context, prefix, path string, params []string) context.Context {
 	return context.WithValue(

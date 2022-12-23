@@ -20,6 +20,9 @@ import (
 	. "github.com/djthorpe/go-errors"
 )
 
+// TODO: We should cancel tasks in the reverse order to which they were created
+// and wait for each task to finish before cancelling the next one.
+
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 

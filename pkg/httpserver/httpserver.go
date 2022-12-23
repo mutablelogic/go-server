@@ -25,7 +25,7 @@ import (
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type t struct {
+type httpserver struct {
 	task.Task
 	plugin.Router
 	fcgi *fcgi.Server
@@ -36,8 +36,8 @@ type t struct {
 // LIFECYCLE
 
 // Create a new logger task with provider of other tasks
-func NewWithPlugin(p Plugin, router plugin.Router) (*t, error) {
-	this := new(t)
+func NewWithPlugin(p Plugin, router plugin.Router) (*httpserver, error) {
+	this := new(httpserver)
 
 	handler, ok := router.(http.Handler)
 	if !ok {
@@ -80,7 +80,7 @@ func NewWithPlugin(p Plugin, router plugin.Router) (*t, error) {
 ///////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
-func (t *t) String() string {
+func (t *httpserver) String() string {
 	str := "<httpserver"
 	if t.fcgi != nil {
 		str += fmt.Sprintf(" fcgi=%q", t.fcgi.Addr)
@@ -102,7 +102,7 @@ func (t *t) String() string {
 /////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func (t *t) Run(ctx context.Context) error {
+func (t *httpserver) Run(ctx context.Context) error {
 	var result error
 	var wg sync.WaitGroup
 
@@ -179,7 +179,7 @@ func netserver(addr string, config *tls.Config, timeout time.Duration, handler h
 	return srv, nil
 }
 
-func (t *t) runInForeground() error {
+func (t *httpserver) runInForeground() error {
 	if t.fcgi != nil {
 		return t.fcgi.ListenAndServe()
 	} else if t.http.TLSConfig != nil {
@@ -189,7 +189,7 @@ func (t *t) runInForeground() error {
 	}
 }
 
-func (t *t) stop() error {
+func (t *httpserver) stop() error {
 	if t.fcgi != nil {
 		return t.fcgi.Close()
 	} else {

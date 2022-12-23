@@ -13,6 +13,9 @@ import (
 	util "github.com/mutablelogic/go-server/pkg/httpserver/util"
 	task "github.com/mutablelogic/go-server/pkg/task"
 	plugin "github.com/mutablelogic/go-server/plugin"
+
+	// Namespace imports
+	. "github.com/djthorpe/go-errors"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -22,6 +25,8 @@ type router struct {
 	task.Task
 	sync.RWMutex
 
+	label  string
+	prefix map[string]Gateway
 	routes []*route
 }
 
@@ -30,21 +35,48 @@ type Router interface {
 	AddHandlerEx(string, *regexp.Regexp, http.HandlerFunc, ...string)
 }
 
+type Gateway struct {
+	Label       string `json:"label"`
+	Description string `json:"description,omitempty"`
+}
+
 var _ Router = (*router)(nil)
 
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
 // Create a new router task, and register routes from gateways
-func NewWithPlugin(p Plugin, routes map[string]plugin.Gateway) (*router, error) {
-	this := new(router)
+func NewWithPlugin(p Plugin, label string, routes map[string]plugin.Gateway) (*router, error) {
+	router := new(router)
+	router.prefix = make(map[string]Gateway, len(routes)+1)
+	router.label = label
 
-	for prefix, gateway := range routes {
-		fmt.Println("TODO:", prefix, "=>", gateway)
-
+	// If prefix is defined, then register handlers
+	parent := context.Background()
+	if prefix := p.Prefix(); prefix != "" {
+		prefix = normalizePath(prefix, false)
+		router.prefix[prefix] = Gateway{
+			Label:       router.Label(),
+			Description: router.Description(),
+		}
+		router.RegisterHandlers(ctx.WithPrefix(parent, prefix), router)
 	}
 
-	return this, nil
+	// Register additional routes
+	for prefix, gateway := range routes {
+		prefix = normalizePath(prefix, false)
+		if _, exists := router.prefix[prefix]; exists {
+			return nil, ErrDuplicateEntry.Withf("Duplicate prefix %q", prefix)
+		}
+		router.prefix[prefix] = Gateway{
+			Label:       gateway.Label(),
+			Description: gateway.Description(),
+		}
+		gateway.RegisterHandlers(ctx.WithPrefix(parent, prefix), router)
+	}
+
+	// Return success
+	return router, nil
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -52,6 +84,12 @@ func NewWithPlugin(p Plugin, routes map[string]plugin.Gateway) (*router, error) 
 
 func (router *router) String() string {
 	str := "<httpserver-router"
+	if label := router.Label(); label != "" {
+		str += fmt.Sprintf(" label=%q", label)
+	}
+	if prefixes := router.Prefixes(); len(prefixes) > 0 {
+		str += fmt.Sprintf(" prefixes=%q", prefixes)
+	}
 	for _, route := range router.routes {
 		str += fmt.Sprint(" ", route)
 	}
@@ -59,7 +97,31 @@ func (router *router) String() string {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// METHODS
+// PUBLIC METHODS
+
+// Label returns the label of the router
+func (router *router) Label() string {
+	return router.label
+}
+
+// Description returns the label of the router
+func (router *router) Description() string {
+	return "Routes HTTP requests to services and handlers"
+}
+
+// Prefixes returns the prefixes recognised by the router
+func (router *router) Prefixes() []string {
+	prefixes := make([]string, 0, len(router.prefix))
+	router.RLock()
+	defer router.RUnlock()
+
+	for prefix := range router.prefix {
+		prefixes = append(prefixes, prefix)
+	}
+	sort.Strings(prefixes)
+
+	return prefixes
+}
 
 // AddHandler adds a handler to the router, with the context passing the
 // prefix and authorization scopes.
