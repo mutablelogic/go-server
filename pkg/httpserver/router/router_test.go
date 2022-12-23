@@ -170,4 +170,26 @@ func Test_router_002(t *testing.T) {
 		assert.Equal(http.StatusOK, w.Result().StatusCode)
 		t.Log(router, body(w))
 	})
+
+	// Get prefixes
+	t.Run("localhost/test", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, err := http.NewRequest("GET", "http://localhost/test", nil)
+		assert.NoError(err)
+		assert.NotNil(req)
+		router.ServeHTTP(w, req)
+		assert.Equal(http.StatusOK, w.Result().StatusCode)
+		t.Log(router, body(w))
+	})
+
+	// Get routes for router
+	t.Run("localhost/test/test", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, err := http.NewRequest("GET", "http://localhost/test/test", nil)
+		assert.NoError(err)
+		assert.NotNil(req)
+		router.ServeHTTP(w, req)
+		assert.Equal(http.StatusOK, w.Result().StatusCode)
+		t.Log(router, body(w))
+	})
 }

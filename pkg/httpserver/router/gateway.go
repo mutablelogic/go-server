@@ -12,10 +12,28 @@ import (
 )
 
 ///////////////////////////////////////////////////////////////////////////////
+// SCHEMA
+
+type Gateway struct {
+	Prefix      string         `json:"prefix,omitempty"`
+	Label       string         `json:"label"`
+	Description string         `json:"description,omitempty"`
+	Routes      []GatewayRoute `json:"routes,omitempty"`
+}
+
+type GatewayRoute struct {
+	Path        string   `json:"path"`
+	Description string   `json:"description,omitempty"`
+	Methods     []string `json:"methods,omitempty"`
+	Scopes      []string `json:"scopes,omitempty"`
+}
+
+///////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 
 var (
-	reRoot = regexp.MustCompile(`^/?$`)
+	reRoot    = regexp.MustCompile(`^/?$`)
+	reGateway = regexp.MustCompile(`^/(.+)/?$`)
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -25,12 +43,41 @@ var (
 func (gateway *router) RegisterHandlers(parent context.Context, router plugin.Router) {
 	// GET /
 	//   Return list of prefixes and their handlers
-	router.AddHandler(ctx.WithScope(parent, ScopeRead), reRoot, gateway.ReqPrefix, http.MethodGet)
+	router.AddHandler(ctx.WithDescription(ctx.WithScope(parent, ScopeRead), "Enumerate gateway services"), reRoot, gateway.ReqPrefix, http.MethodGet)
+	// GET /:prefix:
+	//   Return list of routes for a prefix
+	router.AddHandler(ctx.WithDescription(ctx.WithScope(parent, ScopeRead), "Return description of handlers for a gateway service"), reGateway, gateway.ReqRoutes, http.MethodGet)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // HANDLERS
 
-func (gateway *router) ReqPrefix(w http.ResponseWriter, r *http.Request) {
-	util.ServeJSON(w, gateway.prefix, http.StatusOK, 2)
+func (router *router) ReqPrefix(w http.ResponseWriter, r *http.Request) {
+	util.ServeJSON(w, router.prefix, http.StatusOK, 2)
+}
+
+func (router *router) ReqRoutes(w http.ResponseWriter, r *http.Request) {
+	_, _, params := util.ReqPrefixPathParams(r)
+	prefix := normalizePath(params[0], false)
+	gateway, exists := router.prefix[prefix]
+	if !exists {
+		util.ServeError(w, http.StatusNotFound)
+	}
+
+	// Build response
+	gateway.Prefix = prefix
+	for _, route := range router.routes {
+		if route.Prefix() != prefix {
+			continue
+		}
+		gateway.Routes = append(gateway.Routes, GatewayRoute{
+			Path:        route.Path(),
+			Description: route.Description(),
+			Methods:     route.Methods(),
+			Scopes:      route.Scopes(),
+		})
+	}
+
+	// Serve response
+	util.ServeJSON(w, gateway, http.StatusOK, 2)
 }

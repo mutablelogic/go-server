@@ -15,12 +15,14 @@ import (
 
 // route is a (host, prefix, path, method) => hander mapping
 type route struct {
-	host     string
-	prefix   string
-	priority int
-	path     *regexp.Regexp
-	fn       http.HandlerFunc
-	methods  []string
+	host        string
+	prefix      string
+	priority    int
+	path        *regexp.Regexp
+	fn          http.HandlerFunc
+	description string
+	methods     []string
+	scopes      []string
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -73,6 +75,12 @@ func (route *route) String() string {
 	if methods := route.Methods(); len(methods) > 0 {
 		str += fmt.Sprintf(" methods=%q", methods)
 	}
+	if scopes := route.Scopes(); len(scopes) > 0 {
+		str += fmt.Sprintf(" scopes=%q", scopes)
+	}
+	if desc := route.description; desc != "" {
+		str += fmt.Sprintf(" description=%q", desc)
+	}
 	if route.priority > 0 {
 		str += fmt.Sprintf(" priority=%d", route.priority)
 	}
@@ -104,6 +112,16 @@ func (route *route) Prefix() string {
 // Return the methods of the route
 func (route *route) Methods() []string {
 	return route.methods
+}
+
+// Return the scopes of the route
+func (route *route) Scopes() []string {
+	return route.scopes
+}
+
+// Return the description for the method
+func (route *route) Description() string {
+	return route.description
 }
 
 // Return true if a request matches the (prefix,path) pair.

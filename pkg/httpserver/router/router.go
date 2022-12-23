@@ -32,12 +32,7 @@ type router struct {
 
 type Router interface {
 	plugin.Router
-	AddHandlerEx(string, *regexp.Regexp, http.HandlerFunc, ...string)
-}
-
-type Gateway struct {
-	Label       string `json:"label"`
-	Description string `json:"description,omitempty"`
+	AddHandlerEx(string, *regexp.Regexp, http.HandlerFunc, ...string) *route
 }
 
 var _ Router = (*router)(nil)
@@ -126,14 +121,25 @@ func (router *router) Prefixes() []string {
 // AddHandler adds a handler to the router, with the context passing the
 // prefix and authorization scopes.
 func (router *router) AddHandler(parent context.Context, path *regexp.Regexp, fn http.HandlerFunc, methods ...string) {
-	router.AddHandlerEx(ctx.Prefix(parent), path, fn, methods...)
+	route := router.AddHandlerEx(ctx.Prefix(parent), path, fn, methods...)
+	if route == nil {
+		panic("nil route")
+	}
+
+	// Add scopes and description to route
+	if scopes := ctx.Scope(parent); len(scopes) > 0 {
+		route.scopes = scopes
+	}
+	if description := ctx.Description(parent); description != "" {
+		route.description = description
+	}
 }
 
 // AddHandlerEx adds a handler to the router, for a specific host/prefix and http methods supported.
 // If path argument is nil, then any path under the prefix will match. If the path contains
 // a regular expression, then a match is made and any matched parameters of the regular
 // expression can be retrieved from the request context.
-func (router *router) AddHandlerEx(prefix string, path *regexp.Regexp, fn http.HandlerFunc, methods ...string) {
+func (router *router) AddHandlerEx(prefix string, path *regexp.Regexp, fn http.HandlerFunc, methods ...string) *route {
 	route := NewRoute(prefix, path, fn, methods...)
 	// The priority is either 0 for default routes (where path is nil) or the number of routes, so that
 	// handlers are called in the order they are added
@@ -154,6 +160,9 @@ func (router *router) AddHandlerEx(prefix string, path *regexp.Regexp, fn http.H
 		}
 		return true
 	})
+
+	// Return the route
+	return route
 }
 
 // MatchPath calls the provided function for each route that matches the request

@@ -23,6 +23,7 @@ const (
 	contextAddress
 	contextPath
 	contextScope
+	contextDescription
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -75,10 +76,15 @@ func WithPath(ctx context.Context, path string) context.Context {
 // Return a context with the given set of scopes
 func WithScope(ctx context.Context, scope ...string) context.Context {
 	if len(scope) > 0 {
-		return context.WithValue(ctx, contextPath, scope)
+		return context.WithValue(ctx, contextScope, scope)
 	} else {
 		return ctx
 	}
+}
+
+// Return a context with a description
+func WithDescription(ctx context.Context, description string) context.Context {
+	return context.WithValue(ctx, contextDescription, description)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -130,6 +136,11 @@ func Scope(ctx context.Context) []string {
 	return contextStringSlice(ctx, contextScope)
 }
 
+// Return description from the context, zero value if not defined
+func Description(ctx context.Context) string {
+	return contextString(ctx, contextDescription)
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
@@ -153,6 +164,9 @@ func DumpContext(ctx context.Context, w io.Writer) {
 	}
 	if value, ok := ctx.Value(contextScope).([]string); ok {
 		fmt.Fprintf(w, " scope=%q", value)
+	}
+	if value, ok := ctx.Value(contextDescription).(string); ok {
+		fmt.Fprintf(w, " description=%q", value)
 	}
 	if value, ok := ctx.Value(contextAddress).(string); ok {
 		fmt.Fprintf(w, " address=%q", value)

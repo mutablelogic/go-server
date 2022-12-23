@@ -6,8 +6,8 @@ import (
 
 	// Packages
 	context "github.com/mutablelogic/go-server/pkg/context"
-	"github.com/mutablelogic/go-server/pkg/httpserver/util"
-	"github.com/stretchr/testify/assert"
+	util "github.com/mutablelogic/go-server/pkg/httpserver/util"
+	assert "github.com/stretchr/testify/assert"
 )
 
 func Test_Context_001(t *testing.T) {
@@ -70,4 +70,24 @@ func Test_Context_005(t *testing.T) {
 	assert.Equal("prefix", prefix)
 	assert.Equal("path", path)
 	assert.Equal(params, params2)
+}
+
+func Test_Context_006(t *testing.T) {
+	assert := assert.New(t)
+	ctx, cancel := context.WithCancel()
+	defer cancel()
+
+	scope := []string{"a", "b", "c"}
+	child := context.WithScope(ctx, scope...)
+	assert.Equal(scope, context.Scope(child))
+}
+
+func Test_Context_007(t *testing.T) {
+	assert := assert.New(t)
+	ctx, cancel := context.WithCancel()
+	defer cancel()
+
+	desc := "hello, world"
+	child := context.WithDescription(ctx, desc)
+	assert.Equal(desc, context.Description(child))
 }
