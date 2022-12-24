@@ -20,7 +20,7 @@ var _ plugin.Gateway = (*tokenauth)(nil)
 
 var (
 	reRoot = regexp.MustCompile(`^/?$`)
-	reName = regexp.MustCompile(`^/` + types.ReIdentifier + `/?$`)
+	reName = regexp.MustCompile(`^/(` + types.ReIdentifier + `)/?$`)
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -39,7 +39,7 @@ func (tokenauth *tokenauth) RegisterHandlers(parent context.Context, router plug
 	// GET /:name:
 	//   List token by name. Requires read scope.
 	router.AddHandler(
-		ctx.WithDescription(ctx.WithScope(parent, ScopeRead), "Retrive a token by name"),
+		ctx.WithDescription(ctx.WithScope(parent, ScopeRead), "Retreive a token by name"),
 		reName, tokenauth.ReqList,
 		http.MethodGet,
 	)
@@ -87,22 +87,79 @@ func (tokenauth *tokenauth) Label() string {
 ///////////////////////////////////////////////////////////////////////////////
 // HANDLERS
 
+// Serve all tokens (excluding the token value)
 func (tokenauth *tokenauth) ReqListAll(w http.ResponseWriter, r *http.Request) {
-	util.ServeError(w, http.StatusNotImplemented)
+	result := make([]Token, 0, len(tokenauth.tokens))
+	for key, token := range tokenauth.tokens {
+		result = append(result, Token{Name: key, Scope: token.Scope, Time: token.Time, Expire: token.Expire})
+	}
+	util.ServeJSON(w, result, http.StatusOK, 2)
 }
 
+// Serve one token. Returns 404 if not found
 func (tokenauth *tokenauth) ReqList(w http.ResponseWriter, r *http.Request) {
-	util.ServeError(w, http.StatusNotImplemented)
+	// Check parameters
+	_, _, params := util.ReqPrefixPathParams(r)
+	if len(params) != 1 {
+		util.ServeError(w, http.StatusInternalServerError)
+		return
+	}
+
+	// Retrieve token
+	token, ok := tokenauth.tokens[params[0]]
+	if !ok {
+		util.ServeError(w, http.StatusNotFound)
+		return
+	}
+
+	// Serve token
+	util.ServeJSON(w, &Token{Name: params[0], Scope: token.Scope, Time: token.Time, Expire: token.Expire}, http.StatusOK, 2)
 }
 
 func (tokenauth *tokenauth) ReqCreate(w http.ResponseWriter, r *http.Request) {
+	// Check parameters
+	_, _, params := util.ReqPrefixPathParams(r)
+	if len(params) != 1 {
+		util.ServeError(w, http.StatusInternalServerError)
+		return
+	}
+
+	// If the token already exists, return 409
+	if _, ok := tokenauth.tokens[params[0]]; ok {
+		util.ServeError(w, http.StatusConflict, "Token already exists")
+		return
+	}
+
+	// TODO
 	util.ServeError(w, http.StatusNotImplemented)
 }
 
 func (tokenauth *tokenauth) ReqUpdate(w http.ResponseWriter, r *http.Request) {
+	// TODO
 	util.ServeError(w, http.StatusNotImplemented)
 }
 
 func (tokenauth *tokenauth) ReqDelete(w http.ResponseWriter, r *http.Request) {
-	util.ServeError(w, http.StatusNotImplemented)
+	// Check parameters
+	_, _, params := util.ReqPrefixPathParams(r)
+	if len(params) != 1 {
+		util.ServeError(w, http.StatusInternalServerError)
+		return
+	}
+
+	// Validate the token
+	_, ok := tokenauth.tokens[params[0]]
+	if !ok {
+		util.ServeError(w, http.StatusNotFound)
+		return
+	}
+
+	// Revoke the token
+	if err := tokenauth.Revoke(params[0]); err != nil {
+		util.ServeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// Return 202
+	util.ServeError(w, http.StatusAccepted)
 }

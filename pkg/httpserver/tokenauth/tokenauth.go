@@ -203,7 +203,7 @@ func (tokenauth *tokenauth) Enumerate() map[string]time.Time {
 
 	var result = make(map[string]time.Time)
 	for k, v := range tokenauth.tokens {
-		result[k] = v.Time
+		result[k] = time.Time(v.Time)
 	}
 
 	// Return the result

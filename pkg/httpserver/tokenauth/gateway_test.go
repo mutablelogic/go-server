@@ -62,4 +62,43 @@ func Test_gateway_001(t *testing.T) {
 		t.Log(body(w))
 	})
 
+	t.Run("localhost/api/v1/tokenauth", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, err := http.NewRequest("GET", "http://localhost/api/v1/tokenauth", nil)
+		assert.NoError(err)
+		assert.NotNil(req)
+		router.ServeHTTP(w, req)
+		assert.Equal(http.StatusOK, w.Result().StatusCode)
+		t.Log(body(w))
+	})
+
+	t.Run("localhost/api/v1/tokenauth/admin", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, err := http.NewRequest("GET", "http://localhost/api/v1/tokenauth/admin", nil)
+		assert.NoError(err)
+		assert.NotNil(req)
+		router.ServeHTTP(w, req)
+		assert.Equal(http.StatusOK, w.Result().StatusCode)
+		t.Log(body(w))
+	})
+
+	t.Run("localhost/api/v1/tokenauth/not_admin", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, err := http.NewRequest("GET", "http://localhost/api/v1/tokenauth/not_admin", nil)
+		assert.NoError(err)
+		assert.NotNil(req)
+		router.ServeHTTP(w, req)
+		assert.Equal(http.StatusNotFound, w.Result().StatusCode)
+		t.Log(body(w))
+	})
+
+	t.Run("localhost/api/v1/tokenauth/not_admin", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, err := http.NewRequest("DELETE", "http://localhost/api/v1/tokenauth/admin", nil)
+		assert.NoError(err)
+		assert.NotNil(req)
+		router.ServeHTTP(w, req)
+		assert.Equal(http.StatusAccepted, w.Result().StatusCode)
+		t.Log(body(w))
+	})
 }
