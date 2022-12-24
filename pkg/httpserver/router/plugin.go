@@ -47,7 +47,7 @@ const (
 // LIFECYCLE
 
 // Create a new logger task with provider of other tasks
-func (p Plugin) New(parent context.Context, _ iface.Provider) (iface.Task, error) {
+func (p Plugin) New(parent context.Context, provider iface.Provider) (iface.Task, error) {
 	// Check parameters
 	if err := p.HasNameLabel(); err != nil {
 		return nil, err

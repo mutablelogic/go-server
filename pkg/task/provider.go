@@ -13,7 +13,7 @@ import (
 	iface "github.com/mutablelogic/go-server"
 	ctx "github.com/mutablelogic/go-server/pkg/context"
 	event "github.com/mutablelogic/go-server/pkg/event"
-	"github.com/mutablelogic/go-server/pkg/types"
+	types "github.com/mutablelogic/go-server/pkg/types"
 	plugin "github.com/mutablelogic/go-server/plugin"
 
 	// Namespace imports
@@ -135,27 +135,21 @@ func (p *provider) New(parent context.Context, proto iface.Plugin) (iface.Task, 
 	}
 
 	// Resolve dependencies
-	p.order = append(p.order, key)
-	resolveRef(key, reflect.ValueOf(proto), func(ref string, v reflect.Value) error {
-		// Get the task from the reference
-		var task iface.Task
-		if ref != "" {
-			task = p.Get(ref)
-			if task == nil {
-				return ErrNotFound.Withf("%q: Task not found: %q", key, ref)
+	if err := resolveRef(key, reflect.ValueOf(proto), func(task types.Task) (types.Task, error) {
+		// Resolve the reference
+		if task.Ref != "" {
+			if t := p.Get(task.Ref); t == nil {
+				return task, ErrNotFound.Withf("%q: Task not found: %q", key, task.Ref)
+			} else {
+				task.Task = t
 			}
 		}
 
-		// Assign task to plugin
-		if t, ok := v.Interface().(types.Task); !ok {
-			return ErrBadParameter.Withf("%q: Invalid type: %v", key, v.Type())
-		} else {
-			t.Task = task
-		}
-
-		// Return success
-		return nil
-	})
+		// Return the task
+		return task, nil
+	}); err != nil {
+		return nil, err
+	}
 
 	// Create the task
 	task, err := proto.New(ctx.WithNameLabel(parent, proto.Name(), proto.Label()), p)
@@ -169,6 +163,9 @@ func (p *provider) New(parent context.Context, proto iface.Plugin) (iface.Task, 
 	if log, ok := task.(plugin.Log); ok && log != nil {
 		p.log = append(p.log, log)
 	}
+
+	// Add to the end of the order
+	p.order = append(p.order, key)
 
 	// Return success
 	return task, nil
@@ -196,11 +193,7 @@ func (p *provider) Printf(ctx context.Context, format string, v ...any) {
 func (p *provider) Keys() []string {
 	p.RLock()
 	defer p.RUnlock()
-	result := make([]string, 0, len(p.tasks))
-	for key := range p.tasks {
-		result = append(result, key)
-	}
-	return result
+	return append(make([]string, 0, len(p.order)), p.order...)
 }
 
 func (p *provider) Get(args ...string) iface.Task {

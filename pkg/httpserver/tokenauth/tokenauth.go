@@ -54,6 +54,7 @@ func NewWithPlugin(p Plugin, label string) (*tokenauth, error) {
 	} else {
 		this.path = path
 		this.delta = p.Delta()
+		this.label = label
 	}
 
 	// Read the file if it exists

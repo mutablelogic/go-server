@@ -113,12 +113,15 @@ func (graph *graph) addEdges(plugin iface.Plugin) {
 	key := KeyForPlugin(plugin)
 	graph.plugins[key] = plugin
 	graph.edges[key] = []string{}
-	resolveRef(key, reflect.ValueOf(plugin), func(ref string, _ reflect.Value) error {
+
+	// Add edges for each field in the plugin
+	resolveRef(key, reflect.ValueOf(plugin), func(task types.Task) (types.Task, error) {
 		// If ref is not empty, then add a dependency
-		if ref != "" {
-			graph.edges[key] = append(graph.edges[key], ref)
+		if task.Ref != "" {
+			graph.edges[key] = append(graph.edges[key], task.Ref)
 		}
-		return nil
+		// Return empty task so that it does not get set
+		return types.Task{}, nil
 	})
 }
 
@@ -142,31 +145,58 @@ func (graph *graph) resolve(key string, order []string, resolved, unresolved map
 	return order, nil
 }
 
-// resolveRef resolves the references in the plugin, to build a dependency graph
-func resolveRef(key string, v reflect.Value, fn func(string, reflect.Value) error) error {
+// resolveRef resolves the references in the plugin, to build a dependency graph.
+// pass a function to resolve the reference, and return an error if the reference does
+// not exist. The function is called for each types.Task reference found, and should
+// return a types.Task with the reference resolved.
+func resolveRef(key string, v reflect.Value, fn func(types.Task) (types.Task, error)) error {
 	if v.Kind() == reflect.Ptr {
 		v = v.Elem()
 	}
 	switch v.Kind() {
 	case reflect.Struct:
-		if v.Type() == typeTask {
-			return fn(v.Interface().(types.Task).Ref, v)
-		}
 		for i := 0; i < v.NumField(); i++ {
-			if err := resolveRef(key, v.Field(i), fn); err != nil {
+			if v.Field(i).Type() == typeTask {
+				task, err := fn(v.Field(i).Interface().(types.Task))
+				if err != nil {
+					return err
+				} else if task.Ref != "" {
+					v.Field(i).Set(reflect.ValueOf(task))
+				}
+			} else if err := resolveRef(key, v.Field(i), fn); err != nil {
 				return err
 			}
 		}
 	case reflect.Map:
 		for _, mapkey := range v.MapKeys() {
-			if err := resolveRef(key, v.MapIndex(mapkey), fn); err != nil {
+			if v.MapIndex(mapkey).Type() == typeTask {
+				if task, err := fn(v.MapIndex(mapkey).Interface().(types.Task)); err != nil {
+					return err
+				} else if task.Ref != "" {
+					v.SetMapIndex(mapkey, reflect.ValueOf(task))
+				}
+			} else if err := resolveRef(key, v.MapIndex(mapkey), fn); err != nil {
 				return err
 			}
 		}
 	case reflect.Slice:
 		for i := 0; i < v.Len(); i++ {
-			if err := resolveRef(key, v.Index(i), fn); err != nil {
+			if v.Index(i).Type() == typeTask {
+				if task, err := fn(v.Index(i).Interface().(types.Task)); err != nil {
+					return err
+				} else if task.Ref != "" {
+					v.Index(i).Set(reflect.ValueOf(task))
+				}
+			} else if err := resolveRef(key, v.Index(i), fn); err != nil {
 				return err
+			}
+		}
+	default:
+		if v.Type() == typeTask {
+			if task, err := fn(v.Interface().(types.Task)); err != nil {
+				return err
+			} else if task.Ref != "" {
+				v.Set(reflect.ValueOf(task))
 			}
 		}
 	}
