@@ -19,7 +19,7 @@ func WithJson(r io.Reader, dest any) ([]string, error) {
 	var fields []string
 	err := Walk(dest, tag, func(src reflect.Value, name string, extra []string) error {
 		// Return if the query is missing the field
-		if v, exists := srcmap[name]; exists == false {
+		if v, exists := srcmap[name]; !exists {
 			return nil
 		} else {
 			fields = append(fields, name)

@@ -18,10 +18,17 @@ type ErrorResponse struct {
 // GLOBALS
 
 const (
-	ContentTypeKey   = "Content-Type"
-	ContentLengthKey = "Content-Length"
-	ContentTypeJSON  = "application/json"
-	ContentTypeText  = "text/plain"
+	ContentTypeKey            = "Content-Type"
+	ContentLengthKey          = "Content-Length"
+	ContentTypeJSON           = "application/json"
+	ContentTypeText           = "text/plain"
+	ContentTypeMultipartForm  = "multipart/form-data"
+	ContentTypeUrlEncodedForm = "application/x-www-form-urlencoded"
+)
+
+const (
+	// maxMemoryDefault to allocate for reading multipart forms
+	maxMemoryDefault = 64 * 1024 // 64K
 )
 
 ///////////////////////////////////////////////////////////////////////////////
