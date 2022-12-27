@@ -191,14 +191,6 @@ func resolveRef(key string, v reflect.Value, fn func(types.Task) (types.Task, er
 				return err
 			}
 		}
-	default:
-		if v.Type() == typeTask {
-			if task, err := fn(v.Interface().(types.Task)); err != nil {
-				return err
-			} else if task.Ref != "" {
-				v.Set(reflect.ValueOf(task))
-			}
-		}
 	}
 
 	// Return success
