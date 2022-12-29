@@ -1,5 +1,13 @@
 {
     "name": "httpserver",
     "label": "fcgi",
-    "listen": "/tmp/httpserver.sock"
+    "listen": "/tmp/httpserver.sock",
+    "prefix": "/api/gateway/v1",
+    "routes": [
+        {
+            "path": "/api/nginx/v1",
+            "service": "nginx.main"
+        }
+    ],
+    "middleware": [ "log", "tokenauth.main" ]
 }

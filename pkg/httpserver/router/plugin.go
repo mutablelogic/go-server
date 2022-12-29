@@ -21,8 +21,8 @@ import (
 // Plugin for the router maps prefixes to gateways
 type Plugin struct {
 	task.Plugin
-	Prefix_     types.String `json:"prefix,omitempty"`     // Prefix for serving the router schema, optional
-	Routes      []Route      `json:"routes"`               // Routes to add to the router, required
+	Prefix_     types.String `json:"path,omitempty"`       // Path for serving the router schema, optional
+	Routes      []Route      `json:"routes"`               // Routes to add to the router, optional (but useless without)
 	Middleware_ []types.Task `json:"middleware,omitempty"` // Middleware to add to the router for requests, optional
 }
 

@@ -120,7 +120,7 @@ func (p Plugin) TLS() (*tls.Config, error) {
 
 func (p Plugin) Router(ctx context.Context, provider iface.Provider) (plugin.Router, error) {
 	if p.Router_.Task == nil {
-		plugin := router.WithLabel(p.Label()).WithRoutes(p.Routes)
+		plugin := router.WithLabel(p.Label()).WithRoutes(p.Routes).WithPrefix("/api/gateway/v1")
 		if router, err := provider.New(ctx, plugin); err != nil {
 			return nil, err
 		} else {
