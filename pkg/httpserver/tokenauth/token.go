@@ -25,6 +25,11 @@ type Token struct {
 	Scope  []string  `json:"scopes,omitempty"`      // Authentication scopes
 }
 
+type TokenCreate struct {
+	Duration time.Duration `json:"duration,omitempty"` // Duration of the token, or zero for no expiration
+	Scope    []string      `json:"scopes,omitempty"`   // Authentication scopes
+}
+
 /////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 

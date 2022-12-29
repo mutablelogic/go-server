@@ -21,8 +21,9 @@ import (
 // Plugin for the router maps prefixes to gateways
 type Plugin struct {
 	task.Plugin
-	Prefix_ types.String `json:"prefix,omitempty"` // Prefix for serving the router schema, optional
-	Routes  []Route      `json:"routes"`           // Routes to add to the router, required
+	Prefix_     types.String `json:"prefix,omitempty"`     // Prefix for serving the router schema, optional
+	Routes      []Route      `json:"routes"`               // Routes to add to the router, required
+	Middleware_ []types.Task `json:"middleware,omitempty"` // Middleware to add to the router for requests, optional
 }
 
 type Route struct {
@@ -58,16 +59,17 @@ func (p Plugin) New(parent context.Context, provider iface.Provider) (iface.Task
 	for _, gateway := range p.Routes {
 		route := NewRoute(gateway.Prefix, nil, nil).Prefix()
 		if handler := gateway.Handler.Task; handler == nil {
-			return nil, ErrBadParameter.Withf("Handler for %q is nil (ref: %q)", gateway.Prefix, gateway.Handler.Ref)
+			return nil, ErrBadParameter.Withf("Handler for %q is nil (ref: %q)", route, gateway.Handler.Ref)
 		} else if handler, ok := gateway.Handler.Task.(plugin.Gateway); !ok {
-			return nil, ErrBadParameter.Withf("Handler for %q is not a gateway", gateway.Prefix)
+			return nil, ErrBadParameter.Withf("Handler for %q is not a gateway", route)
 		} else if _, exists := gateways[route]; exists {
-			return nil, ErrDuplicateEntry.Withf("Duplicate prefix %q", gateway.Prefix)
+			return nil, ErrDuplicateEntry.Withf("Duplicate prefix %q", route)
 		} else {
 			gateways[route] = handler
 		}
 	}
 
+	// Return router
 	return NewWithPlugin(p, ctx.NameLabel(parent), gateways)
 }
 

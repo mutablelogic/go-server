@@ -9,6 +9,8 @@ import (
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
+// ErrorResponse is a generic error response which is served as JSON using the
+// ServeError method
 type ErrorResponse struct {
 	Code   uint   `json:"code"`
 	Reason string `json:"reason,omitempty"`

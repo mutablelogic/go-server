@@ -2,7 +2,7 @@ package util
 
 import (
 	"mime"
-	"mime/multipart"
+	//"mime/multipart"
 	"net/http"
 
 	// Packages
@@ -47,17 +47,20 @@ func RequestBodyJSON(req *http.Request, v interface{}) ([]string, error) {
 // RequestBodyForm returns the body of a request as a struct
 // where the request is of type multipart/form-data
 func RequestBodyForm(req *http.Request, params map[string]string, v interface{}) ([]string, error) {
-	boundary, exists := params["boundary"]
-	if !exists {
-		return nil, ErrBadParameter
-	}
 	defer req.Body.Close()
 
-	form, err := multipart.NewReader(req.Body, boundary).ReadForm(maxMemoryDefault)
-	if err != nil {
-		return nil, err
-	}
-	return unmarshal.WithForm(form, v)
+	//boundary, exists := params["boundary"]
+	//if !exists {
+	//	return nil, ErrBadParameter
+	//}
+
+	//form, err := multipart.NewReader(req.Body, boundary).ReadForm(maxMemoryDefault)
+	//if err != nil {
+	//	return nil, err
+	//}
+
+	return nil, ErrNotImplemented
+	// return unmarshal.WithForm(form, v)
 }
 
 // RequestBodyPost returns the body of a request as a struct

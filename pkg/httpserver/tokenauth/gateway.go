@@ -130,8 +130,18 @@ func (tokenauth *tokenauth) ReqCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO
-	util.ServeError(w, http.StatusNotImplemented)
+	// Read in the body if there is one - require Duration and Scopes
+	// then create the token and return the value
+	var body TokenCreate
+	if _, err := util.ReqDecodeBody(r, &body); err != nil {
+		util.ServeError(w, http.StatusBadRequest, err.Error())
+		return
+	} else if value, err := tokenauth.Create(params[0], body.Duration, body.Scope...); err != nil {
+		util.ServeError(w, http.StatusBadRequest, "Invalid duration or scopes")
+		return
+	} else {
+		util.ServeText(w, value, http.StatusCreated)
+	}
 }
 
 func (tokenauth *tokenauth) ReqUpdate(w http.ResponseWriter, r *http.Request) {

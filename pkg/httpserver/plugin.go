@@ -59,7 +59,13 @@ func (p Plugin) New(ctx context.Context, provider iface.Provider) (iface.Task, e
 	}
 
 	// Create the task and return and return any errors
-	return NewWithPlugin(p, p.Router(ctx, provider))
+	router, err := p.Router(ctx, provider)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create the httpserver task
+	return NewWithPlugin(p, router)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -112,20 +118,19 @@ func (p Plugin) TLS() (*tls.Config, error) {
 	}
 }
 
-func (p Plugin) Router(ctx context.Context, provider iface.Provider) plugin.Router {
+func (p Plugin) Router(ctx context.Context, provider iface.Provider) (plugin.Router, error) {
 	if p.Router_.Task == nil {
 		plugin := router.WithLabel(p.Label()).WithRoutes(p.Routes)
 		if router, err := provider.New(ctx, plugin); err != nil {
-			// We currently panic if we get here, it's not expected
-			panic(err)
+			return nil, err
 		} else {
 			p.Router_.Task = router
 		}
 	}
 	if router, ok := p.Router_.Task.(plugin.Router); ok && router != nil {
-		return router
+		return router, nil
 	} else {
-		return nil
+		return nil, nil
 	}
 }
 

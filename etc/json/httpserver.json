@@ -12,5 +12,6 @@
             "path": "/api/v1/nginx",
             "handler": "nginx.main"
         }
-    ]
+    ],
+    "middleware": [ "log", "tokenauth.main" ]
 }
