@@ -1,5 +1,5 @@
 {
     "name": "nginx",
     "label": "main",
-    "path": "nginx"
+    "config": "etc/test/nginx/nginx.conf"
 }

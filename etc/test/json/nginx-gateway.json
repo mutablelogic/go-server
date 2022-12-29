@@ -1,5 +1,0 @@
-{
-    "name": "nginx-gateway",
-    "label": "main",
-    "nginx": "nginx.main"
-}
