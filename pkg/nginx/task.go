@@ -25,6 +25,7 @@ type t struct {
 	cmd     *Cmd
 	test    *Cmd
 	version []byte
+	label   string
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -44,8 +45,9 @@ const (
 // LIFECYCLE
 
 // Create a new logger task with provider of other tasks
-func NewWithPlugin(p Plugin) (*t, error) {
+func NewWithPlugin(p Plugin, label string) (*t, error) {
 	this := new(t)
+	this.label = label
 
 	// Create the command
 	if cmd, err := NewWithCommand(p.Path(), p.Flags()...); err != nil {

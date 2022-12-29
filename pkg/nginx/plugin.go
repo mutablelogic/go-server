@@ -7,6 +7,7 @@ import (
 
 	// Package imports
 	iface "github.com/mutablelogic/go-server"
+	ctx "github.com/mutablelogic/go-server/pkg/context"
 	task "github.com/mutablelogic/go-server/pkg/task"
 	types "github.com/mutablelogic/go-server/pkg/types"
 )
@@ -32,17 +33,22 @@ const (
 	defaultPath = defaultName
 )
 
+const (
+	ScopeRead  = "github.com/mutablelogic/go-server/nginx:read"
+	ScopeWrite = "github.com/mutablelogic/go-server/nginx:write"
+)
+
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
 // Create a new logger task with provider of other tasks
-func (p Plugin) New(ctx context.Context, provider iface.Provider) (iface.Task, error) {
+func (p Plugin) New(parent context.Context, provider iface.Provider) (iface.Task, error) {
 	if err := p.HasNameLabel(); err != nil {
 		return nil, err
 	}
 
 	// Return task from plugin
-	return NewWithPlugin(p)
+	return NewWithPlugin(p, ctx.NameLabel(parent))
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -7,10 +7,10 @@
     "routes": [
         {
             "path": "/api/v1/auth",
-            "handler": "tokenauth.main"
+            "service": "tokenauth.main"
         },{
             "path": "/api/v1/nginx",
-            "handler": "nginx.main"
+            "service": "nginx.main"
         }
     ],
     "middleware": [ "log", "tokenauth.main" ]
