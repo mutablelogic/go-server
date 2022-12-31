@@ -13,7 +13,7 @@
         },
         {
             "prefix": "/",
-            "service": "static.router"
+            "service": "router-frontend.main"
         }
     ],
     "middleware": [ "log", "tokenauth.main" ]
