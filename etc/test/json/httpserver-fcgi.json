@@ -5,8 +5,15 @@
     "prefix": "/api/gateway/v1",
     "routes": [
         {
-            "path": "/api/nginx/v1",
+            "prefix": "/api/nginx/v1",
             "service": "nginx.main"
+        },        {
+            "prefix": "/api/tokenauth/v1",
+            "service": "tokenauth.main"
+        },
+        {
+            "prefix": "/",
+            "service": "static.router"
         }
     ],
     "middleware": [ "log", "tokenauth.main" ]

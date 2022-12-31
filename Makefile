@@ -12,15 +12,18 @@ BUILD_FLAGS = -ldflags "-s -w $(BUILD_LD_FLAGS)"
 
 # Paths to locations, etc
 BUILD_DIR := "build"
-PLUGIN_DIR := $(wildcard plugin/*)
+PLUGIN_DIR := $(filter-out $(wildcard plugin/*.go), $(wildcard plugin/*))
+NPM_DIR := $(wildcard npm/*)
 CMD_DIR := $(wildcard cmd/*)
 
 # Targets
-all: clean cmd plugins
+all: clean cmd npm plugins
 
-cmd: $(filter-out cmd/README.md, $(wildcard cmd/*))
+cmd: $(CMD_DIR)
 
-plugins: $(filter-out $(wildcard plugin/*.go), $(wildcard plugin/*))
+plugins: $(PLUGIN_DIR)
+
+npm: $(NPM_DIR)
 
 test:
 	@${GO} mod tidy
@@ -34,6 +37,10 @@ $(PLUGIN_DIR): dependencies mkdir
 	@echo Build plugin $(notdir $@)
 	@${GO} build -buildmode=plugin ${BUILD_FLAGS} -o ${BUILD_DIR}/$(notdir $@).plugin ./$@
 
+$(NPM_DIR): dependencies
+	@echo Build npm $(notdir $@)
+	@cd $@ && npm install && npm run build
+
 FORCE:
 
 dependencies:
@@ -46,6 +53,8 @@ mkdir:
 clean:
 	@echo Clean
 	@rm -fr $(BUILD_DIR)
+	@find ${NPM_DIR} -name node_modules -type d -prune -exec rm -fr {} \;
+	@find ${NPM_DIR} -name dist -type d -prune -exec rm -fr {} \;
 	@${GO} mod tidy
 	@${GO} clean
 

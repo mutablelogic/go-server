@@ -108,4 +108,7 @@ func (nginx *t) ReqAction(w http.ResponseWriter, r *http.Request) {
 		util.ServeError(w, http.StatusNotFound)
 		return
 	}
+
+	// Serve OK response with no body
+	util.ServeEmpty(w, http.StatusOK)
 }

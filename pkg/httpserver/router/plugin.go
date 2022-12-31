@@ -27,7 +27,7 @@ type Plugin struct {
 }
 
 type Route struct {
-	Prefix  string     `json:"path"`    // Path for the gateway service
+	Prefix  string     `json:"prefix"`  // Prefix path for the gateway service
 	Handler types.Task `json:"service"` // Service handler
 }
 

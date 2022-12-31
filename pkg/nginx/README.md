@@ -3,7 +3,8 @@
 The `nginx` plugin provides controls an nginx server, with the following operations:
 
   * Start and restart server
-  * Reload server (for rotating the log files)
+  * Reload server 
+  * Reopen files (for rotating the log files)
   * Test configuration without restarting the server
   * Enumeration of "available" configuration templates
   * Enabling of configurations with templating

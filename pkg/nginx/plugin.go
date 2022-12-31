@@ -2,6 +2,7 @@ package nginx
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -23,6 +24,7 @@ type Plugin struct {
 	Available_ types.String            `json:"available,omitempty"` // Path to available configurations
 	Enabled_   types.String            `json:"enabled,omitempty"`   // Path to enabled configurations
 	Env_       map[string]types.String `json:"env,omitempty"`       // Environment variable map
+	Directive_ map[string]types.String `json:"directive,omitempty"` // Directive map
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -117,8 +119,13 @@ func (p Plugin) Enabled() string {
 func (p Plugin) Flags() []string {
 	result := make([]string, 0, 5)
 
-	// Switch off daemon setting
-	result = append(result, "-g", "daemon off;")
+	// Switch off daemon setting, log initially to stderr
+	result = append(result, "-e", "stderr", "-g", "daemon off;")
+
+	// Add other directives
+	for k, v := range p.Directive_ {
+		result = append(result, "-g", fmt.Sprint(k, " ", string(v)+";"))
+	}
 
 	// Check for configuration file
 	if config := p.Config(); config != "" {
