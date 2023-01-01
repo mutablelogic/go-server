@@ -38,7 +38,7 @@ func (p plugin) New(parent context.Context, provider iface.Provider) (iface.Task
 	}
 
 	// Return static file server with the embedded files
-	return static.NewWithPlugin(p, router.Dist)
+	return static.NewWithPlugin(p, router.Dist, "dist")
 }
 
 ///////////////////////////////////////////////////////////////////////////////
