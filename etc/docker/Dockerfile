@@ -6,6 +6,7 @@ FROM --platform=${PLATFORM}/${ARCH} golang:1.19-bullseye AS builder
 # Run makefile to build server and plugins
 WORKDIR /usr/src/app
 COPY . .
+RUN apt update && apt install -y npm
 RUN make
 
 # Copy server and plugins to /usr/local/bin
