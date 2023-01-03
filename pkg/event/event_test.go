@@ -42,8 +42,8 @@ func Test_Event_003(t *testing.T) {
 	if e.Key() != nil {
 		t.Fatal("Expected nil key")
 	}
-	if !errors.Is(e.Value().(error), err) {
-		t.Fatal("Unexpected error return")
+	if e.Value() != nil {
+		t.Fatal("Expected nil value")
 	}
 	if !errors.Is(e.Error(), err) {
 		t.Fatal("Unexpected error return")

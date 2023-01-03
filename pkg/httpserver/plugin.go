@@ -11,7 +11,7 @@ import (
 
 	// Package imports
 	iface "github.com/mutablelogic/go-server"
-	router "github.com/mutablelogic/go-server/pkg/router"
+	router "github.com/mutablelogic/go-server/pkg/httpserver/router"
 	task "github.com/mutablelogic/go-server/pkg/task"
 	types "github.com/mutablelogic/go-server/pkg/types"
 	plugin "github.com/mutablelogic/go-server/plugin"
@@ -22,12 +22,13 @@ import (
 
 type Plugin struct {
 	task.Plugin
-	Router_  types.Task     `json:"router,omitempty"`  // The router object which serves the gateways
 	Listen_  types.String   `json:"listen,omitempty"`  // Address or path for binding HTTP server
 	TLS_     *TLS           `json:"tls,omitempty"`     // TLS parameters, or nil if not using TLS (ignored for file sockets)
 	Timeout_ types.Duration `json:"timeout,omitempty"` // Read timeout on HTTP requests (ignored for file sockets)
 	Owner_   types.String   `json:"owner,omitempty"`   // Owner of the socket file (ignored for network sockets)
 	Group_   types.String   `json:"group,omitempty"`   // Owner Group of the socket file (ignored for network sockets)
+	Router_  types.Task     `json:"router,omitempty"`  // The router object which serves the gateways, optional.
+	Routes   []router.Route `json:"routes"`            // Array of routes, required
 }
 
 type TLS struct {
@@ -58,11 +59,28 @@ func (p Plugin) New(ctx context.Context, provider iface.Provider) (iface.Task, e
 	}
 
 	// Create the task and return and return any errors
-	return NewWithPlugin(p, p.Router(ctx, provider))
+	router, err := p.Router(ctx, provider)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create the httpserver task
+	return NewWithPlugin(p, router)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
+
+func WithLabel(label string) Plugin {
+	return Plugin{
+		Plugin: task.WithLabel(defaultName, label),
+	}
+}
+
+func (p Plugin) WithListen(listen string) Plugin {
+	p.Listen_ = types.String(listen)
+	return p
+}
 
 func (p Plugin) Name() string {
 	if name := p.Plugin.Name(); name != "" {
@@ -100,20 +118,19 @@ func (p Plugin) TLS() (*tls.Config, error) {
 	}
 }
 
-func (p Plugin) Router(ctx context.Context, provider iface.Provider) plugin.Router {
+func (p Plugin) Router(ctx context.Context, provider iface.Provider) (plugin.Router, error) {
 	if p.Router_.Task == nil {
-		plugin := router.WithLabel(p.Label())
+		plugin := router.WithLabel(p.Label()).WithRoutes(p.Routes).WithPrefix("/api/gateway/v1")
 		if router, err := provider.New(ctx, plugin); err != nil {
-			// We currently panic if we get here, it's not expected
-			panic(err)
+			return nil, err
 		} else {
 			p.Router_.Task = router
 		}
 	}
 	if router, ok := p.Router_.Task.(plugin.Router); ok && router != nil {
-		return router
+		return router, nil
 	} else {
-		return nil
+		return nil, nil
 	}
 }
 

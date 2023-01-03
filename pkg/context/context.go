@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net/http"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -21,9 +20,10 @@ const (
 	contextLabel
 	contextPrefix
 	contextParams
-	contextAdmin
 	contextAddress
 	contextPath
+	contextScope
+	contextDescription
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -37,9 +37,20 @@ func WithCancel() (context.Context, context.CancelFunc) {
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
+// Return a context with the given prefix
+func WithPrefix(ctx context.Context, prefix string) context.Context {
+	return context.WithValue(ctx, contextPrefix, prefix)
+}
+
 // Return a context with the given prefix and parameters
-func WithPrefixParams(ctx context.Context, prefix string, params []string) context.Context {
-	return context.WithValue(context.WithValue(ctx, contextParams, params), contextPrefix, prefix)
+func WithPrefixPathParams(ctx context.Context, prefix, path string, params []string) context.Context {
+	return context.WithValue(
+		context.WithValue(
+			context.WithValue(
+				ctx, contextParams, params,
+			),
+			contextPrefix, prefix),
+		contextPath, path)
 }
 
 // Return a context with the given name
@@ -52,11 +63,6 @@ func WithNameLabel(ctx context.Context, name, label string) context.Context {
 	return context.WithValue(context.WithValue(ctx, contextName, name), contextLabel, label)
 }
 
-// Return a context with the given admin flag
-func WithAdmin(ctx context.Context, admin bool) context.Context {
-	return context.WithValue(ctx, contextAdmin, admin)
-}
-
 // Return a context with the given address string
 func WithAddress(ctx context.Context, addr string) context.Context {
 	return context.WithValue(ctx, contextAddress, addr)
@@ -65,6 +71,20 @@ func WithAddress(ctx context.Context, addr string) context.Context {
 // Return a context with the given path string
 func WithPath(ctx context.Context, path string) context.Context {
 	return context.WithValue(ctx, contextPath, path)
+}
+
+// Return a context with the given set of scopes
+func WithScope(ctx context.Context, scope ...string) context.Context {
+	if len(scope) > 0 {
+		return context.WithValue(ctx, contextScope, scope)
+	} else {
+		return ctx
+	}
+}
+
+// Return a context with a description
+func WithDescription(ctx context.Context, description string) context.Context {
+	return context.WithValue(ctx, contextDescription, description)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -88,12 +108,6 @@ func NameLabel(ctx context.Context) string {
 	return Name(ctx) + "." + Label(ctx)
 }
 
-// Return the admin parameter from the context, or zero value if
-// not defined
-func Admin(ctx context.Context) bool {
-	return contextBool(ctx, contextAdmin)
-}
-
 // Return the address parameter from the context, or zero value if
 // not defined
 func Address(ctx context.Context) string {
@@ -106,32 +120,25 @@ func Path(ctx context.Context) string {
 	return contextString(ctx, contextPath)
 }
 
-// Return the parameters from a HTTP request, or nil if
+// Return the prefix parameter from the context, or zero value if
 // not defined
-func ReqParams(req *http.Request) []string {
-	if value, ok := req.Context().Value(contextParams).([]string); ok {
-		return value
-	} else {
-		return nil
-	}
+func Prefix(ctx context.Context) string {
+	return contextString(ctx, contextPrefix)
 }
 
-// Return the prefix parameter from a HTTP request, or zero value if
-// not defined
-func ReqPrefix(req *http.Request) string {
-	return contextString(req.Context(), contextPrefix)
+// Return prefix and parameters from the context
+func PrefixPathParams(ctx context.Context) (string, string, []string) {
+	return contextString(ctx, contextPrefix), contextString(ctx, contextPath), contextStringSlice(ctx, contextParams)
 }
 
-// Return the name parameter from a HTTP request, or zero value if
-// not defined
-func ReqName(req *http.Request) string {
-	return contextString(req.Context(), contextName)
+// Return array of scopes from the context, or nil
+func Scope(ctx context.Context) []string {
+	return contextStringSlice(ctx, contextScope)
 }
 
-// Return the admin parameter from a HTTP request, or zero value if
-// not defined
-func ReqAdmin(req *http.Request) bool {
-	return contextBool(req.Context(), contextAdmin)
+// Return description from the context, zero value if not defined
+func Description(ctx context.Context) string {
+	return contextString(ctx, contextDescription)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -149,17 +156,20 @@ func DumpContext(ctx context.Context, w io.Writer) {
 	if value, ok := ctx.Value(contextPrefix).(string); ok {
 		fmt.Fprintf(w, " prefix=%q", value)
 	}
+	if value, ok := ctx.Value(contextPath).(string); ok {
+		fmt.Fprintf(w, " path=%q", value)
+	}
 	if value, ok := ctx.Value(contextParams).([]string); ok {
 		fmt.Fprintf(w, " params=%q", value)
 	}
-	if value, ok := ctx.Value(contextBool).(bool); ok {
-		fmt.Fprintf(w, " admin=%v", value)
+	if value, ok := ctx.Value(contextScope).([]string); ok {
+		fmt.Fprintf(w, " scope=%q", value)
+	}
+	if value, ok := ctx.Value(contextDescription).(string); ok {
+		fmt.Fprintf(w, " description=%q", value)
 	}
 	if value, ok := ctx.Value(contextAddress).(string); ok {
 		fmt.Fprintf(w, " address=%q", value)
-	}
-	if value, ok := ctx.Value(contextPath).(string); ok {
-		fmt.Fprintf(w, " path=%q", value)
 	}
 	fmt.Fprintf(w, ">")
 }
@@ -175,10 +185,20 @@ func contextString(ctx context.Context, key contextType) string {
 	}
 }
 
+/*
 func contextBool(ctx context.Context, key contextType) bool {
 	if value, ok := ctx.Value(key).(bool); ok {
 		return value
 	} else {
 		return false
+	}
+}
+*/
+
+func contextStringSlice(ctx context.Context, key contextType) []string {
+	if value, ok := ctx.Value(key).([]string); ok {
+		return value
+	} else {
+		return nil
 	}
 }

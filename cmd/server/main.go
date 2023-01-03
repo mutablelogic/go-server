@@ -1,3 +1,6 @@
+/*
+ * go-server - A server for running tasks
+ */
 package main
 
 import (

@@ -1,0 +1,21 @@
+{
+    "name": "httpserver",
+    "label": "fgi",
+    "listen": "/run/httpserver.sock",
+    "prefix": "/api/gateway/v1",
+    "owner": "nginx",
+    "group": "nginx",
+    "routes": [
+        {
+            "prefix": "/api/tokenauth/v1",
+            "service": "tokenauth.main"
+        },{
+            "prefix": "/api/nginx/v1",
+            "service": "nginx.main"
+        },{
+            "prefix": "/",
+            "service": "router-frontend.main"
+        }
+    ],
+    "middleware": [ "log", "tokenauth.main" ]
+}

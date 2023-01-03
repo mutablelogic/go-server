@@ -21,8 +21,11 @@ type state uint
 
 type t struct {
 	task.Task
-	cfg       *Config
-	cmd, test *Cmd
+	cfg     *Config
+	cmd     *Cmd
+	test    *Cmd
+	version []byte
+	label   string
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -42,8 +45,9 @@ const (
 // LIFECYCLE
 
 // Create a new logger task with provider of other tasks
-func NewWithPlugin(p Plugin) (*t, error) {
+func NewWithPlugin(p Plugin, label string) (*t, error) {
 	this := new(t)
+	this.label = p.Label()
 
 	// Create the command
 	if cmd, err := NewWithCommand(p.Path(), p.Flags()...); err != nil {
@@ -53,13 +57,13 @@ func NewWithPlugin(p Plugin) (*t, error) {
 	} else {
 		this.cmd = cmd
 		this.test = test
-		this.test.Args = append(this.test.Args, "-t")
+		this.test.SetArgs("-t", "-q")
 	}
 
 	// Add the environment variables
-	if err := this.cmd.Env(p.Env()); err != nil {
+	if err := this.cmd.SetEnv(p.Env()); err != nil {
 		return nil, err
-	} else if err := this.test.Env(p.Env()); err != nil {
+	} else if err := this.test.SetEnv(p.Env()); err != nil {
 		return nil, err
 	}
 
@@ -79,6 +83,9 @@ func NewWithPlugin(p Plugin) (*t, error) {
 
 func (t *t) String() string {
 	str := "<nginx"
+	if version := t.Version(); version != "" {
+		str += fmt.Sprintf(" version=%q", version)
+	}
 	if t.cmd != nil {
 		str += fmt.Sprintf(" cmd=%q", t.cmd)
 	}
@@ -113,12 +120,28 @@ func (t *t) Run(ctx context.Context) error {
 	var result error
 	var wg sync.WaitGroup
 
+	// Run the version command to get the nginx version string
+	if version, err := NewWithCommand(t.cmd.Path(), "-v"); err != nil {
+		return err
+	} else {
+		version.Err = func(_ *Cmd, data []byte) {
+			t.version = append(t.version, data...)
+		}
+		if err := version.Run(); err != nil {
+			return err
+		}
+	}
+
 	// Add stdout, stderr for the nginx command
 	t.cmd.Out = func(_ *Cmd, data []byte) {
 		s := bytes.TrimSpace(data)
 		t.Emit(event.Infof(ctx, stateInfo, string(s)))
 	}
 	t.cmd.Err = func(_ *Cmd, data []byte) {
+		s := bytes.TrimSpace(data)
+		t.Emit(event.Infof(ctx, stateInfo, string(s)))
+	}
+	t.test.Out = func(_ *Cmd, data []byte) {
 		s := bytes.TrimSpace(data)
 		t.Emit(event.Infof(ctx, stateInfo, string(s)))
 	}
@@ -155,6 +178,7 @@ FOR_LOOP:
 		case <-ticker.C:
 			// Check that the process is still running
 			pid := t.cmd.Pid()
+			fmt.Println("pid=", pid, "state=", state)
 			if t.cmd.Exited() {
 				t.Emit(event.Infof(ctx, stateStop, "Process %d exited", pid))
 				break FOR_LOOP
@@ -210,4 +234,13 @@ func (t *t) Reload() error {
 // Reopen log files (the SIGUSR1 signal)
 func (t *t) Reopen() error {
 	return t.cmd.Signal(syscall.SIGUSR1)
+}
+
+// Version returns the nginx version string
+func (t *t) Version() string {
+	if t.version == nil {
+		return ""
+	} else {
+		return string(bytes.TrimSpace(t.version))
+	}
 }

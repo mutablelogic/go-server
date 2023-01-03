@@ -6,7 +6,8 @@ import (
 
 	// Packages
 	context "github.com/mutablelogic/go-server/pkg/context"
-	"golang.org/x/exp/slices"
+	util "github.com/mutablelogic/go-server/pkg/httpserver/util"
+	assert "github.com/stretchr/testify/assert"
 )
 
 func Test_Context_001(t *testing.T) {
@@ -41,51 +42,52 @@ func Test_Context_003(t *testing.T) {
 }
 
 func Test_Context_004(t *testing.T) {
+	assert := assert.New(t)
 	ctx, cancel := context.WithCancel()
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(context.WithPrefixParams(ctx, "prefix", nil), "GET", "http://localhost", nil)
+	req, err := http.NewRequestWithContext(context.WithPrefixPathParams(ctx, "prefix", "path", nil), "GET", "http://localhost", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v := context.ReqPrefix(req); v != "prefix" {
-		t.Error("Unexpected prefix", v)
-	}
-	if v := context.ReqParams(req); v != nil {
-		t.Error("Unexpected params", v)
-	}
+	prefix, path, params := util.ReqPrefixPathParams(req)
+	assert.Equal("prefix", prefix)
+	assert.Equal("path", path)
+	assert.Nil(params)
 }
 
 func Test_Context_005(t *testing.T) {
+	assert := assert.New(t)
 	ctx, cancel := context.WithCancel()
 	defer cancel()
 
 	params := []string{"a", "b", "c"}
-	req, err := http.NewRequestWithContext(context.WithPrefixParams(ctx, "prefix", params), "GET", "http://localhost", nil)
+	req, err := http.NewRequestWithContext(context.WithPrefixPathParams(ctx, "prefix", "path", params), "GET", "http://localhost", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v := context.ReqPrefix(req); v != "prefix" {
-		t.Error("Unexpected prefix", v)
-	}
-	if v := context.ReqParams(req); !slices.Equal(params, v) {
-		t.Error("Unexpected params", v)
-	}
+	prefix, path, params2 := util.ReqPrefixPathParams(req)
+	assert.Equal("prefix", prefix)
+	assert.Equal("path", path)
+	assert.Equal(params, params2)
 }
 
 func Test_Context_006(t *testing.T) {
+	assert := assert.New(t)
 	ctx, cancel := context.WithCancel()
 	defer cancel()
 
-	ctx = context.WithAdmin(ctx, true)
-	if v := context.Admin(ctx); !v {
-		t.Error("Unexpected admin", v)
-	}
-	req, err := http.NewRequestWithContext(ctx, "GET", "http://localhost", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if v := context.ReqAdmin(req); !v {
-		t.Error("Unexpected admin", v)
-	}
+	scope := []string{"a", "b", "c"}
+	child := context.WithScope(ctx, scope...)
+	assert.Equal(scope, context.Scope(child))
+}
+
+func Test_Context_007(t *testing.T) {
+	assert := assert.New(t)
+	ctx, cancel := context.WithCancel()
+	defer cancel()
+
+	desc := "hello, world"
+	child := context.WithDescription(ctx, desc)
+	assert.Equal(desc, context.Description(child))
 }

@@ -51,10 +51,12 @@ func NewConfig(available, enabled string) (*Config, error) {
 	}
 
 	// Compile templates for available files, and return any errors
-	if t, err := template.ParseFiles(tmpl...); err != nil {
-		return nil, err
-	} else {
-		this.t = t
+	if len(tmpl) > 0 {
+		if t, err := template.ParseFiles(tmpl...); err != nil {
+			return nil, err
+		} else {
+			this.t = t
+		}
 	}
 
 	// Set enabled flag on files

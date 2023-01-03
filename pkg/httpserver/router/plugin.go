@@ -1,0 +1,105 @@
+package router
+
+import (
+	"context"
+	"os"
+
+	// Packages
+	iface "github.com/mutablelogic/go-server"
+	ctx "github.com/mutablelogic/go-server/pkg/context"
+	task "github.com/mutablelogic/go-server/pkg/task"
+	types "github.com/mutablelogic/go-server/pkg/types"
+	plugin "github.com/mutablelogic/go-server/plugin"
+
+	// Namespace imports
+	. "github.com/djthorpe/go-errors"
+)
+
+/////////////////////////////////////////////////////////////////////
+// TYPES
+
+// Plugin for the router maps prefixes to gateways
+type Plugin struct {
+	task.Plugin
+	Prefix_     types.String `json:"path,omitempty"`       // Path for serving the router schema, optional
+	Routes      []Route      `json:"routes"`               // Routes to add to the router, optional (but useless without)
+	Middleware_ []types.Task `json:"middleware,omitempty"` // Middleware to add to the router for requests, optional
+}
+
+type Route struct {
+	Prefix  string     `json:"prefix"`  // Prefix path for the gateway service
+	Handler types.Task `json:"service"` // Service handler
+}
+
+/////////////////////////////////////////////////////////////////////
+// GLOBALS
+
+const (
+	defaultName   = "router"
+	pathSeparator = string(os.PathSeparator)
+	hostSeparator = "."
+)
+
+const (
+	ScopeRead = "github.com/mutablelogic/go-server/router:read"
+)
+
+///////////////////////////////////////////////////////////////////////////////
+// LIFECYCLE
+
+// Create a new logger task with provider of other tasks
+func (p Plugin) New(parent context.Context, provider iface.Provider) (iface.Task, error) {
+	// Check parameters
+	if err := p.HasNameLabel(); err != nil {
+		return nil, err
+	}
+
+	// Check gateway handlers are of type iface.Gateway
+	gateways := make(map[string]plugin.Gateway, len(p.Routes))
+	for _, gateway := range p.Routes {
+		route := NewRoute(gateway.Prefix, nil, nil).Prefix()
+		if handler := gateway.Handler.Task; handler == nil {
+			return nil, ErrBadParameter.Withf("Handler for %q is nil (ref: %q)", route, gateway.Handler.Ref)
+		} else if handler, ok := gateway.Handler.Task.(plugin.Gateway); !ok {
+			return nil, ErrBadParameter.Withf("Handler for %q is not a gateway", route)
+		} else if _, exists := gateways[route]; exists {
+			return nil, ErrDuplicateEntry.Withf("Duplicate prefix %q", route)
+		} else {
+			gateways[route] = handler
+		}
+	}
+
+	// Return router
+	return NewWithPlugin(p, ctx.NameLabel(parent), gateways)
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS
+
+func WithLabel(label string) Plugin {
+	return Plugin{
+		Plugin: task.WithLabel(defaultName, label),
+	}
+}
+
+func (p Plugin) WithPrefix(prefix string) Plugin {
+	p.Prefix_ = types.String(prefix)
+	return p
+}
+
+func (p Plugin) WithRoutes(r []Route) Plugin {
+	p.Routes = r
+	return p
+}
+
+func (p Plugin) Name() string {
+	if name := p.Plugin.Name(); name != "" {
+		return name
+	} else {
+		return defaultName
+	}
+}
+
+func (p Plugin) Prefix() string {
+	return string(p.Prefix_)
+}

@@ -6,6 +6,7 @@
 # Backup files etc
 .DS_Store
 ._*
+.smb*
 
 # Dependency and build
 vendor/

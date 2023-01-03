@@ -17,11 +17,11 @@ func Test_Task_000(t *testing.T) {
 	task, err := nginx.NewWithPlugin(nginx.Plugin{
 		Path_:   "nginx",
 		Config_: NginxConfig,
-	})
+	}, "nginx")
 	if err != nil {
 		t.Skip("Skipping test: ", err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	if err := task.Run(ctx); err != nil {
 		t.Error(err)
@@ -37,7 +37,7 @@ func Test_Task_001(t *testing.T) {
 	task, err := nginx.NewWithPlugin(nginx.Plugin{
 		Path_:   "nginx",
 		Config_: NginxConfig,
-	})
+	}, "nginx."+t.Name())
 	if err != nil {
 		t.Skip("Skipping test: ", err)
 	}
@@ -70,7 +70,7 @@ func Test_Task_002(t *testing.T) {
 	task, err := nginx.NewWithPlugin(nginx.Plugin{
 		Path_:   "nginx",
 		Config_: NginxConfig,
-	})
+	}, "nginx")
 	if err != nil {
 		t.Skip("Skipping test: ", err)
 	}

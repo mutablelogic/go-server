@@ -37,3 +37,19 @@ func Test_Cmd_002(t *testing.T) {
 		t.Error(err)
 	}
 }
+
+func Test_Cmd_003(t *testing.T) {
+	cmd, err := nginx.NewWithCommand("ls")
+	if err != nil {
+		t.Error(err)
+	}
+	cmd.Out = func(cmd *nginx.Cmd, data []byte) {
+		t.Log(string(bytes.TrimSpace(data)))
+	}
+	if err := cmd.Run(); err != nil {
+		t.Error(err)
+	}
+	if err := cmd.Run(); err != nil {
+		t.Error(err)
+	}
+}

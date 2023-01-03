@@ -1,0 +1,40 @@
+{
+    "name": "@mutablelogic/go-server-router",
+    "version": "0.0.0",
+    "description": "go-server router frontend",
+    "main": "dist/index.js",
+    "scripts": {
+        "build": "rm -fr dist && install -d dist && cp -r html/* dist && esbuild js/index.js --format=esm --minify --bundle --outdir=dist --sourcemap --asset-names=assets/[name]-[hash] --loader:.svg=file --loader:.png=file --loader:.woff=file --loader:.woff2=file --loader:.ttf=file --loader:.otf=file",
+        "watch": "npm-watch"
+    },
+    "watch": {
+        "build": {
+            "patterns": [
+                "css",
+                "html",
+                "js"
+            ],
+            "extensions": "html,css,js"
+        }
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/mutablelogic/go-server.git"
+    },
+    "publishConfig": {
+        "registry": "https://npm.pkg.github.com"
+    },
+    "author": "David Thorpe",
+    "bugs": {
+        "url": "https://github.com/mutablelogic/go-server/issues"
+    },
+    "homepage": "https://github.com/mutablelogic/go-server#readme",
+    "files": [
+        "dist/**/*.{js,map,woff,woff2,txt,ttf,css,html,jpg,jpeg,png,gif,svg}"
+    ],
+    "dependencies": {
+        "bootstrap-icons": "^1.10.3",
+        "esbuild": "^0.16.12",
+        "lit": "^2.5.0"
+    }
+}

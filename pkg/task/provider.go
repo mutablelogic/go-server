@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"sync"
 
@@ -12,11 +13,15 @@ import (
 	iface "github.com/mutablelogic/go-server"
 	ctx "github.com/mutablelogic/go-server/pkg/context"
 	event "github.com/mutablelogic/go-server/pkg/event"
+	types "github.com/mutablelogic/go-server/pkg/types"
 	plugin "github.com/mutablelogic/go-server/plugin"
 
 	// Namespace imports
 	. "github.com/djthorpe/go-errors"
 )
+
+// TODO: We should cancel tasks in the reverse order to which they were created
+// and wait for each task to finish before cancelling the next one.
 
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
@@ -27,6 +32,7 @@ type provider struct {
 	sync.RWMutex
 
 	// Enumeration of tasks, keyed by name.label
+	order []string
 	tasks map[string]iface.Task
 	log   []plugin.Log
 }
@@ -38,16 +44,23 @@ type provider struct {
 // name or label is invalid, or the plugin with the same name already exists.
 func NewProvider(parent context.Context, plugins ...iface.Plugin) (iface.Provider, error) {
 	this := new(provider)
+	this.order = make([]string, 0, len(plugins))
 	this.tasks = make(map[string]iface.Task, len(plugins))
 	plugins_ := Plugins{}
 	if err := plugins_.Register(plugins...); err != nil {
 		return nil, err
 	}
 
-	// TODO: Re-order the plugins so that dependencies are satisfied
+	// Create a graph of the plugins
+	// Re-order the plugins so that dependencies are satisfied correctly
+	// The order returned is the order in which the plugins should be created
+	order, err := NewGraph(plugins...).Resolve()
+	if err != nil {
+		return nil, err
+	}
 
 	// Create the tasks sequentially, and return if any error is returned
-	for _, plugin := range plugins {
+	for _, plugin := range order {
 		if _, err := this.New(parent, plugin); err != nil {
 			return nil, err
 		}
@@ -116,9 +129,26 @@ func (p *provider) Run(parent context.Context) error {
 // New creates a new task from a plugin. It should only be called from
 // the 'new' function, not once the provider is in Run state.
 func (p *provider) New(parent context.Context, proto iface.Plugin) (iface.Task, error) {
-	key := proto.Name() + "." + proto.Label()
+	key := KeyForPlugin(proto)
 	if task := p.Get(key); task != nil {
 		return nil, ErrDuplicateEntry.Withf("Duplicate task: %q", key)
+	}
+
+	// Resolve dependencies
+	if err := resolveRef(key, reflect.ValueOf(proto), func(task types.Task) (types.Task, error) {
+		// Resolve the reference
+		if task.Ref != "" {
+			if t := p.Get(task.Ref); t == nil {
+				return task, ErrNotFound.Withf("%q: Task not found: %q", key, task.Ref)
+			} else {
+				task.Task = t
+			}
+		}
+
+		// Return the task
+		return task, nil
+	}); err != nil {
+		return nil, err
 	}
 
 	// Create the task
@@ -133,6 +163,9 @@ func (p *provider) New(parent context.Context, proto iface.Plugin) (iface.Task, 
 	if log, ok := task.(plugin.Log); ok && log != nil {
 		p.log = append(p.log, log)
 	}
+
+	// Add to the end of the order
+	p.order = append(p.order, key)
 
 	// Return success
 	return task, nil
@@ -155,33 +188,31 @@ func (p *provider) Printf(ctx context.Context, format string, v ...any) {
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
+// Keys returns the list of task keys in the provider, ordered as per the
+// order in which the tasks were added.
 func (p *provider) Keys() []string {
 	p.RLock()
 	defer p.RUnlock()
-	result := make([]string, 0, len(p.tasks))
-	for key := range p.tasks {
-		result = append(result, key)
-	}
-	return result
+	return append(make([]string, 0, len(p.order)), p.order...)
 }
 
 func (p *provider) Get(args ...string) iface.Task {
 	p.RLock()
 	defer p.RUnlock()
 
-	var key string
-	if len(args) == 1 {
-		key = args[0]
-	} else if len(args) == 2 {
-		key = args[0] + "." + args[1]
-	} else {
-		return nil
-	}
+	// Exact match
+	key := strings.Trim(strings.Join(args, "."), ".")
 	if task, exists := p.tasks[key]; exists {
 		return task
-	} else {
-		return nil
 	}
+	// Prefix match
+	for key2, task := range p.tasks {
+		if strings.HasPrefix(key2, key+".") {
+			return task
+		}
+	}
+	// No match
+	return nil
 }
 
 func (p *provider) Set(key string, task iface.Task) error {

@@ -1,7 +1,0 @@
-{
-    "name": "httpserver",
-    "label": "fgi",
-    "listen": "/run/httpserver.sock",
-    "owner": "nginx",
-    "group": "nginx"
-}
