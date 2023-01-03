@@ -47,7 +47,7 @@ const (
 // Create a new logger task with provider of other tasks
 func NewWithPlugin(p Plugin, label string) (*t, error) {
 	this := new(t)
-	this.label = label
+	this.label = p.Label()
 
 	// Create the command
 	if cmd, err := NewWithCommand(p.Path(), p.Flags()...); err != nil {
@@ -57,7 +57,7 @@ func NewWithPlugin(p Plugin, label string) (*t, error) {
 	} else {
 		this.cmd = cmd
 		this.test = test
-		this.test.cmd.Args = append(this.test.cmd.Args, "-t", "-q")
+		this.test.SetArgs("-t", "-q")
 	}
 
 	// Add the environment variables
@@ -141,6 +141,10 @@ func (t *t) Run(ctx context.Context) error {
 		s := bytes.TrimSpace(data)
 		t.Emit(event.Infof(ctx, stateInfo, string(s)))
 	}
+	t.test.Out = func(_ *Cmd, data []byte) {
+		s := bytes.TrimSpace(data)
+		t.Emit(event.Infof(ctx, stateInfo, string(s)))
+	}
 	t.test.Err = func(_ *Cmd, data []byte) {
 		s := bytes.TrimSpace(data)
 		t.Emit(event.Infof(ctx, stateInfo, string(s)))
@@ -174,6 +178,7 @@ FOR_LOOP:
 		case <-ticker.C:
 			// Check that the process is still running
 			pid := t.cmd.Pid()
+			fmt.Println("pid=", pid, "state=", state)
 			if t.cmd.Exited() {
 				t.Emit(event.Infof(ctx, stateStop, "Process %d exited", pid))
 				break FOR_LOOP

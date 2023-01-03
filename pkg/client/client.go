@@ -49,7 +49,7 @@ type RequestOpt func(*http.Request) error
 
 const (
 	DefaultTimeout            = time.Second * 10
-	DefaultUserAgent          = "github.com/mutableloigc/go-server"
+	DefaultUserAgent          = "github.com/mutablelogic/go-server"
 	PathSeparator             = string(os.PathSeparator)
 	ContentTypeJson           = "application/json"
 	ContentTypeTextXml        = "text/xml"

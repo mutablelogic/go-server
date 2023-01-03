@@ -67,6 +67,14 @@ func NewFlags(name string) *Flags {
 			Name:  "test",
 			Usage: "Test nginx configuration",
 			Fn:    Test,
+		}, {
+			Name:  "reload",
+			Usage: "Reload nginx configuration",
+			Fn:    Reload,
+		}, {
+			Name:  "reopen",
+			Usage: "Reopen nginx log files",
+			Fn:    Reopen,
 		},
 	}
 

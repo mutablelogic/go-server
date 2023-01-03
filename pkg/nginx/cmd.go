@@ -23,6 +23,8 @@ import (
 
 type Cmd struct {
 	cmd         *exec.Cmd
+	path        string
+	args, env   []string
 	Out, Err    CallbackFn
 	Start, Stop time.Time
 }
@@ -34,7 +36,7 @@ type CallbackFn func(*Cmd, []byte)
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-// Create a new logger task with provider of other tasks
+// Create a new command with arguments
 func NewWithCommand(cmd string, args ...string) (*Cmd, error) {
 	this := new(Cmd)
 	if !filepath.IsAbs(cmd) {
@@ -49,7 +51,8 @@ func NewWithCommand(cmd string, args ...string) (*Cmd, error) {
 	} else if !IsExecAny(stat.Mode()) {
 		return nil, ErrBadParameter.Withf("Command is not executable: %q", cmd)
 	} else {
-		this.cmd = exec.Command(cmd, args...)
+		this.path = cmd
+		this.args = args
 	}
 
 	// Return success
@@ -61,21 +64,19 @@ func NewWithCommand(cmd string, args ...string) (*Cmd, error) {
 
 func (t *Cmd) String() string {
 	str := "<cmd"
-	if t.cmd != nil {
-		str += fmt.Sprintf(" exec=%q", t.cmd.Path)
-		if len(t.cmd.Args) > 1 {
-			str += fmt.Sprintf(" args=%q", t.cmd.Args[1:])
+	str += fmt.Sprintf(" exec=%q", t.path)
+	if len(t.args) > 0 {
+		str += fmt.Sprintf(" args=%q", t.args)
+	}
+	for _, v := range t.env {
+		str += fmt.Sprint(v)
+	}
+	if t.cmd != nil && t.cmd.Process != nil {
+		if pid := t.cmd.Process.Pid; pid > 0 {
+			str += fmt.Sprintf(" pid=%d", pid)
 		}
-		for _, v := range t.cmd.Env {
-			str += fmt.Sprint(v)
-		}
-		if t.cmd.Process != nil {
-			if pid := t.cmd.Process.Pid; pid > 0 {
-				str += fmt.Sprintf(" pid=%d", pid)
-			}
-			if t.cmd.ProcessState.Exited() {
-				str += fmt.Sprintf(" exit_code=%d", t.cmd.ProcessState.ExitCode())
-			}
+		if t.cmd.ProcessState.Exited() {
+			str += fmt.Sprintf(" exit_code=%d", t.cmd.ProcessState.ExitCode())
 		}
 	}
 	if !t.Start.IsZero() && !t.Stop.IsZero() {
@@ -94,9 +95,15 @@ func (t *Cmd) String() string {
 func (c *Cmd) Run() error {
 	var wg sync.WaitGroup
 
-	// Check to see if command has alreay been run
-	if c.cmd.Process != nil {
-		return ErrOutOfOrder.With("Command has already been run")
+	// If the command is already running, return an error
+	if c.Pid() > 0 {
+		return ErrOutOfOrder.Withf("Command is already running: %q", c.path)
+	}
+
+	// Create a new command
+	c.cmd = exec.Command(c.path, c.args...)
+	if len(c.env) > 0 {
+		c.cmd.Env = c.env
 	}
 
 	// Pipes for reading stdout and stderr
@@ -141,7 +148,7 @@ func (c *Cmd) Run() error {
 
 // Path returns the path of the executable
 func (c *Cmd) Path() string {
-	return c.cmd.Path
+	return c.path
 }
 
 // SetEnv appends the environment variables for the command
@@ -150,15 +157,22 @@ func (c *Cmd) SetEnv(env map[string]string) error {
 		if !types.IsIdentifier(k) {
 			return ErrBadParameter.Withf("Invalid environment variable name: %q", k)
 		}
-		c.cmd.Env = append(c.cmd.Env, fmt.Sprintf("%s=%q", k, v))
+		c.env = append(c.env, fmt.Sprintf("%s=%q", k, v))
 	}
 	// return success
 	return nil
 }
 
+// SetArgs appends arguments for the command
+func (c *Cmd) SetArgs(args ...string) {
+	c.args = append(c.args, args...)
+}
+
 // Return whether command has exited
 func (c *Cmd) Exited() bool {
-	if c.cmd.ProcessState == nil {
+	if c.cmd == nil {
+		return false
+	} else if c.cmd.ProcessState == nil {
 		return false
 	} else {
 		return c.cmd.ProcessState.Exited()
@@ -167,7 +181,11 @@ func (c *Cmd) Exited() bool {
 
 // Return the pid of the process or 0
 func (c *Cmd) Pid() int {
-	if c.cmd.Process == nil {
+	if c.cmd == nil {
+		return 0
+	} else if c.cmd.Process == nil {
+		return 0
+	} else if c.Exited() {
 		return 0
 	} else {
 		return c.cmd.Process.Pid
