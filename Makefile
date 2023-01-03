@@ -57,8 +57,9 @@ mkdir:
 clean:
 	@echo Clean
 	@rm -fr $(BUILD_DIR)
-	@find ${NPM_DIR} -name node_modules -type d -prune -exec rm -fr {} \;
 	@find ${NPM_DIR} -name dist -type d -prune -exec rm -fr {} \;
 	@${GO} mod tidy
 	@${GO} clean
 
+distclean: clean
+	@find ${NPM_DIR} -name node_modules -type d -prune -exec rm -fr {} \;

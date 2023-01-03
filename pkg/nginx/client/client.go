@@ -15,9 +15,9 @@ type Client struct {
 ///////////////////////////////////////////////////////////////////////////////
 // NEW
 
-func New(endpoint string) (*Client, error) {
+func New(endpoint string, opts ...client.ClientOpt) (*Client, error) {
 	// Create client
-	client, err := client.New(client.OptEndpoint(endpoint))
+	client, err := client.New(append(opts, client.OptEndpoint(endpoint))...)
 	if err != nil {
 		return nil, err
 	}

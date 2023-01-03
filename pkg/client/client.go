@@ -37,6 +37,7 @@ type Client struct {
 	ua       string
 	rate     float32 // number of requests allowed per second
 	strict   bool
+	token    string // token for authentication on requests
 	ts       time.Time
 }
 
@@ -128,24 +129,34 @@ func (client *Client) Do(in Payload, out any, opts ...RequestOpt) error {
 	// Make a request
 	var body io.Reader
 	var method string = http.MethodGet
-	var accept string
+	var accept, mimetype string
 	if in != nil {
-		data, err := json.Marshal(in)
-		if err != nil {
-			return err
+		if in.Type() != "" {
+			data, err := json.Marshal(in)
+			if err != nil {
+				return err
+			}
+			body = bytes.NewReader(data)
 		}
-		body = bytes.NewReader(data)
 		method = in.Method()
 		accept = in.Accept()
+		mimetype = in.Type()
 	}
-	req, err := client.request(method, accept, body)
+	req, err := client.request(method, accept, mimetype, body)
 	if err != nil {
 		return err
 	}
 
 	// If debug, then log the payload
 	if debug, ok := client.Client.Transport.(*logtransport); ok {
-		debug.Payload(in)
+		if body != nil {
+			debug.Payload(in)
+		}
+	}
+
+	// If client token is set, then add to request
+	if client.token != "" {
+		opts = append([]RequestOpt{OptToken(client.token)}, opts...)
 	}
 
 	return do(client.Client, req, accept, client.strict, out, opts...)
@@ -157,7 +168,7 @@ func (client *Client) Do(in Payload, out any, opts ...RequestOpt) error {
 // request creates a request which can be used to return responses. The accept
 // parameter is the accepted mime-type of the response. If the accept parameter is empty,
 // then the default is application/json.
-func (client *Client) request(method, accept string, body io.Reader) (*http.Request, error) {
+func (client *Client) request(method, accept, mimetype string, body io.Reader) (*http.Request, error) {
 	// Return error if no endpoint is set
 	if client.endpoint == nil {
 		return nil, ErrBadParameter.With("missing endpoint")
@@ -171,7 +182,10 @@ func (client *Client) request(method, accept string, body io.Reader) (*http.Requ
 
 	// Set the credentials and user agent
 	if body != nil {
-		r.Header.Set("Content-Type", ContentTypeJson)
+		if mimetype == "" {
+			mimetype = ContentTypeJson
+		}
+		r.Header.Set("Content-Type", mimetype)
 	}
 	if accept != "" {
 		r.Header.Set("Accept", accept)

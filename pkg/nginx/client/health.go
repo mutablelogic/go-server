@@ -1,8 +1,6 @@
 package client
 
 import (
-	"net/http"
-
 	// Packages
 	client "github.com/mutablelogic/go-server/pkg/client"
 )
@@ -10,29 +8,19 @@ import (
 ///////////////////////////////////////////////////////////////////////////////
 // SCHEMA
 
-type ReqHealth struct {
-	client.Payload
-}
-
-type RespHealth struct {
-}
-
-func (req ReqHealth) Method() string {
-	return http.MethodGet
-}
-
-func (req ReqHealth) Accept() string {
-	return client.ContentTypeJson
+type Health struct {
+	Version    string `json:"version"`
+	UptimeSecs uint64 `json:"uptime_secs"`
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func (c *Client) Health() (string, error) {
-	var response RespHealth
-	if err := c.Do(ReqHealth{}, &response, client.OptPath("/")); err != nil {
-		return "", err
+func (c *Client) Health() (Health, error) {
+	var response Health
+	if err := c.Do(nil, &response, client.OptPath("/")); err != nil {
+		return response, err
 	} else {
-		return "OK", nil
+		return response, nil
 	}
 }

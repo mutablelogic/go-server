@@ -33,6 +33,7 @@
         "dist/**/*.{js,map,woff,woff2,txt,ttf,css,html,jpg,jpeg,png,gif,svg}"
     ],
     "dependencies": {
+        "bootstrap-icons": "^1.10.3",
         "esbuild": "^0.16.12",
         "lit": "^2.5.0"
     }

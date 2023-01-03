@@ -16,9 +16,9 @@ func OptEndpoint(value string) ClientOpt {
 		if url, err := url.Parse(value); err != nil {
 			return err
 		} else if url.Scheme == "" || url.Host == "" {
-			return ErrBadParameter.With(value)
+			return ErrBadParameter.Withf("endpoint: %q", value)
 		} else if url.Scheme != "http" && url.Scheme != "https" {
-			return ErrBadParameter.With(value)
+			return ErrBadParameter.Withf("endpoint: %q", value)
 		} else {
 			client.endpoint = url
 		}
@@ -78,5 +78,14 @@ func OptRateLimit(value float32) ClientOpt {
 			client.rate = value
 			return nil
 		}
+	}
+}
+
+// OptReqToken sets a request token for all client requests. This can be
+// overridden by the client for individual requests using OptToken.
+func OptReqToken(value string) ClientOpt {
+	return func(client *Client) error {
+		client.token = value
+		return nil
 	}
 }
