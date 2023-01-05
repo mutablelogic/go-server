@@ -10,7 +10,12 @@ type EventType uint
 
 const (
 	None EventType = iota
-	Receive
+	Question
+	Answer
+	Registered
+	Resolved
+	Expired
+	Sent
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -20,8 +25,18 @@ func (t EventType) String() string {
 	switch t {
 	case None:
 		return "None"
-	case Receive:
-		return "Receive"
+	case Question:
+		return "Question"
+	case Answer:
+		return "Answer"
+	case Registered:
+		return "Registered"
+	case Resolved:
+		return "Resolved"
+	case Expired:
+		return "Expired"
+	case Sent:
+		return "Sent"
 	}
 	return "[?? Invalid EventType value]"
 }

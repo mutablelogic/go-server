@@ -7,11 +7,13 @@
         {
             "prefix": "/api/nginx/v1",
             "service": "nginx.main"
-        },        {
+        },{
             "prefix": "/api/tokenauth/v1",
             "service": "tokenauth.main"
-        },
-        {
+        },{
+            "prefix": "/api/mdns/v1",
+            "service": "mdns.local"
+        },{
             "prefix": "/",
             "service": "router-frontend.main"
         }

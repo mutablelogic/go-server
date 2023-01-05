@@ -28,9 +28,9 @@ type ptr struct {
 }
 
 type srv struct {
-	host     string
-	port     uint16
-	priority uint16
+	Host_     string `json:"host,omitempty"`
+	Port_     uint16 `json:"port,omitempty"`
+	Priority_ uint16 `json:"priority,omitempty"`
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -38,13 +38,13 @@ type srv struct {
 
 // A sent or received message
 type Message interface {
-	PTR() []Ptr             // Return PTR records
-	A() []net.IP            // Return A records
-	TXT() []string          // Return TXT records
-	SRV() []Srv             // Return SRV records
-	Bytes() ([]byte, error) // Return the packed message
-	IsAnswer() bool         // Return true when the message is an answer
-	IfIndex() int           // Interface to send and receive on, or nil
+	PTR() []Ptr              // Return PTR records
+	A() []net.IP             // Return A and AAAA records
+	TXT() (string, []string) // Return TXT records
+	SRV() (string, []Srv)    // Return SRV records
+	Bytes() ([]byte, error)  // Return the packed message
+	IsAnswer() bool          // Return true when the message is an answer
+	IfIndex() int            // Interface to send and receive on, or nil
 }
 
 type Ptr interface {
@@ -91,11 +91,35 @@ func MessageFromPacket(packet []byte, sender net.Addr, iface net.Interface) (Mes
 
 // Create a message from a question, to be sent on a specific interface or
 // on all interfaces if the index is zero
-func MessageWithQuestion(question string, iface net.Interface) (Message, error) {
+func NewDiscoverQuestion(question string, iface net.Interface) (Message, error) {
 	message := new(message)
 	message.iface = iface
-	message.msg.Id = dns.Id()
 	message.msg.SetQuestion(question, dns.TypePTR)
+	message.msg.RecursionDesired = false
+	return message, nil
+}
+
+// Create a message from a question, to be sent on a specific interface or
+// on all interfaces if the index is zero
+func NewBrowseQuestion(question string, iface net.Interface) (Message, error) {
+	message := new(message)
+	message.iface = iface
+	message.msg.Question = []dns.Question{
+		{Name: question, Qtype: dns.TypePTR, Qclass: dns.ClassINET},
+	}
+	message.msg.RecursionDesired = false
+	return message, nil
+}
+
+// Create a message from a question to retrieve TXT and SRV records, to be sent on a specific interface or
+// on all interfaces if the index is zero
+func NewLookupQuestion(question string, iface net.Interface) (Message, error) {
+	message := new(message)
+	message.iface = iface
+	message.msg.Question = []dns.Question{
+		{Name: question, Qtype: dns.TypeSRV, Qclass: dns.ClassINET},
+		{Name: question, Qtype: dns.TypeTXT, Qclass: dns.ClassINET},
+	}
 	message.msg.RecursionDesired = false
 	return message, nil
 }
@@ -105,6 +129,9 @@ func MessageWithQuestion(question string, iface net.Interface) (Message, error) 
 
 func (m *message) String() string {
 	str := "<message"
+	if id := m.msg.Id; id != 0 {
+		str += fmt.Sprintf(" id=%v", id)
+	}
 	for _, qs := range m.msg.Question {
 		str += fmt.Sprintf(" q=%q", qs.Name)
 	}
@@ -114,10 +141,10 @@ func (m *message) String() string {
 	if a := m.A(); len(a) > 0 {
 		str += fmt.Sprintf(" a=%q", a)
 	}
-	if srv := m.SRV(); len(srv) > 0 {
+	if _, srv := m.SRV(); len(srv) > 0 {
 		str += fmt.Sprintf(" srv=%v", srv)
 	}
-	if txt := m.TXT(); len(txt) > 0 {
+	if _, txt := m.TXT(); len(txt) > 0 {
 		str += fmt.Sprintf(" txt=%q", txt)
 	}
 	if m.sender != nil {
@@ -164,15 +191,15 @@ func (p ptr) TTL() time.Duration {
 // SRV: PUBLIC METHODS
 
 func (s srv) Host() string {
-	return s.host
+	return s.Host_
 }
 
 func (s srv) Port() uint16 {
-	return s.port
+	return s.Port_
 }
 
 func (s srv) Priority() uint16 {
-	return s.priority
+	return s.Priority_
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -228,11 +255,13 @@ func (m *message) A() []net.IP {
 }
 
 // Return TXT records
-func (m *message) TXT() []string {
+func (m *message) TXT() (string, []string) {
+	var key string
 	var result []string
 	for _, rec := range m.msg.Answer {
 		switch rr := rec.(type) {
 		case *dns.TXT:
+			key = rr.Hdr.Name
 			for _, txt := range rr.Txt {
 				if txt != "" {
 					result = append(result, txt)
@@ -243,6 +272,7 @@ func (m *message) TXT() []string {
 	for _, rec := range m.msg.Extra {
 		switch rr := rec.(type) {
 		case *dns.TXT:
+			key = rr.Hdr.Name
 			for _, txt := range rr.Txt {
 				if txt != "" {
 					result = append(result, txt)
@@ -250,17 +280,19 @@ func (m *message) TXT() []string {
 			}
 		}
 	}
-	return result
+	return key, result
 }
 
 // Return SRV records
-func (m *message) SRV() []Srv {
+func (m *message) SRV() (string, []Srv) {
+	var key string
 	var result []Srv
 	for _, rec := range m.msg.Answer {
 		switch rr := rec.(type) {
 		case *dns.SRV:
+			key = rr.Hdr.Name
 			result = append(result, srv{rr.Target, rr.Port, rr.Priority})
 		}
 	}
-	return result
+	return key, result
 }
