@@ -1,0 +1,5 @@
+{
+    "name": "accessory-tokenauth",
+    "label": "main",
+    "pool": "accessory-connpool.main"
+}

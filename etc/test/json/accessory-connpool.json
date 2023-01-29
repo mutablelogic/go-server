@@ -1,0 +1,8 @@
+{
+    "name": "accessory-connpool",
+    "label": "main",
+    "database": "main",
+    "url": "mongodb://cm1/?replicaSet=rs0",
+    "limit": 10,
+    "timeout": "10s"
+}
