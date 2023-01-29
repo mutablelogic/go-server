@@ -19,13 +19,15 @@ type t struct {
 	sync.Mutex
 	task.Task
 	*log.Logger
+
+	label string
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
 // Create a new logger task with provider of other tasks
-func NewWithPlugin(p Plugin) (*t, error) {
+func NewWithPlugin(p Plugin, label string) (*t, error) {
 	this := new(t)
 	this.Logger = log.New(os.Stderr, p.Label(), p.flags)
 	return this, nil
@@ -35,7 +37,10 @@ func NewWithPlugin(p Plugin) (*t, error) {
 // STRINGIFY
 
 func (t *t) String() string {
-	str := "<log"
+	str := "<" + DefaultName
+	if label := t.Label(); label != "" {
+		str += fmt.Sprintf(" label=%q", label)
+	}
 	if w := t.Logger.Writer(); w != nil {
 		if f, ok := w.(*os.File); ok {
 			str += fmt.Sprintf(" writer=%q", f.Name())

@@ -18,5 +18,5 @@ type Router interface {
 	AddHandler(context.Context, *regexp.Regexp, http.HandlerFunc, ...string)
 
 	// Register a middleware handler to the router given unique name
-	//AddMiddleware(string, func(http.HandlerFunc) http.HandlerFunc) error
+	AddMiddleware(context.Context, func(http.HandlerFunc) http.HandlerFunc) error
 }

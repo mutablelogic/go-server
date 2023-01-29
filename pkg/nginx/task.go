@@ -178,7 +178,6 @@ FOR_LOOP:
 		case <-ticker.C:
 			// Check that the process is still running
 			pid := t.cmd.Pid()
-			fmt.Println("pid=", pid, "state=", state)
 			if t.cmd.Exited() {
 				t.Emit(event.Infof(ctx, stateStop, "Process %d exited", pid))
 				break FOR_LOOP

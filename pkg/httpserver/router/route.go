@@ -23,6 +23,7 @@ type route struct {
 	description string
 	methods     []string
 	scopes      []string
+	middleware  []string
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -78,6 +79,9 @@ func (route *route) String() string {
 	if scopes := route.Scopes(); len(scopes) > 0 {
 		str += fmt.Sprintf(" scopes=%q", scopes)
 	}
+	if middleware := route.middleware; len(middleware) > 0 {
+		str += fmt.Sprintf(" middleware=%q", middleware)
+	}
 	if desc := route.description; desc != "" {
 		str += fmt.Sprintf(" description=%q", desc)
 	}
@@ -117,6 +121,11 @@ func (route *route) Methods() []string {
 // Return the scopes of the route
 func (route *route) Scopes() []string {
 	return route.scopes
+}
+
+// Return the middleware of the route
+func (route *route) Middleware() []string {
+	return route.middleware
 }
 
 // Return the description for the method

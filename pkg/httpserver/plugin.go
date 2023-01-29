@@ -11,7 +11,6 @@ import (
 
 	// Package imports
 	iface "github.com/mutablelogic/go-server"
-	router "github.com/mutablelogic/go-server/pkg/httpserver/router"
 	task "github.com/mutablelogic/go-server/pkg/task"
 	types "github.com/mutablelogic/go-server/pkg/types"
 	plugin "github.com/mutablelogic/go-server/plugin"
@@ -28,7 +27,6 @@ type Plugin struct {
 	Owner_   types.String   `json:"owner,omitempty"`   // Owner of the socket file (ignored for network sockets)
 	Group_   types.String   `json:"group,omitempty"`   // Owner Group of the socket file (ignored for network sockets)
 	Router_  types.Task     `json:"router,omitempty"`  // The router object which serves the gateways, optional.
-	Routes   []router.Route `json:"routes"`            // Array of routes, required
 }
 
 type TLS struct {
@@ -58,14 +56,8 @@ func (p Plugin) New(ctx context.Context, provider iface.Provider) (iface.Task, e
 		return nil, err
 	}
 
-	// Create the task and return and return any errors
-	router, err := p.Router(ctx, provider)
-	if err != nil {
-		return nil, err
-	}
-
 	// Create the httpserver task
-	return NewWithPlugin(p, router)
+	return NewWithPlugin(p)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -118,19 +110,11 @@ func (p Plugin) TLS() (*tls.Config, error) {
 	}
 }
 
-func (p Plugin) Router(ctx context.Context, provider iface.Provider) (plugin.Router, error) {
-	if p.Router_.Task == nil {
-		plugin := router.WithLabel(p.Label()).WithRoutes(p.Routes).WithPrefix("/api/gateway/v1")
-		if router, err := provider.New(ctx, plugin); err != nil {
-			return nil, err
-		} else {
-			p.Router_.Task = router
-		}
-	}
+func (p Plugin) Router() plugin.Router {
 	if router, ok := p.Router_.Task.(plugin.Router); ok && router != nil {
-		return router, nil
+		return router
 	} else {
-		return nil, nil
+		return nil
 	}
 }
 

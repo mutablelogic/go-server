@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	// Package imports
+	"github.com/hashicorp/go-multierror"
 	ctx "github.com/mutablelogic/go-server/pkg/context"
 	util "github.com/mutablelogic/go-server/pkg/httpserver/util"
 	task "github.com/mutablelogic/go-server/pkg/task"
@@ -25,9 +26,10 @@ type router struct {
 	task.Task
 	sync.RWMutex
 
-	label  string
-	prefix map[string]Gateway
-	routes []*route
+	label      string
+	service    map[string]Gateway
+	routes     []*route
+	middleware map[string]Middleware
 }
 
 type Router interface {
@@ -41,37 +43,54 @@ var _ Router = (*router)(nil)
 // LIFECYCLE
 
 // Create a new router task, and register routes from gateways
-func NewWithPlugin(p Plugin, label string, routes map[string]plugin.Gateway) (*router, error) {
+func NewWithPlugin(p Plugin, label string) (*router, error) {
 	router := new(router)
-	router.prefix = make(map[string]Gateway, len(routes)+1)
+	router.service = make(map[string]Gateway, len(p.Routes)+1)
+	router.middleware = make(map[string]Middleware, len(p.Routes))
 	router.label = label
 
-	// If prefix is defined, then register handlers
-	parent := context.Background()
+	// If prefix is defined, then register handlers for this gateway
+	parent := ctx.WithNameLabel(context.Background(), p.Name(), p.Label())
 	if prefix := p.Prefix(); prefix != "" {
 		prefix = normalizePath(prefix, false)
-		router.prefix[prefix] = Gateway{
+		router.service[prefix] = Gateway{
 			Label:       router.Label(),
 			Description: router.Description(),
+			Middleware:  p.Middleware(),
 		}
 		router.RegisterHandlers(ctx.WithPrefix(parent, prefix), router)
 	}
 
 	// Register additional routes
-	for prefix, gateway := range routes {
-		prefix = normalizePath(prefix, false)
-		if _, exists := router.prefix[prefix]; exists {
-			return nil, ErrDuplicateEntry.Withf("Duplicate prefix %q", prefix)
+	for _, gateway := range p.Routes {
+		prefix := normalizePath(gateway.Prefix, false)
+		if _, exists := router.service[prefix]; exists {
+			return nil, ErrDuplicateEntry.Withf("Duplicate service %q", prefix)
+		} else if gateway_, ok := gateway.Handler.Task.(plugin.Gateway); gateway_ == nil || !ok {
+			return nil, ErrBadParameter.Withf("Service %q is not a gateway", prefix)
+		} else {
+			router.service[prefix] = Gateway{
+				Label:       gateway_.Label(),
+				Description: gateway_.Description(),
+				Middleware:  append(p.Middleware(), gateway.Middleware_...),
+			}
+			gateway_.RegisterHandlers(ctx.WithNameLabel(ctx.WithPrefix(parent, prefix), gateway_.Label(), ""), router)
 		}
-		router.prefix[prefix] = Gateway{
-			Label:       gateway.Label(),
-			Description: gateway.Description(),
-		}
-		gateway.RegisterHandlers(ctx.WithPrefix(parent, prefix), router)
 	}
 
-	// Return success
-	return router, nil
+	// Iterate through routes to add in middleware
+	var result error
+	for _, route := range router.routes {
+		handler, err := router.wrap(route.fn, route.middleware)
+		if err != nil {
+			result = multierror.Append(result, err)
+		} else {
+			route.fn = handler
+		}
+	}
+
+	// Return any errors
+	return router, result
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -87,6 +106,9 @@ func (router *router) String() string {
 	}
 	for _, route := range router.routes {
 		str += fmt.Sprint(" ", route)
+	}
+	for _, middleware := range router.middleware {
+		str += fmt.Sprint(" ", middleware)
 	}
 	return str + ">"
 }
@@ -106,11 +128,11 @@ func (router *router) Description() string {
 
 // Prefixes returns the prefixes recognised by the router
 func (router *router) Prefixes() []string {
-	prefixes := make([]string, 0, len(router.prefix))
+	prefixes := make([]string, 0, len(router.service))
 	router.RLock()
 	defer router.RUnlock()
 
-	for prefix := range router.prefix {
+	for prefix := range router.service {
 		prefixes = append(prefixes, prefix)
 	}
 	sort.Strings(prefixes)
@@ -141,10 +163,17 @@ func (router *router) AddHandler(parent context.Context, path *regexp.Regexp, fn
 // expression can be retrieved from the request context.
 func (router *router) AddHandlerEx(prefix string, path *regexp.Regexp, fn http.HandlerFunc, methods ...string) *route {
 	route := NewRoute(prefix, path, fn, methods...)
+
 	// The priority is either 0 for default routes (where path is nil) or the number of routes, so that
 	// handlers are called in the order they are added
 	if path != nil {
 		route.priority = len(router.routes)
+	}
+
+	// Add the middleware for the router, which is a combination of the middleware for the router
+	// and for the route
+	if gateway, exists := router.service[route.prefix]; exists {
+		route.middleware = append(route.middleware, gateway.Middleware...)
 	}
 
 	// Append the route to the list of routes
