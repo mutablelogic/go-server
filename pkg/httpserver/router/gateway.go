@@ -19,6 +19,7 @@ type Gateway struct {
 	Label       string         `json:"label"`
 	Description string         `json:"description,omitempty"`
 	Routes      []GatewayRoute `json:"routes,omitempty"`
+	Middleware  []string       `json:"middleware,omitempty"`
 }
 
 type GatewayRoute struct {
@@ -26,6 +27,7 @@ type GatewayRoute struct {
 	Description string   `json:"description,omitempty"`
 	Methods     []string `json:"methods,omitempty"`
 	Scopes      []string `json:"scopes,omitempty"`
+	Middleware  []string `json:"middleware,omitempty"`
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -61,13 +63,13 @@ func (gateway *router) RegisterHandlers(parent context.Context, router plugin.Ro
 // HANDLERS
 
 func (router *router) ReqPrefix(w http.ResponseWriter, r *http.Request) {
-	util.ServeJSON(w, router.prefix, http.StatusOK, 2)
+	util.ServeJSON(w, router.service, http.StatusOK, 2)
 }
 
 func (router *router) ReqRoutes(w http.ResponseWriter, r *http.Request) {
 	_, _, params := util.ReqPrefixPathParams(r)
 	prefix := normalizePath(params[0], false)
-	gateway, exists := router.prefix[prefix]
+	gateway, exists := router.service[prefix]
 	if !exists {
 		util.ServeError(w, http.StatusNotFound)
 	}
@@ -83,6 +85,7 @@ func (router *router) ReqRoutes(w http.ResponseWriter, r *http.Request) {
 			Description: route.Description(),
 			Methods:     route.Methods(),
 			Scopes:      route.Scopes(),
+			Middleware:  route.Middleware(),
 		})
 	}
 

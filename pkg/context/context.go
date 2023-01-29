@@ -58,6 +58,11 @@ func WithName(ctx context.Context, name string) context.Context {
 	return context.WithValue(ctx, contextName, name)
 }
 
+// Return a context with the given label
+func WithLabel(ctx context.Context, label string) context.Context {
+	return context.WithValue(ctx, contextLabel, label)
+}
+
 // Return a context with the given name and label
 func WithNameLabel(ctx context.Context, name, label string) context.Context {
 	return context.WithValue(context.WithValue(ctx, contextName, name), contextLabel, label)

@@ -11,6 +11,7 @@ import (
 	// Module imports
 	auth "github.com/mutablelogic/go-accessory/pkg/auth"
 	ctx "github.com/mutablelogic/go-server/pkg/context"
+	"github.com/mutablelogic/go-server/pkg/event"
 	util "github.com/mutablelogic/go-server/pkg/httpserver/util"
 	types "github.com/mutablelogic/go-server/pkg/types"
 	plugin "github.com/mutablelogic/go-server/plugin"
@@ -51,6 +52,13 @@ func (tokenauth *tokenauth) RegisterHandlers(parent context.Context, router plug
 		reRoot, tokenauth.ReqListAll,
 		http.MethodGet,
 	)
+	// GET /:name
+	//   List one tokens. Requires read scope.
+	router.AddHandler(
+		ctx.WithDescription(ctx.WithScope(parent, auth.ScopeRead), "List one token"),
+		reName, tokenauth.ReqListOne,
+		http.MethodGet,
+	)
 	// POST /:name
 	//   Create a new token and return it
 	router.AddHandler(
@@ -72,6 +80,14 @@ func (tokenauth *tokenauth) RegisterHandlers(parent context.Context, router plug
 		reName, tokenauth.ReqPatch,
 		http.MethodPatch,
 	)
+
+	// tokenauth middleware
+	if err := router.AddMiddleware(
+		ctx.WithDescription(ctx.WithPrefix(parent, "tokenauth"), "Authenticate request using token"),
+		tokenauth.TokenAuthMiddleware,
+	); err != nil {
+		tokenauth.Emit(event.Error(parent, err))
+	}
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -103,6 +119,30 @@ func (tokenauth *tokenauth) ReqListAll(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Serve tokens
+	util.ServeJSON(w, result, http.StatusOK, 2)
+}
+
+// Serve one token
+func (tokenauth *tokenauth) ReqListOne(w http.ResponseWriter, r *http.Request) {
+	// Check parameters
+	_, _, params := util.ReqPrefixPathParams(r)
+	if len(params) != 1 {
+		util.ServeError(w, http.StatusInternalServerError)
+		return
+	}
+
+	// List all tokens
+	var result AuthToken
+	if err := tokenauth.List(r.Context(), func(token AuthToken) {
+		if token.Name() == params[0] {
+			result = token
+		}
+	}); err != nil {
+		util.ServeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// Serve token
 	util.ServeJSON(w, result, http.StatusOK, 2)
 }
 

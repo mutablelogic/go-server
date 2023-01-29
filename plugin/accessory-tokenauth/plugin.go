@@ -6,6 +6,7 @@ import (
 	// Packages
 	auth "github.com/mutablelogic/go-accessory/pkg/auth"
 	iface "github.com/mutablelogic/go-server"
+	ctx "github.com/mutablelogic/go-server/pkg/context"
 	task "github.com/mutablelogic/go-server/pkg/task"
 	types "github.com/mutablelogic/go-server/pkg/types"
 	plugin "github.com/mutablelogic/go-server/plugin"
@@ -25,6 +26,8 @@ type Plugin struct {
 const (
 	defaultName  = "accessory-tokenauth"
 	defaultAdmin = "root"
+	authHeader   = "Authorization"
+	authScheme   = "Bearer"
 )
 
 var (
@@ -36,11 +39,11 @@ var (
 // LIFECYCLE
 
 // Create a new connection pool task from plugin configuration
-func (p Plugin) New(ctx context.Context, provider iface.Provider) (iface.Task, error) {
+func (p Plugin) New(parent context.Context, provider iface.Provider) (iface.Task, error) {
 	if err := p.HasNameLabel(); err != nil {
 		return nil, err
 	} else {
-		return NewWithPlugin(p)
+		return NewWithPlugin(p, ctx.NameLabel(parent))
 	}
 }
 

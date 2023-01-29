@@ -31,14 +31,14 @@ type tokenauth struct {
 // LIFECYCLE
 
 // Create a new connection pool task from plugin configuration
-func NewWithPlugin(plugin Plugin) (iface.Task, error) {
+func NewWithPlugin(plugin Plugin, label string) (iface.Task, error) {
 	this := new(tokenauth)
 
 	if pool := plugin.Pool(); pool == nil {
 		return nil, ErrBadParameter.With("pool")
 	} else {
 		this.Auth = auth.New(pool.(Pool))
-		this.label = plugin.Label()
+		this.label = label
 	}
 
 	// Return success

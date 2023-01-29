@@ -1,0 +1,16 @@
+{
+    "name": "httpserver-router",
+    "label": "tokenauth",
+    "prefix": "/api/gateway/v1",
+    "middleware": [ "log" ],
+    "routes": [
+        {
+            "prefix": "/api/tokenauth/v1",
+            "service": "accessory-tokenauth.main",
+            "middleware": [  "tokenauth" ]
+        },{
+            "prefix": "/api/log/v1",
+            "service": "log.stderr"
+        }
+    ]
+}

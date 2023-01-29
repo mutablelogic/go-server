@@ -36,12 +36,12 @@ type httpserver struct {
 // LIFECYCLE
 
 // Create a new logger task with provider of other tasks
-func NewWithPlugin(p Plugin, router plugin.Router) (*httpserver, error) {
+func NewWithPlugin(p Plugin) (*httpserver, error) {
 	this := new(httpserver)
 
-	handler, ok := router.(http.Handler)
-	if !ok {
-		return nil, ErrInternalAppError.Withf("Router %v does not implement http.Handler", router)
+	router := p.Router()
+	if router == nil {
+		return nil, ErrBadParameter.With("router")
 	}
 
 	listen := p.Listen()
@@ -53,7 +53,7 @@ func NewWithPlugin(p Plugin, router plugin.Router) (*httpserver, error) {
 			return nil, err
 		}
 		// Create net server
-		if http, err := netserver(listen, tls, timeout, handler); err != nil {
+		if http, err := netserver(listen, tls, timeout, router.(http.Handler)); err != nil {
 			return nil, err
 		} else {
 			this.http = http
@@ -66,7 +66,7 @@ func NewWithPlugin(p Plugin, router plugin.Router) (*httpserver, error) {
 			return nil, err
 		} else if group, err := p.Group(); err != nil {
 			return nil, err
-		} else if fcgi, err := fcgiserver(abs, owner, group, p.Mode(), handler); err != nil {
+		} else if fcgi, err := fcgiserver(abs, owner, group, p.Mode(), router.(http.Handler)); err != nil {
 			return nil, err
 		} else {
 			this.fcgi = fcgi

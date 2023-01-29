@@ -9,10 +9,6 @@ import (
 	ctx "github.com/mutablelogic/go-server/pkg/context"
 	task "github.com/mutablelogic/go-server/pkg/task"
 	types "github.com/mutablelogic/go-server/pkg/types"
-	plugin "github.com/mutablelogic/go-server/plugin"
-
-	// Namespace imports
-	. "github.com/djthorpe/go-errors"
 )
 
 /////////////////////////////////////////////////////////////////////
@@ -21,21 +17,22 @@ import (
 // Plugin for the router maps prefixes to gateways
 type Plugin struct {
 	task.Plugin
-	Prefix_     types.String `json:"path,omitempty"`       // Path for serving the router schema, optional
+	Prefix_     types.String `json:"prefix,omitempty"`     // Path for serving the router schema, optional
 	Routes      []Route      `json:"routes"`               // Routes to add to the router, optional (but useless without)
-	Middleware_ []types.Task `json:"middleware,omitempty"` // Middleware to add to the router for requests, optional
+	Middleware_ []string     `json:"middleware,omitempty"` // Middleware to add to the router for all routes, optional
 }
 
 type Route struct {
-	Prefix  string     `json:"prefix"`  // Prefix path for the gateway service
-	Handler types.Task `json:"service"` // Service handler
+	Prefix      string     `json:"prefix"`               // Prefix path for the gateway service
+	Handler     types.Task `json:"service"`              // Service handler
+	Middleware_ []string   `json:"middleware,omitempty"` // Middleware to add to the router for this route, optional
 }
 
 /////////////////////////////////////////////////////////////////////
 // GLOBALS
 
 const (
-	defaultName   = "router"
+	defaultName   = "httpserver-router"
 	pathSeparator = string(os.PathSeparator)
 	hostSeparator = "."
 )
@@ -54,23 +51,8 @@ func (p Plugin) New(parent context.Context, provider iface.Provider) (iface.Task
 		return nil, err
 	}
 
-	// Check gateway handlers are of type iface.Gateway
-	gateways := make(map[string]plugin.Gateway, len(p.Routes))
-	for _, gateway := range p.Routes {
-		route := NewRoute(gateway.Prefix, nil, nil).Prefix()
-		if handler := gateway.Handler.Task; handler == nil {
-			return nil, ErrBadParameter.Withf("Handler for %q is nil (ref: %q)", route, gateway.Handler.Ref)
-		} else if handler, ok := gateway.Handler.Task.(plugin.Gateway); !ok {
-			return nil, ErrBadParameter.Withf("Handler for %q is not a gateway", route)
-		} else if _, exists := gateways[route]; exists {
-			return nil, ErrDuplicateEntry.Withf("Duplicate prefix %q", route)
-		} else {
-			gateways[route] = handler
-		}
-	}
-
 	// Return router
-	return NewWithPlugin(p, ctx.NameLabel(parent), gateways)
+	return NewWithPlugin(p, ctx.NameLabel(parent))
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -102,4 +84,8 @@ func (p Plugin) Name() string {
 
 func (p Plugin) Prefix() string {
 	return string(p.Prefix_)
+}
+
+func (p Plugin) Middleware() []string {
+	return p.Middleware_
 }

@@ -2,12 +2,5 @@
     "name": "httpserver",
     "label": "tokenauth",
     "listen": ":9001",
-    "prefix": "/api/gateway/v1",
-    "routes": [
-        {
-            "prefix": "/api/tokenauth/v1",
-            "service": "accessory-tokenauth.main"
-        }
-    ],
-    "middleware": [ "log", "accessory-tokenauth.main" ]
+    "router": "httpserver-router.tokenauth"
 }
