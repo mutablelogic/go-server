@@ -37,7 +37,7 @@ type Client struct {
 	ua       string
 	rate     float32 // number of requests allowed per second
 	strict   bool
-	token    string // token for authentication on requests
+	token    Token // token for authentication on requests
 	ts       time.Time
 }
 
@@ -155,7 +155,7 @@ func (client *Client) Do(in Payload, out any, opts ...RequestOpt) error {
 	}
 
 	// If client token is set, then add to request
-	if client.token != "" {
+	if client.token.Scheme != "" {
 		opts = append([]RequestOpt{OptToken(client.token)}, opts...)
 	}
 

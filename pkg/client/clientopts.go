@@ -83,7 +83,7 @@ func OptRateLimit(value float32) ClientOpt {
 
 // OptReqToken sets a request token for all client requests. This can be
 // overridden by the client for individual requests using OptToken.
-func OptReqToken(value string) ClientOpt {
+func OptReqToken(value Token) ClientOpt {
 	return func(client *Client) error {
 		client.token = value
 		return nil
