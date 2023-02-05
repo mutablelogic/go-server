@@ -1,15 +1,15 @@
 {
     "name": "httpserver-router",
     "label": "tokenauth",
-    "prefix": "/api/gateway/v1",
+    "prefix": "/api/v1/gateway",
     "middleware": [ "log" ],
     "routes": [
         {
-            "prefix": "/api/tokenauth/v1",
+            "prefix": "/api/v1/tokenauth",
             "service": "accessory-tokenauth.main",
             "middleware": [  "tokenauth" ]
         },{
-            "prefix": "/api/log/v1",
+            "prefix": "/api/v1/log",
             "service": "log.stderr"
         }
     ]

@@ -5,7 +5,7 @@ import "github.com/mutablelogic/go-server/pkg/client"
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type routerclient struct {
+type Client struct {
 	c      *client.Client
 	prefix string
 }
@@ -13,11 +13,11 @@ type routerclient struct {
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func NewClient(client *client.Client, prefix string) *routerclient {
+func NewClient(client *client.Client, prefix string) *Client {
 	if client == nil || prefix == "" {
 		return nil
 	}
-	return &routerclient{
+	return &Client{
 		c:      client,
 		prefix: prefix,
 	}
@@ -27,12 +27,12 @@ func NewClient(client *client.Client, prefix string) *routerclient {
 // METHODS
 
 // Return the prefix associated with this client
-func (c *routerclient) Prefix() string {
+func (c *Client) Prefix() string {
 	return c.prefix
 }
 
 // Return the list of services
-func (c *routerclient) Services() ([]Gateway, error) {
+func (c *Client) Services() ([]Gateway, error) {
 	var response []Gateway
 	if err := c.c.Do(nil, &response, client.OptPath(c.Prefix())); err != nil {
 		return nil, err
@@ -42,7 +42,7 @@ func (c *routerclient) Services() ([]Gateway, error) {
 }
 
 // Return routes and middleware for a service
-func (c *routerclient) Routes(prefix string) (Gateway, error) {
+func (c *Client) Routes(prefix string) (Gateway, error) {
 	var response Gateway
 	if err := c.c.Do(nil, &response, client.OptPath(c.Prefix(), prefix)); err != nil {
 		return Gateway{}, err

@@ -1,22 +1,26 @@
 package main
 
 import (
-	"encoding/json"
+	"flag"
 	"fmt"
 	"os"
 
-	"github.com/mutablelogic/go-server/pkg/client"
-	"github.com/mutablelogic/go-server/pkg/httpserver/router"
+	// Packages
+	client "github.com/mutablelogic/go-server/pkg/client"
 )
 
 func main() {
 	flags, err := NewFlags("cli", os.Args[1:])
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		if err != flag.ErrHelp {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		} else {
+			os.Exit(0)
+		}
 	}
 
-	// Add command-line options
+	// Add client options
 	opts := []client.ClientOpt{}
 	if flags.IsDebug() {
 		opts = append(opts, client.OptTrace(os.Stderr, true))
@@ -31,6 +35,9 @@ func main() {
 	if timeout := flags.Timeout(); timeout > 0 {
 		opts = append(opts, client.OptTimeout(timeout))
 	}
+	if flags.IsSkipVerify() {
+		opts = append(opts, client.OptSkipVerify())
+	}
 
 	// Create the client
 	client, err := client.New(opts...)
@@ -39,25 +46,26 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Router client
-	// Add commands for rouuter:
-	//   router - returns a list of services, description
-	//   router <service> - returns a list of methods for a service
-	router := router.NewClient(client, flags.Router())
-	if router == nil {
-		fmt.Fprintln(os.Stderr, "Unable to create router client")
-		os.Exit(1)
-	}
+	// Register commands
+	var cmd []Client
 
-	// Obtain routes
-	routes, err := router.Services()
+	// Router
+	cmd, err = AppendRouter(cmd, client, flags)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
-	} else if data, err := json.MarshalIndent(routes, "", "  "); err != nil {
+	}
+
+	// Nginx
+	cmd, err = AppendNginx(cmd, client, flags)
+	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
-	} else {
-		fmt.Println(string(data))
+	}
+
+	// Run command
+	if err := Run(cmd, flags); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
 	}
 }

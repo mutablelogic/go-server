@@ -13,7 +13,7 @@ func OptPath(value ...string) RequestOpt {
 		// Make a copy
 		url := *r.URL
 		// Clean up and append path
-		url.Path = PathSeparator + filepath.Join(strings.Trim(url.Path, PathSeparator), strings.Join(value, PathSeparator))
+		url.Path = PathSeparator + filepath.Join(strings.Trim(url.Path, PathSeparator), strings.TrimPrefix(strings.Join(value, PathSeparator), PathSeparator))
 		// Set new path
 		r.URL = &url
 		return nil
