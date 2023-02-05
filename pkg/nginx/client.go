@@ -10,7 +10,7 @@ import (
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type nginxclient struct {
+type Client struct {
 	*client.Client
 	Prefix string
 }
@@ -35,18 +35,18 @@ func (r reqpost) Type() string {
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func NewClient(client *client.Client, prefix string) *nginxclient {
+func NewClient(client *client.Client, prefix string) *Client {
 	if client == nil || prefix == "" {
 		return nil
 	}
-	return &nginxclient{client, prefix}
+	return &Client{client, prefix}
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // METHODS
 
 // Return the version and uptime for nginx
-func (c *nginxclient) Health() (HealthResponse, error) {
+func (c *Client) Health() (HealthResponse, error) {
 	var response HealthResponse
 	if err := c.Do(nil, &response, client.OptPath(c.Prefix)); err != nil {
 		return response, err
@@ -56,16 +56,16 @@ func (c *nginxclient) Health() (HealthResponse, error) {
 }
 
 // Test nginx configuration, return error if test was not successful
-func (c *nginxclient) Test() error {
+func (c *Client) Test() error {
 	return c.Do(reqpost{}, nil, client.OptPath(c.Prefix, "test"))
 }
 
 // Reload nginx configuration, return error if not successful
-func (c *nginxclient) Reload() error {
+func (c *Client) Reload() error {
 	return c.Do(reqpost{}, nil, client.OptPath(c.Prefix, "reload"))
 }
 
 // Reopen nginx log files
-func (c *nginxclient) Reopen() error {
+func (c *Client) Reopen() error {
 	return c.Do(reqpost{}, nil, client.OptPath(c.Prefix, "reopen"))
 }
