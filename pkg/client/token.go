@@ -1,7 +1,5 @@
 package client
 
-import "encoding/base64"
-
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
@@ -22,5 +20,5 @@ const (
 
 // Stringify the token value
 func (token Token) String() string {
-	return token.Scheme + " " + base64.RawStdEncoding.EncodeToString([]byte(token.Value))
+	return token.Scheme + " " + token.Value
 }
