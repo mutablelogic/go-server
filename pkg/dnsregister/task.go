@@ -73,9 +73,9 @@ func (t *t) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			// We use 31 seconds as our update time, so that we don't exceed the
+			// We use 45 seconds as our update time, so that we don't exceed the
 			// rate limit for registering addresses
-			ticker.Reset(31 * time.Second)
+			ticker.Reset(45 * time.Second)
 			if t.touch("*") {
 				if changed, err := t.external(); err != nil {
 					t.Emit(event.Error(ctx, err))
