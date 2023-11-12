@@ -2,16 +2,16 @@
     "name": "httpserver",
     "label": "fcgi",
     "listen": "/tmp/httpserver.sock",
-    "prefix": "/api/gateway/v1",
+    "prefix": "/api/v1/gateway",
     "routes": [
         {
-            "prefix": "/api/nginx/v1",
+            "prefix": "/api/v1/nginx",
             "service": "nginx.main"
         },{
-            "prefix": "/api/tokenauth/v1",
+            "prefix": "/api/v1/tokenauth",
             "service": "tokenauth.main"
         },{
-            "prefix": "/api/mdns/v1",
+            "prefix": "/api/v1/mdns",
             "service": "mdns.local"
         },{
             "prefix": "/",

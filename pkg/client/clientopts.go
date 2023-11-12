@@ -1,7 +1,9 @@
 package client
 
 import (
+	"crypto/tls"
 	"io"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
@@ -83,9 +85,17 @@ func OptRateLimit(value float32) ClientOpt {
 
 // OptReqToken sets a request token for all client requests. This can be
 // overridden by the client for individual requests using OptToken.
-func OptReqToken(value string) ClientOpt {
+func OptReqToken(value Token) ClientOpt {
 	return func(client *Client) error {
 		client.token = value
+		return nil
+	}
+}
+
+// OptSkipVerify skips TLS certificate domain verification
+func OptSkipVerify() ClientOpt {
+	return func(client *Client) error {
+		http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 		return nil
 	}
 }
