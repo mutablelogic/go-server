@@ -9,8 +9,9 @@ import (
 	"syscall"
 
 	// Packages
-	"github.com/mutablelogic/go-server/pkg/context"
-	"github.com/mutablelogic/go-server/pkg/provider"
+	hcl "github.com/mutablelogic/go-hcl/pkg/block"
+	context "github.com/mutablelogic/go-server/pkg/context"
+	provider "github.com/mutablelogic/go-server/pkg/provider"
 )
 
 func main() {
@@ -31,11 +32,30 @@ func main() {
 		fmt.Fprintln(os.Stderr, "Missing -plugins argument")
 		os.Exit(-1)
 	}
-
-	if provider, err := provider.NewPluginsForPattern(ctx, flags.Plugins); err != nil {
+	server, err := provider.NewPluginsForPattern(ctx, flags.Plugins)
+	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(-1)
-	} else {
-		fmt.Println(provider)
+	}
+
+	// Create configuration
+	if _, err := server.NewBlock("logger", nil); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(-1)
+	} else if httpserver, err := server.NewBlock("httpserver", hcl.NewLabel("main")); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(-1)
+	} else if simplerouter, err := server.NewBlock("simplerouter", hcl.NewLabel("main")); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(-1)
+	} else if err := server.Set(httpserver, hcl.NewLabel("router"), simplerouter); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(-1)
+	}
+
+	// Run the application
+	if err := server.Run(ctx); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(-1)
 	}
 }

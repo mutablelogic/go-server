@@ -92,12 +92,14 @@ func (self *logger) Print(ctx context.Context, v ...any) {
 	self.Mutex.Lock()
 	defer self.Mutex.Unlock()
 	self.Logger.Print(v...)
+	self.Logger.Println()
 }
 
 func (self *logger) Printf(ctx context.Context, f string, v ...any) {
 	self.Mutex.Lock()
 	defer self.Mutex.Unlock()
 	self.Logger.Printf(f, v...)
+	self.Logger.Println()
 }
 
 ///////////////////////////////////////////////////////////////////////////////

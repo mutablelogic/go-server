@@ -10,6 +10,7 @@ import (
 
 	// Namespace imports
 	. "github.com/djthorpe/go-errors"
+	. "github.com/mutablelogic/go-server"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -19,10 +20,9 @@ import (
 type provider struct {
 	plugin map[string]*Plugin
 	block  map[string]hcl.Block
-}
 
-// Provider
-type Provider interface {
+	// All loggers
+	logger []Logger
 }
 
 // Ensure that provider implements the Provider interface
@@ -140,4 +140,12 @@ func keyForBlock(name string, label hcl.Label) string {
 	} else {
 		return name + string(hcl.RuneLabelSeparator) + label.String()
 	}
+}
+
+func (self *provider) labelForBlock(block hcl.Block) hcl.Label {
+	plugin, exists := self.plugin[block.Name()]
+	if !exists {
+		return nil
+	}
+	return plugin.Meta.GetLabel(block)
 }
