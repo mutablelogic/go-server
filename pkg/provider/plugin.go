@@ -8,7 +8,7 @@ import (
 	"plugin"
 
 	// Packages
-	hcl "github.com/mutablelogic/go-server/pkg/hcl"
+	hcl "github.com/mutablelogic/go-hcl/pkg/block"
 
 	// Namespace imports
 	. "github.com/djthorpe/go-errors"
@@ -21,6 +21,7 @@ import (
 type Plugin struct {
 	Path string
 	Name string
+	Meta *hcl.BlockMeta
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -54,9 +55,15 @@ func LoadPluginsForPattern(pattern string) ([]*Plugin, error) {
 			result = errors.Join(result, err)
 			continue
 		}
+		meta, err := hcl.NewBlockMeta(plugin)
+		if err != nil {
+			result = errors.Join(result, err)
+			continue
+		}
 		plugins = append(plugins, &Plugin{
 			Path: filepath.Clean(path),
 			Name: plugin.Name(),
+			Meta: meta,
 		})
 	}
 
@@ -75,9 +82,9 @@ func (self *Plugin) String() string {
 	if self.Path != "" {
 		str += fmt.Sprintf(" path=%q", self.Path)
 	}
-	/*	if self.Meta != nil && self.Meta.Description != "" {
+	if self.Meta != nil && self.Meta.Description != "" {
 		str += fmt.Sprintf(" description=%q", self.Meta.Description)
-	}*/
+	}
 	return str + ">"
 }
 

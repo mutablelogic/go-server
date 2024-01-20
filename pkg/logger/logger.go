@@ -9,7 +9,7 @@ import (
 	"sync"
 
 	// Packages
-	hcl "github.com/mutablelogic/go-server/pkg/hcl"
+	hcl "github.com/mutablelogic/go-hcl/pkg/block"
 
 	// Namespace imports
 	. "github.com/djthorpe/go-errors"

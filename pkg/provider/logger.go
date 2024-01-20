@@ -4,7 +4,7 @@ import (
 	"context"
 
 	// Packages
-	hcl "github.com/mutablelogic/go-server/pkg/hcl"
+	hcl "github.com/mutablelogic/go-hcl/pkg/block"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
