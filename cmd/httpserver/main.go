@@ -11,9 +11,9 @@ import (
 	"syscall"
 
 	// Packages
-	"github.com/mutablelogic/go-server"
+	server "github.com/mutablelogic/go-server"
 	ctx "github.com/mutablelogic/go-server/pkg/context"
-	"github.com/mutablelogic/go-server/pkg/handler/router"
+	router "github.com/mutablelogic/go-server/pkg/handler/router"
 	static "github.com/mutablelogic/go-server/pkg/handler/static"
 	httpserver "github.com/mutablelogic/go-server/pkg/httpserver"
 )

@@ -44,3 +44,9 @@ type Router interface {
 	// all methods are allowed.
 	AddHandlerRe(ctx context.Context, host string, path *regexp.Regexp, handler http.Handler, methods ...string)
 }
+
+// Middleware represents an interceptor for HTTP requests
+type Middleware interface {
+	// Wrap a handler function
+	Wrap(context.Context, http.HandlerFunc) http.HandlerFunc
+}
