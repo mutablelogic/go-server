@@ -73,15 +73,6 @@ func (c Config) New(context.Context) (server.Task, error) {
 func (router *router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	route, code := router.Match(canonicalHost(r.Host), r.Method, r.URL.Path)
 
-	// Set the path
-	//r.URL.Path = route.Path
-
-	// Create a new context
-	ctx := WithRoute(r.Context(), route)
-
-	// Create a new request
-	r = r.Clone(ctx)
-
 	// TODO: Cache the route if not already cached
 
 	switch code {
@@ -92,6 +83,10 @@ func (router *router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case http.StatusMethodNotAllowed:
 		httpresponse.Error(w, code, "Method not allowed: ", r.Method)
 	case http.StatusOK:
+		// Create a new context
+		ctx := WithRoute(r.Context(), route)
+		r = r.Clone(ctx)
+		r.URL.Path = route.Path
 		route.Handler(w, r)
 	default:
 		httpresponse.Error(w, http.StatusInternalServerError, "Internal error: ", fmt.Sprint(code))
@@ -104,7 +99,11 @@ func (router *router) Run(ctx context.Context) error {
 	return nil
 }
 
-func (router *router) AddHandler(ctx context.Context, hostpath string, handler http.HandlerFunc, methods ...string) {
+func (router *router) AddHandler(ctx context.Context, hostpath string, handler http.Handler, methods ...string) {
+	router.AddHandlerFunc(ctx, hostpath, handler.ServeHTTP, methods...)
+}
+
+func (router *router) AddHandlerFunc(ctx context.Context, hostpath string, handler http.HandlerFunc, methods ...string) {
 	// When hostpath is empty, then it's a default handler for all hosts
 	if hostpath == "" {
 		hostpath = "/"
@@ -126,13 +125,17 @@ func (router *router) AddHandler(ctx context.Context, hostpath string, handler h
 	router.host[key].AddHandler(ctx, canonicalPrefix(ctx), pathSep+parts[1], handler, methods...)
 }
 
-func (router *router) AddHandlerRe(ctx context.Context, host string, path *regexp.Regexp, handler http.HandlerFunc, methods ...string) {
+func (router *router) AddHandlerRe(ctx context.Context, host string, path *regexp.Regexp, handler http.Handler, methods ...string) {
+	router.AddHandlerFuncRe(ctx, host, path, handler.ServeHTTP, methods...)
+}
+
+func (router *router) AddHandlerFuncRe(ctx context.Context, host string, path *regexp.Regexp, handler http.HandlerFunc, methods ...string) {
 	// Create a new request router for the host
 	key := canonicalHost(host)
 	if _, exists := router.host[key]; !exists {
 		router.host[key] = newReqRouter(key)
 	}
-	router.host[key].AddHandlerRe(ctx, canonicalPrefix(ctx), path, handler, methods...)
+	router.host[key].AddHandlerRe(ctx, canonicalPrefix(ctx), path, handler.ServeHTTP, methods...)
 }
 
 // Match handlers for a given method, host and path, Returns the match

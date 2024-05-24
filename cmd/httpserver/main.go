@@ -11,18 +11,30 @@ import (
 	"syscall"
 
 	// Packages
+	"github.com/mutablelogic/go-server"
 	ctx "github.com/mutablelogic/go-server/pkg/context"
+	"github.com/mutablelogic/go-server/pkg/handler/router"
 	static "github.com/mutablelogic/go-server/pkg/handler/static"
 	httpserver "github.com/mutablelogic/go-server/pkg/httpserver"
 )
 
 var (
-	port = flag.Int("port", 0, "Port to listen on")
-	path = flag.String("path", "", "Path to serve")
+	port   = flag.Int("port", 0, "Port to listen on")
+	path   = flag.String("path", "", "File path to serve")
+	prefix = flag.String("prefix", "/", "URL Prefix")
 )
 
 func main() {
 	flag.Parse()
+
+	// Set context
+	ctx := ctx.ContextForSignal(os.Interrupt, syscall.SIGQUIT)
+
+	// Create a router
+	r, err := router.Config{}.New(context.Background())
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	// Create a static file handler
 	filesys, err := filesys()
@@ -34,6 +46,9 @@ func main() {
 		log.Fatal(err)
 	}
 
+	// Add the static handler to the router
+	r.(server.Router).AddHandler(router.WithPrefix(ctx, *prefix), "", static.(http.Handler))
+
 	// Set the listen address
 	listen := ":"
 	if *port != 0 {
@@ -41,14 +56,14 @@ func main() {
 	}
 
 	// Create the http server
-	server, err := httpserver.Config{Listen: listen, Router: static.(http.Handler)}.New(context.Background())
+	server, err := httpserver.Config{Listen: listen, Router: r.(http.Handler)}.New(context.Background())
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	// Run the server until we receive a signal
-	ctx := ctx.ContextForSignal(os.Interrupt, syscall.SIGQUIT)
 	log.Printf("Starting %q server on %q", server.Type(), server.Addr())
+	log.Println("Press CTRL+C to exit")
 	if err := server.Run(ctx); err != nil {
 		log.Fatal(err)
 	}

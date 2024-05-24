@@ -19,7 +19,7 @@ func Test_router_001(t *testing.T) {
 	assert.NoError(err)
 	assert.NotNil(task)
 	router := task.(server.Router)
-	router.AddHandler(context.Background(), "/hello", nil)
+	router.AddHandlerFunc(context.Background(), "/hello", nil)
 }
 
 func Test_router_002(t *testing.T) {
@@ -31,7 +31,7 @@ func Test_router_002(t *testing.T) {
 
 	// Handle only the path /hello
 	path := regexp.MustCompile("^/hello$")
-	router.AddHandlerRe(context.Background(), "mutablelogic.com", path, func(w http.ResponseWriter, r *http.Request) {
+	router.AddHandlerFuncRe(context.Background(), "mutablelogic.com", path, func(w http.ResponseWriter, r *http.Request) {
 		// TODO
 	})
 
@@ -56,7 +56,7 @@ func Test_router_003(t *testing.T) {
 	router := task.(router.Router)
 
 	// Handle all of mutablelogic.com and subdomains
-	router.AddHandler(context.Background(), "mutablelogic.com", func(w http.ResponseWriter, r *http.Request) {
+	router.AddHandlerFunc(context.Background(), "mutablelogic.com", func(w http.ResponseWriter, r *http.Request) {
 		// TODO
 	})
 
@@ -98,7 +98,7 @@ func Test_router_004(t *testing.T) {
 	router := task.(router.Router)
 
 	// Handle all of mutablelogic.com and subdomains with GET
-	router.AddHandler(context.Background(), "mutablelogic.com", func(w http.ResponseWriter, r *http.Request) {
+	router.AddHandlerFunc(context.Background(), "mutablelogic.com", func(w http.ResponseWriter, r *http.Request) {
 		// TODO
 	}, "GET")
 
@@ -125,7 +125,7 @@ func Test_router_005(t *testing.T) {
 	// Set a prefix as /api/v1
 	ctx := router.WithPrefix(context.Background(), "/api/v1")
 	router := task.(router.Router)
-	router.AddHandler(ctx, "mutablelogic.com", func(w http.ResponseWriter, r *http.Request) {
+	router.AddHandlerFunc(ctx, "mutablelogic.com", func(w http.ResponseWriter, r *http.Request) {
 		// TODO
 	})
 
@@ -158,8 +158,8 @@ func Test_router_006(t *testing.T) {
 	// Add two handlers which start with the same path
 	ctx := router.WithPrefix(context.Background(), "/")
 	r := task.(router.Router)
-	r.AddHandler(router.WithKey(ctx, "first"), "/first", func(w http.ResponseWriter, r *http.Request) {})
-	r.AddHandler(router.WithKey(ctx, "second"), "/first/second", func(w http.ResponseWriter, r *http.Request) {})
+	r.AddHandlerFunc(router.WithKey(ctx, "first"), "/first", func(w http.ResponseWriter, r *http.Request) {})
+	r.AddHandlerFunc(router.WithKey(ctx, "second"), "/first/second", func(w http.ResponseWriter, r *http.Request) {})
 
 	t.Run("GET /", func(t *testing.T) {
 		_, code := r.Match("any.com", "GET", "/")
@@ -216,8 +216,8 @@ func Test_router_007(t *testing.T) {
 	// Add two handlers which start with the same path
 	ctx := router.WithPrefix(context.Background(), "/")
 	r := task.(router.Router)
-	r.AddHandlerRe(router.WithKey(ctx, "first"), "", regexp.MustCompile("^/first(.*)$"), func(w http.ResponseWriter, r *http.Request) {})
-	r.AddHandlerRe(router.WithKey(ctx, "second"), "", regexp.MustCompile("second(.*)$"), func(w http.ResponseWriter, r *http.Request) {})
+	r.AddHandlerFuncRe(router.WithKey(ctx, "first"), "", regexp.MustCompile("^/first(.*)$"), func(w http.ResponseWriter, r *http.Request) {})
+	r.AddHandlerFuncRe(router.WithKey(ctx, "second"), "", regexp.MustCompile("second(.*)$"), func(w http.ResponseWriter, r *http.Request) {})
 
 	t.Run("GET /", func(t *testing.T) {
 		_, code := r.Match("any.com", "GET", "/")
@@ -278,7 +278,7 @@ func Test_router_008(t *testing.T) {
 	// Add one handler for all paths
 	ctx := router.WithPrefix(context.Background(), "/api/v2/")
 	r := task.(router.Router)
-	r.AddHandlerRe(ctx, "", regexp.MustCompile("^/(.*)$"), func(w http.ResponseWriter, r *http.Request) {})
+	r.AddHandlerFuncRe(ctx, "", regexp.MustCompile("^/(.*)$"), func(w http.ResponseWriter, r *http.Request) {})
 
 	t.Run("GET /", func(t *testing.T) {
 		_, code := r.Match("any.com", "GET", "/")
@@ -310,7 +310,7 @@ func Test_router_009(t *testing.T) {
 	assert.NoError(err)
 
 	ctx := router.WithPrefix(context.Background(), "/api/v2")
-	handler.(server.Router).AddHandlerRe(ctx, "", regexp.MustCompile("^/(.*)$"), func(w http.ResponseWriter, r *http.Request) {
+	handler.(server.Router).AddHandlerFuncRe(ctx, "", regexp.MustCompile("^/(.*)$"), func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Hello, World!"))
 	})
 

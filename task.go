@@ -24,11 +24,23 @@ type Router interface {
 	// and methods. The context is used to pass additional
 	// parameters to the handler. If no methods are provided, then
 	// all methods are allowed.
-	AddHandler(ctx context.Context, hostpath string, handler http.HandlerFunc, methods ...string)
+	AddHandler(ctx context.Context, hostpath string, handler http.Handler, methods ...string)
+
+	// Add a handler to the router, with the given host, path
+	// and methods. The context is used to pass additional
+	// parameters to the handler. If no methods are provided, then
+	// all methods are allowed.
+	AddHandlerFunc(ctx context.Context, hostpath string, handler http.HandlerFunc, methods ...string)
 
 	// Add a handler to the router, with the given host, regular expression
 	// path and methods.The context is used to pass additional
 	// parameters to the handler. If no methods are provided, then
 	// all methods are allowed.
-	AddHandlerRe(ctx context.Context, host string, path *regexp.Regexp, handler http.HandlerFunc, methods ...string)
+	AddHandlerFuncRe(ctx context.Context, host string, path *regexp.Regexp, handler http.HandlerFunc, methods ...string)
+
+	// Add a handler to the router, with the given host, regular expression
+	// path and methods.The context is used to pass additional
+	// parameters to the handler. If no methods are provided, then
+	// all methods are allowed.
+	AddHandlerRe(ctx context.Context, host string, path *regexp.Regexp, handler http.Handler, methods ...string)
 }
