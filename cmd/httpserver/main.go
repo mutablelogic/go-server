@@ -16,6 +16,7 @@ import (
 	router "github.com/mutablelogic/go-server/pkg/handler/router"
 	static "github.com/mutablelogic/go-server/pkg/handler/static"
 	httpserver "github.com/mutablelogic/go-server/pkg/httpserver"
+	logger "github.com/mutablelogic/go-server/pkg/middleware/logger"
 )
 
 var (
@@ -45,6 +46,13 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	// Create a logger, set as middleware
+	logger, err := logger.Config{Flags: []string{"std"}}.New(context.Background())
+	if err != nil {
+		log.Fatal(err)
+	}
+	ctx = router.WithMiddleware(ctx, logger.(server.Middleware))
 
 	// Add the static handler to the router
 	r.(server.Router).AddHandler(router.WithPrefix(ctx, *prefix), "", static.(http.Handler))

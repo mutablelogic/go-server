@@ -1,19 +1,27 @@
 package router
 
-import "context"
+import (
+	"context"
+	"time"
+
+	"github.com/mutablelogic/go-server"
+)
 
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type RouterContextKey string
+type RouterContextKey int
 
 ////////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 
-var (
-	contextKey    RouterContextKey = "key"
-	contextPrefix RouterContextKey = "prefix"
-	contextParams RouterContextKey = "params"
+const (
+	_ RouterContextKey = iota
+	contextKey
+	contextPrefix
+	contextParams
+	contextMiddleware
+	contextTime
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -27,6 +35,11 @@ func WithPrefix(ctx context.Context, prefix string) context.Context {
 // WithKey returns a context with the given key value
 func WithKey(ctx context.Context, key string) context.Context {
 	return context.WithValue(ctx, contextKey, key)
+}
+
+// WithTime returns a context with the given time
+func WithTime(ctx context.Context, t time.Time) context.Context {
+	return context.WithValue(ctx, contextTime, t)
 }
 
 // WithRoute returns a context with various route parameters
@@ -44,6 +57,14 @@ func WithRoute(ctx context.Context, route *Route) context.Context {
 		ctx = context.WithValue(ctx, contextParams, route.Parameters)
 	}
 	return ctx
+}
+
+// WithMiddleware returns a context with the given middleware
+func WithMiddleware(ctx context.Context, middleware ...server.Middleware) context.Context {
+	if len(middleware) == 0 {
+		return ctx
+	}
+	return context.WithValue(ctx, contextMiddleware, append(Middleware(ctx), middleware...))
 }
 
 // Prefix returns the prefix from the context, or zero value if not defined
@@ -70,5 +91,23 @@ func Params(ctx context.Context) []string {
 		return value
 	} else {
 		return nil
+	}
+}
+
+// Middleware returns a set of middleware from the context, or zero value if not defined
+func Middleware(ctx context.Context) []server.Middleware {
+	if value, ok := ctx.Value(contextMiddleware).([]server.Middleware); ok {
+		return value
+	} else {
+		return nil
+	}
+}
+
+// Time returns the stored time value or the zero value if not defined
+func Time(ctx context.Context) time.Time {
+	if value, ok := ctx.Value(contextTime).(time.Time); ok {
+		return value
+	} else {
+		return time.Time{}
 	}
 }

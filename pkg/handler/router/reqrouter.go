@@ -99,6 +99,12 @@ func (router *reqrouter) AddHandlerRe(ctx context.Context, prefix string, path *
 }
 
 func (router *reqs) AddHandler(ctx context.Context, path string, handler http.HandlerFunc, methods ...string) {
+	// Add any middleware to the handler
+	for _, middleware := range Middleware(ctx) {
+		handler = middleware.Wrap(ctx, handler)
+	}
+
+	// Add the handler to the list
 	router.handlers = append(router.handlers, &reqhandler{
 		Key:     Key(ctx),
 		Host:    router.host,
@@ -110,6 +116,12 @@ func (router *reqs) AddHandler(ctx context.Context, path string, handler http.Ha
 }
 
 func (router *reqs) AddHandlerRe(ctx context.Context, path *regexp.Regexp, handler http.HandlerFunc, methods ...string) {
+	// Add any middleware to the handler
+	for _, middleware := range Middleware(ctx) {
+		handler = middleware.Wrap(ctx, handler)
+	}
+
+	// Add the handler to the list
 	router.handlers = append(router.handlers, &reqhandler{
 		Key:     Key(ctx),
 		Host:    router.host,

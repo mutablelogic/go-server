@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	// Packages
 	server "github.com/mutablelogic/go-server"
@@ -71,6 +72,7 @@ func (c Config) New(context.Context) (server.Task, error) {
 
 // Implement the http.Handler interface to route requests
 func (router *router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	ctx := WithTime(r.Context(), time.Now())
 	route, code := router.Match(canonicalHost(r.Host), r.Method, r.URL.Path)
 
 	// TODO: Cache the route if not already cached
@@ -83,9 +85,7 @@ func (router *router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case http.StatusMethodNotAllowed:
 		httpresponse.Error(w, code, "Method not allowed: ", r.Method)
 	case http.StatusOK:
-		// Create a new context
-		ctx := WithRoute(r.Context(), route)
-		r = r.Clone(ctx)
+		r = r.Clone(WithRoute(ctx, route))
 		r.URL.Path = route.Path
 		route.Handler(w, r)
 	default:
