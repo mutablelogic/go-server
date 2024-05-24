@@ -20,9 +20,8 @@ type Logger interface {
 
 // Provider
 type Provider interface {
-	hcl.Resource
 	Logger
 
-	// Set an attribute on a block
-	Set(hcl.Block, hcl.Label, any) error
+	// Set an attribute - or bind a resource
+	Set(block hcl.Block, label hcl.Label, value any) error
 }
