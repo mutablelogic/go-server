@@ -192,16 +192,22 @@ func serveDir(w http.ResponseWriter, filesystem fs.FS, path string) error {
 		return err
 	}
 
+	// Modify the path
+	if path == "." {
+		path = "/"
+	}
+
+	// Write header
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("<html><head><title>Index of " + path + "</title></head><body><h1>Index of " + path + "</h1><ul>"))
 
 	// Add parent directory
-	if path != "." {
+	if path != "/" {
 		w.Write([]byte("<li><a href=\"../\">../</a></li>"))
 	}
 
-	// Add child directories
+	// Add child directories, ignoring any hidden files and directories
 	for _, entry := range entries {
 		name := entry.Name()
 		if strings.HasPrefix(name, ".") {
@@ -213,6 +219,7 @@ func serveDir(w http.ResponseWriter, filesystem fs.FS, path string) error {
 		w.Write([]byte("<li><a href=\"" + html.EscapeString(name) + "\">" + html.EscapeString(name) + "</a></li>"))
 	}
 
+	// Write footer
 	w.Write([]byte("</ul></body></html>"))
 
 	// Return success
