@@ -24,16 +24,11 @@ type Router interface {
 	// and methods. The context is used to pass additional
 	// parameters to the handler. If no methods are provided, then
 	// all methods are allowed.
-	AddHandler(ctx context.Context, hostpath string, handler http.HandlerFunc, methods ...string) error
+	AddHandler(ctx context.Context, hostpath string, handler http.HandlerFunc, methods ...string)
 
 	// Add a handler to the router, with the given host, regular expression
 	// path and methods.The context is used to pass additional
 	// parameters to the handler. If no methods are provided, then
 	// all methods are allowed.
-	AddHandlerRe(ctx context.Context, host string, path *regexp.Regexp, handler http.HandlerFunc, methods ...string) error
-
-	// Match a host, method and path to a handler. Returns the appropriate
-	// http status code, which will be 200 on success, 404 or 405 and
-	// path parameters extracted from the path.
-	Match(host, method, path string) (http.HandlerFunc, []string, int)
+	AddHandlerRe(ctx context.Context, host string, path *regexp.Regexp, handler http.HandlerFunc, methods ...string)
 }

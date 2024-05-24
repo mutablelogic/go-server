@@ -12,7 +12,7 @@ import (
 // ErrorResponse is a generic error response which is served as JSON using the
 // ServeError method
 type ErrorResponse struct {
-	Code   uint   `json:"code"`
+	Code   int    `json:"code"`
 	Reason string `json:"reason,omitempty"`
 }
 
@@ -30,12 +30,12 @@ const (
 // PUBLIC METHODS
 
 // JSON is a utility function to serve an arbitary object as JSON
-func JSON(w http.ResponseWriter, v interface{}, code, indent uint) error {
+func JSON(w http.ResponseWriter, v interface{}, code int, indent uint) error {
 	if w == nil {
 		return nil
 	}
 	w.Header().Add(ContentTypeKey, ContentTypeJSON)
-	w.WriteHeader(int(code))
+	w.WriteHeader(code)
 	enc := json.NewEncoder(w)
 	if indent > 0 {
 		enc.SetIndent("", strings.Repeat(" ", int(indent)))
@@ -44,26 +44,26 @@ func JSON(w http.ResponseWriter, v interface{}, code, indent uint) error {
 }
 
 // Text is a utility function to serve plaintext
-func Text(w http.ResponseWriter, v string, code uint) {
+func Text(w http.ResponseWriter, v string, code int) {
 	if w == nil {
 		return
 	}
 	w.Header().Add(ContentTypeKey, ContentTypeText)
-	w.WriteHeader(int(code))
+	w.WriteHeader(code)
 	w.Write([]byte(v + "\n"))
 }
 
 // Empty is a utility function to serve an empty response
-func Empty(w http.ResponseWriter, code uint) {
+func Empty(w http.ResponseWriter, code int) {
 	if w == nil {
 		return
 	}
 	w.Header().Add(ContentLengthKey, "0")
-	w.WriteHeader(int(code))
+	w.WriteHeader(code)
 }
 
 // Error is a utility function to serve a JSON error notice
-func Error(w http.ResponseWriter, code uint, reason ...string) error {
+func Error(w http.ResponseWriter, code int, reason ...string) error {
 	if w == nil {
 		return nil
 	}
