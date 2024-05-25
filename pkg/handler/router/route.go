@@ -21,8 +21,8 @@ type Router interface {
 
 // Route is a matched route handler, with associated host, prefix and path
 type Route struct {
-	// Key
-	Key string `json:"key,omitempty"`
+	// Label
+	Label string `json:"label,omitempty"`
 
 	// Matched handler
 	Handler http.HandlerFunc `json:"-"`

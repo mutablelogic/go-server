@@ -48,7 +48,7 @@ func (c Config) Description() string {
 	return "logs messages to stdout"
 }
 
-func (c Config) New(context.Context) (server.Task, error) {
+func (c Config) New() (server.Task, error) {
 	self := new(logger)
 
 	if flags, err := flagsForSlice(c.Flags); err != nil {

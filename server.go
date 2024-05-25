@@ -8,9 +8,14 @@ import (
 
 // Plugin represents a plugin that can create a task
 type Plugin interface {
+	// Return the unique name for the plugin
 	Name() string
+
+	// Return a description of the plugin
 	Description() string
-	New(context.Context) (Task, error)
+
+	// Create a task from a plugin
+	New() (Task, error)
 }
 
 // Task represents a task that can be run
@@ -26,32 +31,29 @@ type Task interface {
 type Router interface {
 	Task
 
-	// Add a set of endpoints to the router with a prefix and middleware
-	AddServiceEndpoints(context.Context, ServiceEndpoints, string, ...Middleware)
-
-	// Add a handler to the router, with the given host, path
+	// Add a handler to the router, with the given path
 	// and methods. The context is used to pass additional
 	// parameters to the handler. If no methods are provided, then
 	// all methods are allowed.
-	AddHandler(ctx context.Context, hostpath string, handler http.Handler, methods ...string)
+	AddHandler(context.Context, string, http.Handler, ...string)
 
-	// Add a handler to the router, with the given host, path
+	// Add a handler function to the router, with the given path
 	// and methods. The context is used to pass additional
 	// parameters to the handler. If no methods are provided, then
 	// all methods are allowed.
-	AddHandlerFunc(ctx context.Context, hostpath string, handler http.HandlerFunc, methods ...string)
+	AddHandlerFunc(context.Context, string, http.HandlerFunc, ...string)
 
-	// Add a handler to the router, with the given host, regular expression
-	// path and methods.The context is used to pass additional
+	// Add a handler to the router, with the given regular expression
+	// path and methods. The context is used to pass additional
 	// parameters to the handler. If no methods are provided, then
 	// all methods are allowed.
-	AddHandlerFuncRe(ctx context.Context, host string, path *regexp.Regexp, handler http.HandlerFunc, methods ...string)
+	AddHandlerRe(context.Context, *regexp.Regexp, http.Handler, ...string)
 
-	// Add a handler to the router, with the given host, regular expression
-	// path and methods.The context is used to pass additional
+	// Add a handler function to the router, with the given regular expression
+	// path and methods. The context is used to pass additional
 	// parameters to the handler. If no methods are provided, then
 	// all methods are allowed.
-	AddHandlerRe(ctx context.Context, host string, path *regexp.Regexp, handler http.Handler, methods ...string)
+	AddHandlerFuncRe(context.Context, *regexp.Regexp, http.HandlerFunc, ...string)
 }
 
 // Middleware represents an interceptor for HTTP requests

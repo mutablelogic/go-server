@@ -2,6 +2,8 @@ package logger
 
 import (
 	"context"
+	"fmt"
+	"net"
 	"net/http"
 	"time"
 
@@ -9,20 +11,44 @@ import (
 	"github.com/mutablelogic/go-server/pkg/handler/router"
 )
 
+///////////////////////////////////////////////////////////////////////////////
+// GLOBALS
+
+var (
+	remoteAddrHeaders = []string{"X-Real-Ip", "X-Forwarded-For"}
+)
+
+///////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS - MIDDLEWARE
+
 func (l *logger) Wrap(ctx context.Context, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		nw := NewResponseWriter(w)
-
-		// Call the next handler
 		next(nw, r)
 
 		// Print the response
-		l.Printf(r.Context(), "%v %v -> [%v] %q", r.Method, r.URL, nw.Status(), http.StatusText(nw.Status()))
+		result := fmt.Sprintf("%v %v %v -> [%v]", remoteAddr(r), r.Method, r.URL, nw.Status())
 		if sz := nw.Size(); sz > 0 {
-			l.Printf(r.Context(), "  %v bytes written", sz)
+			result += fmt.Sprintf(" %v bytes written", sz)
 		}
 		if t := router.Time(r.Context()); !t.IsZero() {
-			l.Printf(r.Context(), "  duration=%vms", time.Since(t).Milliseconds())
+			result += fmt.Sprint(" in ", time.Since(t).Truncate(time.Microsecond))
+		}
+		l.Printf(r.Context(), result)
+	}
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+func remoteAddr(r *http.Request) string {
+	for _, header := range remoteAddrHeaders {
+		if addr := r.Header.Get(header); addr != "" {
+			return addr
 		}
 	}
+	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		return host
+	}
+	return r.RemoteAddr
 }

@@ -23,39 +23,44 @@ var (
 	port   = flag.Int("port", 0, "Port to listen on")
 	path   = flag.String("path", "", "File path to serve")
 	prefix = flag.String("prefix", "/", "URL Prefix")
-	host   = flag.String("host", "", "Host to serve files on")
 )
 
 func main() {
 	flag.Parse()
 
-	// Create context
+	// Create context which cancels on interrupt
 	ctx := ctx.ContextForSignal(os.Interrupt, syscall.SIGQUIT)
 
-	// Create a router
-	r, err := router.Config{}.New(ctx)
+	// Logger
+	logger, err := logger.Config{Flags: []string{"default", "prefix"}}.New()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// Create a static file handler
+	// Static file handler
 	filesys, err := filesys()
 	if err != nil {
 		log.Fatal(err)
 	}
-	static, err := static.Config{FS: filesys, Dir: true, Host: *host}.New(ctx)
+	static, err := static.Config{FS: filesys, Dir: true}.New()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// Create a logger as middleware
-	logger, err := logger.Config{Flags: []string{"default", "prefix"}}.New(ctx)
+	// Router
+	router, err := router.Config{
+		Services: router.ServiceConfig{
+			*prefix: {
+				Service: static.(server.ServiceEndpoints),
+				Middleware: []server.Middleware{
+					logger.(server.Middleware),
+				},
+			},
+		},
+	}.New()
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	// Add endpoints to the router
-	r.(server.Router).AddServiceEndpoints(ctx, static.(server.ServiceEndpoints), *prefix, logger.(server.Middleware))
 
 	// Set the listen address
 	listen := ":"
@@ -63,14 +68,14 @@ func main() {
 		listen = fmt.Sprintf(":%d", *port)
 	}
 
-	// Create the http server
-	server, err := httpserver.Config{Listen: listen, Router: r.(http.Handler)}.New(ctx)
+	// HTTP Server
+	httpserver, err := httpserver.Config{Listen: listen, Router: router.(http.Handler)}.New()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// Run the server until we receive a signal
-	provider := provider.NewProvider(logger, static, r, server)
+	// Run until we receive an interrupt
+	provider := provider.NewProvider(logger, static, router, httpserver)
 	provider.Print(ctx, "Press CTRL+C to exit")
 	if err := provider.Run(ctx); err != nil {
 		log.Fatal(err)

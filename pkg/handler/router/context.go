@@ -4,7 +4,9 @@ import (
 	"context"
 	"time"
 
+	// Packages
 	"github.com/mutablelogic/go-server"
+	"github.com/mutablelogic/go-server/pkg/provider"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -17,7 +19,7 @@ type RouterContextKey int
 
 const (
 	_ RouterContextKey = iota
-	contextKey
+	contextHost
 	contextPrefix
 	contextParams
 	contextMiddleware
@@ -27,14 +29,19 @@ const (
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
+// WithHost returns a context with the given host
+func WithHost(ctx context.Context, host string) context.Context {
+	return context.WithValue(ctx, contextHost, host)
+}
+
 // WithPrefix returns a context with the given prefix
 func WithPrefix(ctx context.Context, prefix string) context.Context {
 	return context.WithValue(ctx, contextPrefix, prefix)
 }
 
-// WithKey returns a context with the given key value
-func WithKey(ctx context.Context, key string) context.Context {
-	return context.WithValue(ctx, contextKey, key)
+// WithHostPrefix returns a context with the given host and prefix
+func WithHostPrefix(ctx context.Context, host, prefix string) context.Context {
+	return WithHost(WithPrefix(ctx, prefix), host)
 }
 
 // WithTime returns a context with the given time
@@ -47,11 +54,14 @@ func WithRoute(ctx context.Context, route *Route) context.Context {
 	if route == nil {
 		return ctx
 	}
+	if route.Label != "" {
+		ctx = provider.WithLabel(ctx, route.Label)
+	}
+	if route.Host != "" {
+		ctx = WithHost(ctx, route.Host)
+	}
 	if route.Prefix != "" {
 		ctx = WithPrefix(ctx, route.Prefix)
-	}
-	if route.Key != "" {
-		ctx = WithKey(ctx, route.Key)
 	}
 	if len(route.Parameters) > 0 {
 		ctx = context.WithValue(ctx, contextParams, route.Parameters)
@@ -67,22 +77,14 @@ func WithMiddleware(ctx context.Context, middleware ...server.Middleware) contex
 	return context.WithValue(ctx, contextMiddleware, append(Middleware(ctx), middleware...))
 }
 
-// Prefix returns the prefix from the context, or zero value if not defined
-func Prefix(ctx context.Context) string {
-	if value, ok := ctx.Value(contextPrefix).(string); ok {
-		return value
-	} else {
-		return ""
-	}
+// Host returns the host from the context, or zero value if not defined
+func Host(ctx context.Context) string {
+	return str(ctx, contextHost)
 }
 
-// Key returns the key from the context, or zero value if not defined
-func Key(ctx context.Context) string {
-	if value, ok := ctx.Value(contextKey).(string); ok {
-		return value
-	} else {
-		return ""
-	}
+// Prefix returns the prefix from the context, or zero value if not defined
+func Prefix(ctx context.Context) string {
+	return str(ctx, contextPrefix)
 }
 
 // Params returns the path parameters from the context, or zero value if not defined
@@ -110,4 +112,14 @@ func Time(ctx context.Context) time.Time {
 	} else {
 		return time.Time{}
 	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+func str(ctx context.Context, key RouterContextKey) string {
+	if value, ok := ctx.Value(key).(string); ok {
+		return value
+	}
+	return ""
 }

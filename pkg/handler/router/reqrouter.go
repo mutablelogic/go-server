@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+
+	"github.com/mutablelogic/go-server/pkg/provider"
 	// Packages
 )
 
@@ -31,7 +33,7 @@ type reqs struct {
 
 // Represents a handler for a request
 type reqhandler struct {
-	Key     string           `json:"key,omitempty"`
+	Label   string           `json:"label,omitempty"`
 	Host    string           `json:"host,omitempty"`
 	Prefix  string           `json:"prefix,omitempty"`
 	Path    string           `json:"path,omitempty"`
@@ -106,7 +108,7 @@ func (router *reqs) AddHandler(ctx context.Context, path string, handler http.Ha
 
 	// Add the handler to the list
 	router.handlers = append(router.handlers, &reqhandler{
-		Key:     Key(ctx),
+		Label:   provider.Label(ctx),
 		Host:    router.host,
 		Prefix:  router.prefix,
 		Path:    path,
@@ -123,7 +125,7 @@ func (router *reqs) AddHandlerRe(ctx context.Context, path *regexp.Regexp, handl
 
 	// Add the handler to the list
 	router.handlers = append(router.handlers, &reqhandler{
-		Key:     Key(ctx),
+		Label:   provider.Label(ctx),
 		Host:    router.host,
 		Prefix:  router.prefix,
 		Re:      path,

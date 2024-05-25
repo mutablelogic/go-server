@@ -19,6 +19,12 @@ import (
 // TYPES
 
 type Config struct {
+	Services ServiceConfig `hcl:"services"`
+}
+
+type ServiceConfig map[string]struct {
+	Service    server.ServiceEndpoints `hcl:"service"`
+	Middleware []server.Middleware     `hcl:"middleware"`
 }
 
 type router struct {
@@ -60,9 +66,18 @@ func (Config) Description() string {
 }
 
 // Create a new router from the configuration
-func (c Config) New(context.Context) (server.Task, error) {
+func (c Config) New() (server.Task, error) {
 	r := new(router)
 	r.host = make(map[string]*reqrouter, defaultCap)
+
+	// Add services
+	for key, service := range c.Services {
+		parts := strings.SplitN(key, pathSep, 2)
+		if len(parts) == 1 {
+			parts = append(parts, "/")
+		}
+		r.addServiceEndpoints(parts[0], parts[1], service.Service, service.Middleware...)
+	}
 
 	// Return success
 	return r, nil
@@ -106,56 +121,30 @@ func (router *router) Run(ctx context.Context) error {
 	return nil
 }
 
-// Add a set of endpoints to the router with a prefix and middleware
-func (router *router) AddServiceEndpoints(ctx context.Context, service server.ServiceEndpoints, prefix string, middleware ...server.Middleware) {
-	// Modify the context
-	if prefix != "" {
-		ctx = WithPrefix(ctx, prefix)
-	}
-	if len(middleware) > 0 {
-		ctx = WithMiddleware(ctx, middleware...)
-	}
-	if label := service.Label(); label != "" {
-		ctx = provider.WithLabel(ctx, label)
-	}
-
-	// Call the service to add the endpoints
-	service.AddEndpoints(ctx, router)
+func (router *router) AddHandler(ctx context.Context, path string, handler http.Handler, methods ...string) {
+	router.AddHandlerFunc(ctx, path, handler.ServeHTTP, methods...)
 }
 
-func (router *router) AddHandler(ctx context.Context, hostpath string, handler http.Handler, methods ...string) {
-	router.AddHandlerFunc(ctx, hostpath, handler.ServeHTTP, methods...)
-}
-
-func (router *router) AddHandlerFunc(ctx context.Context, hostpath string, handler http.HandlerFunc, methods ...string) {
-	// When hostpath is empty, then it's a default handler for all hosts
-	if hostpath == "" {
-		hostpath = "/"
+func (router *router) AddHandlerFunc(ctx context.Context, path string, handler http.HandlerFunc, methods ...string) {
+	// Fix the path
+	if !strings.HasPrefix(path, pathSep) {
+		path = pathSep + path
 	}
-
-	// Split into host and path
-	parts := strings.SplitN(hostpath, pathSep, 2)
-	if len(parts) == 1 {
-		parts = append(parts, "")
-	}
-
 	// Create a new request router for the host
-	key := canonicalHost(parts[0])
+	key := canonicalHost(Host(ctx))
 	if _, exists := router.host[key]; !exists {
 		router.host[key] = newReqRouter(key)
 	}
-
-	// Add the handler
-	router.host[key].AddHandler(ctx, canonicalPrefix(ctx), pathSep+parts[1], handler, methods...)
+	router.host[key].AddHandler(ctx, canonicalPrefix(ctx), path, handler, methods...)
 }
 
-func (router *router) AddHandlerRe(ctx context.Context, host string, path *regexp.Regexp, handler http.Handler, methods ...string) {
-	router.AddHandlerFuncRe(ctx, host, path, handler.ServeHTTP, methods...)
+func (router *router) AddHandlerRe(ctx context.Context, path *regexp.Regexp, handler http.Handler, methods ...string) {
+	router.AddHandlerFuncRe(ctx, path, handler.ServeHTTP, methods...)
 }
 
-func (router *router) AddHandlerFuncRe(ctx context.Context, host string, path *regexp.Regexp, handler http.HandlerFunc, methods ...string) {
+func (router *router) AddHandlerFuncRe(ctx context.Context, path *regexp.Regexp, handler http.HandlerFunc, methods ...string) {
 	// Create a new request router for the host
-	key := canonicalHost(host)
+	key := canonicalHost(Host(ctx))
 	if _, exists := router.host[key]; !exists {
 		router.host[key] = newReqRouter(key)
 	}
@@ -205,7 +194,7 @@ func (router *router) Match(host, method, path string) (*Route, int) {
 		}
 		// Return the route
 		return &Route{
-			Key:        r.Key,
+			Label:      r.Label,
 			Host:       r.Host,
 			Prefix:     r.Prefix,
 			Path:       path,
@@ -220,6 +209,21 @@ func (router *router) Match(host, method, path string) (*Route, int) {
 
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
+
+// Add a set of endpoints to the router with a prefix and middleware
+func (router *router) addServiceEndpoints(host, prefix string, service server.ServiceEndpoints, middleware ...server.Middleware) {
+	// Set the context
+	ctx := WithHostPrefix(context.Background(), canonicalHost(host), prefix)
+	if len(middleware) > 0 {
+		ctx = WithMiddleware(ctx, middleware...)
+	}
+	if label := service.Label(); label != "" {
+		ctx = provider.WithLabel(ctx, label)
+	}
+
+	// Call the service to add the endpoints
+	service.AddEndpoints(ctx, router)
+}
 
 // Return prefix from context, always starts with a '/'
 // and never ends with a '/'

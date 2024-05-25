@@ -59,7 +59,7 @@ func (Config) Description() string {
 }
 
 // Create a new static handler from the configuration
-func (c Config) New(context.Context) (server.Task, error) {
+func (c Config) New() (server.Task, error) {
 	s := new(static)
 	s.fs = c.FS
 	s.dir = c.Dir

@@ -1,7 +1,6 @@
 package httpserver_test
 
 import (
-	"context"
 	"testing"
 
 	// Packages
@@ -19,7 +18,7 @@ func Test_httpserver_001(t *testing.T) {
 func Test_httpserver_002(t *testing.T) {
 	assert := assert.New(t)
 	config := httpserver.Config{}
-	server, err := config.New(context.Background())
+	server, err := config.New()
 	assert.NoError(err)
 	assert.NotNil(server)
 	t.Log(server)

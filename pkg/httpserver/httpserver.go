@@ -92,7 +92,7 @@ func (Config) Description() string {
 }
 
 // Create a new http server from the configuration
-func (c Config) New(context.Context) (server.Task, error) {
+func (c Config) New() (server.Task, error) {
 	self := new(httpserver)
 
 	// Create a default router if not provided
