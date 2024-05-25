@@ -32,7 +32,8 @@ type state struct {
 	Label   string
 }
 
-var _ server.Task = (*provider)(nil)
+// Ensure that provider implements the server.Provider interface
+var _ server.Provider = (*provider)(nil)
 
 ////////////////////////////////////////////////////////////////////////////
 // GLOBALS
@@ -74,6 +75,9 @@ func (p *provider) Run(ctx context.Context) error {
 	for i := range p.tasks {
 		// Create a context for each task
 		ctx, cancel := context.WithCancel(WithLabel(context.Background(), p.tasks[i].Label))
+		ctx = WithLogger(ctx, p)
+
+		// Set the context and cancel function
 		p.tasks[i].Context = ctx
 		p.tasks[i].Cancel = cancel
 		p.tasks[i].Add(1)

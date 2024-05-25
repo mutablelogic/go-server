@@ -19,6 +19,7 @@ import (
 	// Packages
 	"github.com/mutablelogic/go-server"
 	fcgi "github.com/mutablelogic/go-server/pkg/httpserver/fcgi"
+	"github.com/mutablelogic/go-server/pkg/provider"
 
 	// Namespace imports
 	. "github.com/djthorpe/go-errors"
@@ -194,6 +195,9 @@ func (self *httpserver) Run(ctx context.Context) error {
 			result = errors.Join(result, err)
 		}
 	}()
+
+	// Log the server is running
+	provider.Logger(ctx).Printf(ctx, "Starting %v server on %q", self.Type(), self.Addr())
 
 	// Run server in foreground, cancel when done
 	if err := self.runInForeground(); err != nil && !errors.Is(err, http.ErrServerClosed) {

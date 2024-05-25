@@ -2,6 +2,8 @@ package provider
 
 import (
 	"context"
+
+	"github.com/mutablelogic/go-server"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -15,6 +17,7 @@ type ProviderContextKey int
 const (
 	_ ProviderContextKey = iota
 	contextLabel
+	contextLogger
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,5 +34,19 @@ func Label(ctx context.Context) string {
 		return value
 	} else {
 		return ""
+	}
+}
+
+// WithLogger returns a context with the given logger
+func WithLogger(ctx context.Context, logger server.Logger) context.Context {
+	return context.WithValue(ctx, contextLogger, logger)
+}
+
+// Logger returns the logger from the context, or nil if not defined
+func Logger(ctx context.Context) server.Logger {
+	if value, ok := ctx.Value(contextLogger).(server.Logger); ok {
+		return value
+	} else {
+		return nil
 	}
 }

@@ -72,7 +72,6 @@ func main() {
 
 	// Run the server until we receive a signal
 	provider := provider.NewProvider(logger, static, r, server)
-	provider.Printf(ctx, "Starting %q server on %q", server.(httpserver.Server).Type(), server.(httpserver.Server).Addr())
 	provider.Print(ctx, "Press CTRL+C to exit")
 	if err := provider.Run(ctx); err != nil {
 		log.Fatal(err)
