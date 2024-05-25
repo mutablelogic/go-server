@@ -20,19 +20,22 @@ import (
 // TYPES
 
 type Config struct {
-	FS  fs.FS `hcl:"fs" description:"File system to serve"`
-	Dir bool  `hcl:"dir" description:"Serve directory listings"`
+	FS   fs.FS  `hcl:"fs" description:"File system to serve"`
+	Dir  bool   `hcl:"dir" description:"Serve directory listings"`
+	Host string `hcl:"host" description:"Host to serve files on"`
 }
+
 type static struct {
-	fs     fs.FS
-	prefix string
-	dir    bool
+	fs   fs.FS
+	host string
+	dir  bool
 }
 
 // Ensure interfaces is implemented
 var _ http.Handler = (*static)(nil)
 var _ server.Plugin = Config{}
 var _ server.Task = (*static)(nil)
+var _ server.ServiceEndpoints = (*static)(nil)
 
 ///////////////////////////////////////////////////////////////////////////////
 // GLOBALS
@@ -60,6 +63,7 @@ func (c Config) New(context.Context) (server.Task, error) {
 	s := new(static)
 	s.fs = c.FS
 	s.dir = c.Dir
+	s.host = c.Host
 	return s, nil
 }
 
@@ -68,11 +72,7 @@ func (c Config) New(context.Context) (server.Task, error) {
 
 // Implement the http.Handler interface to serve files
 func (static *static) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	name := r.URL.Path
-	if static.prefix != "" {
-		name = path.Join(static.prefix, name)
-	}
-	serveFile(w, r, static.fs, path.Clean(name), static.dir, true)
+	serveFile(w, r, static.fs, path.Clean(r.URL.Path), static.dir, true)
 }
 
 // Run the static handler until the context is cancelled
@@ -85,6 +85,11 @@ func (static *static) Run(ctx context.Context) error {
 func (static *static) Label() string {
 	// TODO
 	return defaultName
+}
+
+// Add endpoints to the router
+func (static *static) AddEndpoints(ctx context.Context, router server.Router) {
+	router.AddHandler(ctx, static.host, static, "GET")
 }
 
 ///////////////////////////////////////////////////////////////////////////////

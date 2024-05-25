@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"io/fs"
@@ -24,16 +23,17 @@ var (
 	port   = flag.Int("port", 0, "Port to listen on")
 	path   = flag.String("path", "", "File path to serve")
 	prefix = flag.String("prefix", "/", "URL Prefix")
+	host   = flag.String("host", "", "Host to serve files on")
 )
 
 func main() {
 	flag.Parse()
 
-	// Set context
+	// Create context
 	ctx := ctx.ContextForSignal(os.Interrupt, syscall.SIGQUIT)
 
 	// Create a router
-	r, err := router.Config{}.New(context.Background())
+	r, err := router.Config{}.New(ctx)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -43,20 +43,19 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	static, err := static.Config{FS: filesys, Dir: true}.New(context.Background())
+	static, err := static.Config{FS: filesys, Dir: true, Host: *host}.New(ctx)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// Create a logger, set as middleware
-	logger, err := logger.Config{Flags: []string{"default", "prefix"}}.New(context.Background())
+	// Create a logger as middleware
+	logger, err := logger.Config{Flags: []string{"default", "prefix"}}.New(ctx)
 	if err != nil {
 		log.Fatal(err)
 	}
-	ctx = router.WithMiddleware(ctx, logger.(server.Middleware))
 
-	// Add the static handler to the router
-	r.(server.Router).AddHandler(router.WithPrefix(ctx, *prefix), "", static.(http.Handler))
+	// Add endpoints to the router
+	r.(server.Router).AddServiceEndpoints(ctx, static.(server.ServiceEndpoints), *prefix, logger.(server.Middleware))
 
 	// Set the listen address
 	listen := ":"
@@ -65,7 +64,7 @@ func main() {
 	}
 
 	// Create the http server
-	server, err := httpserver.Config{Listen: listen, Router: r.(http.Handler)}.New(context.Background())
+	server, err := httpserver.Config{Listen: listen, Router: r.(http.Handler)}.New(ctx)
 	if err != nil {
 		log.Fatal(err)
 	}

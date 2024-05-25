@@ -86,9 +86,9 @@ func (l *logger) Print(ctx context.Context, v ...any) {
 	l.Mutex.Lock()
 	defer l.Mutex.Unlock()
 	if label := provider.Label(ctx); label != "" {
-		l.Logger.SetPrefix("[" + label + "] ")
+		l.SetPrefix("[" + label + "] ")
 	} else {
-		l.Logger.SetPrefix("")
+		l.SetPrefix("")
 	}
 	l.Logger.Print(v...)
 }
@@ -97,9 +97,9 @@ func (l *logger) Printf(ctx context.Context, f string, v ...any) {
 	l.Mutex.Lock()
 	defer l.Mutex.Unlock()
 	if label := provider.Label(ctx); label != "" {
-		l.Logger.SetPrefix("[" + label + "] ")
+		l.SetPrefix("[" + label + "] ")
 	} else {
-		l.Logger.SetPrefix("")
+		l.SetPrefix("")
 	}
 	l.Logger.Printf(f, v...)
 }

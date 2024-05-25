@@ -12,6 +12,7 @@ import (
 	// Packages
 	server "github.com/mutablelogic/go-server"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
+	"github.com/mutablelogic/go-server/pkg/provider"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -103,6 +104,23 @@ func (router *router) Label() string {
 func (router *router) Run(ctx context.Context) error {
 	<-ctx.Done()
 	return nil
+}
+
+// Add a set of endpoints to the router with a prefix and middleware
+func (router *router) AddServiceEndpoints(ctx context.Context, service server.ServiceEndpoints, prefix string, middleware ...server.Middleware) {
+	// Modify the context
+	if prefix != "" {
+		ctx = WithPrefix(ctx, prefix)
+	}
+	if len(middleware) > 0 {
+		ctx = WithMiddleware(ctx, middleware...)
+	}
+	if label := service.Label(); label != "" {
+		ctx = provider.WithLabel(ctx, label)
+	}
+
+	// Call the service to add the endpoints
+	service.AddEndpoints(ctx, router)
 }
 
 func (router *router) AddHandler(ctx context.Context, hostpath string, handler http.Handler, methods ...string) {
