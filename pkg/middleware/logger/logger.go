@@ -13,6 +13,7 @@ import (
 
 	// Packages
 	"github.com/mutablelogic/go-server"
+	"github.com/mutablelogic/go-server/pkg/provider"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -76,15 +77,30 @@ func (*logger) Run(ctx context.Context) error {
 	return nil
 }
 
+func (l *logger) Label() string {
+	// TODO
+	return defaultName
+}
+
 func (l *logger) Print(ctx context.Context, v ...any) {
 	l.Mutex.Lock()
 	defer l.Mutex.Unlock()
+	if label := provider.Label(ctx); label != "" {
+		l.Logger.SetPrefix("[" + label + "] ")
+	} else {
+		l.Logger.SetPrefix("")
+	}
 	l.Logger.Print(v...)
 }
 
 func (l *logger) Printf(ctx context.Context, f string, v ...any) {
 	l.Mutex.Lock()
 	defer l.Mutex.Unlock()
+	if label := provider.Label(ctx); label != "" {
+		l.Logger.SetPrefix("[" + label + "] ")
+	} else {
+		l.Logger.SetPrefix("")
+	}
 	l.Logger.Printf(f, v...)
 }
 

@@ -15,6 +15,10 @@ type Plugin interface {
 
 // Task represents a task that can be run
 type Task interface {
+	// Return the label for the task
+	Label() string
+
+	// Run the task until the context is cancelled and return any errors
 	Run(context.Context) error
 }
 
@@ -49,4 +53,19 @@ type Router interface {
 type Middleware interface {
 	// Wrap a handler function
 	Wrap(context.Context, http.HandlerFunc) http.HandlerFunc
+}
+
+// Logger interface
+type Logger interface {
+	// Print logging message
+	Print(context.Context, ...any)
+
+	// Print formatted logging message
+	Printf(context.Context, string, ...any)
+}
+
+// Provider interface
+type Provider interface {
+	Task
+	Logger
 }

@@ -81,6 +81,12 @@ func (static *static) Run(ctx context.Context) error {
 	return nil
 }
 
+// Return the label for the task
+func (static *static) Label() string {
+	// TODO
+	return defaultName
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 

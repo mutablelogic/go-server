@@ -93,6 +93,12 @@ func (router *router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Return the label for the task
+func (router *router) Label() string {
+	// TODO
+	return defaultName
+}
+
 // Run the router until the context is cancelled
 func (router *router) Run(ctx context.Context) error {
 	<-ctx.Done()

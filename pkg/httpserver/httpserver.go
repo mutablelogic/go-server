@@ -17,6 +17,7 @@ import (
 	"time"
 
 	// Packages
+	"github.com/mutablelogic/go-server"
 	fcgi "github.com/mutablelogic/go-server/pkg/httpserver/fcgi"
 
 	// Namespace imports
@@ -26,7 +27,7 @@ import (
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-// http server configuration
+// Server configuration
 type Config struct {
 	Listen string `hcl:"listen" description:"Network address and port to listen on, or path to file socket"`
 	TLS    struct {
@@ -39,11 +40,29 @@ type Config struct {
 	Router  http.Handler  `hcl:"router" description:"HTTP router for requests"`
 }
 
+// Server interface
+type Server interface {
+	server.Task
+
+	// Return the type of server (http, https or fcgi)
+	Type() string
+
+	// Return the listening address or path
+	Addr() string
+
+	// Return the router associated with the server
+	Router() http.Handler
+}
+
 // http server instance
 type httpserver struct {
 	fcgi *fcgi.Server
 	http *http.Server
 }
+
+// Check interfaces are satisfied
+var _ server.Plugin = Config{}
+var _ server.Task = (*httpserver)(nil)
 
 ///////////////////////////////////////////////////////////////////////////////
 // GLOBALS
@@ -72,7 +91,7 @@ func (Config) Description() string {
 }
 
 // Create a new http server from the configuration
-func (c Config) New(context.Context) (*httpserver, error) {
+func (c Config) New(context.Context) (server.Task, error) {
 	self := new(httpserver)
 
 	// Create a default router if not provided
@@ -187,6 +206,12 @@ func (self *httpserver) Run(ctx context.Context) error {
 
 	// Return any errors
 	return result
+}
+
+// Return the label for the task
+func (self *httpserver) Label() string {
+	// TODO
+	return defaultName
 }
 
 // Return the router for the server

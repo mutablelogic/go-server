@@ -17,6 +17,7 @@ import (
 	static "github.com/mutablelogic/go-server/pkg/handler/static"
 	httpserver "github.com/mutablelogic/go-server/pkg/httpserver"
 	logger "github.com/mutablelogic/go-server/pkg/middleware/logger"
+	provider "github.com/mutablelogic/go-server/pkg/provider"
 )
 
 var (
@@ -48,7 +49,7 @@ func main() {
 	}
 
 	// Create a logger, set as middleware
-	logger, err := logger.Config{Flags: []string{"std"}}.New(context.Background())
+	logger, err := logger.Config{Flags: []string{"default", "prefix"}}.New(context.Background())
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -70,9 +71,10 @@ func main() {
 	}
 
 	// Run the server until we receive a signal
-	log.Printf("Starting %q server on %q", server.Type(), server.Addr())
-	log.Println("Press CTRL+C to exit")
-	if err := server.Run(ctx); err != nil {
+	provider := provider.NewProvider(logger, static, r, server)
+	provider.Printf(ctx, "Starting %q server on %q", server.(httpserver.Server).Type(), server.(httpserver.Server).Addr())
+	provider.Print(ctx, "Press CTRL+C to exit")
+	if err := provider.Run(ctx); err != nil {
 		log.Fatal(err)
 	}
 }
