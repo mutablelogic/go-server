@@ -15,7 +15,7 @@ import (
 // GLOBALS
 
 var (
-	remoteAddrHeaders = []string{"X-Real-Ip", "X-Forwarded-For"}
+	remoteAddrHeaders = []string{"CF-Connecting-IP", "X-Real-Ip", "X-Forwarded-For", "True-Client-IP"}
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -27,9 +27,9 @@ func (l *logger) Wrap(ctx context.Context, next http.HandlerFunc) http.HandlerFu
 		next(nw, r)
 
 		// Print the response
-		result := fmt.Sprintf("%v %v %v -> [%v]", remoteAddr(r), r.Method, r.URL, nw.Status())
+		result := fmt.Sprintf("%v %v %q -> [%v]", remoteAddr(r), r.Method, r.URL, nw.Status())
 		if sz := nw.Size(); sz > 0 {
-			result += fmt.Sprintf(" %v bytes written", sz)
+			result += fmt.Sprintf(" %v bytes sent", sz)
 		}
 		if t := router.Time(r.Context()); !t.IsZero() {
 			result += fmt.Sprint(" in ", time.Since(t).Truncate(time.Microsecond))
