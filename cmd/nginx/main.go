@@ -22,6 +22,11 @@ var (
 	binary = flag.String("path", "nginx", "Path to nginx binary")
 )
 
+/* command to test the nginx package */
+/* will run the nginx server and provide an nginx api for reloading,
+   testing, etc through FastCGI. The config and run paths are a bit
+   screwed up and will need to be fixed.
+*/
 func main() {
 	flag.Parse()
 
