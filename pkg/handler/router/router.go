@@ -77,8 +77,8 @@ func (c Config) New() (server.Task, error) {
 		if len(parts) == 1 {
 			// Could be interpreted as a host if there is a dot in it, or else
 			// we assume it's a path
-			if strings.ContainsRune(parts[0], '.') {
-				parts = append(parts, "/")
+			if strings.Contains(parts[0], hostSep) {
+				parts = append(parts, pathSep)
 			} else {
 				parts, parts[0] = append(parts, parts[0]), ""
 			}

@@ -8,7 +8,7 @@ import "regexp"
 const (
 	// An identifier is a string which starts with a letter and is followed by
 	// letters, numbers, underscores or hyphens. It must be between 1 and 32 characters
-	ReIdentifier = `[a-zA-Z][a-zA-Z0-9_\-]{1,31}`
+	ReIdentifier = `[a-zA-Z][a-zA-Z0-9_\-]{0,31}`
 )
 
 var (
