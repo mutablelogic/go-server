@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -40,10 +39,9 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	socket := filepath.Join(n.(nginx.Nginx).Config(), "go-server.sock")
 
-	// Print the location of the nginx configuration files
-	fmt.Println(socket)
+	// Location of the FCGI unix socket
+	socket := filepath.Join(n.(nginx.Nginx).Config(), "go-server.sock")
 
 	// Router
 	router, err := router.Config{
