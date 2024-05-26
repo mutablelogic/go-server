@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sync"
 	"syscall"
+	"time"
 
 	// Packages
 
@@ -86,8 +88,17 @@ func (task *nginx) Label() string {
 
 // Run the http server until the context is cancelled
 func (task *nginx) Run(ctx context.Context) error {
-	//var wg sync.WaitGroup
+	var wg sync.WaitGroup
 	var result error
+
+	// Remove the temporary directory
+	defer func() {
+		if _, err := os.Stat(task.config); err == nil {
+			if err := os.RemoveAll(task.config); err != nil {
+				result = errors.Join(result, err)
+			}
+		}
+	}()
 
 	// We need to copy the configuration files to the temporary directory
 	if err := fsCopyTo(task.config); err != nil {
@@ -112,26 +123,62 @@ func (task *nginx) Run(ctx context.Context) error {
 	}
 	task.test.Out = func(data []byte) {
 		s := bytes.TrimSpace(data)
-		fmt.Println("test stdout", string(s))
+		fmt.Println(string(s))
 	}
 	task.test.Err = func(data []byte) {
 		s := bytes.TrimSpace(data)
-		fmt.Println("test stderr", string(s))
+		fmt.Println(string(s))
 	}
+
+	// Run the nginx server in the background
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if err := task.run.Run(); err != nil {
+			result = errors.Join(result, err)
+		}
+	}()
+
+	// Wait for the context to be cancelled
+	<-ctx.Done()
+
+	// Perform shutdown, escalating signals
+	checkTicker := time.NewTicker(500 * time.Millisecond)
+	signalTicker := time.NewTimer(100 * time.Millisecond)
+	termSignal := syscall.SIGQUIT
+	defer checkTicker.Stop()
+	defer signalTicker.Stop()
 
 FOR_LOOP:
 	for {
 		select {
-		case <-ctx.Done():
-			// TODO: Stop the server
-			break FOR_LOOP
+		case <-checkTicker.C:
+			if task.run.Exited() {
+				break FOR_LOOP
+			}
+		case <-signalTicker.C:
+			pid := task.run.Pid()
+			if err := task.run.Signal(termSignal); err != nil {
+				result = errors.Join(result, err)
+			}
+			switch termSignal {
+			case syscall.SIGQUIT:
+				fmt.Printf("Sending graceful shutdown signal to process %d\n", pid)
+				termSignal = syscall.SIGTERM
+				signalTicker.Reset(20 * time.Second) // Escalate after 20 seconds
+			case syscall.SIGTERM:
+				fmt.Printf("Sending immediate shutdown signal to process %d\n", pid)
+				termSignal = syscall.SIGKILL
+				signalTicker.Reset(5 * time.Second) // Escalate after 5 seconds
+			case syscall.SIGKILL:
+				fmt.Printf("Sending kill signal to process %d\n", pid)
+				signalTicker.Reset(5 * time.Second) // Continue sending every 5 seconds
+			}
 		}
 	}
 
-	// Delete the configuration directory
-	if err := os.RemoveAll(task.config); err != nil {
-		result = errors.Join(result, err)
-	}
+	// Wait for nginx to exit
+	wg.Wait()
 
 	// Return any errors
 	return result
