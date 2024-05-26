@@ -52,10 +52,11 @@ func New(c Config) (*nginx, error) {
 		task.config = config
 	}
 
-	// Create a new command to run the server
-	if run, err := cmd.New(c.Path(), c.Flags(task.config, "")...); err != nil {
+	// Create a new command to run the server. Use prefix to ensure that
+	// the document root is contained within the temporary directory
+	if run, err := cmd.New(c.Path(), c.Flags(task.config, task.config)...); err != nil {
 		return nil, err
-	} else if test, err := cmd.New(c.Path(), c.Flags(task.config, "")...); err != nil {
+	} else if test, err := cmd.New(c.Path(), c.Flags(task.config, task.config)...); err != nil {
 		return nil, err
 	} else {
 		task.run = run
@@ -70,6 +71,10 @@ func New(c Config) (*nginx, error) {
 		return nil, err
 	}
 
+	// Set the working directory
+	task.run.SetDir(task.config)
+	task.test.SetDir(task.config)
+
 	// Return success
 	return task, nil
 }
@@ -81,6 +86,11 @@ func New(c Config) (*nginx, error) {
 func (task *nginx) Label() string {
 	// TODO
 	return defaultName
+}
+
+// Return the path to the configuration
+func (task *nginx) Config() string {
+	return task.config
 }
 
 // Run the http server until the context is cancelled

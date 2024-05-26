@@ -2,9 +2,11 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"syscall"
 
 	// Packages
@@ -34,16 +36,20 @@ func main() {
 	}
 
 	// Nginx handler
-	nginx, err := nginx.Config{BinaryPath: *binary}.New()
+	n, err := nginx.Config{BinaryPath: *binary}.New()
 	if err != nil {
 		log.Fatal(err)
 	}
+	socket := filepath.Join(n.(nginx.Nginx).Config(), "go-server.sock")
+
+	// Print the location of the nginx configuration files
+	fmt.Println(socket)
 
 	// Router
 	router, err := router.Config{
 		Services: router.ServiceConfig{
 			"/": {
-				Service: nginx.(server.ServiceEndpoints),
+				Service: n.(server.ServiceEndpoints),
 				Middleware: []server.Middleware{
 					logger.(server.Middleware),
 				},
@@ -55,13 +61,13 @@ func main() {
 	}
 
 	// HTTP Server
-	httpserver, err := httpserver.Config{Listen: ":", Router: router.(http.Handler)}.New()
+	httpserver, err := httpserver.Config{Listen: socket, Router: router.(http.Handler)}.New()
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	// Run until we receive an interrupt
-	provider := provider.NewProvider(logger, nginx, router, httpserver)
+	provider := provider.NewProvider(logger, n, router, httpserver)
 	provider.Print(ctx, "Press CTRL+C to exit")
 	if err := provider.Run(ctx); err != nil {
 		log.Fatal(err)

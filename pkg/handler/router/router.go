@@ -12,7 +12,8 @@ import (
 	// Packages
 	server "github.com/mutablelogic/go-server"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
-	"github.com/mutablelogic/go-server/pkg/provider"
+	fcgi "github.com/mutablelogic/go-server/pkg/httpserver/fcgi"
+	provider "github.com/mutablelogic/go-server/pkg/provider"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -89,10 +90,20 @@ func (c Config) New() (server.Task, error) {
 // Implement the http.Handler interface to route requests
 func (router *router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := WithTime(r.Context(), time.Now())
+
+	// Process FastCGI environment - remove the REQUEST_PREFIX from the request path
+	if env := fcgi.ProcessEnv(r); len(env) > 0 {
+		if prefix, exists := env["REQUEST_PREFIX"]; exists {
+			r.URL.Path = strings.TrimPrefix(r.URL.Path, canonicalPrefix(prefix))
+		}
+	}
+
+	// Match the route
 	route, code := router.Match(canonicalHost(r.Host), r.Method, r.URL.Path)
 
 	// TODO: Cache the route if not already cached
 
+	// Switch on the status code
 	switch code {
 	case http.StatusPermanentRedirect:
 		http.Redirect(w, r, route.Path, int(code))
@@ -135,7 +146,7 @@ func (router *router) AddHandlerFunc(ctx context.Context, path string, handler h
 	if _, exists := router.host[key]; !exists {
 		router.host[key] = newReqRouter(key)
 	}
-	router.host[key].AddHandler(ctx, canonicalPrefix(ctx), path, handler, methods...)
+	router.host[key].AddHandler(ctx, canonicalPrefix(Prefix(ctx)), path, handler, methods...)
 }
 
 func (router *router) AddHandlerRe(ctx context.Context, path *regexp.Regexp, handler http.Handler, methods ...string) {
@@ -148,7 +159,7 @@ func (router *router) AddHandlerFuncRe(ctx context.Context, path *regexp.Regexp,
 	if _, exists := router.host[key]; !exists {
 		router.host[key] = newReqRouter(key)
 	}
-	router.host[key].AddHandlerRe(ctx, canonicalPrefix(ctx), path, handler.ServeHTTP, methods...)
+	router.host[key].AddHandlerRe(ctx, canonicalPrefix(Prefix(ctx)), path, handler.ServeHTTP, methods...)
 }
 
 // Match handlers for a given method, host and path, Returns the match
@@ -227,8 +238,7 @@ func (router *router) addServiceEndpoints(host, prefix string, service server.Se
 
 // Return prefix from context, always starts with a '/'
 // and never ends with a '/'
-func canonicalPrefix(ctx context.Context) string {
-	prefix := Prefix(ctx)
+func canonicalPrefix(prefix string) string {
 	if prefix == "" {
 		return pathSep
 	}

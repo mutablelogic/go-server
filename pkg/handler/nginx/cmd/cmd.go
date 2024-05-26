@@ -27,6 +27,7 @@ type Cmd struct {
 	cmd       *exec.Cmd
 	path      string
 	args, env []string
+	wd        string
 
 	// Stdout callback function
 	Out CallbackFn
@@ -87,6 +88,9 @@ func (c *Cmd) Run() error {
 	if len(c.env) > 0 {
 		c.cmd.Env = c.env
 	}
+
+	// Set the working directory
+	c.cmd.Dir = c.wd
 
 	// Pipes for reading stdout and stderr
 	if c.Out != nil {
@@ -149,6 +153,11 @@ func (c *Cmd) SetEnv(env map[string]string) error {
 // SetArgs appends arguments for the command
 func (c *Cmd) SetArgs(args ...string) {
 	c.args = append(c.args, args...)
+}
+
+// SetDir sets the working directory for the command
+func (c *Cmd) SetDir(dir string) {
+	c.wd = dir
 }
 
 // Return whether command has exited
