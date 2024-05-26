@@ -2,7 +2,6 @@ package nginx
 
 import (
 	"embed"
-	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -51,7 +50,6 @@ func fsCopyDir(dst string, srcPath string, entries []fs.DirEntry) error {
 
 // fsCopyFile copies a file from the embedded filesystem to the destination
 func fsCopyFile(dstFile string, srcFile string) error {
-	fmt.Println("Copying", srcFile, "to", dstFile)
 	src, err := content.Open(srcFile)
 	if err != nil {
 		return err

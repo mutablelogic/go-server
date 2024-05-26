@@ -11,7 +11,6 @@ import (
 	"time"
 
 	// Packages
-
 	server "github.com/mutablelogic/go-server"
 	cmd "github.com/mutablelogic/go-server/pkg/handler/nginx/cmd"
 )
@@ -35,11 +34,7 @@ type nginx struct {
 
 // Check interfaces are satisfied
 var _ server.Task = (*nginx)(nil)
-
-///////////////////////////////////////////////////////////////////////////////
-// GLOBALS
-
-const ()
+var _ server.ServiceEndpoints = (*nginx)(nil)
 
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE

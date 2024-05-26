@@ -50,6 +50,8 @@ func Test_nginx_003(t *testing.T) {
 
 	// Sleep until the task is running
 	time.Sleep(500 * time.Millisecond)
+
+	// Test server configuration
 	err = task.Test()
 	assert.NoError(err)
 }
