@@ -4,8 +4,9 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
+	"log"
 	"os"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -13,6 +14,7 @@ import (
 	// Packages
 	server "github.com/mutablelogic/go-server"
 	cmd "github.com/mutablelogic/go-server/pkg/handler/nginx/cmd"
+	"github.com/mutablelogic/go-server/pkg/provider"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -108,22 +110,11 @@ func (task *nginx) Run(ctx context.Context) error {
 	}
 
 	// Add stdout, stderr for the nginx commands
-	task.run.Out = func(data []byte) {
-		s := bytes.TrimSpace(data)
-		fmt.Println("exec stdout", string(s))
+	fn := func(data []byte) {
+		task.log(ctx, string(data))
 	}
-	task.run.Err = func(data []byte) {
-		s := bytes.TrimSpace(data)
-		fmt.Println("exec stderr", string(s))
-	}
-	task.test.Out = func(data []byte) {
-		s := bytes.TrimSpace(data)
-		fmt.Println(string(s))
-	}
-	task.test.Err = func(data []byte) {
-		s := bytes.TrimSpace(data)
-		fmt.Println(string(s))
-	}
+	task.run.Out, task.run.Err = fn, fn
+	task.test.Out, task.test.Err = fn, fn
 
 	// Run the nginx server in the background
 	wg.Add(1)
@@ -152,21 +143,22 @@ FOR_LOOP:
 				break FOR_LOOP
 			}
 		case <-signalTicker.C:
-			pid := task.run.Pid()
-			if err := task.run.Signal(termSignal); err != nil {
-				result = errors.Join(result, err)
+			if !task.run.Exited() {
+				if err := task.run.Signal(termSignal); err != nil {
+					result = errors.Join(result, err)
+				}
 			}
 			switch termSignal {
 			case syscall.SIGQUIT:
-				fmt.Printf("Sending graceful shutdown signal to process %d\n", pid)
+				task.log(ctx, "Sending graceful shutdown signal")
 				termSignal = syscall.SIGTERM
 				signalTicker.Reset(20 * time.Second) // Escalate after 20 seconds
 			case syscall.SIGTERM:
-				fmt.Printf("Sending immediate shutdown signal to process %d\n", pid)
+				task.log(ctx, "Sending immediate shutdown signal")
 				termSignal = syscall.SIGKILL
 				signalTicker.Reset(5 * time.Second) // Escalate after 5 seconds
 			case syscall.SIGKILL:
-				fmt.Printf("Sending kill signal to process %d\n", pid)
+				task.log(ctx, "Sending kill signal")
 				signalTicker.Reset(5 * time.Second) // Continue sending every 5 seconds
 			}
 		}
@@ -210,6 +202,15 @@ func (task *nginx) Version() string {
 
 /////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
+
+func (task *nginx) log(ctx context.Context, line string) {
+	line = strings.TrimSpace(line)
+	if logger := provider.Logger(ctx); logger != nil {
+		logger.Print(ctx, line)
+	} else {
+		log.Println(line)
+	}
+}
 
 func (task *nginx) getVersion() ([]byte, error) {
 	var result []byte

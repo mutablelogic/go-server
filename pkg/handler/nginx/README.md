@@ -59,9 +59,9 @@ The commands can be called through an API.
 | Method | Path         | Scope | Description |
 |--------|--------------|-------|-------------|
 | GET    | /            | read  | Return the nginx version and uptime |
-| POST   | /test        | write | Test the server configuration |
-| POST   | /reload      | write | Test the configuration and then reload it|
-| POST   | /reopen      | write | Reopen log files |
+| PUT    | /test        | write | Test the server configuration |
+| PUT    | /reload      | write | Test the configuration and then reload it|
+| PUT    | /reopen      | write | Reopen log files |
 | GET    | /config      | read  | Read the current set of configurations |
 | GET    | /config/{id} | read  | Read a specific configuration file |
 | DELETE | /config/{id} | write | Delete a configuration, and reload |
