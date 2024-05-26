@@ -48,7 +48,7 @@ func main() {
 	// Router
 	router, err := router.Config{
 		Services: router.ServiceConfig{
-			"/": {
+			"nginx": { // /api/nginx/...
 				Service: n.(server.ServiceEndpoints),
 				Middleware: []server.Middleware{
 					logger.(server.Middleware),

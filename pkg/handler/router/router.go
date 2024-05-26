@@ -75,7 +75,13 @@ func (c Config) New() (server.Task, error) {
 	for key, service := range c.Services {
 		parts := strings.SplitN(key, pathSep, 2)
 		if len(parts) == 1 {
-			parts = append(parts, "/")
+			// Could be interpreted as a host if there is a dot in it, or else
+			// we assume it's a path
+			if strings.ContainsRune(parts[0], '.') {
+				parts = append(parts, "/")
+			} else {
+				parts, parts[0] = append(parts, parts[0]), ""
+			}
 		}
 		r.addServiceEndpoints(parts[0], parts[1], service.Service, service.Middleware...)
 	}
@@ -92,31 +98,32 @@ func (router *router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := WithTime(r.Context(), time.Now())
 
 	// Process FastCGI environment - remove the REQUEST_PREFIX from the request path
+	path := r.URL.Path
 	if env := fcgi.ProcessEnv(r); len(env) > 0 {
 		if prefix, exists := env["REQUEST_PREFIX"]; exists {
-			r.URL.Path = strings.TrimPrefix(r.URL.Path, canonicalPrefix(prefix))
+			path = strings.TrimPrefix(path, canonicalPrefix(prefix))
 		}
 	}
 
 	// Match the route
-	route, code := router.Match(canonicalHost(r.Host), r.Method, r.URL.Path)
+	route, code := router.Match(canonicalHost(r.Host), r.Method, path)
 
 	// TODO: Cache the route if not already cached
 
 	// Switch on the status code
 	switch code {
 	case http.StatusPermanentRedirect:
-		http.Redirect(w, r, route.Path, int(code))
+		http.Redirect(w, r, r.URL.Path+pathSep, int(code))
 	case http.StatusNotFound:
-		httpresponse.Error(w, code, "Not found: ", r.URL.Path)
+		httpresponse.Error(w, code, "not found:", r.URL.Path)
 	case http.StatusMethodNotAllowed:
-		httpresponse.Error(w, code, "Method not allowed: ", r.Method)
+		httpresponse.Error(w, code, "method not allowed:", r.Method)
 	case http.StatusOK:
 		r = r.Clone(WithRoute(ctx, route))
 		r.URL.Path = route.Path
 		route.Handler(w, r)
 	default:
-		httpresponse.Error(w, http.StatusInternalServerError, "Internal error: ", fmt.Sprint(code))
+		httpresponse.Error(w, http.StatusInternalServerError, "Internal error", fmt.Sprint(code))
 	}
 }
 

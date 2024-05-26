@@ -80,7 +80,7 @@ func (router *reqrouter) AddHandler(ctx context.Context, prefix, path string, ha
 		key = prefix + pathSep
 	}
 	// Make a new set of requests associated with the prefix
-	if _, exists := router.prefix[prefix]; !exists {
+	if _, exists := router.prefix[key]; !exists {
 		router.prefix[key] = newReqs(router.host, prefix)
 	}
 	router.prefix[key].AddHandler(ctx, path, handler, methods...)
@@ -94,7 +94,7 @@ func (router *reqrouter) AddHandlerRe(ctx context.Context, prefix string, path *
 	}
 
 	// Make a new set of requests associated with the prefix
-	if _, exists := router.prefix[prefix]; !exists {
+	if _, exists := router.prefix[key]; !exists {
 		router.prefix[key] = newReqs(router.host, prefix)
 	}
 	router.prefix[key].AddHandlerRe(ctx, path, handler, methods...)
