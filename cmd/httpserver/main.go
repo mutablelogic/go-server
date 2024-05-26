@@ -91,3 +91,25 @@ func filesys() (fs.FS, error) {
 		return os.DirFS(wd), nil
 	}
 }
+
+/*
+func main() {
+	flag.Parse()
+
+	// Create context which cancels on interrupt
+	ctx := ctx.ContextForSignal(os.Interrupt, syscall.SIGQUIT)
+
+	// Create a provider with plugins
+	provider := provider.New(logger.Config{}, static.Config{}, router.Config{}, httpserver.Config{})
+
+	// Create a logger task
+	logger := provider.NewTask("logger","label")
+	provider.Set(logger, "flags", []string{"default", "prefix"})
+	// ...
+
+	// Run
+	if err := provider.Run(ctx); err != nil {
+		log.Fatal(err)
+	}
+}
+*/
