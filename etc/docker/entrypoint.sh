@@ -10,4 +10,5 @@ install -d -m 0755 /alloc/logs || exit 1
 
 # Run the command
 set -e
+umask 022
 exec "$@"
