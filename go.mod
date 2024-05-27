@@ -1,8 +1,6 @@
 module github.com/mutablelogic/go-server
 
-go 1.22
-
-toolchain go1.22.3
+go 1.20
 
 require (
 	github.com/djthorpe/go-errors v1.0.3
