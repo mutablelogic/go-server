@@ -52,6 +52,15 @@ func New(c Config) (*nginx, error) {
 		task.config = config
 	}
 
+	// We need to set up some folders:
+	// run - for the nginx.pid file, socket files, etc
+	// available - for the available configurations
+	// enabled - for the enabled configurations
+	// The run directory needs to be writableTODO: Make the run directory writable by the group
+	// Set group permission
+	// if err := os.Chmod(task.config, 0770); err != nil {
+	// ....
+
 	// Create a new command to run the server. Use prefix to ensure that
 	// the document root is contained within the temporary directory
 	if run, err := cmd.New(c.Path(), c.Flags(task.config, task.config)...); err != nil {
