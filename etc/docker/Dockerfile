@@ -24,4 +24,4 @@ LABEL org.opencontainers.image.source=${SOURCE}
 
 # Entrypoint when running the server
 ENTRYPOINT [ "/entrypoint.sh" ]
-CMD [ "/usr/local/bin/nginx" ]
+CMD [ "/usr/local/bin/nginx-server" ]
