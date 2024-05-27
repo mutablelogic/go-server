@@ -64,7 +64,11 @@ func main() {
 	}
 
 	// HTTP Server
-	httpserver, err := httpserver.Config{Listen: socket, Router: router.(http.Handler)}.New()
+	httpserver, err := httpserver.Config{
+		Listen: socket,
+		Group:  "nginx",
+		Router: router.(http.Handler),
+	}.New()
 	if err != nil {
 		log.Fatal(err)
 	}
