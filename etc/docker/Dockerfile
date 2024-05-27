@@ -16,7 +16,7 @@ ARG ARCH
 ARG SOURCE
 RUN apt update && apt install -y ca-certificates
 COPY --from=builder /usr/src/app/build/* /usr/local/bin/
-COPY etc/entrypoint.sh .
+COPY etc/docker/entrypoint.sh .
 RUN chmod +x entrypoint.sh
 
 # Labels
