@@ -10,7 +10,6 @@ import (
 	server "github.com/mutablelogic/go-server"
 	router "github.com/mutablelogic/go-server/pkg/handler/router"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
-	types "github.com/mutablelogic/go-server/pkg/types"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -28,7 +27,7 @@ var (
 	reRoot       = regexp.MustCompile(`^/?$`)
 	reAction     = regexp.MustCompile(`^/(test|reload|reopen)/?$`)
 	reListConfig = regexp.MustCompile(`^/config/?$`)
-	reConfig     = regexp.MustCompile(`^/config/(` + types.ReIdentifier + `)$`)
+	reConfig     = regexp.MustCompile(`^/config/(.*)$`)
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -105,18 +104,25 @@ func (service *nginx) PutAction(w http.ResponseWriter, r *http.Request) {
 }
 
 func (service *nginx) ListConfig(w http.ResponseWriter, r *http.Request) {
-	// TODO
-	httpresponse.Error(w, http.StatusNotImplemented)
+	httpresponse.JSON(w, service.folders.Templates(), http.StatusOK, 2)
 }
 
 func (service *nginx) ReadConfig(w http.ResponseWriter, r *http.Request) {
 	urlParameters := router.Params(r.Context())
-	// TODO
-	httpresponse.Error(w, http.StatusNotImplemented, urlParameters[0])
+	templ := service.folders.Template(urlParameters[0])
+	if templ == nil {
+		httpresponse.Error(w, http.StatusNotFound, urlParameters[0])
+		return
+	}
+	httpresponse.JSON(w, templ, http.StatusOK, 2)
 }
 
 func (service *nginx) WriteConfig(w http.ResponseWriter, r *http.Request) {
 	urlParameters := router.Params(r.Context())
-	// TODO
-	httpresponse.Error(w, http.StatusNotImplemented, urlParameters[0])
+	templ := service.folders.Template(urlParameters[0])
+	if templ == nil {
+		httpresponse.Error(w, http.StatusNotFound, urlParameters[0])
+		return
+	}
+	httpresponse.Error(w, http.StatusNotImplemented)
 }

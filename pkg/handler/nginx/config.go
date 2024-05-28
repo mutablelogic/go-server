@@ -14,6 +14,8 @@ type Config struct {
 	BinaryPath string            `hcl:"binary_path" description:"Path to nginx binary"`
 	Env        map[string]string `hcl:"env" description:"Environment variables to set"`
 	Directives map[string]string `hcl:"directives" description:"Directives to set in nginx configuration"`
+	Available  string            `hcl:"available" description:"Path to available configuration files"`
+	Enabled    string            `hcl:"enabled" description:"Path to enabled configuration files"`
 }
 
 // Check interfaces are satisfied
@@ -23,9 +25,12 @@ var _ server.Plugin = Config{}
 // GLOBALS
 
 const (
-	defaultName = "nginx-handler"
-	defaultExec = "nginx"
-	defaultConf = "nginx.conf"
+	defaultName          = "nginx-handler"
+	defaultExec          = "nginx"
+	defaultConf          = "nginx.conf"
+	defaultConfExt       = ".conf"
+	defaultConfDirMode   = 0755
+	defaultConfRecursive = true
 )
 
 ///////////////////////////////////////////////////////////////////////////////

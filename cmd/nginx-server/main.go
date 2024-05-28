@@ -20,6 +20,7 @@ import (
 
 var (
 	binary = flag.String("path", "nginx", "Path to nginx binary")
+	group  = flag.String("group", "", "Group to run unix socket as")
 )
 
 /* command to test the nginx package */
@@ -66,7 +67,7 @@ func main() {
 	// HTTP Server
 	httpserver, err := httpserver.Config{
 		Listen: socket,
-		Group:  "nginx",
+		Group:  *group,
 		Router: router.(http.Handler),
 	}.New()
 	if err != nil {

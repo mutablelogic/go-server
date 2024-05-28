@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -14,7 +16,8 @@ import (
 	// Packages
 	server "github.com/mutablelogic/go-server"
 	cmd "github.com/mutablelogic/go-server/pkg/handler/nginx/cmd"
-	"github.com/mutablelogic/go-server/pkg/provider"
+	folders "github.com/mutablelogic/go-server/pkg/handler/nginx/folders"
+	provider "github.com/mutablelogic/go-server/pkg/provider"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -32,6 +35,9 @@ type nginx struct {
 
 	// The version string from nginx
 	version []byte
+
+	// The available and enabled configuration folders
+	folders *folders.Config
 }
 
 // Check interfaces are satisfied
@@ -52,10 +58,32 @@ func New(c Config) (*nginx, error) {
 		task.config = config
 	}
 
+	// Create an available folder if it's not set
+	if c.Available == "" {
+		c.Available = filepath.Join(task.config, "available")
+		if err := os.MkdirAll(c.Available, defaultConfDirMode); err != nil {
+			return nil, err
+		}
+	}
+
+	// Create an enabled folder if it's not set
+	if c.Enabled == "" {
+		c.Enabled = filepath.Join(task.config, "enabled")
+		if err := os.MkdirAll(c.Enabled, defaultConfDirMode); err != nil {
+			return nil, err
+		}
+	}
+
+	// Read the configuration folders
+	if folders, err := folders.New(c.Available, c.Enabled, defaultConfExt, defaultConfRecursive); err != nil {
+		return nil, err
+	} else {
+		folders.DirMode = defaultConfDirMode
+		task.folders = folders
+	}
+
 	// We need to set up some folders:
 	// run - for the nginx.pid file, socket files, etc
-	// available - for the available configurations
-	// enabled - for the enabled configurations
 	// The run directory needs to be writableTODO: Make the run directory writable by the group
 	// Set group permission
 	// if err := os.Chmod(task.config, 0770); err != nil {
@@ -117,9 +145,14 @@ func (task *nginx) Run(ctx context.Context) error {
 	}()
 
 	// We need to copy the configuration files to the temporary directory
+	// then reload the folder configuration
 	if err := fsCopyTo(task.config); err != nil {
 		return err
+	} else if err := task.folders.Reload(); err != nil {
+		return err
 	}
+
+	fmt.Println(task.folders)
 
 	// Get the version of nginx
 	if version, err := task.getVersion(); err != nil {
@@ -197,9 +230,17 @@ func (task *nginx) Test() error {
 
 // Test the configuration and then reload it (the SIGHUP signal)
 func (task *nginx) Reload() error {
+	// Reload the folders
+	if err := task.folders.Reload(); err != nil {
+		return err
+	}
+
+	// Test the configuration
 	if err := task.test.Run(); err != nil {
 		return err
 	}
+
+	// Signal the server to reload
 	return task.run.Signal(syscall.SIGHUP)
 }
 
