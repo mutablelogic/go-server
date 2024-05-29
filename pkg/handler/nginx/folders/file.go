@@ -93,6 +93,40 @@ func (f *File) Render() ([]byte, error) {
 	return os.ReadFile(filepath.Join(f.Prefix, f.Path))
 }
 
+// Write new body contents to a file. Returns ErrNotModified if the contents
+// are identical
+func (f *File) Write(data []byte) error {
+	hash := sha256.New()
+	hash.Write(data)
+	newhash := hex.EncodeToString(hash.Sum(nil))
+	if f.Hash == newhash {
+		return ErrNotModified
+	}
+
+	// Write the file
+	fh, err := os.Create(filepath.Join(f.Prefix, f.Path))
+	if err != nil {
+		return err
+	}
+	defer fh.Close()
+
+	// Write the data
+	if _, err := fh.Write(data); err != nil {
+		return err
+	}
+
+	// Update the hash and the info
+	f.Hash = newhash
+	if info, err := fh.Stat(); err != nil {
+		return err
+	} else {
+		f.info = info
+	}
+
+	// Return success
+	return nil
+}
+
 // Remove a file from a source folder
 func (f *File) Remove() error {
 	absfile := filepath.Join(f.Prefix, f.Path)

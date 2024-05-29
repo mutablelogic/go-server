@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	// Namespace imports
 	. "github.com/djthorpe/go-errors"
@@ -212,14 +211,14 @@ func (c *Config) Delete(name string) error {
 	// Delete from enabled and available
 	var result error
 	if file, exists := c.Enabled.Files[tmpl.Hash]; exists {
-		errors.Join(result, file.Remove())
+		result = errors.Join(result, file.Remove())
 	}
 	if file, exists := c.Available.Files[tmpl.Hash]; exists {
-		errors.Join(result, file.Remove())
+		result = errors.Join(result, file.Remove())
 	}
 
 	// Reload the configuration
-	errors.Join(result, c.Reload())
+	result = errors.Join(result, c.Reload())
 
 	// Return any errors
 	return result
@@ -229,22 +228,49 @@ func (c *Config) Delete(name string) error {
 func (c *Config) Render(name string) ([]byte, error) {
 	if tmpl := c.templateByName(name); tmpl == nil {
 		return nil, ErrNotFound.Withf("template: %q", name)
-	} else if file, exists := c.Enabled.Files[tmpl.Hash]; !exists {
+	} else if file, exists := c.Available.Files[tmpl.Hash]; !exists {
 		return nil, ErrNotFound.Withf("file: %q", name)
 	} else {
 		return file.Render()
 	}
 }
 
+// Write a new body
+func (c *Config) Write(name string, body []byte) error {
+	tmpl := c.templateByName(name)
+	if tmpl == nil {
+		return ErrNotFound.Withf("template: %q", name)
+	}
+
+	// Write available
+	var result error
+	if file, exists := c.Available.Files[tmpl.Hash]; exists {
+		if err := file.Write(body); err != nil {
+			result = errors.Join(result, err)
+		}
+	}
+	if file, exists := c.Enabled.Files[tmpl.Hash]; exists {
+		if err := file.Write(body); err != nil {
+			result = errors.Join(result, err)
+		}
+	}
+
+	// Reload the configuration
+	result = errors.Join(result, c.Reload())
+
+	// Return any errors
+	return result
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
 func (c *Config) checkName(name string) error {
-	dir, file := filepath.Split(strings.Trim(name, string(os.PathSeparator)))
+	dir, file := filepath.Split(name)
 	if dir != "" && !c.Recursive {
 		return ErrBadParameter.Withf("cannot use subdirectories %q", name)
 	} else if c.Ext != "" && filepath.Ext(file) != c.Ext {
-		return ErrBadParameter.Withf("invalid file extension %q", name)
+		return ErrBadParameter.Withf("invalid or missing file extension %q", file)
 	} else if !types.IsFilename(file) {
 		return ErrBadParameter.Withf("invalid file name %q", name)
 	}

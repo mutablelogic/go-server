@@ -110,9 +110,13 @@ func (router *router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// TODO: Cache the route if not already cached
 
+	// Close the body after return
+	defer r.Body.Close()
+
 	// Switch on the status code
 	switch code {
 	case http.StatusPermanentRedirect:
+		// TODO: Change this to a JSON redirect - currently returns HTML
 		http.Redirect(w, r, r.URL.Path+pathSep, int(code))
 	case http.StatusNotFound:
 		httpresponse.Error(w, code, "not found:", r.URL.Path)
