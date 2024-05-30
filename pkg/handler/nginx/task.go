@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -51,9 +50,12 @@ var _ server.ServiceEndpoints = (*nginx)(nil)
 func New(c Config) (*nginx, error) {
 	task := new(nginx)
 
-	// Set configuration to a temporary directory
+	// Set configuration to a temporary directory, and set
+	// appropriate permissions
 	if config, err := os.MkdirTemp("", "nginx-"); err != nil {
 		return nil, err
+	} else if err := os.Chmod(config, defaultConfDirMode); err != nil {
+		return nil, errors.Join(err, os.RemoveAll(config))
 	} else {
 		task.config = config
 	}
@@ -151,8 +153,6 @@ func (task *nginx) Run(ctx context.Context) error {
 	} else if err := task.folders.Reload(); err != nil {
 		return err
 	}
-
-	fmt.Println(task.folders)
 
 	// Get the version of nginx
 	if version, err := task.getVersion(); err != nil {

@@ -74,7 +74,9 @@ const (
 	defaultListen    = ":http"
 	defaultListenTLS = ":https"
 	defaultMode      = os.FileMode(0600)
+	defaultDirMode   = os.FileMode(0700)
 	groupMode        = os.FileMode(0060)
+	groupDirMode     = os.FileMode(0070)
 	allMode          = os.FileMode(0777)
 )
 
@@ -137,7 +139,7 @@ func (c Config) New() (server.Task, error) {
 			return nil, err
 		} else if group, err := c.group(); err != nil {
 			return nil, err
-		} else if fcgi, err := fcgiserver(abs, owner, group, c.mode(), c.Router); err != nil {
+		} else if fcgi, err := fcgiserver(abs, owner, group, c.fileMode(), c.dirMode(), c.Router); err != nil {
 			return nil, err
 		} else {
 			self.fcgi = fcgi
@@ -297,13 +299,22 @@ func (c Config) group() (int, error) {
 	}
 }
 
-// Return the socket mode
-func (c Config) mode() os.FileMode {
-	mode := defaultMode
+// Return the socket filemode
+func (c Config) fileMode() os.FileMode {
+	fileMode := defaultMode
 	if gid, err := c.group(); gid != -1 && err == nil {
-		mode |= groupMode
+		fileMode |= groupMode
 	}
-	return mode & allMode
+	return (fileMode & allMode)
+}
+
+// Return the socket dir mode
+func (c Config) dirMode() os.FileMode {
+	dirMode := defaultDirMode
+	if gid, err := c.group(); gid != -1 && err == nil {
+		dirMode |= groupDirMode
+	}
+	return (dirMode & allMode)
 }
 
 // Returns the host and port number from the configuration
@@ -368,14 +379,15 @@ func (self *httpserver) stop() error {
 }
 
 // Create a fastcgi file socket server
-func fcgiserver(path string, uid, gid int, mode os.FileMode, handler http.Handler) (*fcgi.Server, error) {
+func fcgiserver(path string, uid, gid int, fileMode os.FileMode, dirMode os.FileMode, handler http.Handler) (*fcgi.Server, error) {
 	fcgi := new(fcgi.Server)
 	fcgi.Network = "unix"
 	fcgi.Addr = path
 	fcgi.Handler = handler
 	fcgi.Owner = uid
 	fcgi.Group = gid
-	fcgi.Mode = mode
+	fcgi.Mode = fileMode
+	fcgi.DirMode = dirMode
 
 	// Return success
 	return fcgi, nil

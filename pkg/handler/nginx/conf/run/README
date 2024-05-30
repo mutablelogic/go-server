@@ -1,5 +1,4 @@
 
 # This directory will contain the following files
 
-nginx.pid - the process ID of the Nginx server
-nginx-access.log - the access log file for the default nginx server
+- nginx.pid - the process ID of the Nginx server

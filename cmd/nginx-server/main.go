@@ -47,7 +47,7 @@ func main() {
 	}
 
 	// Location of the FCGI unix socket
-	socket := filepath.Join(n.(nginx.Nginx).Config(), "go-server.sock")
+	socket := filepath.Join(n.(nginx.Nginx).Config(), "run/go-server.sock")
 
 	// Router
 	router, err := router.Config{
