@@ -28,14 +28,15 @@ RUN set -x \
 
 # Copy server and plugins to /usr/local/bin
 COPY --from=builder /usr/src/app/build/* /usr/local/bin/
-COPY etc/docker/entrypoint.sh .
-RUN chmod +x entrypoint.sh
+COPY --chmod=755 etc/docker/entrypoint.sh .
 
 # Labels
 LABEL org.opencontainers.image.source=${SOURCE}
 
 # Entrypoint when running the server
 ENTRYPOINT [ "/entrypoint.sh" ]
-EXPOSE 80
+EXPOSE 80 443
 STOPSIGNAL SIGQUIT
-CMD [ "/usr/local/bin/nginx-server" ]
+
+# Set group to nginx to set group permissions on the FCGI socket
+CMD [ "/usr/local/bin/nginx-server", "-group", "nginx" ]
