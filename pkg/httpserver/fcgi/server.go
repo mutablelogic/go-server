@@ -58,7 +58,6 @@ func (s *Server) ListenAndServe() error {
 	// Create any directories for the socket
 	if (s.Network == "unix" || s.Network == "") && s.Addr != "" {
 		parts := strings.Split(s.Addr, string(os.PathSeparator))
-		fmt.Println(parts)
 		for i := range parts {
 			dir := strings.Join(parts[:i], string(os.PathSeparator))
 			if dir == "" {
