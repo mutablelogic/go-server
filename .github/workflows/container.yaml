@@ -14,7 +14,6 @@ jobs:
     name: Set variables
     runs-on: ubuntu-latest
     outputs:
-      platform: "linux"
       image: "ghcr.io/${{ github.repository }}"
       tag: ${{ steps.var.outputs.tag }}
     steps:
@@ -37,6 +36,10 @@ jobs:
       matrix:
         arch: [ amd64, arm64 ]
     runs-on: ${{ matrix.arch == 'amd64' && 'ubuntu-latest' || matrix.arch }}
+    env:
+      ARCH: ${{ matrix.arch }}
+      OS: linux
+      DOCKER_REGISTRY: ghcr.io/mutablelogic
     steps:
       - name: Install git
         run: |
@@ -53,16 +56,11 @@ jobs:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build
+      - name: Build and Push
+        id: build      
         run: |
           git checkout v${{ needs.var.outputs.tag }}
-          make docker  
-      - name: Push
-        run: |
-          docker image tag \
-            go-server-${{ needs.var.outputs.platform }}-${{ matrix.arch }}:${{ needs.var.outputs.tag }} \
-            ${{ needs.var.outputs.image }}-${{ matrix.arch }}:${{ needs.var.outputs.tag }} 
-          docker push ${{ needs.var.outputs.image }}-${{ matrix.arch }}:${{ needs.var.outputs.tag }}
+          make docker && make docker-push
   manifest:
     name: Manifest
     needs:
