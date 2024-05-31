@@ -28,12 +28,8 @@ type Server struct {
 	Owner, Group int
 
 	// File mode for the socket or 0 if no work should be done
-<<<<<<< HEAD
 	DirMode os.FileMode
 	Mode    os.FileMode
-=======
-	Mode os.FileMode
->>>>>>> a486469478ac5f8553b60a97d8eb2a7a976d11bd
 
 	// Private variables to flag shutdown
 	listener net.Listener

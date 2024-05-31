@@ -23,16 +23,10 @@ func Test_Identifier_000(t *testing.T) {
 	}
 
 	for i, test := range tests {
-<<<<<<< HEAD
 		t.Run(test.In, func(t *testing.T) {
 			if out := types.IsIdentifier(test.In); out != test.Out {
 				t.Errorf("Test %d: Expected %v, got %v for %q", i, test.Out, out, test.In)
 			}
 		})
-=======
-		if out := types.IsIdentifier(test.In); out != test.Out {
-			t.Errorf("Test %d: Expected %v, got %v for %q", i, test.Out, out, test.In)
-		}
->>>>>>> a486469478ac5f8553b60a97d8eb2a7a976d11bd
 	}
 }

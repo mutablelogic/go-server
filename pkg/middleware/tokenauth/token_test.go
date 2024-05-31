@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mutablelogic/go-server/pkg/httpserver/tokenauth"
+	"github.com/mutablelogic/go-server/pkg/middleware/tokenauth"
 	"github.com/stretchr/testify/assert"
 )
 
