@@ -1,0 +1,27 @@
+package tokenauth
+
+/////////////////////////////////////////////////////////////////////
+// TYPES
+
+type EventType int
+
+/////////////////////////////////////////////////////////////////////
+// CONSTANTS
+
+const (
+	EventTypeNone EventType = iota
+	EventTypeWrite
+)
+
+/////////////////////////////////////////////////////////////////////
+// STRINGIFY
+
+func (t EventType) String() string {
+	switch t {
+	case EventTypeNone:
+		return "none"
+	case EventTypeWrite:
+		return "write"
+	}
+	return "[?? Invalid EventType value]"
+}

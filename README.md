@@ -53,7 +53,8 @@ You can run the server:
 
 ## Project Status
 
-This module is currently __in development__ and is not yet ready for any production environment.
+This module is currently __in development__ and is not yet ready for any production 
+environment.
 
 ## Community & License
 

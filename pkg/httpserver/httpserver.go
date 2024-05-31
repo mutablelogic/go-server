@@ -3,12 +3,16 @@ package httpserver
 import (
 	"context"
 	"crypto/tls"
+<<<<<<< HEAD
 	"encoding/json"
+=======
+>>>>>>> a486469478ac5f8553b60a97d8eb2a7a976d11bd
 	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"os"
+<<<<<<< HEAD
 	"os/user"
 	"path/filepath"
 	"strconv"
@@ -20,6 +24,17 @@ import (
 	"github.com/mutablelogic/go-server"
 	fcgi "github.com/mutablelogic/go-server/pkg/httpserver/fcgi"
 	"github.com/mutablelogic/go-server/pkg/provider"
+=======
+	"path/filepath"
+	"sync"
+	"time"
+
+	// Package imports
+	multierror "github.com/hashicorp/go-multierror"
+	fcgi "github.com/mutablelogic/go-server/pkg/httpserver/fcgi"
+	task "github.com/mutablelogic/go-server/pkg/task"
+	plugin "github.com/mutablelogic/go-server/plugin"
+>>>>>>> a486469478ac5f8553b60a97d8eb2a7a976d11bd
 
 	// Namespace imports
 	. "github.com/djthorpe/go-errors"
@@ -28,6 +43,7 @@ import (
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
+<<<<<<< HEAD
 // Server configuration
 type Config struct {
 	Listen string `hcl:"listen" description:"Network address and port to listen on, or path to file socket"`
@@ -57,10 +73,16 @@ type Server interface {
 
 // http server instance
 type httpserver struct {
+=======
+type httpserver struct {
+	task.Task
+	plugin.Router
+>>>>>>> a486469478ac5f8553b60a97d8eb2a7a976d11bd
 	fcgi *fcgi.Server
 	http *http.Server
 }
 
+<<<<<<< HEAD
 // Check interfaces are satisfied
 var _ server.Plugin = Config{}
 var _ server.Task = (*httpserver)(nil)
@@ -143,16 +165,61 @@ func (c Config) New() (server.Task, error) {
 			return nil, err
 		} else {
 			self.fcgi = fcgi
+=======
+///////////////////////////////////////////////////////////////////////////////
+// LIFECYCLE
+
+// Create a new logger task with provider of other tasks
+func NewWithPlugin(p Plugin) (*httpserver, error) {
+	this := new(httpserver)
+
+	router := p.Router()
+	if router == nil {
+		return nil, ErrBadParameter.With("router")
+	}
+
+	listen := p.Listen()
+	if isHostPort(listen) {
+		// net socket parameters
+		timeout := p.Timeout()
+		tls, err := p.TLS()
+		if err != nil {
+			return nil, err
+		}
+		// Create net server
+		if http, err := netserver(listen, tls, timeout, router.(http.Handler)); err != nil {
+			return nil, err
+		} else {
+			this.http = http
+		}
+	} else if abs, err := filepath.Abs(listen); err != nil {
+		return nil, err
+	} else {
+		// file socket parameters
+		if owner, err := p.Owner(); err != nil {
+			return nil, err
+		} else if group, err := p.Group(); err != nil {
+			return nil, err
+		} else if fcgi, err := fcgiserver(abs, owner, group, p.Mode(), router.(http.Handler)); err != nil {
+			return nil, err
+		} else {
+			this.fcgi = fcgi
+>>>>>>> a486469478ac5f8553b60a97d8eb2a7a976d11bd
 		}
 	}
 
 	// Return success
+<<<<<<< HEAD
 	return self, nil
+=======
+	return this, nil
+>>>>>>> a486469478ac5f8553b60a97d8eb2a7a976d11bd
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
+<<<<<<< HEAD
 // Return the configuration as a string
 func (c Config) String() string {
 	data, _ := json.MarshalIndent(c, "", "  ")
@@ -174,13 +241,36 @@ func (h httpserver) String() string {
 	}
 	data, _ := json.MarshalIndent(server, "", "  ")
 	return string(data)
+=======
+func (t *httpserver) String() string {
+	str := "<httpserver"
+	if t.fcgi != nil {
+		str += fmt.Sprintf(" fcgi=%q", t.fcgi.Addr)
+	} else {
+		str += fmt.Sprintf(" addr=%q", t.http.Addr)
+		if t.http.TLSConfig != nil {
+			str += " tls=true"
+		}
+		if t.http.ReadHeaderTimeout != 0 {
+			str += fmt.Sprintf(" read_timeout=%v", t.http.ReadHeaderTimeout)
+		}
+	}
+	if t.Router != nil {
+		str += fmt.Sprintf(" router=%v", t.Router)
+	}
+	return str + ">"
+>>>>>>> a486469478ac5f8553b60a97d8eb2a7a976d11bd
 }
 
 /////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
+<<<<<<< HEAD
 // Run the http server until the context is cancelled
 func (self *httpserver) Run(ctx context.Context) error {
+=======
+func (t *httpserver) Run(ctx context.Context) error {
+>>>>>>> a486469478ac5f8553b60a97d8eb2a7a976d11bd
 	var result error
 	var wg sync.WaitGroup
 
@@ -193,6 +283,7 @@ func (self *httpserver) Run(ctx context.Context) error {
 	go func() {
 		defer wg.Done()
 		<-child.Done()
+<<<<<<< HEAD
 		if err := self.stop(); err != nil {
 			result = errors.Join(result, err)
 		}
@@ -204,6 +295,16 @@ func (self *httpserver) Run(ctx context.Context) error {
 	// Run server in foreground, cancel when done
 	if err := self.runInForeground(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		result = errors.Join(result, err)
+=======
+		if err := t.stop(); err != nil {
+			result = multierror.Append(result, err)
+		}
+	}()
+
+	// Run server in foreground, cancel when done
+	if err := t.runInForeground(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		result = multierror.Append(result, err)
+>>>>>>> a486469478ac5f8553b60a97d8eb2a7a976d11bd
 		cancel()
 	}
 
@@ -214,6 +315,7 @@ func (self *httpserver) Run(ctx context.Context) error {
 	return result
 }
 
+<<<<<<< HEAD
 // Return the label for the task
 func (self *httpserver) Label() string {
 	// TODO
@@ -380,20 +482,49 @@ func (self *httpserver) stop() error {
 
 // Create a fastcgi file socket server
 func fcgiserver(path string, uid, gid int, fileMode os.FileMode, dirMode os.FileMode, handler http.Handler) (*fcgi.Server, error) {
+=======
+///////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+// TODO: return true if:
+//
+//	:<number|name> <ip4>:<number> <ip6>:<number> <iface>:<number|name>
+func isHostPort(listen string) bool {
+	// Empty string not acceptable
+	if listen == "" {
+		return false
+	}
+	// Check for host:port and if no error, return true
+	if _, _, err := net.SplitHostPort(listen); err == nil {
+		return true
+	} else {
+		return false
+	}
+}
+
+func fcgiserver(path string, uid, gid int, mode os.FileMode, handler http.Handler) (*fcgi.Server, error) {
+>>>>>>> a486469478ac5f8553b60a97d8eb2a7a976d11bd
 	fcgi := new(fcgi.Server)
 	fcgi.Network = "unix"
 	fcgi.Addr = path
 	fcgi.Handler = handler
 	fcgi.Owner = uid
 	fcgi.Group = gid
+<<<<<<< HEAD
 	fcgi.Mode = fileMode
 	fcgi.DirMode = dirMode
+=======
+	fcgi.Mode = mode
+>>>>>>> a486469478ac5f8553b60a97d8eb2a7a976d11bd
 
 	// Return success
 	return fcgi, nil
 }
 
+<<<<<<< HEAD
 // Create a network socket server
+=======
+>>>>>>> a486469478ac5f8553b60a97d8eb2a7a976d11bd
 func netserver(addr string, config *tls.Config, timeout time.Duration, handler http.Handler) (*http.Server, error) {
 	srv := new(http.Server)
 	srv.Addr = addr
@@ -407,3 +538,24 @@ func netserver(addr string, config *tls.Config, timeout time.Duration, handler h
 	// Return success
 	return srv, nil
 }
+<<<<<<< HEAD
+=======
+
+func (t *httpserver) runInForeground() error {
+	if t.fcgi != nil {
+		return t.fcgi.ListenAndServe()
+	} else if t.http.TLSConfig != nil {
+		return t.http.ListenAndServeTLS("", "")
+	} else {
+		return t.http.ListenAndServe()
+	}
+}
+
+func (t *httpserver) stop() error {
+	if t.fcgi != nil {
+		return t.fcgi.Close()
+	} else {
+		return t.http.Close()
+	}
+}
+>>>>>>> a486469478ac5f8553b60a97d8eb2a7a976d11bd
