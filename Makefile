@@ -43,6 +43,10 @@ docker: docker-dep
 docker-tag: docker-dep
 	@echo ${BUILD_TAG}
 
+docker-push: docker-dep
+	@echo push docker image: ${BUILD_TAG}
+	@${DOCKER} push ${BUILD_TAG}
+
 test: go-dep
 	@echo Test
 	@${GO} mod tidy
