@@ -1,29 +1,42 @@
-ARG PLATFORM
+ARG OS
 ARG ARCH
-ARG VERSION
-FROM --platform=${PLATFORM}/${ARCH} golang:1.19-bullseye AS builder
 
-# Run makefile to build server and plugins
+# Run makefile to build all the commands
+FROM --platform=${OS}/${ARCH} golang:1.22 AS builder
+ARG OS
+ARG ARCH
 WORKDIR /usr/src/app
 COPY . .
-RUN apt update && apt install -y npm
-RUN make
+RUN OS=${OS} ARCH=${ARCH} make
 
 # Copy server and plugins to /usr/local/bin
-FROM --platform=${PLATFORM}/${ARCH} library/nginx:${VERSION}
+FROM --platform=${OS}/${ARCH} debian:bookworm-slim
+ARG OS
+ARG ARCH
+ARG SOURCE
+
+# Install nginx and dependencies
+RUN set -x \
+  && groupadd --system --gid 101 nginx \
+  && useradd --system --gid nginx --no-create-home --home /nonexistent --comment "nginx user" --shell /bin/false --uid 101 nginx \
+  && apt update -y \
+  && apt install --no-install-recommends --no-install-suggests -y gnupg1 curl gnupg2 ca-certificates lsb-release debian-archive-keyring \
+  && curl https://nginx.org/keys/nginx_signing.key | gpg --dearmor | tee /usr/share/keyrings/nginx-archive-keyring.gpg >/dev/null  \
+  && echo "deb [signed-by=/usr/share/keyrings/nginx-archive-keyring.gpg] http://nginx.org/packages/debian `lsb_release -cs` nginx" | tee /etc/apt/sources.list.d/nginx.list \
+  && apt update -y \
+  && apt install --no-install-recommends --no-install-suggests -y nginx
+
+# Copy server and plugins to /usr/local/bin
 COPY --from=builder /usr/src/app/build/* /usr/local/bin/
-COPY etc/docker/server-entrypoint.sh .
+COPY --chmod=755 etc/docker/entrypoint.sh .
 
-# Create directories for go-server, the json directory is used to store the
-# configuration files
-COPY etc/json/ /var/lib/go-server/json/
-
-# Create directories for nginx, the available and enabled directories are
-# used to store the nginx configuration files
-RUN mkdir -p /var/lib/nginx/available
-RUN mkdir -p /var/lib/nginx/enabled
-COPY etc/nginx/ /var/lib/nginx/
+# Labels
+LABEL org.opencontainers.image.source=${SOURCE}
 
 # Entrypoint when running the server
-ENTRYPOINT [ "/server-entrypoint.sh" ]
-CMD [ "/usr/local/bin/server", "-plugins=/usr/local/bin/*.plugin", "/var/lib/go-server/json/*.json" ]
+ENTRYPOINT [ "/entrypoint.sh" ]
+EXPOSE 80 443
+STOPSIGNAL SIGQUIT
+
+# Set group to nginx to set group permissions on the FCGI socket
+CMD [ "/usr/local/bin/nginx-server", "-group", "nginx" ]

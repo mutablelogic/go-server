@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 )
 
@@ -27,7 +28,8 @@ type Server struct {
 	Owner, Group int
 
 	// File mode for the socket or 0 if no work should be done
-	Mode os.FileMode
+	DirMode os.FileMode
+	Mode    os.FileMode
 
 	// Private variables to flag shutdown
 	listener net.Listener
@@ -47,9 +49,48 @@ func (s *Server) ListenAndServe() error {
 		} else if err != nil {
 			return err
 		} else if stat.IsDir() {
-			return fmt.Errorf("Cannot use an existing directory")
+			return fmt.Errorf("cannot use an existing directory")
 		} else if err := os.Remove(s.Addr); err != nil {
 			return err
+		}
+	}
+
+	// Create any directories for the socket
+	if (s.Network == "unix" || s.Network == "") && s.Addr != "" {
+		parts := strings.Split(s.Addr, string(os.PathSeparator))
+		for i := range parts {
+			dir := strings.Join(parts[:i], string(os.PathSeparator))
+			if dir == "" {
+				continue
+			}
+			if stat, err := os.Stat(dir); os.IsNotExist(err) {
+				// Continue below
+			} else if err != nil {
+				return err
+			} else if !stat.IsDir() {
+				return fmt.Errorf("not a directory: %v", dir)
+			} else {
+				// Directory exists, so continue
+				continue
+			}
+
+			// Make the directory
+			if err := os.Mkdir(dir, 0700); err != nil {
+				return fmt.Errorf("mkdir %s: %w", dir, err)
+			}
+
+			// Swt the owner, group and mode
+			if s.Owner >= 0 || s.Group >= 0 {
+				if err := os.Chown(dir, s.Owner, s.Group); err != nil {
+					return err
+				}
+			}
+
+			if s.Mode > 0 {
+				if err := os.Chmod(dir, s.DirMode); err != nil {
+					return err
+				}
+			}
 		}
 	}
 

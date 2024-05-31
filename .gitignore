@@ -1,17 +1,3 @@
-
-# Go files
-*.test
-*.out
-
-# Backup files etc
-.DS_Store
+build
+_old
 ._*
-.smb*
-
-# Dependency and build
-vendor/
-build/
-
-# NPM ignores
-dist/
-node_modules/

@@ -1,0 +1,4 @@
+
+This directory will contain the following files
+
+- nginx-access.log - the access log file for the default nginx server

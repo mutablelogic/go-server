@@ -16,7 +16,7 @@ func ContextForSignal(signals ...os.Signal) context.Context {
 		return nil
 	}
 
-	ch := make(chan os.Signal)
+	ch := make(chan os.Signal, 1)
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// Send message on channel when signal received

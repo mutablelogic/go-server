@@ -1,6 +1,0 @@
-{
-    "name": "httpserver",
-    "label": "tokenauth",
-    "listen": ":9001",
-    "router": "httpserver-router.tokenauth"
-}

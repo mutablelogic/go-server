@@ -1,5 +1,0 @@
-{
-    "name": "nginx",
-    "label": "main",
-    "config": "etc/test/nginx/nginx.conf"
-}
