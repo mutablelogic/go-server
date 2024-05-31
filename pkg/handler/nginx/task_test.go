@@ -3,13 +3,15 @@ package nginx_test
 import (
 	"context"
 	"os/exec"
+	"regexp"
 	"sync"
 	"testing"
 	"time"
 
 	// Packages
-	"github.com/mutablelogic/go-server/pkg/handler/nginx"
-	"github.com/stretchr/testify/assert"
+	nginx "github.com/mutablelogic/go-server/pkg/handler/nginx"
+	cmd "github.com/mutablelogic/go-server/pkg/handler/nginx/cmd"
+	assert "github.com/stretchr/testify/assert"
 )
 
 func Test_nginx_001(t *testing.T) {
@@ -62,9 +64,35 @@ func Test_nginx_003(t *testing.T) {
 }
 
 func BinaryExec(t *testing.T) string {
+	var version string
+
 	bin, err := exec.LookPath("nginx")
 	if err != nil {
-		t.Skip("nginx binary not found")
+		t.Skip("Skipping test, nginx binary not found")
+		return ""
 	}
+
+	// TODO minimum version is 1.19.15
+	reVersion := regexp.MustCompile(`nginx/(\d+)\.(\d+)\.(\d+)`)
+	cmd, err := cmd.New(bin, "-v")
+	cmd.Err = func(data []byte) {
+		version += string(data)
+	}
+	cmd.Out = func(data []byte) {
+		version += string(data)
+	}
+	if err != nil {
+		t.Skip(err.Error())
+	} else if err := cmd.Run(); err != nil {
+		t.Skip(err.Error())
+	} else if args := reVersion.FindStringSubmatch(version); args == nil {
+		t.Skip("Missing version: " + version)
+	} else if v := args[1] + args[2]; v < "119" {
+		t.Skip("Invalid version (needs to be at least 1.19.X): " + version)
+	} else if v == "119" && args[3] < "15" {
+		t.Skip("Invalid version (needs to be >= 1.19.15): " + version)
+	}
+
+	// Return binary path
 	return bin
 }
