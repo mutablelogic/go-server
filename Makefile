@@ -15,12 +15,13 @@ BUILD_FLAGS = -ldflags "-s -w $(BUILD_LD_FLAGS)"
 ARCH ?= $(shell arch | tr A-Z a-z | sed 's/x86_64/amd64/' | sed 's/i386/amd64/' | sed 's/armv7l/arm/' | sed 's/aarch64/arm64/')
 OS ?= $(shell uname | tr A-Z a-z)
 VERSION ?= $(shell git describe --tags --always | sed 's/^v//')
+DOCKER_REGISTRY ?= ghcr.io/mutablelogic
 
 # Paths to locations, etc
 BUILD_DIR := "build"
 CMD_DIR := $(wildcard cmd/*)
 PLUGIN_DIR := $(wildcard plugin/*)
-BUILD_TAG := go-server-${OS}-${ARCH}:${VERSION}
+BUILD_TAG := ${DOCKER_REGISTRY}/go-server-${OS}-${ARCH}:${VERSION}
 
 # Targets
 all: clean cmds plugins
@@ -38,6 +39,9 @@ docker: docker-dep
 		--build-arg SOURCE=${BUILD_MODULE} \
 		--build-arg VERSION=${VERSION} \
 		-f etc/docker/Dockerfile .
+
+docker-tag: docker-dep
+	@echo ${BUILD_TAG}
 
 test: go-dep
 	@echo Test
