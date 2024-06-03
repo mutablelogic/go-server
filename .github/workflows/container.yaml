@@ -81,14 +81,21 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Create Manifest
         run: |
-          docker image ls
           docker manifest create ${{ needs.var.outputs.image }}:${{ matrix.tag }} \
             --amend ${{ needs.var.outputs.image }}-amd64:${{ needs.var.outputs.tag }} \
             --amend ${{ needs.var.outputs.image }}-arm64:${{ needs.var.outputs.tag }}
+          docker image ls
+      - name: Annotate
+        run: |
+          docker image ls
           docker manifest annotate --arch arm64 \
             ${{ needs.var.outputs.image }}:${{ matrix.tag  }} \
             ${{ needs.var.outputs.image }}-arm64:${{ needs.var.outputs.tag }}
           docker manifest annotate --arch amd64 \
             ${{ needs.var.outputs.image }}:${{ matrix.tag  }} \
             ${{ needs.var.outputs.image }}-amd64:${{ needs.var.outputs.tag }}
-          docker manifest push ${{ needs.var.outputs.image }}:${{ matrix.tag }}
+      - name: Push
+        run: |
+          docker image ls
+          docker manifest push ${{ needs.var.outputs.image }}:${{ matrix.tag }}          
+
