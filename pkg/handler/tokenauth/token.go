@@ -35,7 +35,7 @@ type TokenCreate struct {
 
 // Create a token of the specified number of bytes, with the specified duration and scope.
 // If the duration is zero, the token will not expire.
-func NewToken(length int, duration time.Duration, scope ...string) *Token {
+func NewToken(name string, length int, duration time.Duration, scope ...string) *Token {
 	var expire time.Time
 	if duration != 0 {
 		expire = time.Now().Add(duration)
