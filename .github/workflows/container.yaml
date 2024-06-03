@@ -79,12 +79,11 @@ jobs:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Create Manifest
+      - name: Create
         run: |
           docker manifest create ${{ needs.var.outputs.image }}:${{ matrix.tag }} \
             --amend ${{ needs.var.outputs.image }}-linux-amd64:${{ needs.var.outputs.tag }} \
             --amend ${{ needs.var.outputs.image }}-linux-arm64:${{ needs.var.outputs.tag }}
-          docker image ls
       - name: Annotate
         run: |
           docker manifest annotate --arch arm64 --os linux \
@@ -93,7 +92,7 @@ jobs:
           docker manifest annotate --arch amd64 --os linux \
             ${{ needs.var.outputs.image }}:${{ matrix.tag  }} \
             ${{ needs.var.outputs.image }}-linux-amd64:${{ needs.var.outputs.tag }}
+          docker manifest push ${{ needs.var.outputs.image }}:${{ matrix.tag }}
       - name: Push
         run: |
-          docker manifest push ${{ needs.var.outputs.image }}:${{ matrix.tag }}          
-
+          docker manifest push ${{ needs.var.outputs.image }}:${{ matrix.tag }}
