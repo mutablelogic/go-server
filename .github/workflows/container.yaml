@@ -87,15 +87,13 @@ jobs:
           docker image ls
       - name: Annotate
         run: |
-          docker image ls
-          docker manifest annotate --arch arm64 -os linux \
+          docker manifest annotate --arch arm64 --os linux \
             ${{ needs.var.outputs.image }}:${{ matrix.tag  }} \
             ${{ needs.var.outputs.image }}-linux-arm64:${{ needs.var.outputs.tag }}
-          docker manifest annotate --arch amd64 -os linux \
+          docker manifest annotate --arch amd64 --os linux \
             ${{ needs.var.outputs.image }}:${{ matrix.tag  }} \
             ${{ needs.var.outputs.image }}-linux-amd64:${{ needs.var.outputs.tag }}
       - name: Push
         run: |
-          docker image ls
           docker manifest push ${{ needs.var.outputs.image }}:${{ matrix.tag }}          
 
