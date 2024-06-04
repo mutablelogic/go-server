@@ -7,12 +7,15 @@ import (
 	"os"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	// Packages
 	server "github.com/mutablelogic/go-server"
 	ctx "github.com/mutablelogic/go-server/pkg/context"
+	auth "github.com/mutablelogic/go-server/pkg/handler/auth"
 	nginx "github.com/mutablelogic/go-server/pkg/handler/nginx"
 	router "github.com/mutablelogic/go-server/pkg/handler/router"
+	tokenjar "github.com/mutablelogic/go-server/pkg/handler/tokenjar"
 	httpserver "github.com/mutablelogic/go-server/pkg/httpserver"
 	logger "github.com/mutablelogic/go-server/pkg/middleware/logger"
 	provider "github.com/mutablelogic/go-server/pkg/provider"
@@ -46,6 +49,24 @@ func main() {
 		log.Fatal(err)
 	}
 
+	// Token Jar
+	jar, err := tokenjar.Config{
+		DataPath:      n.(nginx.Nginx).Config(),
+		WriteInterval: 30 * time.Second,
+	}.New()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Auth handler
+	auth, err := auth.Config{
+		TokenJar:   jar.(auth.TokenJar),
+		TokenBytes: 8,
+	}.New()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	// Location of the FCGI unix socket
 	socket := filepath.Join(n.(nginx.Nginx).Config(), "run/go-server.sock")
 
@@ -54,6 +75,12 @@ func main() {
 		Services: router.ServiceConfig{
 			"nginx": { // /api/nginx/...
 				Service: n.(server.ServiceEndpoints),
+				Middleware: []server.Middleware{
+					logger.(server.Middleware),
+				},
+			},
+			"auth": { // /api/auth/...
+				Service: auth.(server.ServiceEndpoints),
 				Middleware: []server.Middleware{
 					logger.(server.Middleware),
 				},
@@ -75,7 +102,7 @@ func main() {
 	}
 
 	// Run until we receive an interrupt
-	provider := provider.NewProvider(logger, n, router, httpserver)
+	provider := provider.NewProvider(logger, n, jar, auth, router, httpserver)
 	provider.Print(ctx, "Press CTRL+C to exit")
 	if err := provider.Run(ctx); err != nil {
 		log.Fatal(err)

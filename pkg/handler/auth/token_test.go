@@ -1,10 +1,12 @@
-package tokenauth_test
+package auth_test
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
-	"github.com/mutablelogic/go-server/pkg/middleware/tokenauth"
+	// Packages
+	"github.com/mutablelogic/go-server/pkg/handler/auth"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -16,8 +18,7 @@ const (
 func Test_token_001(t *testing.T) {
 	assert := assert.New(t)
 	// Create a token with 100 bytes and no expiry
-	token := tokenauth.NewToken(100, 0)
-	assert.NotNil(token)
+	token := auth.NewToken("test", 100, 0)
 	assert.Equal(200, len(token.Value))
 	assert.True(token.IsValid())
 	t.Log(token)
@@ -26,8 +27,7 @@ func Test_token_001(t *testing.T) {
 func Test_token_002(t *testing.T) {
 	assert := assert.New(t)
 	// Create a token with 100 bytes and expiry in the past
-	token := tokenauth.NewToken(100, -time.Second)
-	assert.NotNil(token)
+	token := auth.NewToken("test", 100, -time.Second)
 	assert.False(token.IsValid())
 	assert.Equal(200, len(token.Value))
 	t.Log(token)
@@ -36,8 +36,7 @@ func Test_token_002(t *testing.T) {
 func Test_token_003(t *testing.T) {
 	assert := assert.New(t)
 	// Create a token with 100 bytes and one scope
-	token := tokenauth.NewToken(100, 0, ScopeRead)
-	assert.NotNil(token)
+	token := auth.NewToken("test", 100, 0, ScopeRead)
 	assert.True(token.IsScope(ScopeRead))
 	assert.False(token.IsScope(ScopeWrite))
 	t.Log(token)
@@ -46,8 +45,18 @@ func Test_token_003(t *testing.T) {
 func Test_token_004(t *testing.T) {
 	assert := assert.New(t)
 	// Create a token with 100 bytes and one scope
-	token := tokenauth.NewToken(100, -1, ScopeRead)
-	assert.NotNil(token)
+	token := auth.NewToken("test", 100, -1, ScopeRead)
 	assert.False(token.IsScope(ScopeRead))
 	t.Log(token)
+}
+
+func Test_token_005(t *testing.T) {
+	assert := assert.New(t)
+
+	// Create a token with 100 bytes and one scope
+	token := auth.NewToken("test", 100, -1, ScopeRead)
+	bytes, err := json.MarshalIndent(token, "", "  ")
+	assert.NoError(err)
+	assert.NotNil(bytes)
+	t.Log(string(bytes))
 }
