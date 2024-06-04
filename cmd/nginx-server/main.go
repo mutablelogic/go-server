@@ -62,6 +62,7 @@ func main() {
 	auth, err := auth.Config{
 		TokenJar:   jar.(auth.TokenJar),
 		TokenBytes: 8,
+		Bearer:     true, // Use bearer token in requests for authorization
 	}.New()
 	if err != nil {
 		log.Fatal(err)
@@ -77,12 +78,14 @@ func main() {
 				Service: n.(server.ServiceEndpoints),
 				Middleware: []server.Middleware{
 					logger.(server.Middleware),
+					auth.(server.Middleware),
 				},
 			},
 			"auth": { // /api/auth/...
 				Service: auth.(server.ServiceEndpoints),
 				Middleware: []server.Middleware{
 					logger.(server.Middleware),
+					auth.(server.Middleware),
 				},
 			},
 		},

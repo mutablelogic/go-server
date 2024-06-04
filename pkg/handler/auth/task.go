@@ -21,7 +21,6 @@ type auth struct {
 
 // Check interfaces are satisfied
 var _ server.Task = (*auth)(nil)
-var _ server.ServiceEndpoints = (*auth)(nil)
 
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
