@@ -100,8 +100,8 @@ func (service *auth) CreateToken(w http.ResponseWriter, r *http.Request) {
 
 	// Check for a valid name
 	req.Name = strings.TrimSpace(req.Name)
-	if req.Name == "" {
-		httpresponse.Error(w, http.StatusBadRequest, "missing 'name'")
+	if !types.IsIdentifier(req.Name) {
+		httpresponse.Error(w, http.StatusBadRequest, "invalid 'name'")
 		return
 	} else if token := service.jar.GetWithName(req.Name); !token.IsZero() {
 		httpresponse.Error(w, http.StatusConflict, "duplicate 'name'")
@@ -111,6 +111,7 @@ func (service *auth) CreateToken(w http.ResponseWriter, r *http.Request) {
 		duration = duration.Truncate(time.Minute)
 		if duration < time.Minute {
 			httpresponse.Error(w, http.StatusBadRequest, "invalid 'duration'")
+			return
 		} else {
 			req.Duration.Duration = duration
 		}
@@ -123,7 +124,7 @@ func (service *auth) CreateToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Add the token
+	// Add the token to the jar
 	if err := service.jar.Create(token); err != nil {
 		httpresponse.Error(w, http.StatusInternalServerError, err.Error())
 		return
