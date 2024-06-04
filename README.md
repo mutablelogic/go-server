@@ -13,6 +13,9 @@ Standard plugins provided include:
 - [__nginx__](pkg/handler/nginx) to manage a running nginx reverse proxy
   instance;
 - [__static__](pkg/handler/static/) to serve static files;
+- [__auth__](pkg/handler/auth) to manage authentication and authorisation;
+- [__tokenjar__](pkg/handler/tokenjar) to manage persistence of authorisation 
+  tokens on disk;
 - [__certmanager__](pkg/handler/certmanager) to manage trust and certificates.
 
 The motivation for this module is to provide a generic server which
@@ -20,10 +23,23 @@ can be developed and scaled over time. Ultimately the running process
 is a large "monolith" server which can be composed of many smaller
 "plugins", which can be connected together loosely.
 
+## Running the server
+
+The easiest way to run an nginx reverse proxy server, with an API to 
+manage nginx configuration, is through docker:
+
+```bash
+docker run -p 8080:80 ghcr.io/mutablelogic/go-server
+```
+
+This will start a server on port 8080. Use API commands to manage the
+nginx configuration. Ultimately you'll want to develop your own plugins
+and can use this image as the base image for your own server.
+
 ## Requirements and Building
 
 Any modern `go` compiler should be able to build the `server` command,
-1.22 and above. It has been tested on MacOS and Linux. To build the server
+1.21 and above. It has been tested on MacOS and Linux. To build the server
 and plugins, run:
 
 ```bash
@@ -44,7 +60,7 @@ other make targets:
 
 You can run the server:
 
-  1. With a HTTP server over network: You can specify TSL key and certificate
+  1. With a HTTP server over network: You can specify TLS key and certificate
     to serve requests over a secure connection;
   2. With a HTTP server with FastCGI over a unix socket: You would want to do
     this if the server is behind a reverse proxy such as nginx.
