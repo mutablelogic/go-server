@@ -137,7 +137,7 @@ func (service *auth) CreateToken(w http.ResponseWriter, r *http.Request) {
 	httpresponse.JSON(w, token, http.StatusCreated, jsonIndent)
 }
 
-// Update an existing token
+// Update (patch, delete) an existing token
 func (service *auth) UpdateToken(w http.ResponseWriter, r *http.Request) {
 	urlParameters := router.Params(r.Context())
 	token := service.jar.GetWithName(strings.ToLower(urlParameters[0]))
