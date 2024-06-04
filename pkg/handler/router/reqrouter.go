@@ -101,8 +101,10 @@ func (router *reqrouter) AddHandlerRe(ctx context.Context, prefix string, path *
 }
 
 func (router *reqs) AddHandler(ctx context.Context, path string, handler http.HandlerFunc, methods ...string) {
-	// Add any middleware to the handler
-	for _, middleware := range Middleware(ctx) {
+	// Add any middleware to the handler, in reverse order
+	middleware := Middleware(ctx)
+	slices.Reverse(middleware)
+	for _, middleware := range middleware {
 		handler = middleware.Wrap(ctx, handler)
 	}
 
@@ -118,8 +120,10 @@ func (router *reqs) AddHandler(ctx context.Context, path string, handler http.Ha
 }
 
 func (router *reqs) AddHandlerRe(ctx context.Context, path *regexp.Regexp, handler http.HandlerFunc, methods ...string) {
-	// Add any middleware to the handler
-	for _, middleware := range Middleware(ctx) {
+	// Add any middleware to the handler, in reverse order
+	middleware := Middleware(ctx)
+	slices.Reverse(middleware)
+	for _, middleware := range middleware {
 		handler = middleware.Wrap(ctx, handler)
 	}
 
