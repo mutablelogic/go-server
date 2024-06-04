@@ -47,7 +47,7 @@ func (middleware *auth) Wrap(ctx context.Context, next http.HandlerFunc) http.Ha
 
 		// Get token from the jar
 		token := middleware.jar.GetWithValue(tokenValue)
-		if !token.IsValid() {
+		if token.IsZero() || !token.IsValid() {
 			httpresponse.Error(w, http.StatusUnauthorized)
 			return
 		}
