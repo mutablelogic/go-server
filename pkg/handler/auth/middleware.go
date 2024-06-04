@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -47,19 +46,31 @@ func (middleware *auth) Wrap(ctx context.Context, next http.HandlerFunc) http.Ha
 
 		// Get token from the jar - check it is found and valid
 		token := middleware.jar.GetWithValue(tokenValue)
+		authorized := true
 		if token.IsZero() {
-			httpresponse.Error(w, http.StatusUnauthorized)
-			return
-		}
-		if !token.IsValid() {
-			httpresponse.Error(w, http.StatusUnauthorized)
-			return
+			authorized = false
+		} else if !token.IsValid() {
+			authorized = false
+		} else if token.IsScope(ScopeRoot) {
+			// Allow
+		} else {
+			// TODO: Get scope for the route
+			var allowedScopes = []string{}
+			if token.IsScope(allowedScopes...) {
+				authorized = true
+			}
 		}
 
-		// TODO: Check token scope allows access to this resource
-		fmt.Printf("TODO Auth: %v\n", token)
+		// Return unauthorized if token is not found or not valid
+		if !authorized {
+			httpresponse.Error(w, http.StatusUnauthorized)
+			return
+		}
 
 		// TODO: Hook for setting JWT cookie here
+
+		// Create a new context with the token name and scopes
+		r = r.WithContext(WithToken(r.Context(), token))
 
 		// Call next handler in chain
 		next(w, r)

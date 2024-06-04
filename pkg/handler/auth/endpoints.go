@@ -153,6 +153,12 @@ func (service *auth) UpdateToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	requestor := TokenName(r.Context())
+	if requestor == token.Name {
+		httpresponse.Error(w, http.StatusForbidden, "Cannot update the requestor's token")
+		return
+	}
+
 	switch r.Method {
 	case http.MethodDelete:
 		if err := service.jar.Delete(token.Value); err != nil {
