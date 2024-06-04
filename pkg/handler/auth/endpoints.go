@@ -170,6 +170,7 @@ func (service *auth) UpdateToken(w http.ResponseWriter, r *http.Request) {
 	default:
 		// TODO: PATCH
 		// Patch can be with name, expire_time, scopes
+		// TODO: Should not be able to add the root scope unless you have the root scope
 		httpresponse.Error(w, http.StatusMethodNotAllowed)
 		return
 	}
