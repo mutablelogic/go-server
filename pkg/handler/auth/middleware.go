@@ -2,13 +2,13 @@ package auth
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
 
 	// Packages
 	"github.com/mutablelogic/go-server"
 	"github.com/mutablelogic/go-server/pkg/httpresponse"
-	"github.com/mutablelogic/go-server/pkg/provider"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -32,9 +32,6 @@ func (middleware *auth) Wrap(ctx context.Context, next http.HandlerFunc) http.Ha
 	return func(w http.ResponseWriter, r *http.Request) {
 		var tokenValue string
 
-		// Get logger
-		logger := provider.Logger(r.Context())
-
 		// If bearer is true, get the token from the Authorization: Bearer header
 		if middleware.bearer {
 			tokenValue = strings.ToLower(strings.TrimSpace(getBearer(r)))
@@ -42,7 +39,7 @@ func (middleware *auth) Wrap(ctx context.Context, next http.HandlerFunc) http.Ha
 
 		// Get token from request
 		if tokenValue == "" {
-			httpresponse.Empty(w, http.StatusUnauthorized)
+			httpresponse.Error(w, http.StatusUnauthorized)
 			return
 		}
 
@@ -51,12 +48,12 @@ func (middleware *auth) Wrap(ctx context.Context, next http.HandlerFunc) http.Ha
 		// Get token from the jar
 		token := middleware.jar.GetWithValue(tokenValue)
 		if !token.IsValid() {
-			httpresponse.Empty(w, http.StatusUnauthorized)
+			httpresponse.Error(w, http.StatusUnauthorized)
 			return
 		}
 
 		// TODO: Check token scope allows access to this resource
-		logger.Printf(ctx, "TODO Auth: %v", token)
+		fmt.Printf("TODO Auth: %v\n", token)
 
 		// TODO: Hook for setting JWT cookie here
 
