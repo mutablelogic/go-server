@@ -67,7 +67,7 @@ func (task *auth) Run(ctx context.Context) error {
 	// If there are no tokens, then create a "root" token
 	if tokens := task.jar.Tokens(); len(tokens) == 0 {
 		token := NewToken(defaultRootNme, task.tokenBytes, 0, ScopeRoot)
-		logger.Printf(ctx, "Creating root token: %q", token.Value)
+		logger.Printf(ctx, "Creating root token %q for scope %q", token.Value, ScopeRoot)
 		if err := task.jar.Create(token); err != nil {
 			return err
 		}
