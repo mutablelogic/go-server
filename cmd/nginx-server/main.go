@@ -102,7 +102,7 @@ func main() {
 	}
 
 	// Run until we receive an interrupt
-	provider := provider.NewProvider(logger, n, router, httpserver)
+	provider := provider.NewProvider(logger, n, jar, auth, router, httpserver)
 	provider.Print(ctx, "Press CTRL+C to exit")
 	if err := provider.Run(ctx); err != nil {
 		log.Fatal(err)
