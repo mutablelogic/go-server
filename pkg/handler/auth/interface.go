@@ -1,6 +1,13 @@
-package tokenauth
+package auth
+
+import (
+	"context"
+)
 
 type TokenJar interface {
+	// Run the token jar until cancelled
+	Run(context.Context) error
+
 	// Return all tokens
 	Tokens() []*Token
 
@@ -14,7 +21,6 @@ type TokenJar interface {
 	// Update an existing token in the jar, assuming it already exists.
 	Update(*Token) error
 
-	// Remove a token from the jar. Return the token that was removed,
-	// or nil if the token was not found.
-	Remove(string) error
+	// Remove a token from the jar, based on key.
+	Delete(string) error
 }

@@ -1,4 +1,4 @@
-package tokenauth
+package auth
 
 import (
 	"bytes"
@@ -6,12 +6,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strconv"
 	"time"
-
-	// Package imports
-
-	slices "golang.org/x/exp/slices"
 )
 
 /////////////////////////////////////////////////////////////////////
