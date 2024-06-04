@@ -135,9 +135,10 @@ func (jar *tokenjar) Tokens() []auth.Token {
 	return result
 }
 
-// Return a token from the jar, or nil if the token is not found.
+// Return a token from the jar.
 // The method should update the access time of the token.
-func (jar *tokenjar) Get(key string) auth.Token {
+// If token is not found, return an empty token.
+func (jar *tokenjar) GetWithValue(key string) auth.Token {
 	jar.Lock()
 	defer jar.Unlock()
 
@@ -151,6 +152,22 @@ func (jar *tokenjar) Get(key string) auth.Token {
 		// Return an empty token - not found
 		return auth.Token{}
 	}
+}
+
+// Return a token from the jar by name.
+// The method does not update the access time of the token.
+// If token is not found, return an empty token.
+func (jar *tokenjar) GetWithName(name string) auth.Token {
+	jar.RLock()
+	defer jar.RUnlock()
+
+	for _, token := range jar.jar {
+		if token.Name == name {
+			return *token
+		}
+	}
+
+	return auth.Token{}
 }
 
 // Put a token into the jar, assuming it does not yet exist.

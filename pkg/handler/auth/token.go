@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"slices"
 	"strconv"
 	"time"
@@ -22,9 +23,13 @@ type Token struct {
 }
 
 type TokenCreate struct {
-	Name     string        `json:"name,omitempty"`     // Name of the token
-	Duration time.Duration `json:"duration,omitempty"` // Duration of the token, or zero for no expiration
-	Scope    []string      `json:"scopes,omitempty"`   // Authentication scopes
+	Name     string   `json:"name,omitempty"`     // Name of the token
+	Duration duration `json:"duration,omitempty"` // Duration of the token, or zero for no expiration
+	Scope    []string `json:"scopes,omitempty"`   // Authentication scopes
+}
+
+type duration struct {
+	time.Duration
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -78,6 +83,14 @@ func (t Token) Equals(other Token) bool {
 // Return true if the token is valid (not expired)
 func (t Token) IsValid() bool {
 	if t.Expire.IsZero() || t.Expire.After(time.Now()) {
+		return true
+	}
+	return false
+}
+
+// Return true if the token is a zero token
+func (t Token) IsZero() bool {
+	if t.Name == "" && t.Value == "" && t.Expire.IsZero() && t.Time.IsZero() && len(t.Scope) == 0 {
 		return true
 	}
 	return false
@@ -142,6 +155,31 @@ func (t Token) MarshalJSON() ([]byte, error) {
 	// Return success
 	buf.WriteRune('}')
 	return buf.Bytes(), nil
+}
+
+func (d duration) MarshalJSON() ([]byte, error) {
+	return json.Marshal(d.String())
+}
+
+func (d *duration) UnmarshalJSON(b []byte) error {
+	var v any
+	if err := json.Unmarshal(b, &v); err != nil {
+		return err
+	}
+	switch value := v.(type) {
+	case float64:
+		d.Duration = time.Duration(value) * time.Second
+		return nil
+	case string:
+		var err error
+		d.Duration, err = time.ParseDuration(value)
+		if err != nil {
+			return err
+		}
+		return nil
+	default:
+		return fmt.Errorf("invalid duration of type %T", v)
+	}
 }
 
 /////////////////////////////////////////////////////////////////////

@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"regexp"
+	"strings"
 	"time"
 
 	// Packages
@@ -75,8 +76,8 @@ func (service *auth) ListTokens(w http.ResponseWriter, r *http.Request) {
 // Get a token
 func (service *auth) GetToken(w http.ResponseWriter, r *http.Request) {
 	urlParameters := router.Params(r.Context())
-	token := service.jar.Get(urlParameters[0])
-	if !token.IsValid() {
+	token := service.jar.GetWithValue(strings.ToLower(urlParameters[0]))
+	if token.IsZero() {
 		httpresponse.Error(w, http.StatusNotFound)
 		return
 	}
@@ -92,17 +93,22 @@ func (service *auth) GetToken(w http.ResponseWriter, r *http.Request) {
 func (service *auth) CreateToken(w http.ResponseWriter, r *http.Request) {
 	var req TokenCreate
 
-	// TODO: Parse Duration
-	// TODO: Require unique name
-
 	// Get the request
 	if err := httprequest.Read(r, &req); err != nil {
 		httpresponse.Error(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
+	// Check for a valid name
+	req.Name = strings.TrimSpace(req.Name)
+	if req.Name == "" {
+		httpresponse.Error(w, http.StatusBadRequest, "missing 'name'")
+	} else if token := service.jar.GetWithName(req.Name); token.IsValid() {
+		httpresponse.Error(w, http.StatusConflict, "duplicate 'name'")
+	}
+
 	// Create the token
-	token := NewToken(req.Name, service.tokenBytes, req.Duration, req.Scope...)
+	token := NewToken(req.Name, service.tokenBytes, req.Duration.Duration, req.Scope...)
 	if !token.IsValid() {
 		httpresponse.Error(w, http.StatusInternalServerError)
 		return
@@ -125,8 +131,8 @@ func (service *auth) CreateToken(w http.ResponseWriter, r *http.Request) {
 // Update an existing token
 func (service *auth) UpdateToken(w http.ResponseWriter, r *http.Request) {
 	urlParameters := router.Params(r.Context())
-	token := service.jar.Get(urlParameters[0])
-	if !token.IsValid() {
+	token := service.jar.GetWithValue(strings.ToLower(urlParameters[0]))
+	if token.IsZero() {
 		httpresponse.Error(w, http.StatusNotFound)
 		return
 	}
@@ -138,6 +144,8 @@ func (service *auth) UpdateToken(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	default:
+		// TODO: PATCH
+		// Patch can be with name, expire_time, scopes
 		httpresponse.Error(w, http.StatusMethodNotAllowed)
 		return
 	}
