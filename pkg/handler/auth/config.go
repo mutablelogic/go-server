@@ -11,6 +11,7 @@ import (
 type Config struct {
 	TokenJar   TokenJar `hcl:"token_jar" description:"Persistent storage for tokens"`
 	TokenBytes int      `hcl:"token_bytes" description:"Number of bytes in a token"`
+	Bearer     bool     `hcl:"bearer" description:"Use bearer token for authorization"`
 }
 
 // Check interfaces are satisfied

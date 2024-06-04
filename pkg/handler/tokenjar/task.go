@@ -33,7 +33,7 @@ func (jar *tokenjar) Run(ctx context.Context) error {
 				if err := jar.Write(); err != nil {
 					logger.Print(ctx, err)
 				} else {
-					logger.Print(ctx, "Sync %q", filepath.Base(jar.filename))
+					logger.Printf(ctx, "Sync %q", filepath.Base(jar.filename))
 				}
 			}
 		case <-ctx.Done():
