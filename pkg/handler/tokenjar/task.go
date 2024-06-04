@@ -2,9 +2,11 @@ package tokenjar
 
 import (
 	"context"
+	"path/filepath"
 	"time"
 
-	"github.com/mutablelogic/go-server/pkg/provider"
+	// Packages
+	provider "github.com/mutablelogic/go-server/pkg/provider"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -27,22 +29,15 @@ func (jar *tokenjar) Run(ctx context.Context) error {
 	for {
 		select {
 		case <-ticker.C:
-			if err := jar.write(); err != nil {
-				logger.Print(ctx, err)
+			if jar.Modified() {
+				if err := jar.Write(); err != nil {
+					logger.Print(ctx, err)
+				} else {
+					logger.Print(ctx, "Sync %q", filepath.Base(jar.filename))
+				}
 			}
 		case <-ctx.Done():
-			return jar.write()
+			return jar.Write()
 		}
-	}
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// PRIVATE METHODS
-
-func (jar *tokenjar) write() error {
-	if !jar.Modified() {
-		return nil
-	} else {
-		return jar.Write()
 	}
 }
