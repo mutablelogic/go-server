@@ -12,6 +12,7 @@ import (
 	router "github.com/mutablelogic/go-server/pkg/handler/router"
 	httprequest "github.com/mutablelogic/go-server/pkg/httprequest"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
+	"github.com/mutablelogic/go-server/pkg/types"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -19,14 +20,11 @@ import (
 
 const (
 	jsonIndent = 2
-
-	// Token should be at least eight bytes (16 chars)
-	reTokenString = `[a-zA-Z0-9]{16}[a-zA-Z0-9]*`
 )
 
 var (
 	reRoot  = regexp.MustCompile(`^/?$`)
-	reToken = regexp.MustCompile(`^/(` + reTokenString + `)/?$`)
+	reToken = regexp.MustCompile(`^/(` + types.ReIdentifier + `)/?$`)
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -46,13 +44,13 @@ func (service *auth) AddEndpoints(ctx context.Context, router server.Router) {
 	// Description: Create a new token
 	router.AddHandlerFuncRe(ctx, reRoot, service.CreateToken, http.MethodPost)
 
-	// Path: /<token>
+	// Path: /<token-name>
 	// Methods: GET
 	// Scopes: read // TODO: Add scopes
 	// Description: Get a token
 	router.AddHandlerFuncRe(ctx, reToken, service.GetToken, http.MethodGet)
 
-	// Path: /<token>
+	// Path: /<token-name>
 	// Methods: DELETE, PATCH
 	// Scopes: write // TODO: Add scopes
 	// Description: Delete or update a token
@@ -67,6 +65,7 @@ func (service *auth) ListTokens(w http.ResponseWriter, r *http.Request) {
 	tokens := service.jar.Tokens()
 	result := make([]*Token, 0, len(tokens))
 	for _, token := range tokens {
+		// Remove the token value
 		token.Value = ""
 		result = append(result, &token)
 	}
@@ -76,7 +75,7 @@ func (service *auth) ListTokens(w http.ResponseWriter, r *http.Request) {
 // Get a token
 func (service *auth) GetToken(w http.ResponseWriter, r *http.Request) {
 	urlParameters := router.Params(r.Context())
-	token := service.jar.GetWithValue(strings.ToLower(urlParameters[0]))
+	token := service.jar.GetWithName(strings.ToLower(urlParameters[0]))
 	if token.IsZero() {
 		httpresponse.Error(w, http.StatusNotFound)
 		return
@@ -141,7 +140,7 @@ func (service *auth) CreateToken(w http.ResponseWriter, r *http.Request) {
 // Update an existing token
 func (service *auth) UpdateToken(w http.ResponseWriter, r *http.Request) {
 	urlParameters := router.Params(r.Context())
-	token := service.jar.GetWithValue(strings.ToLower(urlParameters[0]))
+	token := service.jar.GetWithName(strings.ToLower(urlParameters[0]))
 	if token.IsZero() {
 		httpresponse.Error(w, http.StatusNotFound)
 		return
