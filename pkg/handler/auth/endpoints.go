@@ -62,7 +62,13 @@ func (service *auth) AddEndpoints(ctx context.Context, router server.Router) {
 
 // Get all tokens
 func (service *auth) ListTokens(w http.ResponseWriter, r *http.Request) {
-	httpresponse.JSON(w, service.jar.Tokens(), http.StatusOK, jsonIndent)
+	tokens := service.jar.Tokens()
+	result := make([]*Token, len(tokens))
+	for _, token := range tokens {
+		token.Value = ""
+		result = append(result, &token)
+	}
+	httpresponse.JSON(w, result, http.StatusOK, jsonIndent)
 }
 
 // Get a token
