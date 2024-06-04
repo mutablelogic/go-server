@@ -45,9 +45,13 @@ func (middleware *auth) Wrap(ctx context.Context, next http.HandlerFunc) http.Ha
 
 		// TODO: Hook for getting JWT from request here
 
-		// Get token from the jar
+		// Get token from the jar - check it is found and valid
 		token := middleware.jar.GetWithValue(tokenValue)
-		if token.IsZero() || !token.IsValid() {
+		if token.IsZero() {
+			httpresponse.Error(w, http.StatusUnauthorized)
+			return
+		}
+		if !token.IsValid() {
 			httpresponse.Error(w, http.StatusUnauthorized)
 			return
 		}
