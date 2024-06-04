@@ -5,8 +5,7 @@ import (
 )
 
 type TokenJar interface {
-	// Run the token jar until cancelled
-	Run(context.Context) error
+	server.Task
 
 	// Return all tokens
 	Tokens() []Token
