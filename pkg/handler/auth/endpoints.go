@@ -4,11 +4,12 @@ import (
 	"context"
 	"net/http"
 	"regexp"
+	"time"
 
 	// Packages
 	server "github.com/mutablelogic/go-server"
-	"github.com/mutablelogic/go-server/pkg/handler/router"
-	"github.com/mutablelogic/go-server/pkg/httprequest"
+	router "github.com/mutablelogic/go-server/pkg/handler/router"
+	httprequest "github.com/mutablelogic/go-server/pkg/httprequest"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 )
 
@@ -91,6 +92,9 @@ func (service *auth) GetToken(w http.ResponseWriter, r *http.Request) {
 func (service *auth) CreateToken(w http.ResponseWriter, r *http.Request) {
 	var req TokenCreate
 
+	// TODO: Parse Duration
+	// TODO: Require unique name
+
 	// Get the request
 	if err := httprequest.Read(r, &req); err != nil {
 		httpresponse.Error(w, http.StatusBadRequest, err.Error())
@@ -109,6 +113,10 @@ func (service *auth) CreateToken(w http.ResponseWriter, r *http.Request) {
 		httpresponse.Error(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+
+	// Remove the access_time which doesn't make sense when
+	// creating a token
+	token.Time = time.Time{}
 
 	// Return the token
 	httpresponse.JSON(w, token, http.StatusCreated, jsonIndent)
