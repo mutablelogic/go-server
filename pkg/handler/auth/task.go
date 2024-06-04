@@ -17,6 +17,7 @@ import (
 type auth struct {
 	jar        TokenJar
 	tokenBytes int
+	bearer     bool
 }
 
 // Check interfaces are satisfied
@@ -42,6 +43,9 @@ func New(c Config) (*auth, error) {
 	} else {
 		task.tokenBytes = c.TokenBytes
 	}
+
+	// Set bearer
+	task.bearer = c.Bearer
 
 	// Return success
 	return task, nil
