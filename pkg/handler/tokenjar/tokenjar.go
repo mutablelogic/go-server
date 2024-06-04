@@ -119,8 +119,8 @@ func (jar *tokenjar) Modified() bool {
 }
 
 // Return all tokens
-func (jar *tokenjar) Tokens() []*auth.Token {
-	var result []*auth.Token
+func (jar *tokenjar) Tokens() []auth.Token {
+	var result []auth.Token
 
 	// Lock the jar for read
 	jar.RLock()
@@ -128,7 +128,7 @@ func (jar *tokenjar) Tokens() []*auth.Token {
 
 	// Copy the tokens
 	for _, token := range jar.jar {
-		result = append(result, token)
+		result = append(result, *token)
 	}
 
 	// Return the result
@@ -137,26 +137,29 @@ func (jar *tokenjar) Tokens() []*auth.Token {
 
 // Return a token from the jar, or nil if the token is not found.
 // The method should update the access time of the token.
-func (jar *tokenjar) Get(key string) *auth.Token {
+func (jar *tokenjar) Get(key string) auth.Token {
 	jar.Lock()
 	defer jar.Unlock()
 
 	if token, ok := jar.jar[key]; ok {
 		token.Time = time.Now()
 		jar.modified = true
-		return token
+
+		// Make a copy of the token before returning
+		return *token
 	} else {
-		return nil
+		// Return an empty token - not found
+		return auth.Token{}
 	}
 }
 
 // Put a token into the jar, assuming it does not yet exist.
-func (jar *tokenjar) Create(token *auth.Token) error {
+func (jar *tokenjar) Create(token auth.Token) error {
 	jar.Lock()
 	defer jar.Unlock()
 
 	// Check if the token already exists
-	if token == nil || token.Value == "" {
+	if token.Value == "" {
 		return ErrBadParameter
 	}
 	if _, ok := jar.jar[token.Value]; ok {
@@ -165,7 +168,7 @@ func (jar *tokenjar) Create(token *auth.Token) error {
 
 	// Update the token
 	token.Time = time.Now()
-	jar.jar[token.Value] = token
+	jar.jar[token.Value] = &token
 	jar.modified = true
 
 	// Return success
@@ -173,21 +176,24 @@ func (jar *tokenjar) Create(token *auth.Token) error {
 }
 
 // Update an existing token in the jar, assuming it already exists.
-func (jar *tokenjar) Update(token *auth.Token) error {
+func (jar *tokenjar) Update(token auth.Token) error {
 	jar.Lock()
 	defer jar.Unlock()
 
 	// Check if the token already exists
-	if token == nil || token.Value == "" {
+	if token.Value == "" {
 		return ErrBadParameter
 	}
-	if _, ok := jar.jar[token.Value]; !ok {
+	dest, ok := jar.jar[token.Value]
+	if !ok {
 		return ErrNotFound
 	}
 
 	// Update the token
-	token.Time = time.Now()
-	jar.jar[token.Value] = token
+	dest.Name = token.Name
+	dest.Time = time.Now()
+	dest.Expire = token.Expire
+	dest.Scope = append([]string{}, token.Scope...)
 	jar.modified = true
 
 	// Return success

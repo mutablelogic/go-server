@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"slices"
 	"strconv"
 	"time"
@@ -23,6 +22,7 @@ type Token struct {
 }
 
 type TokenCreate struct {
+	Name     string        `json:"name,omitempty"`     // Name of the token
 	Duration time.Duration `json:"duration,omitempty"` // Duration of the token, or zero for no expiration
 	Scope    []string      `json:"scopes,omitempty"`   // Authentication scopes
 }
@@ -32,12 +32,13 @@ type TokenCreate struct {
 
 // Create a token of the specified number of bytes, with the specified duration and scope.
 // If the duration is zero, the token will not expire.
-func NewToken(name string, length int, duration time.Duration, scope ...string) *Token {
+func NewToken(name string, length int, duration time.Duration, scope ...string) Token {
 	var expire time.Time
 	if duration != 0 {
 		expire = time.Now().Add(duration)
 	}
-	return &Token{
+	return Token{
+		Name:   name,
 		Value:  generateToken(length),
 		Time:   time.Now(),
 		Scope:  scope,
@@ -48,29 +49,34 @@ func NewToken(name string, length int, duration time.Duration, scope ...string) 
 /////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
-func (t *Token) String() string {
-	str := "<httpserver-token"
-	str += fmt.Sprintf(" token=%q", t.Value)
-	if !t.Time.IsZero() {
-		str += fmt.Sprintf(" access_time=%q", t.Time.Format(time.RFC3339))
-	}
-	if !t.Expire.IsZero() {
-		str += fmt.Sprintf(" expire_time=%q", t.Expire.Format(time.RFC3339))
-	}
-	if len(t.Scope) > 0 {
-		str += fmt.Sprintf(" scopes=%q", t.Scope)
-	}
-	if t.IsValid() {
-		str += " valid"
-	}
-	return str + ">"
+func (t Token) String() string {
+	data, _ := json.MarshalIndent(t, "", "  ")
+	return string(data)
 }
 
 /////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
+// Compares token name, value, expiry and scopes
+func (t Token) Equals(other Token) bool {
+	if t.Name != other.Name || t.Value != other.Value || t.Expire != other.Expire {
+		return false
+	}
+	for _, scope := range other.Scope {
+		if !slices.Contains(t.Scope, scope) {
+			return false
+		}
+	}
+	for _, scope := range t.Scope {
+		if !slices.Contains(other.Scope, scope) {
+			return false
+		}
+	}
+	return true
+}
+
 // Return true if the token is valid (not expired)
-func (t *Token) IsValid() bool {
+func (t Token) IsValid() bool {
 	if t.Expire.IsZero() || t.Expire.After(time.Now()) {
 		return true
 	}
@@ -78,7 +84,7 @@ func (t *Token) IsValid() bool {
 }
 
 // Return true if the token has the specified scope, and is valid
-func (t *Token) IsScope(scopes ...string) bool {
+func (t Token) IsScope(scopes ...string) bool {
 	if !t.IsValid() {
 		return false
 	}
@@ -93,11 +99,9 @@ func (t *Token) IsScope(scopes ...string) bool {
 /////////////////////////////////////////////////////////////////////
 // JSON MARSHAL
 
-func (t *Token) MarshalJSON() ([]byte, error) {
+func (t Token) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
-	if t == nil {
-		return []byte("null"), nil
-	}
+
 	buf.WriteRune('{')
 
 	// Write the fields

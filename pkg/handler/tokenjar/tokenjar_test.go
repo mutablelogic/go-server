@@ -50,11 +50,12 @@ func Test_tokenjar_002(t *testing.T) {
 	// Add a token
 	token := auth.NewToken("test", 100, 0)
 	assert.NoError(tokens.Create(token))
+	t.Log(token)
 
 	// Get a token
 	token2 := tokens.Get(token.Value)
 	assert.NotNil(token2)
-	assert.EqualValues(token, token2)
+	assert.True(token.Equals(token2))
 
 	// Update a token
 	token2.Scope = []string{ScopeRead}
@@ -62,7 +63,7 @@ func Test_tokenjar_002(t *testing.T) {
 
 	token3 := tokens.Get(token.Value)
 	assert.NotNil(token3)
-	assert.EqualValues(token2, token3)
+	assert.True(token3.Equals(token2))
 
 	// Remove a token
 	assert.NoError(tokens.Delete(token.Value))
