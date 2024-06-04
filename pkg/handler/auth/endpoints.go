@@ -123,6 +123,8 @@ func (service *auth) CreateToken(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// TODO: Should not be able to add the root scope unless you have the root scope
+
 	// Create the token
 	token := NewToken(req.Name, service.tokenBytes, req.Duration.Duration, req.Scope...)
 	if !token.IsValid() {
