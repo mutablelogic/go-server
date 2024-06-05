@@ -2,8 +2,6 @@ package auth
 
 import (
 	"context"
-
-	"github.com/mutablelogic/go-server/pkg/version"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -13,11 +11,6 @@ type authContextKey int
 
 ////////////////////////////////////////////////////////////////////////////////
 // GLOBALS
-
-var (
-	// Root scope allows ANY operation
-	ScopeRoot = version.GitSource + "/scope/root"
-)
 
 const (
 	_ authContextKey = iota

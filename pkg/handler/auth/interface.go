@@ -1,7 +1,8 @@
 package auth
 
 import (
-	"context"
+	// Packages
+	server "github.com/mutablelogic/go-server"
 )
 
 type TokenJar interface {
