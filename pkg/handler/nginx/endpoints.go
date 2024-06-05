@@ -50,42 +50,48 @@ var (
 // PUBLIC METHODS - ENDPOINTS
 
 // Add endpoints to the router
-func (service *nginx) AddEndpoints(ctx context.Context, router server.Router) {
+func (service *nginx) AddEndpoints(ctx context.Context, r server.Router) {
 	// Path: /
 	// Methods: GET
-	// Scopes: read // TODO: Add scopes
+	// Scopes: read
 	// Description: Get nginx status (version, uptime, available and enabled configurations)
-	router.AddHandlerFuncRe(ctx, reRoot, service.GetHealth, http.MethodGet)
+	r.AddHandlerFuncRe(ctx, reRoot, service.GetHealth, http.MethodGet).(router.Route).
+		SetScope(service.ScopeRead()...)
 
 	// Path: /(test|reload|reopen)
 	// Methods: PUT
-	// Scopes: write // TODO: Add scopes
+	// Scopes: write
 	// Description: Test, reload and reopen nginx configuration
-	router.AddHandlerFuncRe(ctx, reAction, service.PutAction, http.MethodPut)
+	r.AddHandlerFuncRe(ctx, reAction, service.PutAction, http.MethodPut).(router.Route).
+		SetScope(service.ScopeWrite()...)
 
 	// Path: /config
 	// Methods: GET
-	// Scopes: read // TODO: Add scopes
+	// Scopes: read
 	// Description: Read the current set of configurations
-	router.AddHandlerFuncRe(ctx, reListConfig, service.ListConfig, http.MethodGet)
+	r.AddHandlerFuncRe(ctx, reListConfig, service.ListConfig, http.MethodGet).(router.Route).
+		SetScope(service.ScopeRead()...)
 
 	// Path: /config
 	// Methods: POST
-	// Scopes: read // TODO: Add scopes
+	// Scopes: write
 	// Description: Create a new configuration
-	router.AddHandlerFuncRe(ctx, reListConfig, service.CreateConfig, http.MethodPost)
+	r.AddHandlerFuncRe(ctx, reListConfig, service.CreateConfig, http.MethodPost).(router.Route).
+		SetScope(service.ScopeWrite()...)
 
 	// Path: /config/{id}
 	// Methods: GET
-	// Scopes: read // TODO: Add scopes
+	// Scopes: read
 	// Description: Read a configuration
-	router.AddHandlerFuncRe(ctx, reConfig, service.ReadConfig, http.MethodGet)
+	r.AddHandlerFuncRe(ctx, reConfig, service.ReadConfig, http.MethodGet).(router.Route).
+		SetScope(service.ScopeRead()...)
 
 	// Path: /config/{id}
 	// Methods: DELETE, POST, PATCH
-	// Scopes: write // TODO: Add scopes
+	// Scopes: write
 	// Description: Modify a configuration
-	router.AddHandlerFuncRe(ctx, reConfig, service.WriteConfig, http.MethodDelete, http.MethodPatch)
+	r.AddHandlerFuncRe(ctx, reConfig, service.WriteConfig, http.MethodDelete, http.MethodPatch).(router.Route).
+		SetScope(service.ScopeWrite()...)
 }
 
 ///////////////////////////////////////////////////////////////////////////////

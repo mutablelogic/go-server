@@ -41,32 +41,30 @@ var (
 func (service *auth) AddEndpoints(ctx context.Context, r server.Router) {
 	// Path: /
 	// Methods: GET
-	// Scopes: read // TODO: Add scopes
+	// Scopes: read
 	// Description: Get current set of tokens and groups
 	r.AddHandlerFuncRe(ctx, reRoot, service.ListTokens, http.MethodGet).(router.Route).
 		SetScope(service.ScopeRead()...)
 
 	// Path: /
 	// Methods: POST
-	// Scopes: write // TODO: Add scopes
+	// Scopes: write
 	// Description: Create a new token
 	r.AddHandlerFuncRe(ctx, reRoot, service.CreateToken, http.MethodPost).(router.Route).
-		SetScope(service.ScopeRead()...).
 		SetScope(service.ScopeWrite()...)
 
 	// Path: /<token-name>
 	// Methods: GET
-	// Scopes: read // TODO: Add scopes
+	// Scopes: read
 	// Description: Get a token
 	r.AddHandlerFuncRe(ctx, reToken, service.GetToken, http.MethodGet).(router.Route).
 		SetScope(service.ScopeRead()...)
 
 	// Path: /<token-name>
 	// Methods: DELETE, PATCH
-	// Scopes: write // TODO: Add scopes
+	// Scopes: write
 	// Description: Delete or update a token
 	r.AddHandlerFuncRe(ctx, reToken, service.UpdateToken, http.MethodDelete, http.MethodPatch).(router.Route).
-		SetScope(service.ScopeRead()...).
 		SetScope(service.ScopeWrite()...)
 
 }

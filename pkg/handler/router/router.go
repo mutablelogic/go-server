@@ -184,6 +184,31 @@ func (router *router) Match(host, method, path string) (*matchedRoute, int) {
 	return nil, http.StatusMethodNotAllowed
 }
 
+func (router *router) Scopes() []string {
+	scopes := make(map[string]bool)
+	for _, r := range router.host {
+		for _, h := range r.prefix {
+			for _, r := range h.handlers {
+				for _, s := range r.scopes {
+					scopes[s] = true
+				}
+			}
+		}
+	}
+
+	// Gather all scopes
+	result := make([]string, 0, len(scopes))
+	for scope := range scopes {
+		result = append(result, scope)
+	}
+
+	// Sort alphabetically
+	sort.Strings(result)
+
+	// Return the result
+	return result
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
