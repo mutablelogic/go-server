@@ -7,6 +7,7 @@ import (
 
 	// Packages
 	"github.com/mutablelogic/go-server"
+	"github.com/mutablelogic/go-server/pkg/handler/router"
 	"github.com/mutablelogic/go-server/pkg/httpresponse"
 )
 
@@ -52,13 +53,12 @@ func (middleware *auth) Wrap(ctx context.Context, next http.HandlerFunc) http.Ha
 		} else if !token.IsValid() {
 			authorized = false
 		} else if token.IsScope(ScopeRoot) {
-			// Allow
-		} else {
-			// TODO: Get scope for the route
-			var allowedScopes = []string{}
-			if token.IsScope(allowedScopes...) {
-				authorized = true
-			}
+			// Allow - token is a super-user token
+		} else if allowedScopes := router.Scope(r.Context()); len(allowedScopes) == 0 {
+			// Allow - no scopes have been defined on this endpoint
+		} else if !token.IsScope(allowedScopes...) {
+			// Deny - token does not have the required scopes
+			authorized = false
 		}
 
 		// Return unauthorized if token is not found or not valid

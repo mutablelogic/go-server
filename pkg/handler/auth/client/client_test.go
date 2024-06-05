@@ -78,7 +78,7 @@ func Test_client_003(t *testing.T) {
 func Test_client_004(t *testing.T) {
 	assert := assert.New(t)
 	opts := []client.ClientOpt{
-		client.OptTrace(os.Stderr, true),
+		client.OptTrace(os.Stderr, false),
 	}
 	if token := GetToken(t); token != "" {
 		opts = append(opts, client.OptReqToken(client.Token{
