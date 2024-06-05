@@ -15,6 +15,9 @@ type Router interface {
 	// http status code, which will be 200 on success, 404 or 405 and
 	// path parameters extracted from the path.
 	Match(host, method, path string) (*matchedRoute, int)
+
+	// Return all known scopes
+	Scopes() []string
 }
 
 type Route interface {
