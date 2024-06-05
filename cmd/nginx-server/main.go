@@ -13,11 +13,11 @@ import (
 	server "github.com/mutablelogic/go-server"
 	ctx "github.com/mutablelogic/go-server/pkg/context"
 	auth "github.com/mutablelogic/go-server/pkg/handler/auth"
+	logger "github.com/mutablelogic/go-server/pkg/handler/logger"
 	nginx "github.com/mutablelogic/go-server/pkg/handler/nginx"
 	router "github.com/mutablelogic/go-server/pkg/handler/router"
 	tokenjar "github.com/mutablelogic/go-server/pkg/handler/tokenjar"
 	httpserver "github.com/mutablelogic/go-server/pkg/httpserver"
-	logger "github.com/mutablelogic/go-server/pkg/middleware/logger"
 	provider "github.com/mutablelogic/go-server/pkg/provider"
 )
 
