@@ -2,14 +2,10 @@ package router
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"regexp"
 	"slices"
 	"strings"
-
-	"github.com/mutablelogic/go-server/pkg/provider"
-	// Packages
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -28,18 +24,7 @@ type reqrouter struct {
 type reqs struct {
 	host     string
 	prefix   string
-	handlers []*reqhandler
-}
-
-// Represents a handler for a request
-type reqhandler struct {
-	Label   string           `json:"label,omitempty"`
-	Host    string           `json:"host,omitempty"`
-	Prefix  string           `json:"prefix,omitempty"`
-	Path    string           `json:"path,omitempty"`
-	Re      *regexp.Regexp   `json:"re,omitempty"`
-	Method  []string         `json:"method,omitempty"`
-	Handler http.HandlerFunc `json:"-"`
+	handlers []*route
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -58,22 +43,14 @@ func newReqs(host, prefix string) *reqs {
 	r := new(reqs)
 	r.host = host
 	r.prefix = prefix
-	r.handlers = make([]*reqhandler, 0, defaultCap)
+	r.handlers = make([]*route, 0, defaultCap)
 	return r
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// STRINIGFY
-
-func (r reqhandler) String() string {
-	data, _ := json.Marshal(r)
-	return string(data)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func (router *reqrouter) AddHandler(ctx context.Context, prefix, path string, handler http.HandlerFunc, methods ...string) {
+func (router *reqrouter) AddHandler(ctx context.Context, prefix, path string, handler http.HandlerFunc, methods ...string) *route {
 	// Add a path separator to the end of the prefix
 	key := prefix
 	if prefix != pathSep {
@@ -83,10 +60,12 @@ func (router *reqrouter) AddHandler(ctx context.Context, prefix, path string, ha
 	if _, exists := router.prefix[key]; !exists {
 		router.prefix[key] = newReqs(router.host, prefix)
 	}
-	router.prefix[key].AddHandler(ctx, path, handler, methods...)
+
+	// Add the handler to the set of requests
+	return router.prefix[key].AddHandler(ctx, path, handler, methods...)
 }
 
-func (router *reqrouter) AddHandlerRe(ctx context.Context, prefix string, path *regexp.Regexp, handler http.HandlerFunc, methods ...string) {
+func (router *reqrouter) AddHandlerRe(ctx context.Context, prefix string, path *regexp.Regexp, handler http.HandlerFunc, methods ...string) *route {
 	// Add a path separator to the end of the prefix
 	key := prefix
 	if prefix != pathSep {
@@ -97,10 +76,12 @@ func (router *reqrouter) AddHandlerRe(ctx context.Context, prefix string, path *
 	if _, exists := router.prefix[key]; !exists {
 		router.prefix[key] = newReqs(router.host, prefix)
 	}
-	router.prefix[key].AddHandlerRe(ctx, path, handler, methods...)
+
+	// Add the handler to the set of requests
+	return router.prefix[key].AddHandlerRe(ctx, path, handler, methods...)
 }
 
-func (router *reqs) AddHandler(ctx context.Context, path string, handler http.HandlerFunc, methods ...string) {
+func (router *reqs) AddHandler(ctx context.Context, path string, handler http.HandlerFunc, methods ...string) *route {
 	// Add any middleware to the handler, in reverse order
 	middleware := Middleware(ctx)
 	slices.Reverse(middleware)
@@ -108,18 +89,20 @@ func (router *reqs) AddHandler(ctx context.Context, path string, handler http.Ha
 		handler = middleware.Wrap(ctx, handler)
 	}
 
-	// Add the handler to the list
-	router.handlers = append(router.handlers, &reqhandler{
-		Label:   provider.Label(ctx),
-		Host:    router.host,
-		Prefix:  router.prefix,
-		Path:    path,
-		Handler: handler,
-		Method:  methods,
-	})
+	// Create the route
+	route := NewRouteWithPath(ctx, router.host, router.prefix, path, methods...)
+
+	// Set the route handler
+	route.handler = handler
+
+	// Add the handler to the list of handlers
+	router.handlers = append(router.handlers, route)
+
+	// Return success
+	return route
 }
 
-func (router *reqs) AddHandlerRe(ctx context.Context, path *regexp.Regexp, handler http.HandlerFunc, methods ...string) {
+func (router *reqs) AddHandlerRe(ctx context.Context, path *regexp.Regexp, handler http.HandlerFunc, methods ...string) *route {
 	// Add any middleware to the handler, in reverse order
 	middleware := Middleware(ctx)
 	slices.Reverse(middleware)
@@ -127,22 +110,24 @@ func (router *reqs) AddHandlerRe(ctx context.Context, path *regexp.Regexp, handl
 		handler = middleware.Wrap(ctx, handler)
 	}
 
-	// Add the handler to the list
-	router.handlers = append(router.handlers, &reqhandler{
-		Label:   provider.Label(ctx),
-		Host:    router.host,
-		Prefix:  router.prefix,
-		Re:      path,
-		Handler: handler,
-		Method:  methods,
-	})
+	// Create the route
+	route := NewRouteWithRegexp(ctx, router.host, router.prefix, path, methods...)
+
+	// Set the route handler
+	route.handler = handler
+
+	// Add the handler to the list of handlers
+	router.handlers = append(router.handlers, route)
+
+	// Return success
+	return route
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
 // Returns a set of requests for a path
-func (router *reqrouter) matchHandlers(path string) ([]*reqhandler, string) {
+func (router *reqrouter) matchHandlers(path string) ([]*route, string) {
 	// We assume that the path starts with a "/"
 	for key, value := range router.prefix {
 		// Match the prefix as a path
@@ -164,41 +149,15 @@ func (router *reqrouter) matchHandlers(path string) ([]*reqhandler, string) {
 }
 
 // Return a list of handlers that match the path
-func (router *reqs) matchHandlers(path string) []*reqhandler {
+func (router *reqs) matchHandlers(path string) []*route {
 	// Assume the path starts with a "/" and the prefix has been removed
-	result := make([]*reqhandler, 0, defaultCap)
-	for _, handler := range router.handlers {
-		if params := matchHandlerRe(handler, path); params != nil {
-			result = append(result, handler)
-		} else if matchHandlerPath(handler, path) {
-			result = append(result, handler)
+	result := make([]*route, 0, defaultCap)
+	for _, r := range router.handlers {
+		if params := r.MatchRe(path); params != nil {
+			result = append(result, r)
+		} else if r.MatchPath(path) {
+			result = append(result, r)
 		}
 	}
 	return result
-}
-
-func matchHandlerRe(handler *reqhandler, path string) []string {
-	if handler.Re == nil {
-		return nil
-	} else if params := handler.Re.FindStringSubmatch(path); params != nil {
-		return params[1:]
-	} else {
-		return nil
-	}
-}
-
-func matchHandlerPath(handler *reqhandler, path string) bool {
-	if handler.Path == "" {
-		return false
-	}
-	return strings.HasPrefix(path, handler.Path)
-}
-
-func matchMethod(handler *reqhandler, method string) bool {
-	// Any method is allowed
-	if len(handler.Method) == 0 {
-		return true
-	}
-	// Specific methods are allowed
-	return slices.Contains(handler.Method, method)
 }

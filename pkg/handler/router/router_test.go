@@ -40,9 +40,9 @@ func Test_router_002(t *testing.T) {
 		match, code := task.(router.Router).Match("mutablelogic.com", "GET", "/hello")
 		assert.Equal(200, code)
 		if assert.NotNil(match) {
-			assert.Equal("/", match.Prefix)
-			assert.Equal("/hello", match.Path)
-			assert.Equal(".mutablelogic.com", match.Host)
+			assert.Equal("/", match.Prefix())
+			assert.Equal("/hello", match.Path())
+			assert.Equal(".mutablelogic.com", match.Host())
 		}
 	})
 	t.Run("/", func(t *testing.T) {
@@ -67,9 +67,9 @@ func Test_router_003(t *testing.T) {
 		match, code := task.(router.Router).Match("mutablelogic.com", "GET", "/")
 		assert.Equal(200, code)
 		if assert.NotNil(match) {
-			assert.Equal("/", match.Prefix)
-			assert.Equal("/", match.Path)
-			assert.Equal(".mutablelogic.com", match.Host)
+			assert.Equal("/", match.Prefix())
+			assert.Equal("/", match.Path())
+			assert.Equal(".mutablelogic.com", match.Host())
 		}
 	})
 
@@ -77,9 +77,9 @@ func Test_router_003(t *testing.T) {
 		match, code := task.(router.Router).Match("www.mutablelogic.com", "GET", "/")
 		assert.Equal(200, code)
 		if assert.NotNil(match) {
-			assert.Equal("/", match.Prefix)
-			assert.Equal("/", match.Path)
-			assert.Equal(".mutablelogic.com", match.Host)
+			assert.Equal("/", match.Prefix())
+			assert.Equal("/", match.Path())
+			assert.Equal(".mutablelogic.com", match.Host())
 		}
 	})
 
@@ -92,9 +92,9 @@ func Test_router_003(t *testing.T) {
 		match, code := task.(router.Router).Match(".mutablelogic.com", "GET", "/hello")
 		assert.Equal(200, code)
 		if assert.NotNil(match) {
-			assert.Equal("/", match.Prefix)
-			assert.Equal("/hello", match.Path)
-			assert.Equal(".mutablelogic.com", match.Host)
+			assert.Equal("/", match.Prefix())
+			assert.Equal("/hello", match.Path())
+			assert.Equal(".mutablelogic.com", match.Host())
 		}
 	})
 }
@@ -116,9 +116,9 @@ func Test_router_004(t *testing.T) {
 		match, code := task.(router.Router).Match("www.mutablelogic.com", "GET", "/")
 		assert.Equal(200, code)
 		if assert.NotNil(match) {
-			assert.Equal("/", match.Prefix)
-			assert.Equal("/", match.Path)
-			assert.Equal(".mutablelogic.com", match.Host)
+			assert.Equal("/", match.Prefix())
+			assert.Equal("/", match.Path())
+			assert.Equal(".mutablelogic.com", match.Host())
 		}
 	})
 
@@ -147,18 +147,18 @@ func Test_router_005(t *testing.T) {
 		match, code := task.(router.Router).Match("mutablelogic.com", "GET", "/api/v1/")
 		assert.Equal(200, code)
 		if assert.NotNil(match) {
-			assert.Equal("/api/v1", match.Prefix)
-			assert.Equal("/", match.Path)
-			assert.Equal(".mutablelogic.com", match.Host)
+			assert.Equal("/api/v1", match.Prefix())
+			assert.Equal("/", match.Path())
+			assert.Equal(".mutablelogic.com", match.Host())
 		}
 	})
 	t.Run("GET http://mutablelogic.com/api/v1/test", func(t *testing.T) {
 		match, code := task.(router.Router).Match("mutablelogic.com", "GET", "/api/v1/test")
 		assert.Equal(200, code)
 		if assert.NotNil(match) {
-			assert.Equal("/api/v1", match.Prefix)
-			assert.Equal("/test", match.Path)
-			assert.Equal(".mutablelogic.com", match.Host)
+			assert.Equal("/api/v1", match.Prefix())
+			assert.Equal("/test", match.Path())
+			assert.Equal(".mutablelogic.com", match.Host())
 		}
 	})
 }
@@ -181,40 +181,40 @@ func Test_router_006(t *testing.T) {
 		match, code := task.(router.Router).Match("any.com", "GET", "/first")
 		assert.Equal(200, code)
 		if assert.NotNil(match) {
-			assert.Equal("first", match.Label)
-			assert.Equal("/", match.Prefix)
-			assert.Equal("/first", match.Path)
-			assert.Equal("", match.Host)
+			assert.Equal("first", match.Label())
+			assert.Equal("/", match.Prefix())
+			assert.Equal("/first", match.Path())
+			assert.Equal("", match.Host())
 		}
 	})
 	t.Run("GET /first/sec", func(t *testing.T) {
 		match, code := task.(router.Router).Match("any.com", "GET", "/first/sec")
 		assert.Equal(200, code)
 		if assert.NotNil(match) {
-			assert.Equal("first", match.Label)
-			assert.Equal("/", match.Prefix)
-			assert.Equal("/first/sec", match.Path)
-			assert.Equal("", match.Host)
+			assert.Equal("first", match.Label())
+			assert.Equal("/", match.Prefix())
+			assert.Equal("/first/sec", match.Path())
+			assert.Equal("", match.Host())
 		}
 	})
 	t.Run("GET /first/second", func(t *testing.T) {
 		match, code := task.(router.Router).Match("any.com", "GET", "/first/second")
 		assert.Equal(200, code)
 		if assert.NotNil(match) {
-			assert.Equal("second", match.Label)
-			assert.Equal("/", match.Prefix)
-			assert.Equal("/first/second", match.Path)
-			assert.Equal("", match.Host)
+			assert.Equal("second", match.Label())
+			assert.Equal("/", match.Prefix())
+			assert.Equal("/first/second", match.Path())
+			assert.Equal("", match.Host())
 		}
 	})
 	t.Run("GET /first/second/third", func(t *testing.T) {
 		match, code := task.(router.Router).Match("any.com", "GET", "/first/second/third")
 		assert.Equal(200, code)
 		if assert.NotNil(match) {
-			assert.Equal("second", match.Label)
-			assert.Equal("/", match.Prefix)
-			assert.Equal("/first/second/third", match.Path)
-			assert.Equal("", match.Host)
+			assert.Equal("second", match.Label())
+			assert.Equal("/", match.Prefix())
+			assert.Equal("/first/second/third", match.Path())
+			assert.Equal("", match.Host())
 		}
 	})
 }
@@ -237,44 +237,44 @@ func Test_router_007(t *testing.T) {
 		match, code := task.(router.Router).Match("any.com", "GET", "/first")
 		assert.Equal(200, code)
 		if assert.NotNil(match) {
-			assert.Equal("first", match.Label)
-			assert.Equal("/", match.Prefix)
-			assert.Equal("/first", match.Path)
-			assert.Equal("", match.Host)
-			assert.Equal([]string{""}, match.Parameters)
+			assert.Equal("first", match.Label())
+			assert.Equal("/", match.Prefix())
+			assert.Equal("/first", match.Path())
+			assert.Equal("", match.Host())
+			assert.Equal([]string{""}, match.Parameters())
 		}
 	})
 	t.Run("GET /first/sec", func(t *testing.T) {
 		match, code := task.(router.Router).Match("any.com", "GET", "/first/sec")
 		assert.Equal(200, code)
 		if assert.NotNil(match) {
-			assert.Equal("first", match.Label)
-			assert.Equal("/", match.Prefix)
-			assert.Equal("/first/sec", match.Path)
-			assert.Equal("", match.Host)
-			assert.Equal([]string{"/sec"}, match.Parameters)
+			assert.Equal("first", match.Label())
+			assert.Equal("/", match.Prefix())
+			assert.Equal("/first/sec", match.Path())
+			assert.Equal("", match.Host())
+			assert.Equal([]string{"/sec"}, match.Parameters())
 		}
 	})
 	t.Run("GET /first/second", func(t *testing.T) {
 		match, code := task.(router.Router).Match("any.com", "GET", "/first/second")
 		assert.Equal(200, code)
 		if assert.NotNil(match) {
-			assert.Equal("first", match.Label)
-			assert.Equal("/", match.Prefix)
-			assert.Equal("/first/second", match.Path)
-			assert.Equal("", match.Host)
-			assert.Equal([]string{"/second"}, match.Parameters)
+			assert.Equal("first", match.Label())
+			assert.Equal("/", match.Prefix())
+			assert.Equal("/first/second", match.Path())
+			assert.Equal("", match.Host())
+			assert.Equal([]string{"/second"}, match.Parameters())
 		}
 	})
 	t.Run("GET /first/second/third", func(t *testing.T) {
 		match, code := task.(router.Router).Match("any.com", "GET", "/second/third")
 		assert.Equal(200, code)
 		if assert.NotNil(match) {
-			assert.Equal("second", match.Label)
-			assert.Equal("/", match.Prefix)
-			assert.Equal("/second/third", match.Path)
-			assert.Equal("", match.Host)
-			assert.Equal([]string{"/third"}, match.Parameters)
+			assert.Equal("second", match.Label())
+			assert.Equal("/", match.Prefix())
+			assert.Equal("/second/third", match.Path())
+			assert.Equal("", match.Host())
+			assert.Equal([]string{"/third"}, match.Parameters())
 		}
 	})
 }
@@ -296,17 +296,17 @@ func Test_router_008(t *testing.T) {
 		match, code := task.(router.Router).Match("", "GET", "/api/v2")
 		assert.Equal(308, code)
 		if assert.NotNil(match) {
-			assert.Equal("/api/v2/", match.Path)
+			assert.Equal("/api/v2/", match.Path())
 		}
 	})
 	t.Run("GET /api/v2/", func(t *testing.T) {
 		match, code := task.(router.Router).Match("", "GET", "/api/v2/")
 		assert.Equal(200, code)
 		if assert.NotNil(match) {
-			assert.Equal("/api/v2", match.Prefix)
-			assert.Equal("/", match.Path)
-			assert.Equal("", match.Host)
-			assert.Equal([]string{""}, match.Parameters)
+			assert.Equal("/api/v2", match.Prefix())
+			assert.Equal("/", match.Path())
+			assert.Equal("", match.Host())
+			assert.Equal([]string{""}, match.Parameters())
 		}
 	})
 
