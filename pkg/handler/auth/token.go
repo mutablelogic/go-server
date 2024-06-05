@@ -15,11 +15,11 @@ import (
 // TYPES
 
 type Token struct {
-	Name   string    `json:"name,omitempty"`        // Name of the token
-	Value  string    `json:"token,omitempty"`       // Token value
-	Expire time.Time `json:"expire_time,omitempty"` // Time of expiration for the token
-	Time   time.Time `json:"access_time"`           // Time of last access
-	Scope  []string  `json:"scopes,omitempty"`      // Authentication scopes
+	Name   string    `json:"name,omitempty"`                            // Name of the token
+	Value  string    `json:"token,omitempty"`                           // Token value
+	Expire time.Time `json:"expire_time,omitempty"  writer:",width:29"` // Time of expiration for the token
+	Time   time.Time `json:"access_time,omitempty" writer:",width:29"`  // Time of last access
+	Scope  []string  `json:"scopes,omitempty" writer:",wrap"`           // Authentication scopes
 }
 
 type TokenCreate struct {
