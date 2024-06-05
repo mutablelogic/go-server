@@ -47,25 +47,19 @@ func (middleware *auth) Wrap(ctx context.Context, next http.HandlerFunc) http.Ha
 
 		// Get token from the jar - check it is found and valid
 		token := middleware.jar.GetWithValue(tokenValue)
-		authorized := true
 		if token.IsZero() {
-			authorized = false
 			httpresponse.Error(w, http.StatusUnauthorized, "invalid or missing token")
+			return
 		} else if !token.IsValid() {
-			authorized = false
-			httpresponse.Error(w, http.StatusUnauthorized, "invalid or missing token")
+			httpresponse.Error(w, http.StatusUnauthorized, "invalid token")
+			return
 		} else if token.IsScope(ScopeRoot) {
 			// Allow - token is a super-user token
 		} else if allowedScopes := router.Scope(r.Context()); len(allowedScopes) == 0 {
 			// Allow - no scopes have been defined on this endpoint
 		} else if !token.IsScope(allowedScopes...) {
 			// Deny - token does not have the required scopes
-			authorized = false
-			httpresponse.Error(w, http.StatusUnauthorized, "required scope: ", strings.Join(allowedScopes, ","))
-		}
-
-		// Return unauthorized if token is not found or not valid
-		if !authorized {
+			httpresponse.Error(w, http.StatusUnauthorized, "required scope "+strings.Join(allowedScopes, ", "))
 			return
 		}
 
