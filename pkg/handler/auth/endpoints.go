@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -37,30 +38,37 @@ var (
 // PUBLIC METHODS - ENDPOINTS
 
 // Add endpoints to the router
-func (service *auth) AddEndpoints(ctx context.Context, router server.Router) {
+func (service *auth) AddEndpoints(ctx context.Context, r server.Router) {
 	// Path: /
 	// Methods: GET
 	// Scopes: read // TODO: Add scopes
 	// Description: Get current set of tokens and groups
-	router.AddHandlerFuncRe(ctx, reRoot, service.ListTokens, http.MethodGet)
+	r.AddHandlerFuncRe(ctx, reRoot, service.ListTokens, http.MethodGet).(router.Route).
+		SetScope(service.ScopeRead()...)
 
 	// Path: /
 	// Methods: POST
 	// Scopes: write // TODO: Add scopes
 	// Description: Create a new token
-	router.AddHandlerFuncRe(ctx, reRoot, service.CreateToken, http.MethodPost)
+	r.AddHandlerFuncRe(ctx, reRoot, service.CreateToken, http.MethodPost).(router.Route).
+		SetScope(service.ScopeRead()...).
+		SetScope(service.ScopeWrite()...)
 
 	// Path: /<token-name>
 	// Methods: GET
 	// Scopes: read // TODO: Add scopes
 	// Description: Get a token
-	router.AddHandlerFuncRe(ctx, reToken, service.GetToken, http.MethodGet)
+	r.AddHandlerFuncRe(ctx, reToken, service.GetToken, http.MethodGet).(router.Route).
+		SetScope(service.ScopeRead()...)
 
 	// Path: /<token-name>
 	// Methods: DELETE, PATCH
 	// Scopes: write // TODO: Add scopes
 	// Description: Delete or update a token
-	router.AddHandlerFuncRe(ctx, reToken, service.UpdateToken, http.MethodDelete, http.MethodPatch)
+	r.AddHandlerFuncRe(ctx, reToken, service.UpdateToken, http.MethodDelete, http.MethodPatch).(router.Route).
+		SetScope(service.ScopeRead()...).
+		SetScope(service.ScopeWrite()...)
+
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -81,7 +89,7 @@ func (service *auth) ListTokens(w http.ResponseWriter, r *http.Request) {
 // Get a token
 func (service *auth) GetToken(w http.ResponseWriter, r *http.Request) {
 	urlParameters := router.Params(r.Context())
-	token := service.jar.GetWithName(strings.ToLower(urlParameters[0]))
+	token := service.jar.GetWithName(urlParameters[0])
 	if token.IsZero() {
 		httpresponse.Error(w, http.StatusNotFound)
 		return
@@ -123,6 +131,14 @@ func (service *auth) CreateToken(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Should not be able to add the root scope unless you have the root scope
+	if slices.Contains(req.Scope, ScopeRoot) {
+		requestorScopes := TokenScope(r.Context())
+		if !slices.Contains(requestorScopes, ScopeRoot) {
+			httpresponse.Error(w, http.StatusForbidden, "Cannot create a token with root scope")
+		}
+	}
+
 	// Create the token
 	token := NewToken(req.Name, service.tokenBytes, req.Duration.Duration, req.Scope...)
 	if !token.IsValid() {
@@ -147,9 +163,15 @@ func (service *auth) CreateToken(w http.ResponseWriter, r *http.Request) {
 // Update (patch, delete) an existing token
 func (service *auth) UpdateToken(w http.ResponseWriter, r *http.Request) {
 	urlParameters := router.Params(r.Context())
-	token := service.jar.GetWithName(strings.ToLower(urlParameters[0]))
+	token := service.jar.GetWithName(urlParameters[0])
 	if token.IsZero() {
 		httpresponse.Error(w, http.StatusNotFound)
+		return
+	}
+
+	requestor := TokenName(r.Context())
+	if requestor == token.Name {
+		httpresponse.Error(w, http.StatusForbidden, "Cannot update the requestor's token")
 		return
 	}
 
@@ -162,6 +184,7 @@ func (service *auth) UpdateToken(w http.ResponseWriter, r *http.Request) {
 	default:
 		// TODO: PATCH
 		// Patch can be with name, expire_time, scopes
+		// TODO: Should not be able to add the root scope unless you have the root scope
 		httpresponse.Error(w, http.StatusMethodNotAllowed)
 		return
 	}

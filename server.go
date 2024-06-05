@@ -2,8 +2,6 @@ package server
 
 import (
 	"context"
-	"net/http"
-	"regexp"
 )
 
 // Plugin represents a plugin that can create a task
@@ -25,51 +23,6 @@ type Task interface {
 
 	// Run the task until the context is cancelled and return any errors
 	Run(context.Context) error
-}
-
-// Router represents a router to which you can add requests
-type Router interface {
-	Task
-
-	// Add a handler to the router, with the given path
-	// and methods. The context is used to pass additional
-	// parameters to the handler. If no methods are provided, then
-	// all methods are allowed.
-	AddHandler(context.Context, string, http.Handler, ...string)
-
-	// Add a handler function to the router, with the given path
-	// and methods. The context is used to pass additional
-	// parameters to the handler. If no methods are provided, then
-	// all methods are allowed.
-	AddHandlerFunc(context.Context, string, http.HandlerFunc, ...string)
-
-	// Add a handler to the router, with the given regular expression
-	// path and methods. The context is used to pass additional
-	// parameters to the handler. If no methods are provided, then
-	// all methods are allowed.
-	AddHandlerRe(context.Context, *regexp.Regexp, http.Handler, ...string)
-
-	// Add a handler function to the router, with the given regular expression
-	// path and methods. The context is used to pass additional
-	// parameters to the handler. If no methods are provided, then
-	// all methods are allowed.
-	AddHandlerFuncRe(context.Context, *regexp.Regexp, http.HandlerFunc, ...string)
-}
-
-// Middleware represents an interceptor for HTTP requests
-type Middleware interface {
-	Task
-
-	// Wrap a handler function
-	Wrap(context.Context, http.HandlerFunc) http.HandlerFunc
-}
-
-// ServiceEndpoints represents a set of http service endpoints to route requests to
-type ServiceEndpoints interface {
-	Task
-
-	// Add the endpoints to the router, with the given middleware
-	AddEndpoints(context.Context, Router)
 }
 
 // Logger interface

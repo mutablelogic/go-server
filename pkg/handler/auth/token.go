@@ -51,6 +51,26 @@ func NewToken(name string, length int, duration time.Duration, scope ...string) 
 	}
 }
 
+// Create a new create token request
+func NewCreateToken(name string, expires_in time.Duration, scope ...string) TokenCreate {
+	// Truncase the duration to the nearest minute
+	if expires_in > 0 {
+		expires_in = expires_in.Truncate(time.Minute)
+		if expires_in < time.Minute {
+			expires_in = time.Minute
+		}
+	} else {
+		expires_in = 0
+	}
+
+	// Return the token
+	return TokenCreate{
+		Name:     name,
+		Duration: duration{expires_in},
+		Scope:    scope,
+	}
+}
+
 /////////////////////////////////////////////////////////////////////
 // STRINGIFY
 

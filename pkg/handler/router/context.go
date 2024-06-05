@@ -22,7 +22,10 @@ const (
 	contextHost
 	contextPrefix
 	contextParams
+	contextRequest
 	contextMiddleware
+	contextScope
+	contextMethod
 	contextTime
 )
 
@@ -49,24 +52,14 @@ func WithTime(ctx context.Context, t time.Time) context.Context {
 	return context.WithValue(ctx, contextTime, t)
 }
 
-// WithRoute returns a context with various route parameters
-func WithRoute(ctx context.Context, route *Route) context.Context {
-	if route == nil {
-		return ctx
-	}
-	if route.Label != "" {
-		ctx = provider.WithLabel(ctx, route.Label)
-	}
-	if route.Host != "" {
-		ctx = WithHost(ctx, route.Host)
-	}
-	if route.Prefix != "" {
-		ctx = WithPrefix(ctx, route.Prefix)
-	}
-	if len(route.Parameters) > 0 {
-		ctx = context.WithValue(ctx, contextParams, route.Parameters)
-	}
-	return ctx
+// WithScope returns a context with the given scooes
+func WithScope(ctx context.Context, scope ...string) context.Context {
+	return context.WithValue(ctx, contextScope, scope)
+}
+
+// WithMethod returns a context with the given methods
+func WithMethod(ctx context.Context, method ...string) context.Context {
+	return context.WithValue(ctx, contextMethod, method)
 }
 
 // WithMiddleware returns a context with the given middleware
@@ -75,6 +68,37 @@ func WithMiddleware(ctx context.Context, middleware ...server.Middleware) contex
 		return ctx
 	}
 	return context.WithValue(ctx, contextMiddleware, append(Middleware(ctx), middleware...))
+}
+
+// WithRoute returns a context with various route parameters
+func WithRoute(ctx context.Context, route *matchedRoute) context.Context {
+	if route == nil {
+		return ctx
+	}
+	if route.route != nil {
+		if route.label != "" {
+			ctx = provider.WithLabel(ctx, route.label)
+		}
+		if route.host != "" {
+			ctx = WithHost(ctx, route.host)
+		}
+		if route.prefix != "" {
+			ctx = WithPrefix(ctx, route.prefix)
+		}
+		if len(route.scopes) > 0 {
+			ctx = WithScope(ctx, route.scopes...)
+		}
+		if len(route.methods) > 0 {
+			ctx = WithMethod(ctx, route.methods...)
+		}
+	}
+	if len(route.parameters) > 0 {
+		ctx = context.WithValue(ctx, contextParams, route.parameters)
+	}
+	if route.request != "" {
+		ctx = context.WithValue(ctx, contextRequest, route.request)
+	}
+	return ctx
 }
 
 // Host returns the host from the context, or zero value if not defined
@@ -89,11 +113,7 @@ func Prefix(ctx context.Context) string {
 
 // Params returns the path parameters from the context, or zero value if not defined
 func Params(ctx context.Context) []string {
-	if value, ok := ctx.Value(contextParams).([]string); ok {
-		return value
-	} else {
-		return nil
-	}
+	return strslice(ctx, contextParams)
 }
 
 // Middleware returns a set of middleware from the context, or zero value if not defined
@@ -114,6 +134,16 @@ func Time(ctx context.Context) time.Time {
 	}
 }
 
+// Scope returns the stored scope or nil if not defined
+func Scope(ctx context.Context) []string {
+	return strslice(ctx, contextScope)
+}
+
+// Method returns the stored methods or nil if not defined
+func Method(ctx context.Context) []string {
+	return strslice(ctx, contextMethod)
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
@@ -122,4 +152,11 @@ func str(ctx context.Context, key RouterContextKey) string {
 		return value
 	}
 	return ""
+}
+
+func strslice(ctx context.Context, key RouterContextKey) []string {
+	if value, ok := ctx.Value(key).([]string); ok {
+		return value
+	}
+	return nil
 }
