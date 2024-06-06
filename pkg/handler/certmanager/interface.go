@@ -25,3 +25,16 @@ type Cert interface {
 	// Write a .pem file with the private key
 	WritePrivateKey(w io.Writer) error
 }
+
+type CertJar interface {
+	server.Task 
+	
+	// Return all certificates
+	List() []Cert
+
+	// Create a new certificate
+	Write(Cert) error
+
+	// Delete a certificate
+	Delete(Cert) error
+}
