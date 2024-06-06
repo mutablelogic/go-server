@@ -26,6 +26,7 @@ type opts struct {
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
+// Set X509 name
 func OptX509Name(v pkix.Name) Opt {
 	return func(o *opts) error {
 		o.Name = &v
@@ -33,6 +34,7 @@ func OptX509Name(v pkix.Name) Opt {
 	}
 }
 
+// Set Serial number
 func OptSerial(serial int64) Opt {
 	return func(o *opts) error {
 		if serial < 1 {
@@ -43,6 +45,7 @@ func OptSerial(serial int64) Opt {
 	}
 }
 
+// Set private key type
 func OptKeyType(v string) Opt {
 	return func(o *opts) error {
 		switch strings.ToUpper(v) {
@@ -65,6 +68,7 @@ func OptKeyType(v string) Opt {
 	}
 }
 
+// Set certificate expiry
 func OptExpiry(years, months, days int) Opt {
 	return func(o *opts) error {
 		if years < 0 || months < 0 || days < 0 {
@@ -81,6 +85,7 @@ func OptExpiry(years, months, days int) Opt {
 	}
 }
 
+// Set host or IP address restrictions
 func OptHosts(v ...string) Opt {
 	return func(o *opts) error {
 		for _, v := range v {

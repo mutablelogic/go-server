@@ -28,12 +28,20 @@ import (
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
+// Cert represents a certificate with a private key which can be used for
+// signing other certificates
 type Cert struct {
 	data       []byte
 	privateKey any
 }
 
 type keyType int
+
+// Ensure that Cert implements the certmanager.Cert interface
+var _ certmanager.Cert = (*Cert)(nil)
+
+///////////////////////////////////////////////////////////////////////////////
+// GLOBALS
 
 const (
 	_ keyType = iota
@@ -45,17 +53,15 @@ const (
 	P521
 )
 
-///////////////////////////////////////////////////////////////////////////////
-// GLOBALS
-
-var (
-	serialNumberLimit = new(big.Int).Lsh(big.NewInt(1), 128)
-)
-
 const (
 	defaultYearsCA    = 2
 	defaultMonthsCert = 3
 	defaultKey        = RSA2048
+)
+
+var (
+	// Maximum is 128 bits
+	serialNumberLimit = new(big.Int).Lsh(big.NewInt(1), 128)
 )
 
 ///////////////////////////////////////////////////////////////////////////////
