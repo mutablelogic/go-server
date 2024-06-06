@@ -6,9 +6,12 @@ import (
 	"os"
 	"path/filepath"
 	"plugin"
+	"reflect"
+	"strings"
 
 	// Packages
 	server "github.com/mutablelogic/go-server"
+	types "github.com/mutablelogic/go-server/pkg/types"
 
 	// Namespace imports
 	. "github.com/djthorpe/go-errors"
@@ -18,17 +21,19 @@ import (
 // TYPES
 
 // Plugin represents a plugin which can be loaded
-type Plugin struct {
-	Path string      `json:"path"`
+type pluginMeta struct {
+	Path string      `json:"path,omitempty"`
+	Name string      `json:"name"`
 	Meta *PluginMeta `json:"meta"`
 
 	// Private fields
 	plugin server.Plugin
 }
 
-// pluginProvider is a list of plugins
+// pluginProvider is a list of plugins and configurations
 type pluginProvider struct {
-	plugins map[string]*Plugin
+	plugins map[string]*pluginMeta
+	labels  map[types.Label]server.Plugin
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -41,13 +46,37 @@ const (
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func New(plugins ...server.Plugin) *pluginProvider {
+func New(plugins ...server.Plugin) (*pluginProvider, error) {
 	self := new(pluginProvider)
-	self.plugins = make(map[string]*Plugin, len(plugins))
+	self.plugins = make(map[string]*pluginMeta, len(plugins))
+	self.labels = make(map[types.Label]server.Plugin, len(plugins))
 
-	// TODO
+	var result error
+	for _, plugin := range plugins {
+		if plugin_, err := NewPlugin(plugin, ""); err != nil {
+			result = errors.Join(result, err)
+		} else if _, exists := self.plugins[plugin_.Name]; exists {
+			result = errors.Join(result, ErrDuplicateEntry.With(plugin_.Name))
+		} else {
+			self.plugins[plugin_.Name] = plugin_
+		}
+	}
 
-	return self
+	// Return any errors
+	return self, result
+}
+
+func NewPlugin(v server.Plugin, path string) (*pluginMeta, error) {
+	meta, err := NewPluginMeta(v)
+	if err != nil {
+		return nil, err
+	}
+	return &pluginMeta{
+		Path:   path,
+		Name:   v.Name(),
+		Meta:   meta,
+		plugin: v,
+	}, nil
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -61,21 +90,50 @@ func (p *pluginProvider) LoadPluginsForPattern(pattern string) error {
 		return err
 	}
 
-	// TODO
+	var result error
+	for _, plugin := range plugins {
+		if plugin_, err := NewPlugin(plugin, ""); err != nil {
+			result = errors.Join(result, err)
+		} else if _, exists := p.plugins[plugin_.Name]; exists {
+			result = errors.Join(result, ErrDuplicateEntry.With(plugin_.Name))
+		} else {
+			p.plugins[plugin_.Name] = plugin_
+		}
+	}
 
 	// Return success
 	return nil
 }
 
-// Create a configuration object for a plugin with a label
-func (p *pluginProvider) New(name, label string) (server.Plugin, error) {
-	// TODO
+// Create a configuration object for a plugin with label parts
+func (p *pluginProvider) New(name string, suffix ...string) (server.Plugin, error) {
+	// Get the plugin
+	plugin, exists := p.plugins[name]
+	if !exists {
+		return nil, ErrNotFound.Withf("plugin %q", name)
+	}
+
+	// Create the label
+	label := types.NewLabel(name, suffix...)
+	if label == "" {
+		return nil, ErrBadParameter.Withf("invalid label with suffix %q", strings.Join(suffix, types.LabelSeparator))
+	}
+
+	// Check for existing label
+	if _, exists := p.labels[label]; exists {
+		return nil, ErrDuplicateEntry.With(label)
+	} else {
+		p.labels[label] = plugin.new()
+	}
+
+	// Create a new configuration
+	return p.labels[label], nil
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
-func (plugin *Plugin) String() string {
+func (plugin *pluginMeta) String() string {
 	data, _ := json.MarshalIndent(plugin, "", "  ")
 	return string(data)
 }
@@ -83,10 +141,15 @@ func (plugin *Plugin) String() string {
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
+// new makes a new copy of the plugin
+func (plugin *pluginMeta) new() server.Plugin {
+	rt := reflect.TypeOf(plugin.plugin)
+	return reflect.New(rt).Interface().(server.Plugin)
+}
+
 // loadPluginsForPattern will load and return a list of plugins for a given glob pattern
-func loadPluginsForPattern(pattern string) ([]*Plugin, error) {
-	var result error
-	var plugins []*Plugin
+func loadPluginsForPattern(pattern string) ([]server.Plugin, error) {
+	var plugins []server.Plugin
 
 	// Seek plugins
 	files, err := filepath.Glob(pattern)
@@ -98,22 +161,14 @@ func loadPluginsForPattern(pattern string) ([]*Plugin, error) {
 	}
 
 	// Load plugins, and create metadata object for the block
+	var result error
 	for _, path := range files {
 		plugin, err := pluginWithPath(path)
 		if err != nil {
 			result = errors.Join(result, err)
-			continue
+		} else {
+			plugins = append(plugins, plugin)
 		}
-		meta, err := NewMeta(plugin)
-		if err != nil {
-			result = errors.Join(result, err)
-			continue
-		}
-		plugins = append(plugins, &Plugin{
-			Path:   filepath.Clean(path),
-			Meta:   meta,
-			plugin: plugin,
-		})
 	}
 
 	// Return any errors

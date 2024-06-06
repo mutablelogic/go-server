@@ -1,12 +1,14 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
+	// Packages
 	"github.com/mutablelogic/go-server/pkg/provider"
 )
 
@@ -19,7 +21,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	// If the path is relative, then make it absolute to the binary path
+	// If the path is relative, then make it absolute to either the binary path
+	// or the current working directory
 	if !filepath.IsAbs(pluginPath) {
 		if strings.HasPrefix(pluginPath, ".") || strings.HasPrefix(pluginPath, "..") {
 			if wd, err := os.Getwd(); err == nil {
@@ -30,12 +33,29 @@ func main() {
 		}
 	}
 
-	// Load plugins
-	plugins, err := provider.LoadPluginsForPattern(pluginPath)
+	// Create a new provider, load plugins
+	provider, err := provider.New()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+	if err := provider.LoadPluginsForPattern(pluginPath); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 
-	fmt.Println(plugins)
+	// Create configurations
+	var result error
+	for _, plugin := range []string{"logger", "httpserver", "router", "nginx-handler", "auth-handler", "tokenjar-handler"} {
+		if _, err := provider.New(plugin); err != nil {
+			result = errors.Join(result, err)
+		}
+	}
+	if result != nil {
+		fmt.Fprintln(os.Stderr, result)
+		os.Exit(1)
+	}
+
+	// Set parameters
+	// provider.Set("logger.flags", []string{"default", "prefix"})
 }

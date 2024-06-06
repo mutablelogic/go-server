@@ -37,8 +37,8 @@ const (
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-// NewMeta returns metadata for a plugin
-func NewMeta(v server.Plugin) (*PluginMeta, error) {
+// NewPluginMeta returns metadata for a plugin
+func NewPluginMeta(v server.Plugin) (*PluginMeta, error) {
 	meta := &PluginMeta{
 		Name:        v.Name(),
 		Description: v.Description(),
