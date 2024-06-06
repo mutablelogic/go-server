@@ -3,6 +3,7 @@ package provider
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"plugin"
@@ -128,6 +129,26 @@ func (p *pluginProvider) New(name string, suffix ...string) (server.Plugin, erro
 
 	// Create a new configuration
 	return p.labels[label], nil
+}
+
+// Set a parameter for a plugin with label parts
+func (p *pluginProvider) Set(label types.Label, value interface{}) error {
+	// Get the plugin
+	plugin, exists := p.labels[label]
+	if !exists {
+		return ErrNotFound.With(label)
+	}
+
+	// TODO: Set the value
+	fmt.Println("TODO: Set", plugin, label, value)
+
+	return ErrNotImplemented
+}
+
+// Create tasks for all the plugins, in the order they should be created
+func (p *pluginProvider) Tasks() ([]server.Task, error) {
+	// TODO
+	return nil, ErrNotImplemented
 }
 
 ///////////////////////////////////////////////////////////////////////////////
