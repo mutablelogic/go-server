@@ -13,8 +13,6 @@ import (
 	"encoding/pem"
 	"io"
 	"math/big"
-	"net"
-	"strings"
 	"time"
 
 	// Packages
@@ -34,10 +32,10 @@ type Cert struct {
 	data       []byte
 }
 
-type KeyType int
+type keyType int
 
 const (
-	_ KeyType = iota
+	_ keyType = iota
 	ED25519
 	RSA2048
 	P224
@@ -47,82 +45,72 @@ const (
 )
 
 ///////////////////////////////////////////////////////////////////////////////
-// LIFE CYCLE
+// GLOBALS
 
-func New(c certmanager.Config, parent *x509.Certificate, parentPrivateKey any, k KeyType, years, months, days int, host string, opts ...Opts) (*Cert, error) {
-	cert := new(Cert)
+var (
+	serialNumberLimit = new(big.Int).Lsh(big.NewInt(1), 128)
+)
 
-	// Random serial number
-	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
-	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
-	if err != nil {
-		return nil, err
-	} else {
-		cert.serial = serialNumber
-	}
+const (
+	defaultYearsCA    = 2
+	defaultMonthsCert = 3
+	defaultKey        = RSA2048
+)
 
-	// Create the certificate template
-	template := &x509.Certificate{
-		SerialNumber: cert.serial,
-		Subject: pkix.Name{
-			Organization:       []string{c.Organization},
-			OrganizationalUnit: []string{c.OrganizationalUnit},
-			Country:            []string{c.Country},
-			Locality:           []string{c.Locality},
-			Province:           []string{c.Province},
-			StreetAddress:      []string{c.StreetAddress},
-			PostalCode:         []string{c.PostalCode},
-		},
-		NotBefore:             time.Now(),
-		NotAfter:              time.Now().AddDate(years, months, days),
-		IsCA:                  parent == nil,
-		ExtKeyUsage:           []x509.ExtKeyUsage{},
-		BasicConstraintsValid: true,
-	}
+///////////////////////////////////////////////////////////////////////////////
+// LIFECYCLE
 
-	// TODO: k needs to be the same as the key type of the parent if parentPrivateKey is set
+// Create a new certificate authority with the given configuration
+// and options
+func NewCA(c certmanager.Config, opt ...Opt) (*Cert, error) {
+	var o opts
 
-	// Create new private key
-	publicKey, privateKey, err := generateKey(k)
-	if err != nil {
-		return nil, err
-	} else {
-		cert.publicKey = publicKey
-		cert.privateKey = privateKey
-	}
+	// Set defaults
+	o.KeyType = defaultKey
+	o.Years = defaultYearsCA
 
-	// Set hosts
-	hosts := strings.Split(host, ",")
-	for _, h := range hosts {
-		if ip := net.ParseIP(h); ip != nil {
-			template.IPAddresses = append(template.IPAddresses, ip)
-		} else {
-			template.DNSNames = append(template.DNSNames, h)
+	// Set options
+	for _, fn := range opt {
+		if err := fn(&o); err != nil {
+			return nil, err
 		}
 	}
 
-	// Set CA flags or Server cert flags
-	if parent == nil {
-		template.IsCA = true
-		template.KeyUsage |= x509.KeyUsageCertSign
-	} else {
-		// ECDSA, ED25519 and RSA subject keys should have the DigitalSignature
-		// KeyUsage bits set in the x509.Certificate template
-		template.KeyUsage |= x509.KeyUsageDigitalSignature
-		template.ExtKeyUsage = append(template.ExtKeyUsage, x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth)
+	// Get serial number
+	var serial *big.Int
+	if o.Serial != 0 {
+		serial = big.NewInt(o.Serial)
+	} else if serial = SerialNumber(); serial == nil {
+		return nil, ErrInternalAppError.With("SerialNumber")
+	}
+
+	// Create a new certificate with a template
+	template := x509TemplateFor(c, o, serial)
+	template.IsCA = true
+	template.KeyUsage |= x509.KeyUsageCertSign
+
+	// Generate public, private keys
+	publicKey, privateKey, err := generateKey(o.KeyType)
+	if err != nil {
+		return nil, err
 	}
 
 	// Only RSA subject keys should have the KeyEncipherment KeyUsage bits set. In
 	// the context of TLS this KeyUsage is particular to RSA key exchange and
 	// authentication.
-	if _, isRSA := cert.privateKey.(*rsa.PrivateKey); isRSA {
+	if _, isRSA := privateKey.(*rsa.PrivateKey); isRSA {
 		template.KeyUsage |= x509.KeyUsageKeyEncipherment
 	}
 
-	data, err := x509.CreateCertificate(rand.Reader, template, parent, cert.publicKey, parentPrivateKey)
+	// Create self-signed CA
+	cert := new(Cert)
+	data, err := x509.CreateCertificate(rand.Reader, template, template, publicKey, privateKey)
 	if err != nil {
 		return nil, err
 	} else {
+		cert.serial = serial
+		cert.publicKey = publicKey
+		cert.privateKey = privateKey
 		cert.data = data
 	}
 
@@ -130,40 +118,98 @@ func New(c certmanager.Config, parent *x509.Certificate, parentPrivateKey any, k
 	return cert, nil
 }
 
-/*
-func LoadX509KeyPair(certFile, keyFile string) (*x509.Certificate, *rsa.PrivateKey) {
-    cf, e := ioutil.ReadFile(certFile)
-    if e != nil {
-        fmt.Println("cfload:", e.Error())
-        os.Exit(1)
-    }
+// Create a new certificate, either self-signed (if ca is nil) or
+// signed by the certificate authority with the given options
+func NewCert(ca *Cert, opt ...Opt) (*Cert, error) {
+	var o opts
 
-    kf, e := ioutil.ReadFile(keyFile)
-    if e != nil {
-        fmt.Println("kfload:", e.Error())
-        os.Exit(1)
-    }
-    cpb, cr := pem.Decode(cf)
-    fmt.Println(string(cr))
-    kpb, kr := pem.Decode(kf)
-    fmt.Println(string(kr))
-    crt, e := x509.ParseCertificate(cpb.Bytes)
+	// Set defaults
+	o.KeyType = defaultKey
+	o.Months = defaultMonthsCert
 
-    if e != nil {
-        fmt.Println("parsex509:", e.Error())
-        os.Exit(1)
-    }
-    key, e := x509.ParsePKCS1PrivateKey(kpb.Bytes)
-    if e != nil {
-        fmt.Println("parsekey:", e.Error())
-        os.Exit(1)
-    }
-    return crt, key
+	// Set options
+	for _, fn := range opt {
+		if err := fn(&o); err != nil {
+			return nil, err
+		}
+	}
+
+	// Get serial number
+	var serial *big.Int
+	if o.Serial != 0 {
+		serial = big.NewInt(o.Serial)
+	} else if serial = SerialNumber(); serial == nil {
+		return nil, ErrInternalAppError.With("SerialNumber")
+	}
+
+	parent, err := x509.ParseCertificate(ca.data)
+	if err != nil {
+		return nil, err
+	}
+	template, err := x509.ParseCertificate(ca.data)
+	if err != nil {
+		return nil, err
+	}
+	if o.Name != nil {
+		template.Subject = *o.Name
+	}
+	if len(o.IPAddresses) > 0 {
+		template.IPAddresses = o.IPAddresses
+	}
+	if len(o.DNSNames) > 0 {
+		template.DNSNames = o.DNSNames
+	}
+	template.SerialNumber = serial
+	template.NotBefore = time.Now()
+	template.NotAfter = time.Now().AddDate(o.Years, o.Months, o.Days)
+	template.IsCA = false
+	template.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth}
+	// ECDSA, ED25519 and RSA subject keys should have the DigitalSignature
+	// KeyUsage bits set in the x509.Certificate template
+	template.KeyUsage = x509.KeyUsageDigitalSignature
+
+	// Only RSA subject keys should have the KeyEncipherment KeyUsage bits set. In
+	// the context of TLS this KeyUsage is particular to RSA key exchange and
+	// authentication.
+	if _, isRSA := ca.privateKey.(*rsa.PrivateKey); isRSA {
+		template.KeyUsage |= x509.KeyUsageKeyEncipherment
+	}
+
+	// Generate public, private keys
+	publicKey, privateKey, err := generateKey(o.KeyType)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create cert signed by the CA
+	cert := new(Cert)
+	data, err := x509.CreateCertificate(rand.Reader, template, parent, publicKey, ca.privateKey)
+	if err != nil {
+		return nil, err
+	} else {
+		cert.serial = serial
+		cert.publicKey = publicKey
+		cert.privateKey = privateKey
+		cert.data = data
+	}
+
+	// Return success
+	return cert, nil
 }
-*/
 
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
+
+// Create a new serial number for the certificate, or nil if there
+// was an error
+func SerialNumber() *big.Int {
+	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
+	if err != nil {
+		return nil
+	} else {
+		return serialNumber
+	}
+}
 
 // Return the serial number of the certificate
 func (c *Cert) Serial() string {
@@ -190,9 +236,36 @@ func (c *Cert) WritePrivateKey(w io.Writer) error {
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
+func x509TemplateFor(c certmanager.Config, o opts, serial *big.Int) *x509.Certificate {
+	template := &x509.Certificate{
+		SerialNumber: serial,
+		Subject: pkix.Name{
+			Organization:       []string{c.Organization},
+			OrganizationalUnit: []string{c.OrganizationalUnit},
+			Country:            []string{c.Country},
+			Locality:           []string{c.Locality},
+			Province:           []string{c.Province},
+			StreetAddress:      []string{c.StreetAddress},
+			PostalCode:         []string{c.PostalCode},
+		},
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now().AddDate(o.Years, o.Months, o.Days),
+		ExtKeyUsage:           []x509.ExtKeyUsage{},
+		BasicConstraintsValid: true,
+	}
+
+	// Set X509 Name
+	if o.Name != nil {
+		template.Subject = *o.Name
+	}
+
+	// Return the template
+	return template
+}
+
 // ECDSA curve to use to generate a key. Valid values are P224, P256 (default), P384, P521
 // If empty, RSA keys will be generated instead
-func generateKey(t KeyType) (any, any, error) {
+func generateKey(t keyType) (any, any, error) {
 	switch t {
 	case ED25519:
 		return ed25519.GenerateKey(rand.Reader)
