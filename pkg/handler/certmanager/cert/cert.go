@@ -28,8 +28,8 @@ import (
 // TYPES
 
 type Cert struct {
-	ca         bool
 	serial     *big.Int
+	publicKey  any
 	privateKey any
 	data       []byte
 }
@@ -49,7 +49,7 @@ const (
 ///////////////////////////////////////////////////////////////////////////////
 // LIFE CYCLE
 
-func New(c certmanager.Config, k KeyType, years, months, days int, ca bool, host string, opts ...Opts) (*Cert, error) {
+func New(c certmanager.Config, parent *x509.Certificate, parentPrivateKey any, k KeyType, years, months, days int, host string, opts ...Opts) (*Cert, error) {
 	cert := new(Cert)
 
 	// Random serial number
@@ -73,29 +73,22 @@ func New(c certmanager.Config, k KeyType, years, months, days int, ca bool, host
 			StreetAddress:      []string{c.StreetAddress},
 			PostalCode:         []string{c.PostalCode},
 		},
-		NotBefore:   time.Now(),
-		NotAfter:    time.Now().AddDate(years, months, days),
-		IsCA:        ca,
-		ExtKeyUsage: []x509.ExtKeyUsage{},
-		// ECDSA, ED25519 and RSA subject keys should have the DigitalSignature
-		// KeyUsage bits set in the x509.Certificate template
-		KeyUsage:              x509.KeyUsageDigitalSignature,
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now().AddDate(years, months, days),
+		IsCA:                  parent == nil,
+		ExtKeyUsage:           []x509.ExtKeyUsage{},
 		BasicConstraintsValid: true,
 	}
 
+	// TODO: k needs to be the same as the key type of the parent if parentPrivateKey is set
+
 	// Create new private key
-	public, private, err := generateKey(k)
+	publicKey, privateKey, err := generateKey(k)
 	if err != nil {
 		return nil, err
 	} else {
-		cert.privateKey = private
-	}
-
-	// Only RSA subject keys should have the KeyEncipherment KeyUsage bits set. In
-	// the context of TLS this KeyUsage is particular to RSA key exchange and
-	// authentication.
-	if _, isRSA := private.(*rsa.PrivateKey); isRSA {
-		template.KeyUsage |= x509.KeyUsageKeyEncipherment
+		cert.publicKey = publicKey
+		cert.privateKey = privateKey
 	}
 
 	// Set hosts
@@ -108,16 +101,25 @@ func New(c certmanager.Config, k KeyType, years, months, days int, ca bool, host
 		}
 	}
 
-	// Set CA
-	if ca {
+	// Set CA flags or Server cert flags
+	if parent == nil {
 		template.IsCA = true
 		template.KeyUsage |= x509.KeyUsageCertSign
-		cert.ca = true
 	} else {
+		// ECDSA, ED25519 and RSA subject keys should have the DigitalSignature
+		// KeyUsage bits set in the x509.Certificate template
+		template.KeyUsage |= x509.KeyUsageDigitalSignature
 		template.ExtKeyUsage = append(template.ExtKeyUsage, x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth)
 	}
 
-	data, err := x509.CreateCertificate(rand.Reader, template, template, public, private)
+	// Only RSA subject keys should have the KeyEncipherment KeyUsage bits set. In
+	// the context of TLS this KeyUsage is particular to RSA key exchange and
+	// authentication.
+	if _, isRSA := cert.privateKey.(*rsa.PrivateKey); isRSA {
+		template.KeyUsage |= x509.KeyUsageKeyEncipherment
+	}
+
+	data, err := x509.CreateCertificate(rand.Reader, template, parent, cert.publicKey, parentPrivateKey)
 	if err != nil {
 		return nil, err
 	} else {
