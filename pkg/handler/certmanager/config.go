@@ -1,6 +1,6 @@
 package certmanager
 
-type Config struct {
+type X509Name struct {
 	Organization       string `json:"organization"`
 	OrganizationalUnit string `json:"organizational_unit,omitempty"`
 	Country            string `json:"country,omitempty"`
@@ -8,4 +8,8 @@ type Config struct {
 	Locality           string `json:"locality,omitempty"`
 	StreetAddress      string `json:"street_address,omitempty"`
 	PostalCode         string `json:"postal_code,omitempty"`
+}
+
+type Config struct {
+	X509Name `json:"x509_name"`
 }

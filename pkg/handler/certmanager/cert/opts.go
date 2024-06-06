@@ -35,6 +35,9 @@ func OptX509Name(v pkix.Name) Opt {
 
 func OptSerial(serial int64) Opt {
 	return func(o *opts) error {
+		if serial < 1 {
+			return ErrBadParameter.Withf("OptSerial")
+		}
 		o.Serial = serial
 		return nil
 	}
@@ -56,7 +59,7 @@ func OptKeyType(v string) Opt {
 		case "P521":
 			o.KeyType = P521
 		default:
-			return ErrBadParameter.Withf("invalid key type %q", v)
+			return ErrBadParameter.Withf("OptKeyType %q", v)
 		}
 		return nil
 	}

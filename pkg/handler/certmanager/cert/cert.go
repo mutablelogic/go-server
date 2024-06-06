@@ -10,9 +10,12 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/json"
 	"encoding/pem"
+	"fmt"
 	"io"
 	"math/big"
+	"net"
 	"time"
 
 	// Packages
@@ -26,10 +29,8 @@ import (
 // TYPES
 
 type Cert struct {
-	serial     *big.Int
-	publicKey  any
-	privateKey any
 	data       []byte
+	privateKey any
 }
 
 type keyType int
@@ -108,10 +109,8 @@ func NewCA(c certmanager.Config, opt ...Opt) (*Cert, error) {
 	if err != nil {
 		return nil, err
 	} else {
-		cert.serial = serial
-		cert.publicKey = publicKey
-		cert.privateKey = privateKey
 		cert.data = data
+		cert.privateKey = privateKey
 	}
 
 	// Return success
@@ -120,6 +119,7 @@ func NewCA(c certmanager.Config, opt ...Opt) (*Cert, error) {
 
 // Create a new certificate, either self-signed (if ca is nil) or
 // signed by the certificate authority with the given options
+// TODO: Add self-signing ability
 func NewCert(ca *Cert, opt ...Opt) (*Cert, error) {
 	var o opts
 
@@ -187,14 +187,66 @@ func NewCert(ca *Cert, opt ...Opt) (*Cert, error) {
 	if err != nil {
 		return nil, err
 	} else {
-		cert.serial = serial
-		cert.publicKey = publicKey
 		cert.privateKey = privateKey
 		cert.data = data
 	}
 
 	// Return success
 	return cert, nil
+}
+
+// Import certificate from byte stream
+func NewFromBytes(data []byte) (*Cert, error) {
+	public, rest := pem.Decode(data)
+	if public == nil {
+		return nil, ErrBadParameter.With("unable to decode certificate")
+	}
+	priv, _ := pem.Decode(rest)
+	if priv == nil {
+		return nil, ErrBadParameter.With("unable to decode private key")
+	}
+
+	cert := new(Cert)
+	cert.data = public.Bytes
+	if privKey, err := x509.ParsePKCS8PrivateKey(priv.Bytes); err != nil {
+		return nil, err
+	} else {
+		cert.privateKey = privKey
+	}
+
+	// Return success
+	return cert, nil
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// STRINGIFY
+
+func (c *Cert) String() string {
+	cert, err := x509.ParseCertificate(c.data)
+	if err != nil {
+		return fmt.Sprintf("{ %q: %q }", "error", err.Error())
+	}
+	v := struct {
+		KeyType     string    `json:"key_type"`
+		Serial      string    `json:"serial"`
+		Subject     string    `json:"subject"`
+		IsCA        bool      `json:"is_ca,omitempty"`
+		NotBefore   time.Time `json:"not_before"`
+		NotAfter    time.Time `json:"not_after"`
+		IPAddresses []net.IP  `json:"ip_addresses,omitempty"`
+		DNSNames    []string  `json:"dns_names,omitempty"`
+	}{
+		KeyType:     c.KeyType(),
+		Serial:      cert.SerialNumber.String(),
+		Subject:     cert.Subject.String(),
+		IsCA:        cert.IsCA,
+		NotBefore:   cert.NotBefore,
+		NotAfter:    cert.NotAfter,
+		IPAddresses: cert.IPAddresses,
+		DNSNames:    cert.DNSNames,
+	}
+	data, _ := json.MarshalIndent(v, "", "  ")
+	return string(data)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -211,9 +263,18 @@ func SerialNumber() *big.Int {
 	}
 }
 
-// Return the serial number of the certificate
-func (c *Cert) Serial() string {
-	return c.serial.String()
+// Return the key type
+func (c *Cert) KeyType() string {
+	switch v := c.privateKey.(type) {
+	case *rsa.PrivateKey:
+		return fmt.Sprintf("RSA%d", v.Size()*8)
+	case *ecdsa.PrivateKey:
+		return "ECDSA " + v.Curve.Params().Name
+	case ed25519.PrivateKey:
+		return "ED25519"
+	default:
+		return "UNKNOWN"
+	}
 }
 
 // Write a .pem file with the certificate
@@ -240,13 +301,13 @@ func x509TemplateFor(c certmanager.Config, o opts, serial *big.Int) *x509.Certif
 	template := &x509.Certificate{
 		SerialNumber: serial,
 		Subject: pkix.Name{
-			Organization:       []string{c.Organization},
-			OrganizationalUnit: []string{c.OrganizationalUnit},
-			Country:            []string{c.Country},
-			Locality:           []string{c.Locality},
-			Province:           []string{c.Province},
-			StreetAddress:      []string{c.StreetAddress},
-			PostalCode:         []string{c.PostalCode},
+			Organization:       []string{c.X509Name.Organization},
+			OrganizationalUnit: []string{c.X509Name.OrganizationalUnit},
+			Country:            []string{c.X509Name.Country},
+			Locality:           []string{c.X509Name.Locality},
+			Province:           []string{c.X509Name.Province},
+			StreetAddress:      []string{c.X509Name.StreetAddress},
+			PostalCode:         []string{c.X509Name.PostalCode},
 		},
 		NotBefore:             time.Now(),
 		NotAfter:              time.Now().AddDate(o.Years, o.Months, o.Days),
