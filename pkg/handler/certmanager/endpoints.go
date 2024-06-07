@@ -8,7 +8,7 @@ import (
 	// Packages
 	server "github.com/mutablelogic/go-server"
 	router "github.com/mutablelogic/go-server/pkg/handler/router"
-	"github.com/mutablelogic/go-server/pkg/httprequest"
+	httprequest "github.com/mutablelogic/go-server/pkg/httprequest"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 )
 
@@ -17,6 +17,13 @@ import (
 
 type reqCreateCA struct {
 	CommonName string `json:"name"`
+	// Days       int    `json:"days"`
+}
+
+type reqCreateCert struct {
+	reqCreateCA
+	CA string `json:"ca"`
+	// Hosts []string `json:"hosts"`
 }
 
 // Check interfaces are satisfied
@@ -44,6 +51,20 @@ func (service *certmanager) AddEndpoints(ctx context.Context, r server.Router) {
 	// Scopes: read
 	// Description: Return all existing certificates
 	r.AddHandlerFuncRe(ctx, reRoot, service.reqListCerts, http.MethodGet).(router.Route).
+		SetScope(service.ScopeRead()...)
+
+	// Path: /
+	// Methods: POST
+	// Scopes: write
+	// Description: Create a new certificate
+	r.AddHandlerFuncRe(ctx, reRoot, service.reqCreateCert, http.MethodPost).(router.Route).
+		SetScope(service.ScopeWrite()...)
+
+	// Path: /ca
+	// Methods: GET
+	// Scopes: read
+	// Description: Return all existing certificate authorities TODO: This should be a separate endpoint
+	r.AddHandlerFuncRe(ctx, reCA, service.reqListCerts, http.MethodGet).(router.Route).
 		SetScope(service.ScopeRead()...)
 
 	// Path: /ca
@@ -78,5 +99,34 @@ func (service *certmanager) reqCreateCA(w http.ResponseWriter, r *http.Request) 
 		httpresponse.Error(w, http.StatusInternalServerError, err.Error())
 	} else {
 		httpresponse.JSON(w, ca, http.StatusOK, jsonIndent)
+	}
+}
+
+// Create a new certificate
+func (service *certmanager) reqCreateCert(w http.ResponseWriter, r *http.Request) {
+	var req reqCreateCert
+
+	// Get the request
+	if err := httprequest.Read(r, &req); err != nil {
+		httpresponse.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	// Get the CA
+	var ca Cert
+	if req.CA != "" {
+		var err error
+		ca, err = service.Read(req.CA)
+		if err != nil {
+			httpresponse.Error(w, http.StatusBadRequest, err.Error())
+			return
+		}
+	}
+
+	// Create the Cert
+	if cert, err := service.CreateSignedCert(req.CommonName, ca); err != nil {
+		httpresponse.Error(w, http.StatusInternalServerError, err.Error())
+	} else {
+		httpresponse.JSON(w, cert, http.StatusOK, jsonIndent)
 	}
 }
