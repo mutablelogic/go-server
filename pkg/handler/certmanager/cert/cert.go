@@ -167,8 +167,11 @@ func NewCert(commonName string, ca *Cert, opt ...Opt) (*Cert, error) {
 		if !parent.IsCA {
 			return nil, ErrBadParameter.With("Invalid CA certificate")
 		}
-		if _, err := parent.Verify(x509.VerifyOptions{}); err != nil {
-			return nil, err
+		if parent.NotAfter.Before(time.Now()) {
+			return nil, ErrBadParameter.With("CA certificate has expired")
+		}
+		if parent.NotBefore.After(time.Now()) {
+			return nil, ErrBadParameter.With("CA certificate is not yet valid")
 		}
 	}
 

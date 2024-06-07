@@ -55,7 +55,9 @@ func Test_Cert_004(t *testing.T) {
 	t.Log("ca=", ca)
 
 	cert, err := cert.NewCert(t.Name(), ca, cert.OptKeyType("P224"))
-	assert.NoError(err)
+	if !assert.NoError(err) {
+		t.SkipNow()
+	}
 	assert.NotNil(cert)
 
 	t.Log("cert=", cert)
