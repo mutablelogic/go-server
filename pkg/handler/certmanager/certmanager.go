@@ -3,6 +3,8 @@ package certmanager
 import ( // Packages
 	// Namespace imports
 	"crypto/x509/pkix"
+	"errors"
+	"os"
 
 	. "github.com/djthorpe/go-errors"
 	"github.com/mutablelogic/go-server/pkg/handler/certmanager/cert"
@@ -103,7 +105,9 @@ func (task *certmanager) CreateSignedCert(commonName string, ca Cert, opts ...ce
 	if ca != nil {
 		var err error
 		ca, err = task.store.Read(ca.Serial())
-		if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, ErrNotFound.With(ca.Serial())
+		} else if err != nil {
 			return nil, err
 		}
 	}
@@ -124,7 +128,8 @@ func (task *certmanager) CreateSignedCert(commonName string, ca Cert, opts ...ce
 	}
 
 	// Create the certificate and store it
-	cert, err := cert.NewCert(commonName, ca.(*cert.Cert), append(o, opts...)...)
+	ca_, _ := ca.(*cert.Cert)
+	cert, err := cert.NewCert(commonName, ca_, append(o, opts...)...)
 	if err != nil {
 		return nil, err
 	} else if err := task.store.Write(cert); err != nil {
