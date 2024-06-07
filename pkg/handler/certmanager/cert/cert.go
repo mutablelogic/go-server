@@ -263,15 +263,11 @@ func NewFromBytes(data []byte) (*Cert, error) {
 ///////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
-func (c *Cert) String() string {
-	cert, err := x509.ParseCertificate(c.data)
-	if err != nil {
-		return fmt.Sprintf("{ %q: %q }", "error", err.Error())
-	}
-	v := struct {
-		KeyType        string    `json:"key_type"`
+func (c *Cert) MarshalJSON() ([]byte, error) {
+	type resp struct {
 		Serial         string    `json:"serial"`
-		Subject        string    `json:"subject"`
+		KeyType        string    `json:"key_type"`
+		CommonName     string    `json:"name"`
 		IsCA           bool      `json:"is_ca,omitempty"`
 		NotBefore      time.Time `json:"not_before"`
 		NotAfter       time.Time `json:"not_after"`
@@ -279,19 +275,32 @@ func (c *Cert) String() string {
 		DNSNames       []string  `json:"dns_names,omitempty"`
 		SubjectKeyId   []byte    `json:"subject_key_id,omitempty"`
 		AuthorityKeyId []byte    `json:"authority_key_id,omitempty"`
-	}{
-		KeyType:        c.KeyType(),
-		Serial:         cert.SerialNumber.String(),
-		Subject:        cert.Subject.String(),
-		IsCA:           cert.IsCA,
-		NotBefore:      cert.NotBefore,
-		NotAfter:       cert.NotAfter,
-		IPAddresses:    cert.IPAddresses,
-		DNSNames:       cert.DNSNames,
-		SubjectKeyId:   cert.SubjectKeyId,
-		AuthorityKeyId: cert.AuthorityKeyId,
 	}
-	data, _ := json.MarshalIndent(v, "", "  ")
+	type error struct {
+		Error string `json:"error"`
+	}
+
+	cert, err := x509.ParseCertificate(c.data)
+	if err != nil {
+		return json.Marshal(error{Error: err.Error()})
+	} else {
+		return json.Marshal(resp{
+			Serial:         cert.SerialNumber.String(),
+			KeyType:        c.KeyType(),
+			CommonName:     cert.Subject.CommonName,
+			IsCA:           cert.IsCA,
+			NotBefore:      cert.NotBefore,
+			NotAfter:       cert.NotAfter,
+			IPAddresses:    cert.IPAddresses,
+			DNSNames:       cert.DNSNames,
+			SubjectKeyId:   cert.SubjectKeyId,
+			AuthorityKeyId: cert.AuthorityKeyId,
+		})
+	}
+}
+
+func (c *Cert) String() string {
+	data, _ := json.MarshalIndent(c, "", "  ")
 	return string(data)
 }
 
