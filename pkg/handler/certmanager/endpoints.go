@@ -32,10 +32,10 @@ type reqCreateCert struct {
 }
 
 type respCert struct {
-	Cert        `json:"cert"`
+	Cert        `json:"meta"`
 	Certificate string `json:"certificate,omitempty"`
 	PrivateKey  string `json:"key,omitempty"`
-	Error       string `json:"error,omitempty"`
+	Error       string `json:"validity,omitempty"`
 }
 
 // Check interfaces are satisfied
