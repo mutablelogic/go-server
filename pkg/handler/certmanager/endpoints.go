@@ -1,6 +1,7 @@
 package certmanager
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"net/http"
@@ -113,6 +114,21 @@ func (service *certmanager) reqGetCert(w http.ResponseWriter, r *http.Request) {
 	respCert := respCert{
 		Cert: cert,
 	}
+	// Add any errors
+	if err := cert.IsValid(); err != nil {
+		respCert.Error = err.Error()
+	}
+
+	// Add public key
+	var publicKey bytes.Buffer
+	if err := cert.WriteCertificate(&publicKey); err != nil {
+		httpresponse.Error(w, http.StatusInternalServerError, err.Error())
+	} else {
+		respCert.Certificate = publicKey.String()
+	}
+
+	// TODO: Add private key if scope allows
+
 	httpresponse.JSON(w, respCert, http.StatusOK, jsonIndent)
 }
 
