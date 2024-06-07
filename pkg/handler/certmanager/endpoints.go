@@ -114,9 +114,12 @@ func (service *certmanager) reqGetCert(w http.ResponseWriter, r *http.Request) {
 	respCert := respCert{
 		Cert: cert,
 	}
+
 	// Add any errors
-	if err := cert.IsValid(); err != nil {
-		respCert.Error = err.Error()
+	if !cert.IsCA() {
+		if err := cert.IsValid(); err != nil {
+			respCert.Error = err.Error()
+		}
 	}
 
 	// Add public key
