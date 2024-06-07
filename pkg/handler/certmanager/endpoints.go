@@ -83,7 +83,7 @@ func (service *certmanager) AddEndpoints(ctx context.Context, r server.Router) {
 	// Methods: GET
 	// Scopes: read
 	// Description: Read a certificate by serial number
-	r.AddHandlerFuncRe(ctx, reCA, service.reqGetCert, http.MethodGet).(router.Route).
+	r.AddHandlerFuncRe(ctx, reSerial, service.reqGetCert, http.MethodGet).(router.Route).
 		SetScope(service.ScopeRead()...)
 }
 
@@ -149,7 +149,10 @@ func (service *certmanager) reqCreateCert(w http.ResponseWriter, r *http.Request
 	if req.CA != "" {
 		var err error
 		ca, err = service.Read(req.CA)
-		if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			httpresponse.Error(w, http.StatusNotFound, err.Error())
+			return
+		} else if err != nil {
 			httpresponse.Error(w, http.StatusBadRequest, err.Error())
 			return
 		}
