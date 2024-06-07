@@ -2,9 +2,9 @@ package cert_test
 
 import (
 	"bytes"
+	"crypto/x509/pkix"
 	"testing"
 
-	"github.com/mutablelogic/go-server/pkg/handler/certmanager"
 	"github.com/mutablelogic/go-server/pkg/handler/certmanager/cert"
 	"github.com/stretchr/testify/assert"
 )
@@ -20,7 +20,7 @@ func Test_Cert_001(t *testing.T) {
 
 func Test_Cert_002(t *testing.T) {
 	assert := assert.New(t)
-	cert, err := cert.NewCA(certmanager.Config{})
+	cert, err := cert.NewCA(t.Name())
 	assert.NoError(err)
 	assert.NotNil(cert)
 	t.Log(cert)
@@ -28,7 +28,7 @@ func Test_Cert_002(t *testing.T) {
 
 func Test_Cert_003(t *testing.T) {
 	assert := assert.New(t)
-	cert, err := cert.NewCA(certmanager.Config{})
+	cert, err := cert.NewCA(t.Name())
 	assert.NoError(err)
 
 	public := new(bytes.Buffer)
@@ -46,43 +46,29 @@ func Test_Cert_003(t *testing.T) {
 
 func Test_Cert_004(t *testing.T) {
 	assert := assert.New(t)
-	ca, err := cert.NewCA(certmanager.Config{
-		X509Name: certmanager.X509Name{
-			OrganizationalUnit: "Test",
-			Organization:       "Test",
-			Country:            "DE",
-		},
-	})
+	ca, err := cert.NewCA(t.Name(), cert.OptX509Name(pkix.Name{
+		Organization: []string{"Test"},
+		Country:      []string{"DE"},
+	}))
 	assert.NoError(err)
 
-	t.Log(ca)
+	t.Log("ca=", ca)
 
-	cert, err := cert.NewCert(ca, cert.OptKeyType("P224"))
+	cert, err := cert.NewCert(t.Name(), ca, cert.OptKeyType("P224"))
 	assert.NoError(err)
 	assert.NotNil(cert)
 
-	t.Log(cert)
+	t.Log("cert=", cert)
 }
 
-func Test_Cert_005(t *testing.T) {
+func Test_Cert_006(t *testing.T) {
 	assert := assert.New(t)
-	ca, err := cert.NewCA(certmanager.Config{
-		X509Name: certmanager.X509Name{
-			OrganizationalUnit: "Test",
-			Organization:       "Test",
-			Country:            "DE",
-		},
-	})
+	// Self-signed certificate
+	cert, err := cert.NewCert(t.Name(), nil, cert.OptX509Name(pkix.Name{
+		Organization: []string{"Test"},
+		Country:      []string{"DE"},
+	}))
 	assert.NoError(err)
-
-	both := new(bytes.Buffer)
-	err = ca.WriteCertificate(both)
-	assert.NoError(err)
-	err = ca.WritePrivateKey(both)
-	assert.NoError(err)
-
-	cert2, err := cert.NewFromBytes(both.Bytes())
-	assert.NoError(err)
-
-	t.Log(cert2)
+	assert.NotNil(cert)
+	t.Log(cert)
 }

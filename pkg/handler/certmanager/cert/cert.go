@@ -19,7 +19,6 @@ import (
 	"time"
 
 	// Packages
-	"github.com/mutablelogic/go-server/pkg/handler/certmanager"
 
 	// Namespace imports
 	. "github.com/djthorpe/go-errors"
@@ -36,9 +35,6 @@ type Cert struct {
 }
 
 type keyType int
-
-// Ensure that Cert implements the certmanager.Cert interface
-var _ certmanager.Cert = (*Cert)(nil)
 
 ///////////////////////////////////////////////////////////////////////////////
 // GLOBALS
@@ -67,9 +63,8 @@ var (
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-// Create a new certificate authority with the given configuration
-// and options
-func NewCA(c certmanager.Config, opt ...Opt) (*Cert, error) {
+// Create a new certificate authority with the given options
+func NewCA(commonName string, opt ...Opt) (*Cert, error) {
 	var o opts
 
 	// Set defaults
@@ -92,9 +87,23 @@ func NewCA(c certmanager.Config, opt ...Opt) (*Cert, error) {
 	}
 
 	// Create a new certificate with a template
-	template := x509TemplateFor(c, o, serial)
-	template.IsCA = true
-	template.KeyUsage |= x509.KeyUsageCertSign
+	template := &x509.Certificate{
+		SerialNumber:          serial,
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now().AddDate(o.Years, o.Months, o.Days),
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+		IsCA:                  true,
+		ExtKeyUsage:           []x509.ExtKeyUsage{},
+		BasicConstraintsValid: true,
+	}
+
+	// Set subject
+	if o.Name != nil {
+		template.Subject = *o.Name
+	} else {
+		template.Subject = pkix.Name{}
+	}
+	template.Subject.CommonName = commonName
 
 	// Generate public, private keys
 	publicKey, privateKey, err := generateKey(o.KeyType)
@@ -125,8 +134,7 @@ func NewCA(c certmanager.Config, opt ...Opt) (*Cert, error) {
 
 // Create a new certificate, either self-signed (if ca is nil) or
 // signed by the certificate authority with the given options
-// TODO: Add self-signing ability
-func NewCert(ca *Cert, opt ...Opt) (*Cert, error) {
+func NewCert(commonName string, ca *Cert, opt ...Opt) (*Cert, error) {
 	var o opts
 
 	// Set defaults
@@ -148,37 +156,47 @@ func NewCert(ca *Cert, opt ...Opt) (*Cert, error) {
 		return nil, ErrInternalAppError.With("SerialNumber")
 	}
 
-	parent, err := x509.ParseCertificate(ca.data)
-	if err != nil {
-		return nil, err
+	// Parse the CA certificate
+	var parent *x509.Certificate
+	if ca != nil {
+		var err error
+		parent, err = x509.ParseCertificate(ca.data)
+		if err != nil {
+			return nil, err
+		}
+		if !parent.IsCA {
+			return nil, ErrBadParameter.With("Invalid CA certificate")
+		}
+		if _, err := parent.Verify(x509.VerifyOptions{}); err != nil {
+			return nil, err
+		}
 	}
-	template, err := x509.ParseCertificate(ca.data)
-	if err != nil {
-		return nil, err
+
+	template := &x509.Certificate{
+		SerialNumber:          serial,
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now().AddDate(o.Years, o.Months, o.Days),
+		KeyUsage:              x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
+		BasicConstraintsValid: true,
 	}
+
+	// Set subject
 	if o.Name != nil {
 		template.Subject = *o.Name
+	} else if parent != nil {
+		template.Subject = parent.Subject
 	}
+
+	// Set common name
+	template.Subject.CommonName = commonName
+
+	// Set IP Addresses and DNS Names
 	if len(o.IPAddresses) > 0 {
 		template.IPAddresses = o.IPAddresses
 	}
 	if len(o.DNSNames) > 0 {
 		template.DNSNames = o.DNSNames
-	}
-	template.SerialNumber = serial
-	template.NotBefore = time.Now()
-	template.NotAfter = time.Now().AddDate(o.Years, o.Months, o.Days)
-	template.IsCA = false
-	template.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth}
-	// ECDSA, ED25519 and RSA subject keys should have the DigitalSignature
-	// KeyUsage bits set in the x509.Certificate template
-	template.KeyUsage = x509.KeyUsageDigitalSignature
-
-	// Only RSA subject keys should have the KeyEncipherment KeyUsage bits set. In
-	// the context of TLS this KeyUsage is particular to RSA key exchange and
-	// authentication.
-	if _, isRSA := ca.privateKey.(*rsa.PrivateKey); isRSA {
-		template.KeyUsage |= x509.KeyUsageKeyEncipherment
 	}
 
 	// Generate public, private keys
@@ -187,9 +205,27 @@ func NewCert(ca *Cert, opt ...Opt) (*Cert, error) {
 		return nil, err
 	}
 
-	// Create cert signed by the CA
+	// Who is going to sign the certificate?
+	signer, signerPrivateKey := template, privateKey
+	if parent != nil {
+		signer, signerPrivateKey = parent, ca.privateKey
+	}
+
+	// Only RSA subject keys should have the KeyEncipherment KeyUsage bits set. In
+	// the context of TLS this KeyUsage is particular to RSA key exchange and
+	// authentication.
+	if _, isRSA := signerPrivateKey.(*rsa.PrivateKey); isRSA {
+		template.KeyUsage |= x509.KeyUsageKeyEncipherment
+	}
+
+	// Set authority key id
+	if parent != nil {
+		template.AuthorityKeyId = parent.SubjectKeyId
+	}
+
+	// Create cert signed by the CA or self
 	cert := new(Cert)
-	data, err := x509.CreateCertificate(rand.Reader, template, parent, publicKey, ca.privateKey)
+	data, err := x509.CreateCertificate(rand.Reader, template, signer, publicKey, signerPrivateKey)
 	if err != nil {
 		return nil, err
 	} else {
@@ -233,23 +269,27 @@ func (c *Cert) String() string {
 		return fmt.Sprintf("{ %q: %q }", "error", err.Error())
 	}
 	v := struct {
-		KeyType     string    `json:"key_type"`
-		Serial      string    `json:"serial"`
-		Subject     string    `json:"subject"`
-		IsCA        bool      `json:"is_ca,omitempty"`
-		NotBefore   time.Time `json:"not_before"`
-		NotAfter    time.Time `json:"not_after"`
-		IPAddresses []net.IP  `json:"ip_addresses,omitempty"`
-		DNSNames    []string  `json:"dns_names,omitempty"`
+		KeyType        string    `json:"key_type"`
+		Serial         string    `json:"serial"`
+		Subject        string    `json:"subject"`
+		IsCA           bool      `json:"is_ca,omitempty"`
+		NotBefore      time.Time `json:"not_before"`
+		NotAfter       time.Time `json:"not_after"`
+		IPAddresses    []net.IP  `json:"ip_addresses,omitempty"`
+		DNSNames       []string  `json:"dns_names,omitempty"`
+		SubjectKeyId   []byte    `json:"subject_key_id,omitempty"`
+		AuthorityKeyId []byte    `json:"authority_key_id,omitempty"`
 	}{
-		KeyType:     c.KeyType(),
-		Serial:      cert.SerialNumber.String(),
-		Subject:     cert.Subject.String(),
-		IsCA:        cert.IsCA,
-		NotBefore:   cert.NotBefore,
-		NotAfter:    cert.NotAfter,
-		IPAddresses: cert.IPAddresses,
-		DNSNames:    cert.DNSNames,
+		KeyType:        c.KeyType(),
+		Serial:         cert.SerialNumber.String(),
+		Subject:        cert.Subject.String(),
+		IsCA:           cert.IsCA,
+		NotBefore:      cert.NotBefore,
+		NotAfter:       cert.NotAfter,
+		IPAddresses:    cert.IPAddresses,
+		DNSNames:       cert.DNSNames,
+		SubjectKeyId:   cert.SubjectKeyId,
+		AuthorityKeyId: cert.AuthorityKeyId,
 	}
 	data, _ := json.MarshalIndent(v, "", "  ")
 	return string(data)
@@ -283,6 +323,50 @@ func (c *Cert) KeyType() string {
 	}
 }
 
+func (c *Cert) IsCA() bool {
+	cert, err := x509.ParseCertificate(c.data)
+	if err != nil {
+		return false
+	}
+	return cert.IsCA
+}
+
+func (c *Cert) Serial() string {
+	cert, err := x509.ParseCertificate(c.data)
+	if err != nil {
+		return ""
+	}
+	return cert.SerialNumber.String()
+}
+
+func (c *Cert) Subject() string {
+	cert, err := x509.ParseCertificate(c.data)
+	if err != nil {
+		return ""
+	}
+	return cert.Subject.CommonName
+}
+
+func (c *Cert) Expires() time.Time {
+	if cert, err := x509.ParseCertificate(c.data); err != nil {
+		return time.Time{}
+	} else {
+		return cert.NotAfter
+	}
+}
+
+func (c *Cert) IsValid() error {
+	cert, err := x509.ParseCertificate(c.data)
+	if err != nil {
+		return err
+	}
+	if _, err := cert.Verify(x509.VerifyOptions{}); err != nil {
+		return err
+	}
+	// Return success
+	return nil
+}
+
 // Write a .pem file with the certificate
 func (c *Cert) WriteCertificate(w io.Writer) error {
 	return pem.Encode(w, &pem.Block{Type: "CERTIFICATE", Bytes: c.data})
@@ -302,33 +386,6 @@ func (c *Cert) WritePrivateKey(w io.Writer) error {
 
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
-
-func x509TemplateFor(c certmanager.Config, o opts, serial *big.Int) *x509.Certificate {
-	template := &x509.Certificate{
-		SerialNumber: serial,
-		Subject: pkix.Name{
-			Organization:       []string{c.X509Name.Organization},
-			OrganizationalUnit: []string{c.X509Name.OrganizationalUnit},
-			Country:            []string{c.X509Name.Country},
-			Locality:           []string{c.X509Name.Locality},
-			Province:           []string{c.X509Name.Province},
-			StreetAddress:      []string{c.X509Name.StreetAddress},
-			PostalCode:         []string{c.X509Name.PostalCode},
-		},
-		NotBefore:             time.Now(),
-		NotAfter:              time.Now().AddDate(o.Years, o.Months, o.Days),
-		ExtKeyUsage:           []x509.ExtKeyUsage{},
-		BasicConstraintsValid: true,
-	}
-
-	// Set X509 Name
-	if o.Name != nil {
-		template.Subject = *o.Name
-	}
-
-	// Return the template
-	return template
-}
 
 // ECDSA curve to use to generate a key. Valid values are P224, P256 (default), P384, P521
 // If empty, RSA keys will be generated instead

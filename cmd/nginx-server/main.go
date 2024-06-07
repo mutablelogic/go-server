@@ -13,6 +13,8 @@ import (
 	server "github.com/mutablelogic/go-server"
 	ctx "github.com/mutablelogic/go-server/pkg/context"
 	auth "github.com/mutablelogic/go-server/pkg/handler/auth"
+	certmanager "github.com/mutablelogic/go-server/pkg/handler/certmanager"
+	certstore "github.com/mutablelogic/go-server/pkg/handler/certmanager/certstore"
 	logger "github.com/mutablelogic/go-server/pkg/handler/logger"
 	nginx "github.com/mutablelogic/go-server/pkg/handler/nginx"
 	router "github.com/mutablelogic/go-server/pkg/handler/router"
@@ -68,6 +70,21 @@ func main() {
 		log.Fatal(err)
 	}
 
+	// Cert Storage
+	certstore, err := certstore.Config{
+		DataPath: filepath.Join(n.(nginx.Nginx).Config(), "cert"),
+		Group:    *group,
+	}.New()
+	if err != nil {
+		log.Fatal(err)
+	}
+	certmanager, err := certmanager.Config{
+		CertStorage: certstore.(certmanager.CertStorage),
+	}.New()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	// Location of the FCGI unix socket
 	socket := filepath.Join(n.(nginx.Nginx).Config(), "run/go-server.sock")
 
@@ -83,6 +100,13 @@ func main() {
 			},
 			"auth": { // /api/auth/...
 				Service: auth.(server.ServiceEndpoints),
+				Middleware: []server.Middleware{
+					logger.(server.Middleware),
+					auth.(server.Middleware),
+				},
+			},
+			"cert": { // /api/cert/...
+				Service: certmanager.(server.ServiceEndpoints),
 				Middleware: []server.Middleware{
 					logger.(server.Middleware),
 					auth.(server.Middleware),
@@ -105,7 +129,7 @@ func main() {
 	}
 
 	// Run until we receive an interrupt
-	provider := provider.NewProvider(logger, n, jar, auth, router, httpserver)
+	provider := provider.NewProvider(logger, n, jar, auth, certstore, certmanager, router, httpserver)
 	provider.Print(ctx, "Press CTRL+C to exit")
 	if err := provider.Run(ctx); err != nil {
 		log.Fatal(err)
