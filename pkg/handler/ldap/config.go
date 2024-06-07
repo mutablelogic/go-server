@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/mutablelogic/go-server"
+	"github.com/mutablelogic/go-server/pkg/handler/ldap/schema"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -19,6 +20,10 @@ type Config struct {
 	TLS      struct {
 		SkipVerify bool `hcl:"skip-verify" description:"Skip certificate verification"`
 	} `hcl:"tls,optional" description:"TLS configuration"`
+	Schema struct {
+		User  []string `hcl:"user,optional" description:"User objectClass, defaults to posixAccount, person, inetOrgPerson"`
+		Group []string `hcl:"group,optional" description:"Group objectClass, defaults to posixGroup"`
+	} `hcl:"schema,optional" description:"LDAP Schema"`
 }
 
 // Ensure that LDAP implements the Service interface
@@ -34,6 +39,13 @@ const (
 	defaultMethodSecure = "ldaps"
 	defaultPortSecure   = 636
 	deltaPingTime       = time.Minute
+	defaultUserOU       = "users"
+	defaultGroupOU      = "groups"
+)
+
+var (
+	defaultUserObjectClass  = []string{"posixAccount", "person", "inetOrgPerson"}
+	defaultGroupObjectClass = []string{"posixGroup"}
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -49,4 +61,21 @@ func (c Config) Description() string {
 
 func (c Config) New() (server.Task, error) {
 	return New(c)
+}
+
+func (c Config) ObjectSchema() (*schema.Schema, error) {
+	schema := &schema.Schema{
+		DN:               c.DN,
+		UserObjectClass:  defaultUserObjectClass,
+		GroupObjectClass: defaultGroupObjectClass,
+		UserOU:           defaultUserOU,
+		GroupOU:          defaultGroupOU,
+	}
+	if len(c.Schema.User) > 0 {
+		schema.UserObjectClass = c.Schema.User
+	}
+	if len(c.Schema.Group) > 0 {
+		schema.GroupObjectClass = c.Schema.Group
+	}
+	return schema, nil
 }

@@ -54,9 +54,9 @@ func Test_ldap_002(t *testing.T) {
 	// Wait for connection
 	time.Sleep(1 * time.Second)
 
-	users, err := ldap.Get("posixAccount")
+	groups, err := ldap.GetGroups()
 	assert.NoError(err)
-	t.Log(users)
+	t.Log(groups)
 
 	// End
 	cancel()

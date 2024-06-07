@@ -10,6 +10,7 @@ import (
 
 	// Packages
 	goldap "github.com/go-ldap/ldap/v3"
+	schema "github.com/mutablelogic/go-server/pkg/handler/ldap/schema"
 	types "github.com/mutablelogic/go-server/pkg/types"
 
 	// Namespace imports
@@ -28,6 +29,7 @@ type ldap struct {
 	user, password string
 	dn             string
 	conn           *goldap.Conn
+	schema         *schema.Schema
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -90,6 +92,13 @@ func New(c Config) (*ldap, error) {
 		self.dn = c.DN
 	}
 
+	// Set the schema
+	if schema, err := c.ObjectSchema(); err != nil {
+		return nil, err
+	} else {
+		self.schema = schema
+	}
+
 	// Return success
 	return self, nil
 }
@@ -139,6 +148,8 @@ func (ldap *ldap) Connect() error {
 			ldap.conn = conn
 		}
 	} else if _, err := ldap.conn.WhoAmI([]goldap.Control{}); err != nil {
+		// TODO: ldap.ErrorNetwork, ldap.LDAPResultBusy, ldap.LDAPResultUnavailable:
+		// would indicate that the connection is no longer valid
 		return errors.Join(err, ldap.Disconnect())
 	}
 
@@ -183,7 +194,7 @@ func (ldap *ldap) WhoAmI() (string, error) {
 }
 
 // Return the objects of a particular class, or use "*" to return all objects
-func (ldap *ldap) Get(objectClass string) ([]*object, error) {
+func (ldap *ldap) Get(objectClass string) ([]*schema.Object, error) {
 	ldap.Lock()
 	defer ldap.Unlock()
 
@@ -212,13 +223,66 @@ func (ldap *ldap) Get(objectClass string) ([]*object, error) {
 	}
 
 	// Print the results
-	result := make([]*object, 0, len(sr.Entries))
+	result := make([]*schema.Object, 0, len(sr.Entries))
 	for _, entry := range sr.Entries {
-		result = append(result, newObject(entry))
+		result = append(result, ldap.schema.NewObject(entry))
 	}
 
 	// Return success
 	return result, nil
+}
+
+// Return all users
+func (ldap *ldap) GetUsers() ([]*schema.Object, error) {
+	return ldap.Get(ldap.schema.UserObjectClass[0])
+}
+
+// Return all groups
+func (ldap *ldap) GetGroups() ([]*schema.Object, error) {
+	return ldap.Get(ldap.schema.GroupObjectClass[0])
+}
+
+// Create a user
+func (ldap *ldap) CreateGroup(group string) error {
+	object := ldap.schema.NewGroup(group)
+	fmt.Println(object)
+	/*
+		addReq := ldp.NewAddRequest(group.DN, []ldp.Control{})
+
+		addReq.Attribute("objectClass", []string{"top", "group"})
+		addReq.Attribute("name", []string{"testgroup"})
+		addReq.Attribute("sAMAccountName", []string{"testgroup"})
+		addReq.Attribute("instanceType", []string{fmt.Sprintf("%d", 0x00000004})
+		addReq.Attribute("groupType", []string{fmt.Sprintf("%d", 0x00000004 | 0x80000000)})
+
+		if err := l.AddRequest(addReq); err != nil {
+			  log.Fatal("error adding group:", addReq, err)
+		}
+	*/
+	return ErrNotImplemented
+}
+
+// Bind a user with password to check if they are authenticated
+func (ldap *ldap) Bind(user *schema.Object, password string) error {
+	ldap.Lock()
+	defer ldap.Unlock()
+
+	// Check connection
+	if ldap.conn == nil {
+		return ErrOutOfOrder.With("Not connected")
+	}
+
+	// Bind
+	if err := ldap.conn.Bind(user.DN, password); err != nil {
+		if ldapErrorCode(err) == goldap.LDAPResultInvalidCredentials {
+			return ErrNotAuthorized.With("Invalid credentials")
+		} else {
+			return err
+		}
+	}
+
+	// Return success
+	return nil
 }
 
 ///////////////////////////////////////////////////////////////////////////////
