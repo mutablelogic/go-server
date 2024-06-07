@@ -5,6 +5,7 @@ import ( // Packages
 	"crypto/x509/pkix"
 	"errors"
 	"os"
+	"time"
 
 	. "github.com/djthorpe/go-errors"
 	"github.com/mutablelogic/go-server/pkg/handler/certmanager/cert"
@@ -117,8 +118,8 @@ func (task *certmanager) CreateSignedCert(commonName string, ca Cert, opts ...ce
 		if !ca.IsCA() {
 			return nil, ErrBadParameter.With("Cannot sign without a valid CA")
 		}
-		if err := ca.IsValid(); err != nil {
-			return nil, err
+		if ca.Expires().Before(time.Now()) {
+			return nil, ErrBadParameter.With("CA has expired")
 		}
 	}
 
