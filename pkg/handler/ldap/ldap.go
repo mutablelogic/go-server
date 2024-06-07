@@ -138,14 +138,11 @@ func (ldap *ldap) Connect() error {
 		} else {
 			ldap.conn = conn
 		}
-	} else {
-		// TODO: Ping the connection
-		if whoami, err := ldap.conn.WhoAmI([]goldap.Control{}); err != nil {
-			return err
-		} else {
-			fmt.Println(whoami.AuthzID)
-		}
+	} else if _, err := ldap.conn.WhoAmI([]goldap.Control{}); err != nil {
+		return errors.Join(err, ldap.Disconnect())
 	}
+
+	// Return success
 	return nil
 }
 
