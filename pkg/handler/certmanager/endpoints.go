@@ -32,9 +32,9 @@ type reqCreateCert struct {
 }
 
 type respCert struct {
-	Cert
+	Cert        `json:"cert"`
 	Certificate string `json:"certificate,omitempty"`
-	PrivateKey  string `json:"private_key,omitempty"`
+	PrivateKey  string `json:"key,omitempty"`
 	Error       string `json:"error,omitempty"`
 }
 
@@ -122,16 +122,26 @@ func (service *certmanager) reqGetCert(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Add public key
-	var publicKey bytes.Buffer
-	if err := cert.WriteCertificate(&publicKey); err != nil {
+	// Add certificate
+	var certdata, keydata bytes.Buffer
+	if err := cert.WriteCertificate(&certdata); err != nil {
 		httpresponse.Error(w, http.StatusInternalServerError, err.Error())
-	} else {
-		respCert.Certificate = publicKey.String()
+		return
 	}
 
-	// TODO: Add private key if scope allows
+	// Add private key if it's not a CA
+	if !cert.IsCA() {
+		if err := cert.WritePrivateKey(&keydata); err != nil {
+			httpresponse.Error(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
 
+	// TODO: Don't add private key if scope doesn't allow it?
+	respCert.Certificate = certdata.String()
+	respCert.PrivateKey = keydata.String()
+
+	// Respond
 	httpresponse.JSON(w, respCert, http.StatusOK, jsonIndent)
 }
 
