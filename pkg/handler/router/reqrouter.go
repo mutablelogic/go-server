@@ -103,9 +103,9 @@ func (router *reqs) AddHandler(ctx context.Context, path string, handler http.Ha
 }
 
 func (router *reqs) AddHandlerRe(ctx context.Context, path *regexp.Regexp, handler http.HandlerFunc, methods ...string) *route {
-	// Add any middleware to the handler, in reverse order
+	// Add any middleware to the handler
 	middleware := Middleware(ctx)
-	slices.Reverse(middleware)
+	//slices.Reverse(middleware)
 	for _, middleware := range middleware {
 		handler = middleware.Wrap(ctx, handler)
 	}
