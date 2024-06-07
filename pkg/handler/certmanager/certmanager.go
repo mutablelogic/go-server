@@ -52,7 +52,15 @@ func (task *certmanager) List() []Cert {
 
 // Return a certificate by serial number
 func (task *certmanager) Read(serial string) (Cert, error) {
-	return task.store.Read(serial)
+	if cert, err := task.store.Read(serial); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, ErrNotFound.With(serial)
+		} else {
+			return nil, err
+		}
+	} else {
+		return cert, nil
+	}
 }
 
 // Delete a certificate
@@ -105,10 +113,8 @@ func (task *certmanager) CreateSignedCert(commonName string, ca Cert, opts ...ce
 	// We should make the ca "concrete" by reading it
 	if ca != nil {
 		var err error
-		ca, err = task.store.Read(ca.Serial())
-		if errors.Is(err, os.ErrNotExist) {
-			return nil, ErrNotFound.With(ca.Serial())
-		} else if err != nil {
+		ca, err = task.Read(ca.Serial())
+		if err != nil {
 			return nil, err
 		}
 	}
