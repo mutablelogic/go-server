@@ -1,0 +1,52 @@
+{
+    "logger": {
+        "flags": [
+            "default",
+            "prefix"
+        ]
+    },
+    "nginx": {
+        "binary": "/usr/local/bin/nginx",
+        "data": "/var/run/nginx",
+        "group": "nginx"
+    },
+    "tokenjar": {
+        "data": "run",
+        "writeinterval": "30s"
+    },
+    "auth": {
+        "tokenjar": "${ tokenjar }",
+        "tokenbytes": 16,
+        "bearer": true
+    },    
+    "router": {
+        "services": {
+            "nginx": {
+                "service": "${ nginx }",
+                "middleware": [
+                    "logger",
+                    "auth"
+                ]
+            },
+            "auth": {
+                "service": "${ auth }",
+                "middleware": [
+                    "logger",
+                    "auth"
+                ]
+            },
+            "router": {
+                "service": "${ router }",
+                "middleware": [
+                    "logger",
+                    "auth"
+                ]
+            }
+        }
+    },
+    "httpserver": {
+        "listen": "run/go-server.sock",
+        "group": "nginx",
+        "router": "${ router }"
+    }
+}

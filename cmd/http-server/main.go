@@ -12,10 +12,10 @@ import (
 	// Packages
 	server "github.com/mutablelogic/go-server"
 	ctx "github.com/mutablelogic/go-server/pkg/context"
+	logger "github.com/mutablelogic/go-server/pkg/handler/logger"
 	router "github.com/mutablelogic/go-server/pkg/handler/router"
 	static "github.com/mutablelogic/go-server/pkg/handler/static"
 	httpserver "github.com/mutablelogic/go-server/pkg/httpserver"
-	logger "github.com/mutablelogic/go-server/pkg/middleware/logger"
 	provider "github.com/mutablelogic/go-server/pkg/provider"
 )
 

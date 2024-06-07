@@ -70,6 +70,7 @@ func NewProvider(tasks ...server.Task) server.Provider {
 // when the context is cancelled.
 func (p *provider) Run(ctx context.Context) error {
 	var result error
+	var wg sync.WaitGroup
 
 	// Run all the tasks in parallel
 	for i := range p.tasks {
@@ -83,9 +84,11 @@ func (p *provider) Run(ctx context.Context) error {
 		p.tasks[i].Add(1)
 
 		// Run the task in a goroutine
+		wg.Add(1)
 		go func(i int) {
 			defer p.tasks[i].Done()
 			defer p.tasks[i].Cancel()
+			defer wg.Done()
 
 			p.Print(ctx, "Running")
 			if err := p.tasks[i].Run(ctx); err != nil {
@@ -106,7 +109,11 @@ func (p *provider) Run(ctx context.Context) error {
 		p.tasks[i].Wait()
 
 		// TODO: If the task is in the set of loggers, then remove it
+		// from the list of loggers
 	}
+
+	// Wait for all the tasks to complete
+	wg.Wait()
 
 	// Return any errors
 	return result

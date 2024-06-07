@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 	"time"
 
@@ -119,8 +120,22 @@ func (jar *tokenjar) Modified() bool {
 }
 
 // Return all tokens
+type tokenList []auth.Token
+
+func (l tokenList) Len() int {
+	return len(l)
+}
+
+func (l tokenList) Less(i, j int) bool {
+	return l[i].Name < l[j].Name
+}
+
+func (l tokenList) Swap(i, j int) {
+	l[i], l[j] = l[j], l[i]
+}
+
 func (jar *tokenjar) Tokens() []auth.Token {
-	var result []auth.Token
+	var result tokenList
 
 	// Lock the jar for read
 	jar.RLock()
@@ -130,6 +145,9 @@ func (jar *tokenjar) Tokens() []auth.Token {
 	for _, token := range jar.jar {
 		result = append(result, *token)
 	}
+
+	// Sort the tokens by name
+	sort.Sort(result)
 
 	// Return the result
 	return result
