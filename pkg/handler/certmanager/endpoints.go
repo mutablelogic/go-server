@@ -2,6 +2,7 @@ package certmanager
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"regexp"
 
@@ -10,6 +11,9 @@ import (
 	router "github.com/mutablelogic/go-server/pkg/handler/router"
 	httprequest "github.com/mutablelogic/go-server/pkg/httprequest"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
+
+	// Namespace imports
+	. "github.com/djthorpe/go-errors"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -26,6 +30,13 @@ type reqCreateCert struct {
 	// Hosts []string `json:"hosts"`
 }
 
+type respCert struct {
+	Cert
+	Certificate string `json:"certificate,omitempty"`
+	PrivateKey  string `json:"private_key,omitempty"`
+	Error       string `json:"error,omitempty"`
+}
+
 // Check interfaces are satisfied
 var _ server.ServiceEndpoints = (*certmanager)(nil)
 
@@ -37,8 +48,9 @@ const (
 )
 
 var (
-	reRoot = regexp.MustCompile(`^/?$`)
-	reCA   = regexp.MustCompile(`^/ca/?$`)
+	reRoot   = regexp.MustCompile(`^/?$`)
+	reCA     = regexp.MustCompile(`^/ca/?$`)
+	reSerial = regexp.MustCompile(`^/([0-9]+)/?$`)
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -61,19 +73,18 @@ func (service *certmanager) AddEndpoints(ctx context.Context, r server.Router) {
 		SetScope(service.ScopeWrite()...)
 
 	// Path: /ca
-	// Methods: GET
-	// Scopes: read
-	// Description: Return all existing certificate authorities TODO: This should be a separate endpoint
-	r.AddHandlerFuncRe(ctx, reCA, service.reqListCerts, http.MethodGet).(router.Route).
-		SetScope(service.ScopeRead()...)
-
-	// Path: /ca
 	// Methods: POST
 	// Scopes: write
 	// Description: Create a new certificate authority
 	r.AddHandlerFuncRe(ctx, reCA, service.reqCreateCA, http.MethodPost).(router.Route).
 		SetScope(service.ScopeWrite()...)
 
+	// Path: /<serial>
+	// Methods: GET
+	// Scopes: read
+	// Description: Read a certificate by serial number
+	r.AddHandlerFuncRe(ctx, reCA, service.reqGetCert, http.MethodGet).(router.Route).
+		SetScope(service.ScopeRead()...)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -82,6 +93,27 @@ func (service *certmanager) AddEndpoints(ctx context.Context, r server.Router) {
 // Get all certificates
 func (service *certmanager) reqListCerts(w http.ResponseWriter, r *http.Request) {
 	httpresponse.JSON(w, service.List(), http.StatusOK, jsonIndent)
+}
+
+// Get a certificate or CA
+func (service *certmanager) reqGetCert(w http.ResponseWriter, r *http.Request) {
+	urlParameters := router.Params(r.Context())
+
+	// Get the certificate
+	cert, err := service.Read(urlParameters[0])
+	if errors.Is(err, ErrNotFound) {
+		httpresponse.Error(w, http.StatusNotFound, err.Error())
+		return
+	} else if err != nil {
+		httpresponse.Error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// Return the certificate
+	respCert := respCert{
+		Cert: cert,
+	}
+	httpresponse.JSON(w, respCert, http.StatusOK, jsonIndent)
 }
 
 // Create a new certificate authority
