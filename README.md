@@ -65,17 +65,6 @@ other make targets:
 - `DOCKER_REPOSITORY=docker.io/user make docker` to build a docker image.
 - `DOCKER_REPOSITORY=docker.io/user make docker-push` to push a docker image.
 
-## Running the Server
-
-You can run the server:
-
-  1. With a HTTP server over network: You can specify TLS key and certificate
-    to serve requests over a secure connection;
-  2. With a HTTP server with FastCGI over a unix socket: You would want to do
-    this if the server is behind a reverse proxy such as nginx.
-  3. In a docker container, and expose the port outside the container. The docker
-     container targets `amd64` and `arm64` architectures on Linux.
-
 ## Project Status
 
 This module is currently __in development__ and is not yet ready for any production 
