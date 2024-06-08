@@ -20,6 +20,9 @@ type Token struct {
 	Expire time.Time `json:"expire_time,omitempty"  writer:",width:29"` // Time of expiration for the token
 	Time   time.Time `json:"access_time,omitempty" writer:",width:29"`  // Time of last access
 	Scope  []string  `json:"scopes,omitempty" writer:",wrap"`           // Authentication scopes
+
+	// Private field which when set true does not write the 'valid' field
+	write bool `json:"-"`
 }
 
 type TokenCreate struct {
@@ -108,6 +111,12 @@ func (t Token) IsValid() bool {
 	return false
 }
 
+// Flag that the token is to be written to persistent storage
+// and should not include the 'valid' field
+func (t *Token) SetWrite() {
+	t.write = true
+}
+
 // Return true if the token is a zero token
 func (t Token) IsZero() bool {
 	if t.Name == "" && t.Value == "" && t.Expire.IsZero() && t.Time.IsZero() && len(t.Scope) == 0 {
@@ -165,12 +174,15 @@ func (t Token) MarshalJSON() ([]byte, error) {
 		} else {
 			buf.Write(data)
 		}
-		buf.WriteRune(',')
 	}
 
-	// Include the valid flag
-	buf.WriteString(`"valid":`)
-	buf.WriteString(strconv.FormatBool(t.IsValid()))
+	// Include the valid flag when write is false (means that
+	// the JSON is not for persistent storage)
+	if !t.write {
+		buf.WriteRune(',')
+		buf.WriteString(`"valid":`)
+		buf.WriteString(strconv.FormatBool(t.IsValid()))
+	}
 
 	// Return success
 	buf.WriteRune('}')

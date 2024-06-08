@@ -39,4 +39,6 @@ EXPOSE 80 443
 STOPSIGNAL SIGQUIT
 
 # Set group to nginx to set group permissions on the FCGI socket
-CMD [ "/usr/local/bin/nginx-server", "-group", "nginx" ]
+# Set data (ephermeral) directory to /var/run
+# Set configuration (persistent) directory to /data
+CMD [ "/usr/local/bin/nginx-server", "-group", "nginx", "-data", "/var/run", "-conf", "/data" ]

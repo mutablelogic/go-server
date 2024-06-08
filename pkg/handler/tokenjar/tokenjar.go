@@ -6,6 +6,7 @@ package tokenjar
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"sort"
@@ -270,9 +271,16 @@ func (jar *tokenjar) Write() error {
 	defer w.Close()
 
 	// Write the tokens, unset modified flag
-	jar.modified = false
-	if err := json.NewEncoder(w).Encode(jar.jar); err != nil {
-		return err
+	tokens := make([]*auth.Token, 0, len(jar.jar))
+	for _, token := range jar.jar {
+		writable := *token
+		writable.SetWrite()
+		tokens = append(tokens, &writable)
+	}
+	if err := json.NewEncoder(w).Encode(tokens); err != nil {
+		return errors.Join(err, os.Remove(jar.filename))
+	} else {
+		jar.modified = false
 	}
 
 	// Return success

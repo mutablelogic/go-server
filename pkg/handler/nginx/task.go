@@ -1,122 +1,22 @@
 package nginx
 
 import (
-	"bytes"
 	"context"
 	"errors"
-	"log"
 	"os"
-	"path/filepath"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
 
 	// Packages
 	server "github.com/mutablelogic/go-server"
-	cmd "github.com/mutablelogic/go-server/pkg/handler/nginx/cmd"
-	folders "github.com/mutablelogic/go-server/pkg/handler/nginx/folders"
-	provider "github.com/mutablelogic/go-server/pkg/provider"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type nginx struct {
-	// The command to run nginx
-	run *cmd.Cmd
-
-	// The command to test nginx configuration
-	test *cmd.Cmd
-
-	// The configuration directory
-	config string
-
-	// The version string from nginx
-	version []byte
-
-	// The available and enabled configuration folders
-	folders *folders.Config
-}
-
 // Check interfaces are satisfied
 var _ server.Task = (*nginx)(nil)
-var _ server.ServiceEndpoints = (*nginx)(nil)
-
-///////////////////////////////////////////////////////////////////////////////
-// LIFECYCLE
-
-// Create a new http server from the configuration
-func New(c Config) (*nginx, error) {
-	task := new(nginx)
-
-	// Set configuration to a temporary directory, and set
-	// appropriate permissions
-	if config, err := os.MkdirTemp("", "nginx-"); err != nil {
-		return nil, err
-	} else if err := os.Chmod(config, defaultConfDirMode); err != nil {
-		return nil, errors.Join(err, os.RemoveAll(config))
-	} else {
-		task.config = config
-	}
-
-	// Create an available folder if it's not set
-	if c.Available == "" {
-		c.Available = filepath.Join(task.config, "available")
-		if err := os.MkdirAll(c.Available, defaultConfDirMode); err != nil {
-			return nil, err
-		}
-	}
-
-	// Create an enabled folder if it's not set
-	if c.Enabled == "" {
-		c.Enabled = filepath.Join(task.config, "enabled")
-		if err := os.MkdirAll(c.Enabled, defaultConfDirMode); err != nil {
-			return nil, err
-		}
-	}
-
-	// Read the configuration folders
-	if folders, err := folders.New(c.Available, c.Enabled, defaultConfExt, defaultConfRecursive); err != nil {
-		return nil, err
-	} else {
-		folders.DirMode = defaultConfDirMode
-		task.folders = folders
-	}
-
-	// We need to set up some folders:
-	// run - for the nginx.pid file, socket files, etc
-	// The run directory needs to be writableTODO: Make the run directory writable by the group
-	// Set group permission
-	// if err := os.Chmod(task.config, 0770); err != nil {
-	// ....
-
-	// Create a new command to run the server. Use prefix to ensure that
-	// the document root is contained within the temporary directory
-	if run, err := cmd.New(c.Path(), c.Flags(task.config, task.config)...); err != nil {
-		return nil, err
-	} else if test, err := cmd.New(c.Path(), c.Flags(task.config, task.config)...); err != nil {
-		return nil, err
-	} else {
-		task.run = run
-		task.test = test
-		task.test.SetArgs("-t", "-q")
-	}
-
-	// Add the environment variables
-	if err := task.run.SetEnv(c.Env); err != nil {
-		return nil, err
-	} else if err := task.test.SetEnv(c.Env); err != nil {
-		return nil, err
-	}
-
-	// Set the working directory
-	task.run.SetDir(task.config)
-	task.test.SetDir(task.config)
-
-	// Return success
-	return task, nil
-}
 
 /////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
@@ -127,28 +27,30 @@ func (task *nginx) Label() string {
 	return defaultName
 }
 
-// Return the path to the configuration
-func (task *nginx) Config() string {
-	return task.config
-}
-
 // Run the http server until the context is cancelled
 func (task *nginx) Run(ctx context.Context) error {
 	var wg sync.WaitGroup
 	var result error
 
-	// Remove the temporary directory
+	// TODO Remove the temporary directies (Config,Data) if they were created
 	defer func() {
-		if _, err := os.Stat(task.config); err == nil {
-			if err := os.RemoveAll(task.config); err != nil {
-				result = errors.Join(result, err)
+		var result error
+		for _, path := range task.deletePaths {
+			if _, err := os.Stat(path); err == nil {
+				task.log(ctx, "Removing temporary path: "+path)
+				if err := os.RemoveAll(path); err != nil {
+					result = errors.Join(result, err)
+				}
 			}
+		}
+		if result != nil {
+			task.log(ctx, result.Error())
 		}
 	}()
 
 	// We need to copy the configuration files to the temporary directory
 	// then reload the folder configuration
-	if err := fsCopyTo(task.config); err != nil {
+	if err := fsCopyTo(task.configPath); err != nil {
 		return err
 	} else if err := task.folders.Reload(); err != nil {
 		return err
@@ -177,8 +79,20 @@ func (task *nginx) Run(ctx context.Context) error {
 		}
 	}()
 
-	// Wait for the context to be cancelled
-	<-ctx.Done()
+	// Runloop for nginx
+	timer := time.NewTicker(time.Second)
+	defer timer.Stop()
+RUN_LOOP:
+	for {
+		select {
+		case <-ctx.Done():
+			break RUN_LOOP
+		case <-timer.C:
+			if task.run.Exited() {
+				break RUN_LOOP
+			}
+		}
+	}
 
 	// Perform shutdown, escalating signals
 	checkTicker := time.NewTicker(500 * time.Millisecond)
@@ -221,72 +135,4 @@ FOR_LOOP:
 
 	// Return any errors
 	return result
-}
-
-// Test configuration
-func (task *nginx) Test() error {
-	return task.test.Run()
-}
-
-// Test the configuration and then reload it (the SIGHUP signal)
-func (task *nginx) Reload() error {
-	// Reload the folders
-	if err := task.folders.Reload(); err != nil {
-		return err
-	}
-
-	// Test the configuration
-	if err := task.test.Run(); err != nil {
-		return err
-	}
-
-	// Signal the server to reload
-	return task.run.Signal(syscall.SIGHUP)
-}
-
-// Reopen log files (the SIGUSR1 signal)
-func (task *nginx) Reopen() error {
-	return task.run.Signal(syscall.SIGUSR1)
-}
-
-// Version returns the nginx version string
-func (task *nginx) Version() string {
-	if task.version == nil {
-		if version, err := task.getVersion(); err == nil {
-			task.version = version
-			return string(bytes.TrimSpace(version))
-		}
-	}
-	return string(bytes.TrimSpace(task.version))
-}
-
-/////////////////////////////////////////////////////////////////////
-// PRIVATE METHODS
-
-func (task *nginx) log(ctx context.Context, line string) {
-	line = strings.TrimSpace(line)
-	if logger := provider.Logger(ctx); logger != nil {
-		logger.Print(ctx, line)
-	} else {
-		log.Println(line)
-	}
-}
-
-func (task *nginx) getVersion() ([]byte, error) {
-	var result []byte
-
-	// Run the version command to get the nginx version string
-	version, err := cmd.New(task.run.Path(), "-v")
-	if err != nil {
-		return nil, err
-	}
-	version.Err = func(data []byte) {
-		result = append(result, data...)
-	}
-	if err := version.Run(); err != nil {
-		return nil, err
-	}
-
-	// Return success
-	return result, nil
 }

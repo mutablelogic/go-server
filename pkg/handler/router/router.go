@@ -43,17 +43,7 @@ func New(c Config) (server.Task, error) {
 
 	// Add services
 	for key, service := range c.Services {
-		parts := strings.SplitN(key, pathSep, 2)
-		if len(parts) == 1 {
-			// Could be interpreted as a host if there is a dot in it, or else
-			// we assume it's a path
-			if strings.Contains(parts[0], hostSep) {
-				parts = append(parts, pathSep)
-			} else {
-				parts, parts[0] = append(parts, parts[0]), ""
-			}
-		}
-		r.addServiceEndpoints(parts[0], parts[1], service.Service, service.Middleware...)
+		r.AddServiceEndpoints(key, service.Service, service.Middleware...)
 	}
 
 	// Return success
@@ -207,6 +197,22 @@ func (router *router) Scopes() []string {
 
 	// Return the result
 	return result
+}
+
+// Add a service endpoint to the router. Returns an error if the prefix is
+// already in use.
+func (router *router) AddServiceEndpoints(hostprefix string, service server.ServiceEndpoints, middleware ...server.Middleware) {
+	parts := strings.SplitN(hostprefix, pathSep, 2)
+	if len(parts) == 1 {
+		// Could be interpreted as a host if there is a dot in it, or else
+		// we assume it's a path
+		if strings.Contains(parts[0], hostSep) {
+			parts = append(parts, pathSep)
+		} else {
+			parts, parts[0] = append(parts, parts[0]), ""
+		}
+	}
+	router.addServiceEndpoints(parts[0], parts[1], service, middleware...)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
