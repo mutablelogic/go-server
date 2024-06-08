@@ -25,16 +25,25 @@ is a large "monolith" server which can be composed of many smaller
 
 ## Running the server
 
-The easiest way to run an nginx reverse proxy server, with an API to 
+The easiest way to run an nginx reverse proxy server, with an API to
 manage nginx configuration, is through docker:
 
 ```bash
-docker run -p 8080:80 ghcr.io/mutablelogic/go-server
+docker run -p 8080:80 -v /var/lib/go-server:/data ghcr.io/mutablelogic/go-server
 ```
 
-This will start a server on port 8080. Use API commands to manage the
-nginx configuration. Ultimately you'll want to develop your own plugins
-and can use this image as the base image for your own server.
+This will start a server on port 8080 and use `/var/lib/go-server` for persistent
+data. Use API commands to manage the nginx configuration. Ultimately you'll 
+want to develop your own plugins and can use this image as the base image for your 
+own server.
+
+When you first run the server, a "root" API token is created which is used to
+authenticate API requests. You can find this token in the log output or by running
+the following command:
+
+```bash
+docker exec <container-id> cat /data/tokenauth.json
+```
 
 ## Requirements and Building
 
