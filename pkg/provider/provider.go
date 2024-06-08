@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"sync"
 
@@ -72,6 +73,11 @@ func (p *provider) Run(ctx context.Context) error {
 	var result error
 	var wg sync.WaitGroup
 
+	// Create a child context which will allow us to cancel all the tasks
+	// prematurely if any of them fail
+	child, prematureCancel := context.WithCancel(ctx)
+	defer prematureCancel()
+
 	// Run all the tasks in parallel
 	for i := range p.tasks {
 		// Create a context for each task
@@ -92,14 +98,16 @@ func (p *provider) Run(ctx context.Context) error {
 
 			p.Print(ctx, "Running")
 			if err := p.tasks[i].Run(ctx); err != nil {
-				p.Print(ctx, err)
-				result = errors.Join(result, err)
+				result = errors.Join(result, fmt.Errorf("[%s] %w", Label(ctx), err))
+
+				// We indicate we should cancel
+				prematureCancel()
 			}
 		}(i)
 	}
 
 	// Wait for the cancel
-	<-ctx.Done()
+	<-child.Done()
 
 	// Cancel all the tasks in reverse order, waiting for each to complete
 	// before cancelling the next

@@ -34,7 +34,7 @@ func JSON(w http.ResponseWriter, v interface{}, code int, indent uint) error {
 	if w == nil {
 		return nil
 	}
-	w.Header().Add(ContentTypeKey, ContentTypeJSON)
+	w.Header().Set(ContentTypeKey, ContentTypeJSON)
 	w.WriteHeader(code)
 	enc := json.NewEncoder(w)
 	if indent > 0 {
@@ -48,7 +48,7 @@ func Text(w http.ResponseWriter, v string, code int) {
 	if w == nil {
 		return
 	}
-	w.Header().Add(ContentTypeKey, ContentTypeText)
+	w.Header().Set(ContentTypeKey, ContentTypeText)
 	w.WriteHeader(code)
 	w.Write([]byte(v + "\n"))
 }
@@ -58,7 +58,7 @@ func Empty(w http.ResponseWriter, code int) {
 	if w == nil {
 		return
 	}
-	w.Header().Add(ContentLengthKey, "0")
+	w.Header().Set(ContentLengthKey, "0")
 	w.WriteHeader(code)
 }
 

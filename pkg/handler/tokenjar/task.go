@@ -22,7 +22,7 @@ func (jar *tokenjar) Run(ctx context.Context) error {
 	logger := provider.Logger(ctx)
 
 	// Ticker for writing to disk
-	ticker := time.NewTicker(jar.writeInterval)
+	ticker := time.NewTimer(time.Second)
 	defer ticker.Stop()
 
 	// Loop until cancelled
@@ -36,6 +36,7 @@ func (jar *tokenjar) Run(ctx context.Context) error {
 					logger.Printf(ctx, "Sync %q", filepath.Base(jar.filename))
 				}
 			}
+			ticker.Reset(jar.writeInterval)
 		case <-ctx.Done():
 			return jar.Write()
 		}

@@ -16,6 +16,12 @@ type Nginx interface {
 	// return the nginx version string
 	Version() string
 
-	// return the configuration path
-	Config() string
+	// return the persistent config path
+	ConfigPath() string
+
+	// return the ephermeral data path
+	DataPath() string
+
+	// return logfile path
+	LogPath() string
 }

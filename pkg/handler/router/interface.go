@@ -16,6 +16,9 @@ type Router interface {
 	// path parameters extracted from the path.
 	Match(host, method, path string) (*matchedRoute, int)
 
+	// Add a service endpoint to the router, with specified host/prefix combinarion.
+	AddServiceEndpoints(string, server.ServiceEndpoints, ...server.Middleware)
+
 	// Return all known scopes
 	Scopes() []string
 }

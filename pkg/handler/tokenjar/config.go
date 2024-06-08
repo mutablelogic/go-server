@@ -13,6 +13,7 @@ import (
 type Config struct {
 	DataPath      string        `hcl:"datapath" description:"Path to persistent data"`
 	WriteInterval time.Duration `hcl:"write-interval" description:"Interval to write data to disk"`
+	// TODO Group so that we can set permissions to either 640 or 600
 }
 
 // Check interfaces are satisfied

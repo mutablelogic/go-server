@@ -23,7 +23,7 @@ func Test_nginx_001(t *testing.T) {
 
 func Test_nginx_002(t *testing.T) {
 	assert := assert.New(t)
-	task, err := nginx.New(nginx.Config{
+	task, err := nginx.New(&nginx.Config{
 		BinaryPath: BinaryExec(t),
 	})
 	assert.NoError(err)
@@ -35,7 +35,7 @@ func Test_nginx_003(t *testing.T) {
 
 	// Create a new task
 	assert := assert.New(t)
-	task, err := nginx.New(nginx.Config{
+	task, err := nginx.New(&nginx.Config{
 		BinaryPath: BinaryExec(t),
 	})
 	assert.NoError(err)

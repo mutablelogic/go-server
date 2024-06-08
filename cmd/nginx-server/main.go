@@ -15,6 +15,7 @@ import (
 	auth "github.com/mutablelogic/go-server/pkg/handler/auth"
 	certmanager "github.com/mutablelogic/go-server/pkg/handler/certmanager"
 	certstore "github.com/mutablelogic/go-server/pkg/handler/certmanager/certstore"
+	ldap "github.com/mutablelogic/go-server/pkg/handler/ldap"
 	logger "github.com/mutablelogic/go-server/pkg/handler/logger"
 	nginx "github.com/mutablelogic/go-server/pkg/handler/nginx"
 	router "github.com/mutablelogic/go-server/pkg/handler/router"
@@ -24,8 +25,11 @@ import (
 )
 
 var (
-	binary = flag.String("path", "nginx", "Path to nginx binary")
-	group  = flag.String("group", "", "Group to run unix socket as")
+	binary        = flag.String("nginx", "nginx", "Path to nginx binary")
+	group         = flag.String("group", "", "Group to run unix socket as")
+	data          = flag.String("data", "", "Path to data (emphermeral) directory")
+	conf          = flag.String("conf", "", "Path to conf (persistent) directory")
+	ldap_password = flag.String("ldap-password", "", "LDAP admin password")
 )
 
 /* command to test the nginx package */
@@ -39,25 +43,38 @@ func main() {
 	// Create context which cancels on interrupt
 	ctx := ctx.ContextForSignal(os.Interrupt, syscall.SIGQUIT)
 
+	// Set of tasks
+	var tasks []server.Task
+
 	// Logger
 	logger, err := logger.Config{Flags: []string{"default", "prefix"}}.New()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("logger: ", err)
+	} else {
+		tasks = append(tasks, logger)
 	}
 
 	// Nginx handler
-	n, err := nginx.Config{BinaryPath: *binary}.New()
+	n, err := nginx.Config{
+		BinaryPath: *binary,
+		DataPath:   *data,
+		ConfigPath: *conf,
+	}.New()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("nginx: ", err)
+	} else {
+		tasks = append(tasks, n)
 	}
 
 	// Token Jar
 	jar, err := tokenjar.Config{
-		DataPath:      n.(nginx.Nginx).Config(),
+		DataPath:      n.(nginx.Nginx).ConfigPath(),
 		WriteInterval: 30 * time.Second,
 	}.New()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("tokenjar: ", err)
+	} else {
+		tasks = append(tasks, jar)
 	}
 
 	// Auth handler
@@ -67,29 +84,49 @@ func main() {
 		Bearer:     true, // Use bearer token in requests for authorization
 	}.New()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("auth: ", err)
+	} else {
+		tasks = append(tasks, auth)
 	}
 
-	// Cert Storage
+	// Cert storage
 	certstore, err := certstore.Config{
-		DataPath: filepath.Join(n.(nginx.Nginx).Config(), "cert"),
+		DataPath: filepath.Join(n.(nginx.Nginx).ConfigPath(), "cert"),
 		Group:    *group,
 	}.New()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("certstore: ", err)
+	} else {
+		tasks = append(tasks, certstore)
 	}
+
+	// Cert manager
 	certmanager, err := certmanager.Config{
 		CertStorage: certstore.(certmanager.CertStorage),
+		X509Name: certmanager.X509Name{
+			OrganizationalUnit: "mutablelogic.com",
+			Organization:       "mutablelogic",
+			StreetAddress:      "N/A",
+			Locality:           "Berlin",
+			Province:           "Berlin",
+			PostalCode:         "10967",
+			Country:            "DE",
+		},
 	}.New()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("certmanager: ", err)
+	} else {
+		tasks = append(tasks, certmanager)
 	}
 
-	// Location of the FCGI unix socket
-	socket := filepath.Join(n.(nginx.Nginx).Config(), "run/go-server.sock")
+	// Location of the FCGI unix socket - this should be the same
+	// as that listed in the nginx configuration
+	socket := filepath.Join(n.(nginx.Nginx).DataPath(), "nginx/go-server.sock")
 
 	// Router
-	router, err := router.Config{
+	// TODO: Promote middleware to the root of the configuration to reduce
+	// duplication
+	r, err := router.Config{
 		Services: router.ServiceConfig{
 			"nginx": { // /api/nginx/...
 				Service: n.(server.ServiceEndpoints),
@@ -115,21 +152,43 @@ func main() {
 		},
 	}.New()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("router: ", err)
+	} else {
+		tasks = append(tasks, r)
+	}
+
+	// Add router
+	r.(router.Router).AddServiceEndpoints("router", r.(server.ServiceEndpoints), logger.(server.Middleware), auth.(server.Middleware))
+
+	// LDAP
+	if *ldap_password != "" {
+		ldap, err := ldap.Config{
+			URL:      "ldap://admin@cm1.local/",
+			DN:       "dc=mutablelogic,dc=com",
+			Password: *ldap_password,
+		}.New()
+		if err != nil {
+			log.Fatal("ldap: ", err)
+		} else {
+			r.(router.Router).AddServiceEndpoints("ldap", ldap.(server.ServiceEndpoints), logger.(server.Middleware), auth.(server.Middleware))
+			tasks = append(tasks, ldap)
+		}
 	}
 
 	// HTTP Server
 	httpserver, err := httpserver.Config{
 		Listen: socket,
 		Group:  *group,
-		Router: router.(http.Handler),
+		Router: r.(http.Handler),
 	}.New()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("httpserver: ", err)
+	} else {
+		tasks = append(tasks, httpserver)
 	}
 
 	// Run until we receive an interrupt
-	provider := provider.NewProvider(logger, n, jar, auth, certstore, certmanager, router, httpserver)
+	provider := provider.NewProvider(tasks...)
 	provider.Print(ctx, "Press CTRL+C to exit")
 	if err := provider.Run(ctx); err != nil {
 		log.Fatal(err)
