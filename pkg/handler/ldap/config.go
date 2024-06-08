@@ -32,8 +32,8 @@ var _ server.Plugin = (*Config)(nil)
 const (
 	defaultName         = "ldap"
 	defaultMethodPlain  = "ldap"
-	defaultPortPlain    = 389
 	defaultMethodSecure = "ldaps"
+	defaultPortPlain    = 389
 	defaultPortSecure   = 636
 	deltaPingTime       = time.Minute
 	defaultUserOU       = "users"
@@ -60,7 +60,7 @@ func (c Config) New() (server.Task, error) {
 	return New(c)
 }
 
-func (c Config) ObjectSchema() (*schema.Schema, error) {
+func (c Config) ObjectSchema() *schema.Schema {
 	schema := &schema.Schema{
 		UserObjectClass:  defaultUserObjectClass,
 		GroupObjectClass: defaultGroupObjectClass,
@@ -74,11 +74,9 @@ func (c Config) ObjectSchema() (*schema.Schema, error) {
 	if len(c.Schema.GroupObjectClass) > 0 {
 		schema.GroupObjectClass = c.Schema.GroupObjectClass
 	}
-	if c.Schema.UserOU != "" {
+	if c.Schema.UserOU != "" && c.Schema.GroupOU != "" {
 		schema.UserOU = c.Schema.UserOU
-	}
-	if c.Schema.GroupOU != "" {
 		schema.GroupOU = c.Schema.GroupOU
 	}
-	return schema, nil
+	return schema
 }

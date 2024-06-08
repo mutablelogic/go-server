@@ -9,7 +9,7 @@ import (
 	server "github.com/mutablelogic/go-server"
 	router "github.com/mutablelogic/go-server/pkg/handler/router"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
-	"github.com/mutablelogic/go-server/pkg/types"
+	types "github.com/mutablelogic/go-server/pkg/types"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -17,6 +17,27 @@ import (
 
 // Check interfaces are satisfied
 var _ server.ServiceEndpoints = (*ldap)(nil)
+
+// Request to create a user
+type reqCreateUser struct {
+	Name        string `json:"name"`
+	UserId      int    `json:"uid,omitempty"`
+	GroupId     int    `json:"gid,omitempty"`
+	Description string `json:"description,omitempty"`
+
+	// Other attributes - homeDirectory, loginShell, givenName, surname, mail, etc
+	Attrs map[string][]string `json:"attrs,omitempty"`
+}
+
+// Request to create a group
+type reqCreateGroup struct {
+	Name        string `json:"name"`
+	GroupId     int    `json:"gid,omitempty"`
+	Description string `json:"description,omitempty"`
+
+	// Other attributes
+	Attrs map[string][]string `json:"attrs,omitempty"`
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 // GLOBALS

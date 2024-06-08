@@ -93,11 +93,7 @@ func New(c Config) (*ldap, error) {
 	}
 
 	// Set the schema
-	if schema, err := c.ObjectSchema(); err != nil {
-		return nil, err
-	} else {
-		self.schema = schema
-	}
+	self.schema = c.ObjectSchema()
 
 	// Return success
 	return self, nil
