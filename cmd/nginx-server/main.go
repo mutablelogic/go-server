@@ -15,6 +15,7 @@ import (
 	auth "github.com/mutablelogic/go-server/pkg/handler/auth"
 	certmanager "github.com/mutablelogic/go-server/pkg/handler/certmanager"
 	certstore "github.com/mutablelogic/go-server/pkg/handler/certmanager/certstore"
+	ldap "github.com/mutablelogic/go-server/pkg/handler/ldap"
 	logger "github.com/mutablelogic/go-server/pkg/handler/logger"
 	nginx "github.com/mutablelogic/go-server/pkg/handler/nginx"
 	router "github.com/mutablelogic/go-server/pkg/handler/router"
@@ -24,8 +25,9 @@ import (
 )
 
 var (
-	binary = flag.String("path", "nginx", "Path to nginx binary")
-	group  = flag.String("group", "", "Group to run unix socket as")
+	binary        = flag.String("path", "nginx", "Path to nginx binary")
+	group         = flag.String("group", "", "Group to run unix socket as")
+	ldap_password = flag.String("ldap-password", "", "LDAP admin password")
 )
 
 /* command to test the nginx package */
@@ -42,13 +44,13 @@ func main() {
 	// Logger
 	logger, err := logger.Config{Flags: []string{"default", "prefix"}}.New()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("logger: ", err)
 	}
 
 	// Nginx handler
 	n, err := nginx.Config{BinaryPath: *binary}.New()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("nginx: ", err)
 	}
 
 	// Token Jar
@@ -57,7 +59,7 @@ func main() {
 		WriteInterval: 30 * time.Second,
 	}.New()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("tokenkar: ", err)
 	}
 
 	// Auth handler
@@ -67,7 +69,7 @@ func main() {
 		Bearer:     true, // Use bearer token in requests for authorization
 	}.New()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("auth: ", err)
 	}
 
 	// Cert Storage
@@ -76,13 +78,23 @@ func main() {
 		Group:    *group,
 	}.New()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("certstore: ", err)
 	}
 	certmanager, err := certmanager.Config{
 		CertStorage: certstore.(certmanager.CertStorage),
 	}.New()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("certmanager: ", err)
+	}
+
+	// LDAP
+	ldap, err := ldap.Config{
+		URL:      "ldap://admin@cm1.local/",
+		DN:       "dc=mutablelogic,dc=com",
+		Password: *ldap_password,
+	}.New()
+	if err != nil {
+		log.Fatal("ldap: ", err)
 	}
 
 	// Location of the FCGI unix socket
@@ -112,10 +124,17 @@ func main() {
 					auth.(server.Middleware),
 				},
 			},
+			"ldap": { // /api/ldap/...
+				Service: ldap.(server.ServiceEndpoints),
+				Middleware: []server.Middleware{
+					logger.(server.Middleware),
+					auth.(server.Middleware),
+				},
+			},
 		},
 	}.New()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("router: ", err)
 	}
 
 	// HTTP Server
@@ -125,11 +144,11 @@ func main() {
 		Router: router.(http.Handler),
 	}.New()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("httpserver: ", err)
 	}
 
 	// Run until we receive an interrupt
-	provider := provider.NewProvider(logger, n, jar, auth, certstore, certmanager, router, httpserver)
+	provider := provider.NewProvider(logger, n, jar, auth, certstore, certmanager, ldap, router, httpserver)
 	provider.Print(ctx, "Press CTRL+C to exit")
 	if err := provider.Run(ctx); err != nil {
 		log.Fatal(err)

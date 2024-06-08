@@ -139,7 +139,7 @@ func (ldap *ldap) Connect() error {
 		if conn, err := ldapConnect(ldap.Host(), ldap.Port(), ldap.tls); err != nil {
 			return err
 		} else if err := ldapBind(conn, ldap.User(), ldap.password); err != nil {
-			if ldapErrorCode(err) == goldap.LDAPResultInvalidCredentials {
+			if code := ldapErrorCode(err); code == goldap.LDAPResultInvalidCredentials || code == goldap.LDAPResultUnwillingToPerform {
 				return ErrNotAuthorized.With("Invalid credentials")
 			} else {
 				return err
@@ -225,7 +225,7 @@ func (ldap *ldap) Get(objectClass string) ([]*schema.Object, error) {
 	// Print the results
 	result := make([]*schema.Object, 0, len(sr.Entries))
 	for _, entry := range sr.Entries {
-		result = append(result, ldap.schema.NewObject(entry))
+		result = append(result, schema.NewObjectFromEntry(entry))
 	}
 
 	// Return success
@@ -242,24 +242,182 @@ func (ldap *ldap) GetGroups() ([]*schema.Object, error) {
 	return ldap.Get(ldap.schema.GroupObjectClass[0])
 }
 
-// Create a user
-func (ldap *ldap) CreateGroup(group string) error {
-	object := ldap.schema.NewGroup(group)
-	fmt.Println(object)
-	/*
-		addReq := ldp.NewAddRequest(group.DN, []ldp.Control{})
+// Create a group with the given attributes
+func (ldap *ldap) CreateGroup(group string, attrs ...schema.Attr) (*schema.Object, error) {
+	ldap.Lock()
+	defer ldap.Unlock()
 
-		addReq.Attribute("objectClass", []string{"top", "group"})
-		addReq.Attribute("name", []string{"testgroup"})
-		addReq.Attribute("sAMAccountName", []string{"testgroup"})
-		addReq.Attribute("instanceType", []string{fmt.Sprintf("%d", 0x00000004})
-		addReq.Attribute("groupType", []string{fmt.Sprintf("%d", 0x00000004 | 0x80000000)})
+	// Check connection
+	if ldap.conn == nil {
+		return nil, ErrOutOfOrder.With("Not connected")
+	}
 
-		if err := l.AddRequest(addReq); err != nil {
-			  log.Fatal("error adding group:", addReq, err)
+	// Create group
+	o, err := ldap.schema.NewGroup(ldap.dn, group, attrs...)
+	if err != nil {
+		return nil, err
+	}
+
+	// If the gid is not set, then set it to the next available gid
+	var nextGid int
+	gid, err := ldap.SearchOne("(&(objectclass=device)(cn=lastgid))")
+	if err != nil {
+		return nil, err
+	} else if gid == nil {
+		return nil, ErrNotImplemented.With("lastgid not found")
+	} else if gid_, err := strconv.ParseInt(gid.Get("serialNumber"), 10, 32); err != nil {
+		return nil, ErrNotImplemented.With("lastgid not found")
+	} else {
+		nextGid = int(gid_) + 1
+		if err := schema.OptGroupId(int(gid_))(o); err != nil {
+			return nil, err
 		}
-	*/
+	}
+
+	// Create the request
+	addReq := goldap.NewAddRequest(o.DN, []goldap.Control{})
+	for name, values := range o.Values {
+		addReq.Attribute(name, values)
+	}
+
+	// Request -> Response
+	if err := ldap.conn.Add(addReq); err != nil {
+		return nil, err
+	}
+
+	// Increment the gid
+	if gid != nil && nextGid > 0 {
+		modify := goldap.NewModifyRequest(gid.DN, []goldap.Control{})
+		modify.Replace("serialNumber", []string{fmt.Sprint(nextGid)})
+		if err := ldap.conn.Modify(modify); err != nil {
+			return nil, err
+		}
+	}
+
+	// TODO: Retrieve the group
+
+	// Return success
+	return o, nil
+}
+
+// Add a user to a group
+func (ldap *ldap) AddGroupUser(user, group *schema.Object) error {
+	// Use uniqueMember for groupOfUniqueNames,
+	// use memberUid for posixGroup
+	// use member for groupOfNames or if not posix
 	return ErrNotImplemented
+}
+
+// Remove a user from a group
+func (ldap *ldap) RemoveGroupUser(user, group *schema.Object) error {
+	// Use uniqueMember for groupOfUniqueNames,
+	// use memberUid for posixGroup
+	// use member for groupOfNames or if not posix
+	return ErrNotImplemented
+}
+
+// Change a passsord for a user. If the new password is empty, then the password is reset
+// to a new random password. The old password is required for the change
+// if the ldap connection is not bound to the admin user. The new password
+// is returned if the change is successful
+func (ldap *ldap) ChangePassword(o *schema.Object, old, new string) (string, error) {
+	ldap.Lock()
+	defer ldap.Unlock()
+
+	// Check object
+	if o == nil {
+		return "", ErrBadParameter
+	}
+
+	// Check connection
+	if ldap.conn == nil {
+		return "", ErrOutOfOrder.With("Not connected")
+	}
+
+	// Modify the password
+	modify := goldap.NewPasswordModifyRequest(o.DN, old, new)
+	if result, err := ldap.conn.PasswordModify(modify); err != nil {
+		return "", err
+	} else {
+		return result.GeneratedPassword, nil
+	}
+}
+
+// Create a user in a specific group with the given attributes
+func (ldap *ldap) CreateUser(name string, attrs ...schema.Attr) (*schema.Object, error) {
+	ldap.Lock()
+	defer ldap.Unlock()
+
+	// Check connection
+	if ldap.conn == nil {
+		return nil, ErrOutOfOrder.With("Not connected")
+	}
+
+	// Create user object
+	o, err := ldap.schema.NewUser(ldap.dn, name, attrs...)
+	if err != nil {
+		return nil, err
+	}
+
+	// If the uid is not set, then set it to the next available uid
+	var nextId int
+	uid, err := ldap.SearchOne("(&(objectclass=device)(cn=lastuid))")
+	if err != nil {
+		return nil, err
+	} else if uid == nil {
+		return nil, ErrNotImplemented.With("lastuid not found")
+	} else if uid_, err := strconv.ParseInt(uid.Get("serialNumber"), 10, 32); err != nil {
+		return nil, ErrNotImplemented.With("lastuid not found")
+	} else {
+		nextId = int(uid_) + 1
+		if err := schema.OptUserId(int(uid_))(o); err != nil {
+			return nil, err
+		}
+	}
+
+	// Create the request
+	addReq := goldap.NewAddRequest(o.DN, []goldap.Control{})
+	for name, values := range o.Values {
+		addReq.Attribute(name, values)
+	}
+
+	// Request -> Response
+	if err := ldap.conn.Add(addReq); err != nil {
+		return nil, err
+	}
+
+	// Increment the uid
+	if uid != nil && nextId > 0 {
+		modify := goldap.NewModifyRequest(uid.DN, []goldap.Control{})
+		modify.Replace("serialNumber", []string{fmt.Sprint(nextId)})
+		if err := ldap.conn.Modify(modify); err != nil {
+			return nil, err
+		}
+	}
+
+	// TODO: Add the user to a group
+
+	// Return success
+	return o, nil
+}
+
+// Delete an object
+func (ldap *ldap) Delete(o *schema.Object) error {
+	ldap.Lock()
+	defer ldap.Unlock()
+
+	// Check object
+	if o == nil {
+		return ErrBadParameter
+	}
+
+	// Check connection
+	if ldap.conn == nil {
+		return ErrOutOfOrder.With("Not connected")
+	}
+
+	// Delete the object
+	return ldap.conn.Del(goldap.NewDelRequest(o.DN, []goldap.Control{}))
 }
 
 // Bind a user with password to check if they are authenticated
@@ -281,13 +439,42 @@ func (ldap *ldap) Bind(user *schema.Object, password string) error {
 		}
 	}
 
+	// TODO: Rebind with the original user
+
 	// Return success
 	return nil
+}
+
+// Return one record
+func (ldap *ldap) SearchOne(filter string) (*schema.Object, error) {
+	// Check connection
+	if ldap.conn == nil {
+		return nil, ErrOutOfOrder.With("Not connected")
+	}
+
+	// Define the search request
+	searchRequest := goldap.NewSearchRequest(
+		ldap.dn, goldap.ScopeWholeSubtree, goldap.NeverDerefAliases, 1, 0, false,
+		filter, // The filter to apply
+		nil,    // The attributes to retrieve
+		nil,
+	)
+
+	// Perform the search, return first result
+	sr, err := ldap.conn.Search(searchRequest)
+	if err != nil {
+		return nil, err
+	} else if len(sr.Entries) == 0 {
+		return nil, nil
+	} else {
+		return schema.NewObjectFromEntry(sr.Entries[0]), nil
+	}
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
+// Connect to the LDAP server
 func ldapConnect(host string, port int, tls *tls.Config) (*goldap.Conn, error) {
 	var url string
 	if tls != nil {
@@ -298,10 +485,12 @@ func ldapConnect(host string, port int, tls *tls.Config) (*goldap.Conn, error) {
 	return goldap.DialURL(url, goldap.DialWithTLSConfig(tls))
 }
 
+// Disconnect from the LDAP server
 func ldapDisconnect(conn *goldap.Conn) error {
 	return conn.Close()
 }
 
+// Bind to the LDAP server with a user and password
 func ldapBind(conn *goldap.Conn, user, password string) error {
 	if user == "" || password == "" {
 		return conn.UnauthenticatedBind(user)

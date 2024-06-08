@@ -20,10 +20,7 @@ type Config struct {
 	TLS      struct {
 		SkipVerify bool `hcl:"skip-verify" description:"Skip certificate verification"`
 	} `hcl:"tls,optional" description:"TLS configuration"`
-	Schema struct {
-		User  []string `hcl:"user,optional" description:"User objectClass, defaults to posixAccount, person, inetOrgPerson"`
-		Group []string `hcl:"group,optional" description:"Group objectClass, defaults to posixGroup"`
-	} `hcl:"schema,optional" description:"LDAP Schema"`
+	Schema schema.Schema `hcl:"schema,optional" description:"LDAP Schema"`
 }
 
 // Ensure that LDAP implements the Service interface
@@ -44,8 +41,8 @@ const (
 )
 
 var (
-	defaultUserObjectClass  = []string{"posixAccount", "person", "inetOrgPerson"}
-	defaultGroupObjectClass = []string{"posixGroup"}
+	defaultUserObjectClass  = []string{"posixAccount", "top", "person", "inetOrgPerson"}
+	defaultGroupObjectClass = []string{"posixGroup", "top", "groupOfUniqueNames"}
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -65,17 +62,23 @@ func (c Config) New() (server.Task, error) {
 
 func (c Config) ObjectSchema() (*schema.Schema, error) {
 	schema := &schema.Schema{
-		DN:               c.DN,
 		UserObjectClass:  defaultUserObjectClass,
 		GroupObjectClass: defaultGroupObjectClass,
 		UserOU:           defaultUserOU,
 		GroupOU:          defaultGroupOU,
 	}
-	if len(c.Schema.User) > 0 {
-		schema.UserObjectClass = c.Schema.User
+
+	if len(c.Schema.UserObjectClass) > 0 {
+		schema.UserObjectClass = c.Schema.UserObjectClass
 	}
-	if len(c.Schema.Group) > 0 {
-		schema.GroupObjectClass = c.Schema.Group
+	if len(c.Schema.GroupObjectClass) > 0 {
+		schema.GroupObjectClass = c.Schema.GroupObjectClass
+	}
+	if c.Schema.UserOU != "" {
+		schema.UserOU = c.Schema.UserOU
+	}
+	if c.Schema.GroupOU != "" {
+		schema.GroupOU = c.Schema.GroupOU
 	}
 	return schema, nil
 }

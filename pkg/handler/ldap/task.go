@@ -58,8 +58,10 @@ FOR_LOOP:
 			} else {
 				// Indicate that we are connected. If subsequent connections fail, then
 				// we will log the error but continue to try to connect
-				log.Print(ctx, "Connected")
-				first = true
+				if !first {
+					log.Printf(ctx, "Connected to %s:%d", task.Host(), task.Port())
+					first = true
+				}
 			}
 
 			// We attempt to ping the connection every minute
