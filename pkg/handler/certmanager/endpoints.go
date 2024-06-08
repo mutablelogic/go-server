@@ -53,7 +53,7 @@ var (
 	reRoot   = regexp.MustCompile(`^/?$`)
 	reCA     = regexp.MustCompile(`^/ca/?$`)
 	reSerial = regexp.MustCompile(`^/([0-9]+)/?$`)
-	rePem    = regexp.MustCompile(`^/([0-9]+)/(cert\.pem|key\.pem)?$`)
+	rePem    = regexp.MustCompile(`^/([0-9]+)/(cert|key)\.pem$`)
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -154,7 +154,7 @@ func (service *certmanager) reqGetCert(w http.ResponseWriter, r *http.Request) {
 	httpresponse.JSON(w, respCert, http.StatusOK, jsonIndent)
 }
 
-// Get a certificate or CA
+// Get a certificate or CA as a PEM file
 func (service *certmanager) reqGetCertPEM(w http.ResponseWriter, r *http.Request) {
 	urlParameters := router.Params(r.Context())
 
@@ -168,8 +168,8 @@ func (service *certmanager) reqGetCertPEM(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Key or Cert
-	w.Header().Set("Content-Type", mimetypePem)
+	// Write the certificate or key
+	w.Header().Set(httpresponse.ContentTypeKey, mimetypePem)
 	switch urlParameters[1] {
 	case "cert":
 		if err := cert.WriteCertificate(w); err != nil {

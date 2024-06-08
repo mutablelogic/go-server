@@ -103,6 +103,15 @@ func main() {
 	// Cert manager
 	certmanager, err := certmanager.Config{
 		CertStorage: certstore.(certmanager.CertStorage),
+		X509Name: certmanager.X509Name{
+			OrganizationalUnit: "mutablelogic.com",
+			Organization:       "mutablelogic",
+			StreetAddress:      "N/A",
+			Locality:           "Berlin",
+			Province:           "Berlin",
+			PostalCode:         "10967",
+			Country:            "DE",
+		},
 	}.New()
 	if err != nil {
 		log.Fatal("certmanager: ", err)
