@@ -1,0 +1,40 @@
+{
+    "name": "@mutablelogic/go-server-router",
+    "version": "0.0.0",
+    "description": "go-server router frontend",
+    "main": "build/index.js",
+    "scripts": {
+      "dev": "esbuild src/index.html src/index.js src/index.css --outdir=build --format=esm --sourcemap --minify --bundle --loader:.svg=file --loader:.woff=file --loader:.woff2=file --loader:.ttf=file --loader:.otf=file --loader:.html=copy  --watch --serve",
+      "build": "rm -fr build && install -d build && esbuild src/index.html src/index.js src/index.css --outdir=build  --format=esm --sourcemap --minify --bundle --loader:.svg=file --loader:.woff=file --loader:.woff2=file --loader:.ttf=file --loader:.otf=file --loader:.html=copy",
+      "lint": "ESLINT_USE_FLAT_CONFIG=true eslint -c config/eslint.mjs --cache --fix ./src/**/*.js"
+    },
+    "repository": {
+      "type": "git",
+      "url": "git+https://github.com/mutablelogic/go-server.git"
+    },
+    "publishConfig": {
+      "registry": "https://npm.pkg.github.com"
+    },
+    "author": "David Thorpe",
+    "license": "Apache",
+    "bugs": {
+      "url": "https://github.com/mutablelogic/go-server/issues"
+    },
+    "homepage": "https://github.com/mutablelogic/go-server#readme",
+    "devDependencies": {
+      "@eslint/eslintrc": "^3.0.2",
+      "@eslint/js": "^9.0.0",
+      "esbuild": "^0.20.2",
+      "eslint": "^8.57.0",
+      "eslint-config-airbnb-base": "^15.0.0",
+      "eslint-plugin-import": "^2.29.1",
+      "globals": "^15.0.0"
+    },
+    "dependencies": {
+      "bootstrap-icons": "^1.11.3",
+      "lit": "^3.1.2"
+    },
+    "files": [
+      "build/**/*.{js,map,woff,woff2,txt,ttf,css,html,svg}"
+    ]
+  }
