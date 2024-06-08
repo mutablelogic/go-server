@@ -45,13 +45,15 @@ var _ server.ServiceEndpoints = (*certmanager)(nil)
 // GLOBALS
 
 const (
-	jsonIndent = 2
+	jsonIndent  = 2
+	mimetypePem = "application/x-pem-file"
 )
 
 var (
 	reRoot   = regexp.MustCompile(`^/?$`)
 	reCA     = regexp.MustCompile(`^/ca/?$`)
 	reSerial = regexp.MustCompile(`^/([0-9]+)/?$`)
+	rePem    = regexp.MustCompile(`^/([0-9]+)/(cert\.pem|key\.pem)?$`)
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -85,6 +87,13 @@ func (service *certmanager) AddEndpoints(ctx context.Context, r server.Router) {
 	// Scopes: read
 	// Description: Read a certificate by serial number
 	r.AddHandlerFuncRe(ctx, reSerial, service.reqGetCert, http.MethodGet).(router.Route).
+		SetScope(service.ScopeRead()...)
+
+	// Path: /<serial>/key or /<serial>/cert
+	// Methods: GET
+	// Scopes: read
+	// Description: Read a PEM file for a certificate or key by serial number
+	r.AddHandlerFuncRe(ctx, rePem, service.reqGetCertPEM, http.MethodGet).(router.Route).
 		SetScope(service.ScopeRead()...)
 }
 
@@ -143,6 +152,40 @@ func (service *certmanager) reqGetCert(w http.ResponseWriter, r *http.Request) {
 
 	// Respond
 	httpresponse.JSON(w, respCert, http.StatusOK, jsonIndent)
+}
+
+// Get a certificate or CA
+func (service *certmanager) reqGetCertPEM(w http.ResponseWriter, r *http.Request) {
+	urlParameters := router.Params(r.Context())
+
+	// Get the certificate
+	cert, err := service.Read(urlParameters[0])
+	if errors.Is(err, ErrNotFound) {
+		httpresponse.Error(w, http.StatusNotFound, err.Error())
+		return
+	} else if err != nil {
+		httpresponse.Error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// Key or Cert
+	w.Header().Set("Content-Type", mimetypePem)
+	switch urlParameters[1] {
+	case "cert":
+		if err := cert.WriteCertificate(w); err != nil {
+			httpresponse.Error(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	case "key":
+		if cert.IsCA() {
+			httpresponse.Error(w, http.StatusForbidden, "Cannot return private key for CA")
+			return
+		}
+		if err := cert.WritePrivateKey(w); err != nil {
+			httpresponse.Error(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
 }
 
 // Create a new certificate authority
