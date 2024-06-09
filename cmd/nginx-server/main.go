@@ -163,10 +163,12 @@ func main() {
 	}
 
 	// Add router and frontend
+	// The API is served from http[s]://[any]/api/router and the frontend is served from http[s]://static/router
+	// see the nginx default configuration to understand how the routing occurs in the proxy
 	r.(router.Router).AddServiceEndpoints("router", r.(server.ServiceEndpoints), logger.(server.Middleware), auth.(server.Middleware))
-	r.(router.Router).AddServiceEndpoints("router-frontend", routerFrontend.(server.ServiceEndpoints), logger.(server.Middleware))
+	r.(router.Router).AddServiceEndpoints("static/router", routerFrontend.(server.ServiceEndpoints), logger.(server.Middleware))
 
-	// LDAP
+	// LDAP gets enabled if a password is set
 	if *ldap_password != "" {
 		ldap, err := ldap.Config{
 			URL:      "ldap://admin@cm1.local/",

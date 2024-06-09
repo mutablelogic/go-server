@@ -2,6 +2,7 @@ package router
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"regexp"
 	"slices"
@@ -29,14 +30,20 @@ type route struct {
 
 // matchedRoute is a route which has been matched by the router
 type matchedRoute struct {
-	// The route specification
-	*route
+	// Requested Method
+	method string
+
+	// Requested Host
+	host string
 
 	// Requested Path
 	request string
 
 	// Computed	parameters from the path
 	parameters []string
+
+	// The route that has been matched
+	*route
 
 	// TODO: Whether the result was from the cache
 	cached bool
@@ -61,6 +68,9 @@ func NewRoute(ctx context.Context, host, prefix string, methods ...string) *rout
 func NewRouteWithPath(ctx context.Context, host, prefix, path string, methods ...string) *route {
 	route := NewRoute(ctx, host, prefix, methods...)
 	route.path = path
+
+	fmt.Println("new router with path", route)
+
 	return route
 }
 
@@ -70,12 +80,49 @@ func NewRouteWithRegexp(ctx context.Context, host, prefix string, path *regexp.R
 	return route
 }
 
-func NewMatchedRoute(route *route, request string, params ...string) *matchedRoute {
+func NewMatchedRoute(route *route, method, host, request string, params ...string) *matchedRoute {
 	matched := new(matchedRoute)
-	matched.route = route
+
+	// These parameters are used for caching
+	matched.host = host
+	matched.method = method
 	matched.request = request
 	matched.parameters = params
+
+	// The cache stores this route
+	matched.route = route
+
+	// Return the matched route
 	return matched
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// STRINGIFY
+
+func (r *route) String() string {
+	str := "<route"
+	if r.label != "" {
+		str += fmt.Sprintf(" label=%q", r.label)
+	}
+	if r.host != "" {
+		str += fmt.Sprintf(" host=%q", r.host)
+	}
+	if r.prefix != "" {
+		str += fmt.Sprintf(" prefix=%q", r.prefix)
+	}
+	if r.path != "" {
+		str += fmt.Sprintf(" path=%q", r.path)
+	}
+	if r.re != nil {
+		str += fmt.Sprintf(" re=%q", r.re)
+	}
+	if r.methods != nil {
+		str += fmt.Sprintf(" methods=%v", r.methods)
+	}
+	if r.scopes != nil {
+		str += fmt.Sprintf(" scopes=%v", r.scopes)
+	}
+	return str + ">"
 }
 
 ///////////////////////////////////////////////////////////////////////////////
