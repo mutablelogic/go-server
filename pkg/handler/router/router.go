@@ -14,6 +14,7 @@ import (
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	fcgi "github.com/mutablelogic/go-server/pkg/httpserver/fcgi"
 	provider "github.com/mutablelogic/go-server/pkg/provider"
+	"golang.org/x/exp/maps"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -154,6 +155,11 @@ func (router *router) Match(method, host, path string) (*matchedRoute, int) {
 		return nil, http.StatusNotFound
 	}
 
+	// If it's an OPTIONS request, then return the route which returns allowed methods
+	if method == http.MethodOptions {
+		return NewMatchedRoute(newOptionsRoute(results), method, host, path), http.StatusOK
+	}
+
 	// Sort results by prefix and path length, with longest first
 	sort.Sort(results)
 
@@ -267,4 +273,20 @@ func (r reqhandlers) Less(i, j int) bool {
 
 func (r reqhandlers) Swap(i, j int) {
 	r[i], r[j] = r[j], r[i]
+}
+
+func newOptionsRoute(handlers reqhandlers) *route {
+	methods := make(map[string]bool, len(handlers))
+	methods[http.MethodOptions] = true
+	for _, h := range handlers {
+		for _, m := range h.methods {
+			methods[m] = true
+		}
+	}
+	return &route{
+		handler: func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Allow", strings.Join(maps.Keys(methods), ", "))
+			w.WriteHeader(http.StatusNoContent)
+		},
+	}
 }

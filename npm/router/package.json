@@ -4,8 +4,8 @@
     "description": "go-server router frontend",
     "main": "build/index.js",
     "scripts": {
-      "dev": "esbuild src/index.html src/index.js src/index.css --outdir=build --format=esm --sourcemap --minify --bundle --loader:.svg=file --loader:.woff=file --loader:.woff2=file --loader:.ttf=file --loader:.otf=file --loader:.html=copy  --watch --serve",
-      "build": "rm -fr build && install -d build && esbuild src/index.html src/index.js src/index.css --outdir=build  --format=esm --sourcemap --minify --bundle --loader:.svg=file --loader:.woff=file --loader:.woff2=file --loader:.ttf=file --loader:.otf=file --loader:.html=copy",
+      "dev": "esbuild src/index.html src/index.js src/index.css --outdir=build --asset-names=assets/[name]-[hash] --format=esm --sourcemap --minify --bundle --loader:.svg=file --loader:.woff=file --loader:.woff2=file --loader:.ttf=file --loader:.otf=file --loader:.html=copy --loader:.png=file --watch --serve",
+      "build": "rm -fr build && install -d build && esbuild src/index.html src/index.js src/index.css --outdir=build  --asset-names=assets/[name]-[hash] --format=esm --sourcemap --minify --bundle --loader:.svg=file --loader:.woff=file --loader:.woff2=file --loader:.ttf=file --loader:.otf=file --loader:.html=copy --loader:.png=file",
       "lint": "ESLINT_USE_FLAT_CONFIG=true eslint -c config/eslint.mjs --cache --fix ./src/**/*.js"
     },
     "repository": {
@@ -35,6 +35,6 @@
       "lit": "^3.1.2"
     },
     "files": [
-      "build/**/*.{js,map,woff,woff2,txt,ttf,css,html,svg}"
+      "build/**/*.{js,map,woff,woff2,txt,ttf,css,html,svg,png}"
     ]
   }

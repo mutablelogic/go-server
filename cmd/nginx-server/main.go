@@ -11,7 +11,7 @@ import (
 
 	// Packages
 	server "github.com/mutablelogic/go-server"
-	routerFrontend "github.com/mutablelogic/go-server/npm/router-frontend"
+	routerFrontend "github.com/mutablelogic/go-server/npm/router"
 	ctx "github.com/mutablelogic/go-server/pkg/context"
 	auth "github.com/mutablelogic/go-server/pkg/handler/auth"
 	certmanager "github.com/mutablelogic/go-server/pkg/handler/certmanager"
