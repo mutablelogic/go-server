@@ -1,20 +1,24 @@
-import { assertInstanceOf } from "./assert.js";
+import { assertInstanceOf, assertNilOrInstanceOf } from "./assert.js";
 import { ModelProperty } from "./ModelProperty.js";
 
 /**
  * @class
  * @name Model 
- * @description Represents a model in the MVC pattern
+ * @description Represents a data model
  */
 export class Model extends EventTarget {
+  // Define the values of the object
+  #values = new Map();
+
   static get localName() {
     return 'c-model';
   }
 
   constructor(data) {
     super();
+    assertNilOrInstanceOf(data, Object);
 
-    // Populate the classes map with the properties of the model
+    // Create the getter and setter for each property
     let proto = this.constructor;
     while (proto && proto !== Object) {
       const name = proto.localName || proto.name;
@@ -34,9 +38,15 @@ export class Model extends EventTarget {
       proto = Object.getPrototypeOf(proto);
     }
 
-    if (data) {
-      console.log('TODO: Model#constructor', data);
+    // If no data is provided, return
+    if (!data) {
+      return;
     }
+
+    // Set the property values
+    Object.entries(data).forEach(([key, value]) => {      
+      this.#values.set(key, value);
+    });
   }
 
   toString() {
@@ -54,13 +64,16 @@ export class Model extends EventTarget {
     // all properties of the object
   }
 
-  // Define a getter for each property
+  // Getter for each property
   #get(property) {
-    return this[`_${property.key}`];
+    assertInstanceOf(property, ModelProperty);
+    return this.#values.get(property.key);
   }
 
-  // Define a setter for each property
+  // Setter for each property
   #set(property, value) {
-    this[`_${property.key}`] = value;    
+    assertInstanceOf(property, ModelProperty);
+    console.log(`Setting ${property.key} to ${value}`);
+    return this.#values.set(property.key, value);
   }
 }

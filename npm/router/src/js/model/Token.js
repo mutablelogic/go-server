@@ -8,9 +8,9 @@ export class Token extends Model {
   static get properties() {
     return {
       name: { type: String },
-      accessTime: { type: Date, jsonName: 'access_time' },
+      accessTime: { type: Date, json: 'access_time' },
       scopes: { type: Array, elem: String },
-      valid: { type: Boolean },
+      valid: { type: Boolean, readonly: true },
     };
   }
   constructor(data) {

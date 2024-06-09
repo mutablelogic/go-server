@@ -6,26 +6,30 @@ import { assertInstanceOf, assertTypeOf } from "./assert";
  * @description Represents a model property
  */
 export class ModelProperty extends Object {
-  #name;
-  #type;
-  #jsonName;
+  #name; // The name of the property
+  #type; // The type of the property
+  #elem; // The element type of the property where the type is an array or map
+  #json; // The name of the property in JSON for reading and writing
+  #readonly; // Whether the property is read-only
 
   static get localName() {
     return 'c-model-property';
   }
 
-  constructor(name, data) {
+  constructor(name, attrs) {
     super();
     assertTypeOf(name, 'string');
-    assertInstanceOf(data, Object);
+    assertInstanceOf(attrs, Object);
 
     // Set defaults
     this.#name = name;
-    this.#type = data.type;
-    this.#jsonName = data.jsonName || name;
+    this.#type = attrs.type;
+    this.#elem = attrs.elem || null;
+    this.#json = attrs.json || name;
+    this.#readonly = attrs.readonly || false;
   }
 
-  defineProperty(proto,getter,setter) {
+  defineProperty(proto, getter, setter) {
     assertInstanceOf(proto, Object);
 
     // Check if the property is already defined in this class
@@ -38,7 +42,7 @@ export class ModelProperty extends Object {
       enumerable: true,
       configurable: true,
       get: getter,
-      set: setter,
+      set: this.#readonly ? undefined : setter,
     });
   }
 

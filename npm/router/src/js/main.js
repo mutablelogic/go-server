@@ -8,6 +8,8 @@ import { Event } from './core/event.js';
 import { Provider } from './core/Provider.js';
 import { ModelArray } from './core/ModelArray.js';
 import { TokenWithValue } from './model/TokenWithValue.js';
+import { Token } from './model/Token.js';
+
 
 window.addEventListener('load', () => {
   // Initialize the application here
@@ -40,11 +42,7 @@ window.addEventListener('load', () => {
   });
 
   /* Create an array to contain the scopes, and bind to the provider */
-  const scopes = new ModelArray(TokenWithValue, provider);
-
-  const t2 = new TokenWithValue();
-  t2.accessTime = new Date();
-  console.log('entries:',t2.accessTime);
+  new ModelArray(TokenWithValue, provider);
 
   // Fetch the data every 30 seconds
   try {
