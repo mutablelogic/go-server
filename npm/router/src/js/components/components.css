@@ -1,0 +1,15 @@
+
+/* div */
+:root {
+  --div-padding-x: 1em;
+  --div-padding-y: 0.25em;
+}
+
+/* icon sizes */
+:root {
+  --icon-size-default: 1.5em;
+  --icon-size-small: 1em;
+  --icon-size-medium: 1.5em;
+  --icon-size-large: 2em;
+  --icon-size-xlarge: 3em;
+}

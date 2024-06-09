@@ -1,5 +1,4 @@
 
-
 export function assertTypeOf(value, type) {
     if (typeof value !== type) {
         throw new TypeError(`Expected ${type}, got ${typeof value}`);
@@ -14,8 +13,11 @@ export function assertNilOrTypeOf(value, type) {
 }
 
 export function assertInstanceOf(value, instance) {
+    if (value === null || value === undefined) {
+        throw new TypeError(`Expected instance of ${instance.prototype}, got ${value}`);
+    }
     if (!(value instanceof instance)) {
-        throw new TypeError(`Expected instance of ${instance}, got ${value.constructor.name}`);
+        throw new TypeError(`Expected instance of ${instance.prototype}, got ${value.constructor.name}`);
     }
 }
 

@@ -1,9 +1,13 @@
 
-// Favicon
+import '../index.css';
+import './components/components.js'
+
 import favicon from '../assets/favicon.png';
 import { setFavIcon } from './favicon.js';
-import { Provider } from './core/provider.js';
 import { Event } from './core/event.js';
+import { Provider } from './core/Provider.js';
+import { ModelArray } from './core/ModelArray.js';
+import { TokenWithValue } from './model/TokenWithValue.js';
 
 window.addEventListener('load', () => {
   // Initialize the application here
@@ -35,9 +39,16 @@ window.addEventListener('load', () => {
     localStorage.setItem("token", e.target.value);
   });
 
-  // Fetch the data every 20 seconds
+  /* Create an array to contain the scopes, and bind to the provider */
+  const scopes = new ModelArray(TokenWithValue, provider);
+
+  const t2 = new TokenWithValue();
+  t2.accessTime = new Date();
+  console.log('entries:',t2.accessTime);
+
+  // Fetch the data every 30 seconds
   try {
-    provider.Fetch('/api/router/', null, 20 * 1000);
+    provider.Fetch('/api/auth/', null, 30 * 1000);
   } catch (e) {
     console.error('Error: ', e.message);
   }

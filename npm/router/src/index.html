@@ -2,17 +2,22 @@
 <html lang="en">
 
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Router</title>
-    <script type="module" src="index.js" defer></script>
-    <link href="index.css" rel="stylesheet">
-    <link rel="icon" type="image/png" href="favicon.png">    
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Router</title>
+  <script type="module" src="index.js" defer></script>
+  <link href="index.css" rel="stylesheet">
+  <link rel="icon" type="image/png" href="favicon.png">
 </head>
 
 <body>
-    <label for="token">API token:</label>
-    <input type="text" id="token" placeholder="API token">
+  <c-div>
+    <p>Put the API token here, and press <c-icon name="arrow-return-left" size="small"></c-icon> to store it in the
+      browser:</p>
+    <label for="token"><c-icon name="ticket-perforated"></c-icon>
+      <input type="text" id="token" placeholder="API token">
+    </label>
+  </c-div>
 </body>
 
 </html>

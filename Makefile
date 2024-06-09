@@ -26,7 +26,7 @@ NPM_DIR := $(wildcard npm/*)
 BUILD_TAG := ${DOCKER_REGISTRY}/go-server-${OS}-${ARCH}:${VERSION}
 
 # Targets
-all: clean cmds plugins
+all: clean plugins cmds npm 
 
 cmds: $(CMD_DIR)
 
