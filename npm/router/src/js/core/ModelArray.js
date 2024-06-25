@@ -1,5 +1,5 @@
 import { assertInstanceOf, assertNilOrInstanceOf } from "./assert.js";
-import { Provider } from "./Provider.js";
+import { Provider } from "./provider.js";
 import { Event } from "./event.js";
 
 /**

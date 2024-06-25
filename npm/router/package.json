@@ -31,6 +31,7 @@
         "globals": "^15.0.0"
     },
     "dependencies": {
+        "@ibm/plex": "^6.4.1",
         "bootstrap-icons": "^1.11.3",
         "lit": "^3.1.4"
     },

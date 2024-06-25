@@ -1,5 +1,5 @@
 import { assertNilOrInstanceOf } from '../core/assert.js';
-import { Model } from '../core/Model.js';
+import { Model } from '../core/model.js';
 
 export class Token extends Model {
   static get localName() {

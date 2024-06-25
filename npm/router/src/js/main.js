@@ -1,14 +1,19 @@
 
+// Import fonts
+import '@ibm/plex/css/ibm-plex.css';
+
+// Import the main css file
 import '../index.css';
+
+// Import web components
 import './components/components.js'
 
 import favicon from '../assets/favicon.png';
 import { setFavIcon } from './favicon.js';
 import { Event } from './core/event.js';
-import { Provider } from './core/Provider.js';
+import { Provider } from './core/provider.js';
 import { ModelArray } from './core/ModelArray.js';
 import { TokenWithValue } from './model/TokenWithValue.js';
-import { Token } from './model/Token.js';
 
 
 window.addEventListener('load', () => {
