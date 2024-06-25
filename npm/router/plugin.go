@@ -1,4 +1,4 @@
-package routerFrontend
+package main
 
 import (
 	"embed"

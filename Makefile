@@ -67,7 +67,7 @@ $(PLUGIN_DIR): go-dep mkdir
 $(NPM_DIR): npm-dep mkdir
 	@echo Build npm $(notdir $@)
 	@cd $@ && npm install && npm run build
-	@${GO} build -buildmode=plugin ${BUILD_FLAGS} -o ${BUILD_DIR}/$(notdir $@).plugin ./$@
+	@${GO} build -buildmode=plugin ${BUILD_FLAGS} -o ${BUILD_DIR}/$(notdir $@).npm.plugin ./$@
 
 FORCE:
 
