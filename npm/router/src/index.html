@@ -11,13 +11,39 @@
 </head>
 
 <body>
-  <c-div>
-    <p>Put the API token here, and press <c-icon name="arrow-return-left" size="small"></c-icon> to store it in the
-      browser:</p>
-    <label for="token"><c-icon name="ticket-perforated"></c-icon>
-      <input type="text" id="token" placeholder="API token">
-    </label>
-  </c-div>
+  <c-canvas theme="light">
+    <c-canvas-nav>
+      <div>Router</div>
+      <c-nav-group>
+        <c-nav-item>File</c-nav-item>
+        <c-nav-item>Edit</c-nav-item>
+      </c-nav-group>
+
+    </c-canvas-nav>
+    <c-canvas-content flex>
+      <p>Put the API token here, and press <c-icon name="arrow-return-left" size="small"></c-icon> to store it in the
+        browser:</p>
+      <label for="token"><c-icon name="ticket-perforated"></c-icon>
+        <input type="text" id="token" placeholder="API token">
+      </label>
+    </c-canvas-content>
+    <c-canvas-nav>
+      <c-form-switch selected id="vertical">Vertical</c-form-switch>
+      <c-form-switch id="theme">Dark Theme</c-form-switch>  
+      <script>
+        document.getElementById('theme').addEventListener('change', (event) => {
+          document.querySelector('c-canvas').setAttribute('theme', event.target.selected ? 'dark' : 'light');
+        });
+        document.getElementById('vertical').addEventListener('change', (event) => {
+          if (event.target.selected) {
+            document.querySelector('c-canvas').removeAttribute('vertical');
+          } else {
+            document.querySelector('c-canvas').setAttribute('vertical', '');
+          }
+        });
+      </script>
+    </c-canvas-nav>
+  </c-canvas>
 </body>
 
 </html>
