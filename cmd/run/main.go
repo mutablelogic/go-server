@@ -87,43 +87,5 @@ func main() {
 }
 
 /*
-{
-	"logger": {
-		"flags": ["default", "prefix"]
-	},
-	"nginx": {
-		"binary": "/usr/local/bin/nginx",
-		"data": "/var/run/nginx",
-		"group": "www-data",
-	},
-	httpserver": {
-		"listen": "run/go-server.sock",
-		"group": "www-data",
-		"router": "${ router }",
-	},
-	"router": {
-		"services": {
-			"nginx": {
-				"service": "${ nginx }",
-				"middleware": ["logger", "auth"]
-			},
-			"auth": {
-				"service": "${ auth }",
-				"middleware": ["logger", "auth"]
-			},
-			"router": {
-				"service": "${ router }",
-				"middleware": ["logger", "auth"]
-			},
-	},
-	"auth": {
-		"tokenjar": "${ tokenjar }",
-		"tokenbytes": 16,
-		"bearer": true,
-	},
-	"tokenjar": {
-		"data": "run",
-		"writeinterval": "30s",
-	},
-}
-*/
+
+ */

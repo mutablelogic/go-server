@@ -25,7 +25,7 @@ type PluginMeta struct {
 	Type        reflect.Type `json:"-"`
 
 	// Private fields
-	labels map[string]*metafield
+	fields map[string]*metafield
 }
 
 type metafield struct {
@@ -66,7 +66,7 @@ func NewPluginMeta(v server.Plugin) (*PluginMeta, error) {
 		Name:        v.Name(),
 		Description: v.Description(),
 		Type:        typeOf(v),
-		labels:      make(map[string]*metafield),
+		fields:      make(map[string]*metafield),
 	}
 
 	// Get fields
@@ -77,7 +77,7 @@ func NewPluginMeta(v server.Plugin) (*PluginMeta, error) {
 	}
 
 	// Index the fields to ensure no duplicates
-	if err := index("", meta.Fields, meta.labels); err != nil {
+	if err := index("", meta.Fields, meta.fields); err != nil {
 		return nil, err
 	}
 
@@ -132,10 +132,24 @@ func (m *metafield) String() string {
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func (m *PluginMeta) Get(v server.Plugin, key string) any {
-	// TODO
-	// Need some special stuff for arrays and maps
-	return nil
+func (m *PluginMeta) Get(v server.Plugin, label string) (any, error) {
+	if typeOf(v) != m.Type {
+		return nil, ErrBadParameter.Withf("Expected %q, got %q", m.Type, typeOf(v))
+	}
+
+	// Dereference the target
+	rv := reflect.ValueOf(v)
+	if rv.Kind() == reflect.Ptr {
+		rv = rv.Elem()
+	}
+
+	// Simple case
+	if field, exists := m.fields[label]; exists {
+		return rv.FieldByIndex(field.Index).Interface(), nil
+	}
+
+	// Do complex type array, slice, map
+	return nil, ErrNotImplemented
 }
 
 func (m *PluginMeta) Set(v server.Plugin, label string, value any) error {
@@ -146,21 +160,18 @@ func (m *PluginMeta) Set(v server.Plugin, label string, value any) error {
 		return ErrBadParameter.Withf("Expected %q, got %q", m.Type, typeOf(v))
 	}
 
+	// Dereference the target
 	rv := reflect.ValueOf(v)
 	if rv.Kind() == reflect.Ptr {
 		rv = rv.Elem()
 	}
 
 	// Simple case
-	if field, exists := m.labels[label]; exists {
+	if field, exists := m.fields[label]; exists {
 		return set(label, rv.FieldByIndex(field.Index), value)
 	}
 
-	// Check plugin
-
-	// TODO
-	// Need some special stuff for arrays and maps
-	// Need to update dependencies between plugins
+	// Do complex type array, slice, map
 	return ErrNotImplemented
 }
 
@@ -187,7 +198,7 @@ func set(label string, dest reflect.Value, src any) error {
 	}
 	// Check type of source and destination
 	if dest.Type() != reflect.TypeOf(src) {
-		return ErrBadParameter.Withf("Cannot set %q, wrong type: %q", label, reflect.TypeOf(src))
+		return ErrBadParameter.Withf("Cannot set %q, wrong type: %q (expected %q)", label, reflect.TypeOf(src), dest.Type())
 	}
 
 	// if the destination is a pointer, then create a new value

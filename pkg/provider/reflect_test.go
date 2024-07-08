@@ -19,13 +19,16 @@ func Test_reflect_001(t *testing.T) {
 		t.SkipNow()
 	}
 
-	plugin := &httpserver.Config{}
-	assert.NoError(meta.Set(plugin, "listen", "value"))
-	assert.Error(meta.Set(plugin, "listen", 99))
-	assert.NoError(meta.Set(plugin, "tls.key", "key"))
-	assert.NoError(meta.Set(plugin, "timeout", nil))
+	router := router.Config{}
 
-	t.Log(plugin)
+	httpserver := httpserver.Config{}
+	assert.NoError(meta.Set(&httpserver, "listen", "value"))
+	assert.Error(meta.Set(&httpserver, "listen", 99))
+	assert.NoError(meta.Set(&httpserver, "tls.key", "key"))
+	assert.NoError(meta.Set(&httpserver, "timeout", nil))
+	assert.NoError(meta.Set(&httpserver, "router", router))
+
+	t.Log(httpserver)
 
 }
 
