@@ -1,12 +1,15 @@
 package provider
 
 import (
+	"encoding/json"
+	"errors"
 	"reflect"
 	"strings"
 
 	// Packages
 	"github.com/djthorpe/go-tablewriter/pkg/meta"
 	"github.com/mutablelogic/go-server"
+	"github.com/mutablelogic/go-server/pkg/types"
 
 	// Namespace imports
 	. "github.com/djthorpe/go-errors"
@@ -16,22 +19,42 @@ import (
 // TYPES
 
 type PluginMeta struct {
-	Name        string
-	Description string
-	Fields      map[string]metafield
+	Name        string       `json:"name"`
+	Description string       `json:"description"`
+	Fields      []metafield  `json:"fields"`
+	Type        reflect.Type `json:"-"`
+
+	// Private fields
+	labels map[string]*metafield
 }
 
 type metafield struct {
-	Key   string
-	Type  reflect.Type
+	// Field name
+	Key string
+
+	// Description
+	Description string
+
+	// Field type
+	Type reflect.Type
+
+	// Element type for maps, arrays and slices
+	Elem reflect.Type
+
+	// Field index
 	Index []int
+
+	// Field children, if any
+	Children []metafield
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 
 const (
-	tagNames = "hcl,json"
+	// Field names from hcl or json tags
+	tagNames       = "hcl,json"
+	tagDescription = "description"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -42,26 +65,68 @@ func NewPluginMeta(v server.Plugin) (*PluginMeta, error) {
 	meta := &PluginMeta{
 		Name:        v.Name(),
 		Description: v.Description(),
-		Fields:      make(map[string]metafield),
+		Type:        typeOf(v),
+		labels:      make(map[string]*metafield),
 	}
 
 	// Get fields
-	fields, err := enumerate_struct("", nil, reflect.TypeOf(v))
-	if err != nil {
+	if fields, err := enumerate(nil, reflect.TypeOf(v)); err != nil {
 		return nil, err
+	} else {
+		meta.Fields = fields
 	}
 
-	// Field names must be unique
-	for _, field := range fields {
-		if _, exists := meta.Fields[field.Key]; exists {
-			return nil, ErrDuplicateEntry.With(field.Key)
-		} else {
-			meta.Fields[field.Key] = field
-		}
+	// Index the fields to ensure no duplicates
+	if err := index("", meta.Fields, meta.labels); err != nil {
+		return nil, err
 	}
 
 	// Return success
 	return meta, nil
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// STRINGIFY
+
+func (m *PluginMeta) String() string {
+	data, err := json.MarshalIndent(m, "", "  ")
+	if err != nil {
+		return err.Error()
+	}
+	return string(data)
+}
+
+func (m *metafield) MarshalJSON() ([]byte, error) {
+	type j struct {
+		Key         string      `json:"key"`
+		Description string      `json:"description,omitempty"`
+		Type        string      `json:"type"`
+		Elem        string      `json:"elem,omitempty"`
+		Index       []int       `json:"index"`
+		Children    []metafield `json:"children,omitempty"`
+	}
+	typeToString := func(t reflect.Type) string {
+		if t == nil {
+			return ""
+		}
+		return t.String()
+	}
+	return json.Marshal(j{
+		Key:         m.Key,
+		Description: m.Description,
+		Type:        typeToString(m.Type),
+		Elem:        typeToString(m.Elem),
+		Index:       m.Index,
+		Children:    m.Children,
+	})
+}
+
+func (m *metafield) String() string {
+	data, err := json.MarshalIndent(m, "", "  ")
+	if err != nil {
+		return err.Error()
+	}
+	return string(data)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -73,65 +138,140 @@ func (m *PluginMeta) Get(v server.Plugin, key string) any {
 	return nil
 }
 
-func (m *PluginMeta) Set(v server.Plugin, key string, value any) {
+func (m *PluginMeta) Set(v server.Plugin, label string, value any) error {
+	if reflect.TypeOf(v).Kind() != reflect.Ptr {
+		return ErrBadParameter.Withf("Not addressable: %q", v.Name())
+	}
+	if typeOf(v) != m.Type {
+		return ErrBadParameter.Withf("Expected %q, got %q", m.Type, typeOf(v))
+	}
+
+	rv := reflect.ValueOf(v)
+	if rv.Kind() == reflect.Ptr {
+		rv = rv.Elem()
+	}
+
+	// Simple case
+	if field, exists := m.labels[label]; exists {
+		return set(label, rv.FieldByIndex(field.Index), value)
+	}
+
+	// Check plugin
+
 	// TODO
 	// Need some special stuff for arrays and maps
 	// Need to update dependencies between plugins
+	return ErrNotImplemented
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-func enumerate_struct(prefix string, index []int, rt reflect.Type) ([]metafield, error) {
+// Determine the type of a value
+func typeOf(v any) reflect.Type {
+	t := reflect.TypeOf(v)
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+	return t
+}
+
+// Set a field value
+func set(label string, dest reflect.Value, src any) error {
+	if !dest.CanSet() {
+		return ErrBadParameter.Withf("Cannot set %q", label)
+	}
+	if src == nil { // If value is nil then set to zero value
+		dest.Set(reflect.Zero(dest.Type()))
+		return nil
+	}
+	// Check type of source and destination
+	if dest.Type() != reflect.TypeOf(src) {
+		return ErrBadParameter.Withf("Cannot set %q, wrong type: %q", label, reflect.TypeOf(src))
+	}
+
+	// if the destination is a pointer, then create a new value
+	if dest.Kind() == reflect.Ptr {
+		if dest.IsNil() {
+			dest.Set(reflect.New(dest.Type().Elem()))
+		}
+		dest = dest.Elem()
+	}
+	// Set the value
+	dest.Set(reflect.ValueOf(src))
+	return nil
+}
+
+func enumerate(index []int, rt reflect.Type) ([]metafield, error) {
 	var result []metafield
 
-	// Get metadata for a plugin
+	// Get metadata for a struct
 	meta, err := meta.NewType(rt, strings.Split(tagNames, ",")...)
 	if err != nil {
 		return nil, err
 	}
 	for _, field := range meta.Fields() {
-		fields, err := enumerate_field(prefix, index, field)
+		fields, err := enumerate_field(index, field)
 		if err != nil {
 			return nil, err
 		}
-		result = append(result, fields...)
+		result = append(result, fields)
 	}
 
 	// Return success
 	return result, nil
 }
 
-func enumerate_field(prefix string, index []int, field meta.Field) ([]metafield, error) {
-	key := field.Name()
-	if prefix != "" {
-		key = prefix + "." + key
+func enumerate_field(index []int, field meta.Field) (metafield, error) {
+	result := metafield{
+		Key:         field.Name(),
+		Description: field.Tag(tagDescription),
+		Type:        field.Type(),
+		Index:       append(index, field.Index()...),
 	}
-	return enumerate_type(key, append(index, field.Index()...), field.Type())
-}
 
-func enumerate_type(key string, index []int, rt reflect.Type) ([]metafield, error) {
-	var result []metafield
-
-	switch rt.Kind() {
+	switch result.Type.Kind() {
 	case reflect.Struct:
-		if fields, err := enumerate_struct(key, index, rt); err != nil {
-			return nil, err
+		if fields, err := enumerate(result.Index, field.Type()); err != nil {
+			return result, err
 		} else {
-			result = append(result, fields...)
+			result.Children = fields
 		}
-	case reflect.Map:
-		if k := rt.Key(); k.Kind() != reflect.String {
-			return nil, ErrBadParameter.Withf("%s: Only maps with string keys are supported", key)
-		} else {
-			return enumerate_type(key+"[string]", index, rt.Elem())
-		}
-	case reflect.Slice, reflect.Array:
-		return enumerate_type(key+"[number]", index, rt.Elem())
-	default:
-		result = append(result, metafield{Key: key, Index: index, Type: rt})
+	case reflect.Slice, reflect.Array, reflect.Map:
+		result.Elem = result.Type.Elem()
+		// TODO
 	}
 
 	// Return appended fields
 	return result, nil
+}
+
+func index(prefix string, fields []metafield, labels map[string]*metafield) error {
+	var result error
+
+	// Index the fields
+	for _, field := range fields {
+		label := prefix + types.LabelSeparator + field.Key
+		if prefix == "" {
+			label = field.Key
+		}
+		if !types.IsIdentifier(field.Key) {
+			result = errors.Join(result, ErrBadParameter.Withf("%q", label))
+			continue
+		}
+		if _, exists := labels[label]; exists {
+			result = errors.Join(result, ErrDuplicateEntry.Withf("%q", label))
+			continue
+		} else {
+			labels[label] = &field
+		}
+		if len(field.Children) > 0 {
+			if err := index(label, field.Children, labels); err != nil {
+				result = errors.Join(result, err)
+			}
+		}
+	}
+
+	// Return any errors
+	return result
 }
