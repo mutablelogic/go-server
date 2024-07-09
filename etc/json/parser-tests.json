@@ -1,0 +1,116 @@
+{
+    "arrays": {
+        "bool_array": [
+            true,
+            false
+        ],
+        "string_array": [
+            "default",
+            "prefix"
+        ],
+        "number_array": [
+            1,
+            2
+        ],
+        "null_array": [
+            null,
+            null
+        ]
+    },
+    "maps": {
+        "bool_map": {
+            "true": true,
+            "false": false
+        },
+        "string_map": {
+            "default": "default",
+            "prefix": "prefix"
+        },
+        "number_map": {
+            "one": 1,
+            "two": 2
+        },
+        "null_map": {
+            "null1": null,
+            "null2": null
+        }
+    },
+    "fields": {
+        "bool": true,
+        "string": "string",
+        "number": 1,
+        "null": null
+    },
+    "map_of_array": {
+        "bool_array": [
+            true,
+            false
+        ],
+        "string_array": [
+            "default",
+            "prefix"
+        ],
+        "number_array": [
+            1,
+            2
+        ],
+        "null_array": [
+            null,
+            null
+        ]
+    },
+    "array_of_array": [
+        [
+            true,
+            false
+        ],
+        [
+            "default",
+            "prefix"
+        ],
+        [
+            1,
+            2
+        ],
+        [
+            null,
+            null
+        ]
+    ],
+    "array_of_map": [
+        {
+            "true": true,
+            "false": false
+        },
+        {
+            "default": "default",
+            "prefix": "prefix"
+        },
+        {
+            "one": 1,
+            "two": 2
+        },
+        {
+            "null1": null,
+            "null2": null
+        }
+    ],
+    "empty_array": [],
+    "empty_map": {},
+    "empty_array_array": [
+        [],
+        []
+    ],
+    "empty_array_map": [
+        {},
+        {}
+    ],
+    "empty_map_array": {
+        "array1": [],
+        "array2": []
+    },
+    "empty_map_map": {
+        "map1": {},
+        "map2": {}
+    }
+}
