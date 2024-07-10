@@ -3,6 +3,7 @@ package ast
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 )
 
 /////////////////////////////////////////////////////////////////////
@@ -70,7 +71,9 @@ func (r *arrayNode) Value(ctx *Context) (any, error) {
 	var err error
 	result := make([]any, len(r.C))
 	for i, child := range r.C {
+		ctx.push(fmt.Sprintf("[%d]", i))
 		value, err_ := child.Value(ctx)
+		ctx.pop()
 		if err != nil {
 			err = errors.Join(err, err_)
 		}

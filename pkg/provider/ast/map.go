@@ -77,17 +77,32 @@ func (r *mapNode) Value(ctx *Context) (any, error) {
 		value := child.Children()
 		if err_ != nil {
 			err = errors.Join(err, err_)
-		} else if keyStr, ok := key.(string); !ok {
-			err = errors.Join(err, ErrInternalAppError.With("expected string key"))
-		} else if len(value) != 1 {
-			err = errors.Join(err, ErrInternalAppError.With("FieldNode expected one child"))
-		} else if _, exists := result[keyStr]; exists {
-			err = errors.Join(err, ErrDuplicateEntry.Withf("%q", keyStr))
-		} else if value_, err_ := value[0].Value(ctx); err_ != nil {
-			err = errors.Join(err, err_)
-		} else {
-			result[keyStr] = value_
+			continue
 		}
+
+		keyStr, ok := key.(string)
+		if !ok {
+			err = errors.Join(err, ErrInternalAppError.With("expected string key"))
+			continue
+		}
+		if len(value) != 1 {
+			err = errors.Join(err, ErrInternalAppError.With("FieldNode expected one child"))
+			continue
+		}
+		if _, exists := result[keyStr]; exists {
+			err = errors.Join(err, ErrDuplicateEntry.Withf("%q", keyStr))
+			continue
+		}
+
+		ctx.push(keyStr)
+		value_, err_ := value[0].Value(ctx)
+		ctx.pop()
+
+		if err_ != nil {
+			err = errors.Join(err, err_)
+			continue
+		}
+		result[keyStr] = value_
 	}
 	return result, err
 }

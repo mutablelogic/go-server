@@ -75,5 +75,7 @@ func (r *fieldNode) Value(ctx *Context) (any, error) {
 	if len(r.C) != 1 {
 		return nil, ErrInternalAppError.With("FieldNode expected one child")
 	}
+	ctx.push(r.N)
+	defer ctx.pop()
 	return r.C[0].Value(ctx)
 }

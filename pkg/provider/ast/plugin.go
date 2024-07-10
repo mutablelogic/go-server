@@ -73,7 +73,9 @@ func (r *pluginNode) Value(ctx *Context) (any, error) {
 	var err error
 	result := make([]any, len(r.C))
 	for i, child := range r.C {
+		ctx.push(r.N)
 		value, err_ := child.Value(ctx)
+		ctx.pop()
 		if err != nil {
 			err = errors.Join(err, err_)
 		}

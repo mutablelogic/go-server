@@ -61,6 +61,12 @@ func (p *Parser) ParseJSON(r io.Reader) error {
 			result = errors.Join(result, ErrInternalAppError.Withf("%v", config.Type()))
 			continue
 		}
+
+		// TODO:
+		// There is a var block which you can can append variables to
+		// as long as there aren't duplicates
+
+		// Parse a task block
 		if label, err := types.ParseLabel(config.Key()); err != nil {
 			result = errors.Join(result, err)
 		} else if _, exists := p.configs[label]; exists {
@@ -81,7 +87,7 @@ func (p *Parser) Bind() error {
 	var result error
 
 	ctx := ast.NewContext(func(ctx *ast.Context, value any) (any, error) {
-		fmt.Println("EVAL", value)
+		fmt.Println("EVAL", ctx.Path(), "=", value)
 		return nil, nil
 	})
 	for _, config := range p.configs {

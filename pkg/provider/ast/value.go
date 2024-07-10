@@ -69,12 +69,22 @@ func (r *valueNode) Append(n Node) Node {
 }
 
 func (r *valueNode) Key() string {
-	return ""
+	if len(r.C) > 0 {
+		return fmt.Sprint(r.V)
+	} else {
+		return ""
+	}
 }
 
 func (r *valueNode) Value(ctx *Context) (any, error) {
-	if ctx == nil || ctx.eval == nil {
+	if ctx.eval == nil {
 		return r.V, nil
 	}
-	return ctx.eval(ctx, r)
+	if len(r.C) == 0 {
+		return ctx.eval(ctx, r)
+	} else {
+		ctx.push(r.Key())
+		defer ctx.pop()
+		return ctx.eval(ctx, r)
+	}
 }

@@ -20,28 +20,28 @@
         "writeinterval": "30s"
     },
     "auth-handler.main": {
-        "tokenjar": "${ resource.tokenjar-handler.main }",
+        "tokenjar": "${ task.tokenjar-handler.main }",
         "tokenbytes": 16,
         "bearer": true
     },
     "router.main": {
         "services": {
             "nginx": {
-                "service": "${ resource.nginx-handler.main }",
+                "service": "${ task.nginx-handler.main }",
                 "middleware": [
                     "logger",
                     "auth"
                 ]
             },
             "auth": {
-                "service": "${ resource.auth-handler.main }",
+                "service": "${ task.auth-handler.main }",
                 "middleware": [
                     "logger",
                     "auth"
                 ]
             },
             "router": {
-                "service": "${ resource.router.main }",
+                "service": "${ task.router.main }",
                 "middleware": [
                     "logger",
                     "auth"
@@ -52,6 +52,6 @@
     "httpserver": {
         "listen": "run/go-server.sock",
         "group": "nginx",
-        "router": "${ resource.router.main }"
+        "router": "${ task.router.main }"
     }
 }
