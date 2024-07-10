@@ -1,4 +1,9 @@
 {
+    "var": {
+        "nginx-binary": "/usr/local/bin/nginx",
+        "nginx-data": "/var/run/nginx",
+        "nginx-group": "nginx"
+    },
     "logger.main": {
         "flags": [
             "default",
@@ -6,9 +11,9 @@
         ]
     },
     "nginx-handler.main": {
-        "binary": "/usr/local/bin/nginx",
-        "data": "/var/run/nginx",
-        "group": "nginx"
+        "binary": "${ var.nginx-binary }",
+        "data": "${ var.nginx-data }",
+        "group": "${ var.nginx-group }"
     },
     "tokenjar-handler.main": {
         "data": "run",
