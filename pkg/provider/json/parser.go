@@ -1,4 +1,4 @@
-package provider
+package json
 
 import (
 	"encoding/json"
@@ -6,32 +6,15 @@ import (
 	"io"
 
 	// Packages
-	"github.com/mutablelogic/go-server"
+
 	"github.com/mutablelogic/go-server/pkg/provider/ast"
 
 	// Namespace imports
 	. "github.com/djthorpe/go-errors"
 )
 
-type JSONParser struct {
-	plugin map[string]server.Plugin
-}
-
-func NewJSONParser(plugins ...server.Plugin) (*JSONParser, error) {
-	parser := new(JSONParser)
-	parser.plugin = make(map[string]server.Plugin, len(plugins))
-	for _, plugin := range plugins {
-		name := plugin.Name()
-		if _, exists := parser.plugin[name]; exists {
-			return nil, ErrDuplicateEntry.Withf("plugin %q already exists", plugin.Name())
-		} else {
-			parser.plugin[name] = plugin
-		}
-	}
-
-	// Return success
-	return parser, nil
-}
+////////////////////////////////////////////////////////////////////////////////
+// TYPES
 
 // Json parser state
 type jstate int
@@ -47,6 +30,9 @@ const (
 	sMAPKEY            // Map key
 	sMAPVALUE          // Map value
 )
+
+////////////////////////////////////////////////////////////////////////////////
+// STRINGIFY
 
 func (s jstate) String() string {
 	switch s {
@@ -71,12 +57,16 @@ func (s jstate) String() string {
 	}
 }
 
-// Read a JSON file and return a root node
-func (p *JSONParser) Read(r io.Reader) (ast.Node, error) {
-	dec := json.NewDecoder(r)
-	root := ast.NewRootNode()
+////////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS
 
-	// Current node and state
+// Read a JSON file and return a root node
+func Parse(r io.Reader) (ast.Node, error) {
+	dec := json.NewDecoder(r)
+	//dec.UseNumber()
+
+	// Root node, current node and state
+	root := ast.NewRootNode()
 	node, state := (ast.Node)(root), sINIT
 	for {
 		t, err := dec.Token()
@@ -86,15 +76,13 @@ func (p *JSONParser) Read(r io.Reader) (ast.Node, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		if t == nil {
 			if node, state, err = parseNodeNil(node, state); err != nil {
 				return nil, err
 			}
 			continue
 		}
-
-		// Debug
-		fmt.Print("Token:", t, " Type:", fmt.Sprintf("%T", t), " State:", state, " Node:", node)
 
 		switch t := t.(type) {
 		case json.Delim:
@@ -131,8 +119,6 @@ func (p *JSONParser) Read(r io.Reader) (ast.Node, error) {
 		default:
 			return nil, ErrBadParameter.Withf("Unexpected token: %v (%T)", t, t)
 		}
-
-		fmt.Println(" =>", state)
 	}
 
 	// The end state should be -1
@@ -144,15 +130,17 @@ func (p *JSONParser) Read(r io.Reader) (ast.Node, error) {
 	return root, nil
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
 // Handle open brace
 func parseNodeOpenBrace(node ast.Node, state jstate) (ast.Node, jstate, error) {
 	switch state {
 	case sINIT: // We start processing
 		return node, sROOT, nil
-	case sPLUGIN: // We are in a plugin
+	case sPLUGIN: // We are in a plugin - expect a field
 		return node, sFIELD, nil
-	case sFIELDVALUE:
-		// We are in an map
+	case sFIELDVALUE: // We are in a field
 		return node.Append(ast.NewMapNode(node)), sMAPKEY, nil
 	case sMAPVALUE: // We are in a map
 		return node.Append(ast.NewMapNode(node)), sMAPKEY, nil
@@ -166,33 +154,31 @@ func parseNodeOpenBrace(node ast.Node, state jstate) (ast.Node, jstate, error) {
 func parseNodeCloseBrace(node ast.Node, state jstate) (ast.Node, jstate, error) {
 	switch state {
 	case sROOT:
-		// End of file
 		return node, sINIT, nil
 	case sPLUGIN:
 		// End of plugin
-		if node.Parent().Type() == ast.Root {
-			return node, sROOT, nil
-		} else {
-			return node, state, ErrBadParameter.With("Unexpected parent ", node.Parent())
-		}
-	case sFIELD:
-		// End of field
-		if node.Parent().Type() == ast.Plugin {
-			return node.Parent(), sPLUGIN, nil
+		if node.Type() == ast.Plugin {
+			return node.Parent(), sROOT, nil
 		}
 		return node, state, ErrBadParameter.With("Unexpected parent ", node.Parent())
-	case sMAPVALUE:
-		// End of map - field
+	case sFIELD:
+		// End of plugin
+		if node.Type() == ast.Plugin {
+			return node.Parent(), sROOT, nil
+		}
+		return node, state, ErrBadParameter.With("Unexpected parent ", node.Parent())
+	case sMAPKEY:
+		// End of map - field - move to plugin, expect field
 		if node.Parent().Type() == ast.Field {
-			return node.Parent(), sFIELD, nil
+			return node.Parent().Parent(), sFIELD, nil
 		}
 		// End of map - array
 		if node.Parent().Type() == ast.Array {
 			return node.Parent(), sARRAYVALUE, nil
 		}
 		// End of map - map
-		if node.Parent().Type() == ast.Map {
-			return node.Parent(), sMAPKEY, nil
+		if node.Parent().Type() == ast.Value && node.Parent().Parent().Type() == ast.Map {
+			return node.Parent().Parent(), sMAPKEY, nil
 		}
 		return node, state, ErrBadParameter.With("Unexpected parent ", node.Parent())
 	}
@@ -203,10 +189,13 @@ func parseNodeCloseBrace(node ast.Node, state jstate) (ast.Node, jstate, error) 
 func parseNodeOpenSquare(node ast.Node, state jstate) (ast.Node, jstate, error) {
 	switch state {
 	case sFIELDVALUE:
-		// We are in an array
+		// We are in a field
 		return node.Append(ast.NewArrayNode(node)), sARRAYVALUE, nil
 	case sARRAYVALUE:
 		// We are in an array
+		return node.Append(ast.NewArrayNode(node)), sARRAYVALUE, nil
+	case sMAPVALUE:
+		// We are in a map
 		return node.Append(ast.NewArrayNode(node)), sARRAYVALUE, nil
 	}
 	return node, state, ErrBadParameter.With("Unexpected '['")
@@ -216,17 +205,17 @@ func parseNodeOpenSquare(node ast.Node, state jstate) (ast.Node, jstate, error) 
 func parseNodeCloseSquare(node ast.Node, state jstate) (ast.Node, jstate, error) {
 	switch state {
 	case sARRAYVALUE:
-		// End of array - field
+		// End of array - field - move to plugin
 		if node.Parent().Type() == ast.Field {
-			return node.Parent(), sFIELD, nil
+			return node.Parent().Parent(), sFIELD, nil
 		}
 		// End of array - array
 		if node.Parent().Type() == ast.Array {
 			return node.Parent(), sARRAYVALUE, nil
 		}
 		// End of array - map
-		if node.Parent().Type() == ast.Map {
-			return node.Parent(), sMAPKEY, nil
+		if node.Parent().Type() == ast.Value && node.Parent().Parent().Type() == ast.Map {
+			return node.Parent().Parent(), sMAPKEY, nil
 		}
 		return node, state, ErrBadParameter.With("Unexpected parent ", node.Parent())
 	}
@@ -237,19 +226,18 @@ func parseNodeCloseSquare(node ast.Node, state jstate) (ast.Node, jstate, error)
 func parseNodeString(node ast.Node, state jstate, value string) (ast.Node, jstate, error) {
 	switch state {
 	case sROOT:
-		// Plugin name
+		// Plugin name - return a plugin (which is an array of fields)
 		return node.Append(ast.NewPluginNode(node, value)), sPLUGIN, nil
 	case sFIELD:
-		// Plugin field name
+		// field name - we expect a field value
 		return node.Append(ast.NewFieldNode(node, value)), sFIELDVALUE, nil
 	case sFIELDVALUE:
-		// Plugin field value
-		node.Append(ast.NewValueNode(node, nil))
+		// Plugin field value - expect the next field
+		node.Append(ast.NewValueNode(node, value))
 		return node.Parent(), sFIELD, nil
 	case sMAPKEY:
-		// Map field key
-		node.Append(ast.NewValueNode(node, value))
-		return node, sMAPVALUE, nil
+		// Map field key - add a value
+		return node.Append(ast.NewValueNode(node, value)), sMAPVALUE, nil
 	case sMAPVALUE:
 		// Map field value
 		node.Append(ast.NewValueNode(node, value))

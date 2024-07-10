@@ -1,6 +1,9 @@
 package ast
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"errors"
+)
 
 /////////////////////////////////////////////////////////////////////
 // TYPES
@@ -60,4 +63,21 @@ func (r *pluginNode) Children() []Node {
 func (r *pluginNode) Append(n Node) Node {
 	r.C = append(r.C, n)
 	return n
+}
+
+func (r *pluginNode) Key() string {
+	return r.N
+}
+
+func (r *pluginNode) Value(ctx *Context) (any, error) {
+	var err error
+	result := make([]any, len(r.C))
+	for i, child := range r.C {
+		value, err_ := child.Value(ctx)
+		if err != nil {
+			err = errors.Join(err, err_)
+		}
+		result[i] = value
+	}
+	return result, err
 }

@@ -19,6 +19,12 @@ type Node interface {
 	// Parent node
 	Parent() Node
 
+	// Node key (plugin name, map key)
+	Key() string
+
+	// Node evaluated value
+	Value(ctx *Context) (any, error)
+
 	// Child nodes
 	Children() []Node
 
@@ -30,4 +36,22 @@ type jsonNode struct {
 	Type     string `json:"type"`
 	Name     string `json:"name,omitempty"`
 	Children []Node `json:"children,omitempty"`
+}
+
+func (r NodeType) String() string {
+	switch r {
+	case Root:
+		return "Root"
+	case Plugin:
+		return "Plugin"
+	case Map:
+		return "Map"
+	case Array:
+		return "Array"
+	case Field:
+		return "Field"
+	case Value:
+		return "Value"
+	}
+	return "Unknown"
 }

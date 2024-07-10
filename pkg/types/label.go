@@ -1,6 +1,11 @@
 package types
 
-import "strings"
+import (
+	"strings"
+
+	// Namespace imports
+	. "github.com/djthorpe/go-errors"
+)
 
 /////////////////////////////////////////////////////////////////////
 // TYPES
@@ -34,4 +39,18 @@ func NewLabel(prefix string, parts ...string) Label {
 	} else {
 		return Label(prefix + LabelSeparator + strings.Join(parts, LabelSeparator))
 	}
+}
+
+func ParseLabel(v string) (Label, error) {
+	parts := strings.Split(v, LabelSeparator)
+	label := NewLabel(parts[0], parts[1:]...)
+	if label == "" {
+		return "", ErrBadParameter.Withf("%q", v)
+	}
+	return label, nil
+}
+
+func (l Label) Prefix() string {
+	parts := strings.SplitN(string(l), LabelSeparator, 2)
+	return parts[0]
 }

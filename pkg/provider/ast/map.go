@@ -1,6 +1,12 @@
 package ast
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"errors"
+
+	// Namespace imports
+	. "github.com/djthorpe/go-errors"
+)
 
 /////////////////////////////////////////////////////////////////////
 // TYPES
@@ -57,4 +63,31 @@ func (r *mapNode) Children() []Node {
 func (r *mapNode) Append(n Node) Node {
 	r.C = append(r.C, n)
 	return n
+}
+
+func (r *mapNode) Key() string {
+	return ""
+}
+
+func (r *mapNode) Value(ctx *Context) (any, error) {
+	var err error
+	result := make(map[string]any, len(r.C))
+	for _, child := range r.C {
+		key, err_ := child.Value(nil)
+		value := child.Children()
+		if err_ != nil {
+			err = errors.Join(err, err_)
+		} else if keyStr, ok := key.(string); !ok {
+			err = errors.Join(err, ErrInternalAppError.With("expected string key"))
+		} else if len(value) != 1 {
+			err = errors.Join(err, ErrInternalAppError.With("FieldNode expected one child"))
+		} else if _, exists := result[keyStr]; exists {
+			err = errors.Join(err, ErrDuplicateEntry.Withf("%q", keyStr))
+		} else if value_, err_ := value[0].Value(ctx); err_ != nil {
+			err = errors.Join(err, err_)
+		} else {
+			result[keyStr] = value_
+		}
+	}
+	return result, err
 }

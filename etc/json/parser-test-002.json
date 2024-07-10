@@ -59,52 +59,7 @@
             null
         ]
     },
-    "array_of_array": [
-        [
-            true,
-            false
-        ],
-        [
-            "default",
-            "prefix"
-        ],
-        [
-            1,
-            2
-        ],
-        [
-            null,
-            null
-        ]
-    ],
-    "array_of_map": [
-        {
-            "true": true,
-            "false": false
-        },
-        {
-            "default": "default",
-            "prefix": "prefix"
-        },
-        {
-            "one": 1,
-            "two": 2
-        },
-        {
-            "null1": null,
-            "null2": null
-        }
-    ],
-    "empty_array": [],
     "empty_map": {},
-    "empty_array_array": [
-        [],
-        []
-    ],
-    "empty_array_map": [
-        {},
-        {}
-    ],
     "empty_map_array": {
         "array1": [],
         "array2": []

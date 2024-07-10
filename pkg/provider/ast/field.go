@@ -1,6 +1,11 @@
 package ast
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	// Namespace imports
+	. "github.com/djthorpe/go-errors"
+)
 
 /////////////////////////////////////////////////////////////////////
 // TYPES
@@ -60,4 +65,15 @@ func (r *fieldNode) Children() []Node {
 func (r *fieldNode) Append(n Node) Node {
 	r.C = append(r.C, n)
 	return n
+}
+
+func (r *fieldNode) Key() string {
+	return r.N
+}
+
+func (r *fieldNode) Value(ctx *Context) (any, error) {
+	if len(r.C) != 1 {
+		return nil, ErrInternalAppError.With("FieldNode expected one child")
+	}
+	return r.C[0].Value(ctx)
 }

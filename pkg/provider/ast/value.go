@@ -1,6 +1,9 @@
 package ast
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"fmt"
+)
 
 /////////////////////////////////////////////////////////////////////
 // TYPES
@@ -8,6 +11,7 @@ import "encoding/json"
 type valueNode struct {
 	V any
 	P Node
+	C []Node
 }
 
 var _ Node = (*valueNode)(nil)
@@ -34,7 +38,14 @@ func (r valueNode) String() string {
 }
 
 func (r valueNode) MarshalJSON() ([]byte, error) {
-	return json.Marshal(r.V)
+	if len(r.C) == 0 {
+		return json.Marshal(r.V)
+	}
+	return json.Marshal(jsonNode{
+		Type:     "MapEntry",
+		Name:     fmt.Sprint(r.V),
+		Children: r.C,
+	})
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -49,11 +60,21 @@ func (r *valueNode) Parent() Node {
 }
 
 func (r *valueNode) Children() []Node {
-	// No children
-	return nil
+	return r.C
 }
 
 func (r *valueNode) Append(n Node) Node {
-	// No children
-	return nil
+	r.C = append(r.C, n)
+	return n
+}
+
+func (r *valueNode) Key() string {
+	return ""
+}
+
+func (r *valueNode) Value(ctx *Context) (any, error) {
+	if ctx == nil || ctx.eval == nil {
+		return r.V, nil
+	}
+	return ctx.eval(ctx, r)
 }
