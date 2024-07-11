@@ -46,7 +46,7 @@ func NewParser(plugins ...server.Plugin) (*Parser, error) {
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-// Append an ast.Tree node
+// Append configurations from a JSON file
 func (p *Parser) ParseJSON(r io.Reader) error {
 	var result error
 
@@ -90,9 +90,23 @@ func (p *Parser) ParseJSON(r io.Reader) error {
 func (p *Parser) Bind() error {
 	var result error
 
-	// Set the evaluation function
+	// Evaluate each set instruction, creating a dependency graph
 	ctx := ast.NewContext(func(ctx *ast.Context, value any) (any, error) {
-		fmt.Printf("EVAL %s.%s => %q (%T)\n", ctx.Label(), ctx.Path(), value, value)
+		switch value := value.(type) {
+		case string:
+			var expanded bool
+			value = Expand(value, func(key string) string {
+				expanded = true
+				return "(ref:" + key + ")"
+			})
+			if expanded {
+				fmt.Printf("EVAL %s.%s => %q (%T)\n", ctx.Label(), ctx.Path(), value, value)
+			} else {
+				fmt.Printf("SET %s.%s => %q (%T)\n", ctx.Label(), ctx.Path(), value, value)
+			}
+		default:
+			fmt.Printf("SET %s.%s => %q (%T)\n", ctx.Label(), ctx.Path(), value, value)
+		}
 		return nil, nil
 	})
 
