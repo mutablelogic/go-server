@@ -30,7 +30,9 @@ func NewParser(plugins ...server.Plugin) (*Parser, error) {
 
 	for _, plugin := range plugins {
 		name := plugin.Name()
-		if _, exists := parser.plugin[name]; exists {
+		if name == labelVar {
+			return nil, ErrBadParameter.Withf("plugin cannot be named %q", name)
+		} else if _, exists := parser.plugin[name]; exists {
 			return nil, ErrDuplicateEntry.Withf("plugin %q already exists", plugin.Name())
 		} else {
 			parser.plugin[name] = plugin
@@ -49,7 +51,7 @@ func (p *Parser) ParseJSON(r io.Reader) error {
 	var result error
 
 	// Parse JSON into a tree
-	tree, err := json.Parse(r)
+	tree, err := json.Parse(r, nil)
 	if err != nil {
 		return err
 	}
@@ -57,20 +59,22 @@ func (p *Parser) ParseJSON(r io.Reader) error {
 	// Get the plugin configurations with no evaluation
 	configs := tree.Children()
 	for _, config := range configs {
-		if config.Type() != ast.Plugin {
-			result = errors.Join(result, ErrInternalAppError.Withf("%v", config.Type()))
+		if config.Type() != ast.Value {
+			result = errors.Join(result, ErrInternalAppError.Withf("unexpected type %v", config.Type()))
 			continue
 		}
 
-		// TODO:
-		// There is a var block which you can can append variables to
-		// as long as there aren't duplicates
+		label := config.Key()
+		if label == labelVar {
+			fmt.Println("TODO", label)
+			continue
+		}
 
 		// Parse a task block
-		if label, err := types.ParseLabel(config.Key()); err != nil {
+		if label, err := types.ParseLabel(label); err != nil {
 			result = errors.Join(result, err)
 		} else if _, exists := p.configs[label]; exists {
-			result = errors.Join(result, ErrDuplicateEntry.Withf("%q", label))
+			result = errors.Join(result, ErrDuplicateEntry.Withf("Duplicate label %q", label))
 		} else if _, exists := p.plugin[label.Prefix()]; !exists {
 			result = errors.Join(result, ErrNotFound.Withf("Plugin %q", label.Prefix()))
 		} else {
@@ -86,11 +90,15 @@ func (p *Parser) ParseJSON(r io.Reader) error {
 func (p *Parser) Bind() error {
 	var result error
 
+	// Set the evaluation function
 	ctx := ast.NewContext(func(ctx *ast.Context, value any) (any, error) {
-		fmt.Println("EVAL", ctx.Path(), "=", value)
+		fmt.Printf("EVAL %s.%s => %q (%T)\n", ctx.Label(), ctx.Path(), value, value)
 		return nil, nil
 	})
-	for _, config := range p.configs {
+
+	// Process each configuration in order to discover the dependencies
+	for label, config := range p.configs {
+		ctx.SetLabel(label)
 		_, err := config.Value(ctx)
 		if err != nil {
 			result = errors.Join(result, err)

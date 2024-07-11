@@ -1,16 +1,9 @@
 package ast
 
-type NodeType int
+/////////////////////////////////////////////////////////////////
+// TYPES
 
-const (
-	_ NodeType = iota
-	Root
-	Plugin
-	Map
-	Array
-	Field
-	Value
-)
+type NodeType int
 
 type Node interface {
 	// Type of node
@@ -35,21 +28,29 @@ type Node interface {
 type jsonNode struct {
 	Type     string `json:"type"`
 	Name     string `json:"name,omitempty"`
+	Value    any    `json:"value,omitempty"`
 	Children []Node `json:"children,omitempty"`
 }
 
+/////////////////////////////////////////////////////////////////
+// GLOBALS
+
+const (
+	_ NodeType = iota
+	Map
+	Array
+	Value
+)
+
+/////////////////////////////////////////////////////////////////
+// STRINGIFY
+
 func (r NodeType) String() string {
 	switch r {
-	case Root:
-		return "Root"
-	case Plugin:
-		return "Plugin"
 	case Map:
 		return "Map"
 	case Array:
 		return "Array"
-	case Field:
-		return "Field"
 	case Value:
 		return "Value"
 	}

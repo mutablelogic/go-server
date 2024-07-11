@@ -1,6 +1,11 @@
 package ast
 
-import "strings"
+import (
+	"strings"
+
+	// Packages
+	"github.com/mutablelogic/go-server/pkg/types"
+)
 
 /////////////////////////////////////////////////////////////////////
 // TYPES
@@ -9,8 +14,9 @@ import "strings"
 type EvalFunc func(ctx *Context, value any) (any, error)
 
 type Context struct {
-	path []string
-	eval EvalFunc
+	label types.Label
+	path  []string
+	eval  EvalFunc
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -22,6 +28,16 @@ func NewContext(fn EvalFunc) *Context {
 
 /////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
+
+// Get the label
+func (ctx *Context) Label() types.Label {
+	return ctx.label
+}
+
+// Set the label
+func (ctx *Context) SetLabel(label types.Label) {
+	ctx.label = label
+}
 
 // Return the current path
 func (ctx *Context) Path() string {

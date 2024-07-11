@@ -2,13 +2,16 @@ package ast
 
 import (
 	"encoding/json"
-	"fmt"
+
+	// Namespace imports
+	. "github.com/djthorpe/go-errors"
 )
 
 /////////////////////////////////////////////////////////////////////
 // TYPES
 
 type valueNode struct {
+	K string
 	V any
 	P Node
 	C []Node
@@ -26,6 +29,16 @@ func NewValueNode(parent Node, value any) *valueNode {
 	}
 }
 
+func NewMapValueNode(parent Node, key string) (*valueNode, error) {
+	if parent.(*mapNode).containsKey(key) {
+		return nil, ErrDuplicateEntry.Withf("%q", key)
+	}
+	return &valueNode{
+		P: parent,
+		K: key,
+	}, nil
+}
+
 /////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
@@ -38,12 +51,10 @@ func (r valueNode) String() string {
 }
 
 func (r valueNode) MarshalJSON() ([]byte, error) {
-	if len(r.C) == 0 {
-		return json.Marshal(r.V)
-	}
 	return json.Marshal(jsonNode{
-		Type:     "MapEntry",
-		Name:     fmt.Sprint(r.V),
+		Type:     "Value",
+		Name:     r.K,
+		Value:    r.V,
 		Children: r.C,
 	})
 }
@@ -69,22 +80,17 @@ func (r *valueNode) Append(n Node) Node {
 }
 
 func (r *valueNode) Key() string {
-	if len(r.C) > 0 {
-		return fmt.Sprint(r.V)
-	} else {
-		return ""
-	}
+	return r.K
 }
 
 func (r *valueNode) Value(ctx *Context) (any, error) {
-	if ctx.eval == nil {
-		return r.V, nil
+	if ctx == nil || ctx.eval == nil {
+		return nil, ErrInternalAppError.With("Missing context evaluation function")
 	}
-	if len(r.C) == 0 {
-		return ctx.eval(ctx, r)
-	} else {
-		ctx.push(r.Key())
-		defer ctx.pop()
-		return ctx.eval(ctx, r)
+	if len(r.C) > 0 {
+		return r.C[0].Value(ctx)
 	}
+
+	// Evaluate the value
+	return ctx.eval(ctx, r.V)
 }

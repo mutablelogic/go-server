@@ -2,10 +2,6 @@ package ast
 
 import (
 	"encoding/json"
-	"errors"
-
-	// Namespace imports
-	. "github.com/djthorpe/go-errors"
 )
 
 /////////////////////////////////////////////////////////////////////
@@ -46,7 +42,7 @@ func (r mapNode) MarshalJSON() ([]byte, error) {
 }
 
 /////////////////////////////////////////////////////////////////////
-// METHODS
+// PUBLIC METHODS
 
 func (r *mapNode) Type() NodeType {
 	return Map
@@ -73,36 +69,27 @@ func (r *mapNode) Value(ctx *Context) (any, error) {
 	var err error
 	result := make(map[string]any, len(r.C))
 	for _, child := range r.C {
-		key, err_ := child.Value(nil)
-		value := child.Children()
-		if err_ != nil {
-			err = errors.Join(err, err_)
-			continue
-		}
+		key := child.Key()
 
-		keyStr, ok := key.(string)
-		if !ok {
-			err = errors.Join(err, ErrInternalAppError.With("expected string key"))
-			continue
-		}
-		if len(value) != 1 {
-			err = errors.Join(err, ErrInternalAppError.With("FieldNode expected one child"))
-			continue
-		}
-		if _, exists := result[keyStr]; exists {
-			err = errors.Join(err, ErrDuplicateEntry.Withf("%q", keyStr))
-			continue
-		}
-
-		ctx.push(keyStr)
-		value_, err_ := value[0].Value(ctx)
+		ctx.push(key)
+		value, err := child.Children()[0].Value(ctx)
 		ctx.pop()
-
-		if err_ != nil {
-			err = errors.Join(err, err_)
-			continue
+		if err != nil {
+			return nil, err
 		}
-		result[keyStr] = value_
+		result[key] = value
 	}
 	return result, err
+}
+
+/////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+func (r *mapNode) containsKey(key string) bool {
+	for _, child := range r.C {
+		if child.Key() == key {
+			return true
+		}
+	}
+	return false
 }

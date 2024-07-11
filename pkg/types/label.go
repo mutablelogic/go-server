@@ -42,10 +42,13 @@ func NewLabel(prefix string, parts ...string) Label {
 }
 
 func ParseLabel(v string) (Label, error) {
+	if v == "" {
+		return "", ErrBadParameter.Withf("invalid label: %q", v)
+	}
 	parts := strings.Split(v, LabelSeparator)
 	label := NewLabel(parts[0], parts[1:]...)
 	if label == "" {
-		return "", ErrBadParameter.Withf("%q", v)
+		return "", ErrBadParameter.Withf("invalid label: %q", v)
 	}
 	return label, nil
 }

@@ -6,8 +6,8 @@ import (
 	"io"
 
 	// Packages
-
 	"github.com/mutablelogic/go-server/pkg/provider/ast"
+	"github.com/mutablelogic/go-server/pkg/types"
 
 	// Namespace imports
 	. "github.com/djthorpe/go-errors"
@@ -20,16 +20,15 @@ import (
 type jstate int
 
 const (
-	_           jstate = iota
-	sINIT              // Initial state
-	sROOT              // Root state - top level {}
-	sPLUGIN            // Plugin state - top level "plugin"
-	sFIELD             // Plugin field name
-	sFIELDVALUE        // Plugin field value
-	sARRAYVALUE        // In an array
-	sMAPKEY            // Map key
-	sMAPVALUE          // Map value
+	_         jstate = iota
+	sINIT            // Initial state
+	sARRAY           // In an array
+	sMAPKEY          // Map key
+	sMAPVALUE        // Map value
 )
+
+// Arguments are token, state and node
+type DebugFunc func(any, string, ast.Node)
 
 ////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
@@ -38,16 +37,8 @@ func (s jstate) String() string {
 	switch s {
 	case sINIT:
 		return "INIT"
-	case sROOT:
-		return "ROOT"
-	case sPLUGIN:
-		return "PLUGIN"
-	case sFIELD:
-		return "FIELD"
-	case sFIELDVALUE:
-		return "FIELDVALUE"
-	case sARRAYVALUE:
-		return "ARRAYVALUE"
+	case sARRAY:
+		return "ARRAY"
 	case sMAPKEY:
 		return "MAPKEY"
 	case sMAPVALUE:
@@ -61,12 +52,12 @@ func (s jstate) String() string {
 // PUBLIC METHODS
 
 // Read a JSON file and return a root node
-func Parse(r io.Reader) (ast.Node, error) {
+func Parse(r io.Reader, fn DebugFunc) (ast.Node, error) {
 	dec := json.NewDecoder(r)
-	//dec.UseNumber()
+	dec.UseNumber()
 
 	// Root node, current node and state
-	root := ast.NewRootNode()
+	root := ast.NewMapNode(nil)
 	node, state := (ast.Node)(root), sINIT
 	for {
 		t, err := dec.Token()
@@ -75,6 +66,9 @@ func Parse(r io.Reader) (ast.Node, error) {
 		}
 		if err != nil {
 			return nil, err
+		}
+		if fn != nil {
+			fn(t, state.String(), node)
 		}
 
 		if t == nil {
@@ -112,8 +106,8 @@ func Parse(r io.Reader) (ast.Node, error) {
 			if node, state, err = parseNodeBool(node, state, t); err != nil {
 				return nil, err
 			}
-		case float64:
-			if node, state, err = parseNodeFloat64(node, state, t); err != nil {
+		case json.Number:
+			if node, state, err = parseNodeNumber(node, state, t); err != nil {
 				return nil, err
 			}
 		default:
@@ -121,9 +115,9 @@ func Parse(r io.Reader) (ast.Node, error) {
 		}
 	}
 
-	// The end state should be -1
-	if state != sINIT {
-		return nil, ErrInternalAppError.With("Unexpected end state")
+	// The end state should be a node with nil value
+	if node != nil {
+		return root, ErrInternalAppError.With("Unexpected end state")
 	}
 
 	// Return success
@@ -136,15 +130,11 @@ func Parse(r io.Reader) (ast.Node, error) {
 // Handle open brace
 func parseNodeOpenBrace(node ast.Node, state jstate) (ast.Node, jstate, error) {
 	switch state {
-	case sINIT: // We start processing
-		return node, sROOT, nil
-	case sPLUGIN: // We are in a plugin - expect a field
-		return node, sFIELD, nil
-	case sFIELDVALUE: // We are in a field
-		return node.Append(ast.NewMapNode(node)), sMAPKEY, nil
+	case sINIT: // We are at the top level
+		return node, sMAPKEY, nil
 	case sMAPVALUE: // We are in a map
 		return node.Append(ast.NewMapNode(node)), sMAPKEY, nil
-	case sARRAYVALUE: // We are in a array
+	case sARRAY: // We are in a array
 		return node.Append(ast.NewMapNode(node)), sMAPKEY, nil
 	}
 	return node, state, ErrBadParameter.With("Unexpected '{'")
@@ -153,31 +143,17 @@ func parseNodeOpenBrace(node ast.Node, state jstate) (ast.Node, jstate, error) {
 // Handle close brace
 func parseNodeCloseBrace(node ast.Node, state jstate) (ast.Node, jstate, error) {
 	switch state {
-	case sROOT:
-		return node, sINIT, nil
-	case sPLUGIN:
-		// End of plugin
-		if node.Type() == ast.Plugin {
-			return node.Parent(), sROOT, nil
-		}
-		return node, state, ErrBadParameter.With("Unexpected parent ", node.Parent())
-	case sFIELD:
-		// End of plugin
-		if node.Type() == ast.Plugin {
-			return node.Parent(), sROOT, nil
-		}
-		return node, state, ErrBadParameter.With("Unexpected parent ", node.Parent())
 	case sMAPKEY:
-		// End of map - field - move to plugin, expect field
-		if node.Parent().Type() == ast.Field {
-			return node.Parent().Parent(), sFIELD, nil
+		// End of map - top level
+		if node.Parent() == nil {
+			return nil, sINIT, nil
 		}
 		// End of map - array
 		if node.Parent().Type() == ast.Array {
-			return node.Parent(), sARRAYVALUE, nil
+			return node.Parent(), sARRAY, nil
 		}
 		// End of map - map
-		if node.Parent().Type() == ast.Value && node.Parent().Parent().Type() == ast.Map {
+		if node.Type() == ast.Map {
 			return node.Parent().Parent(), sMAPKEY, nil
 		}
 		return node, state, ErrBadParameter.With("Unexpected parent ", node.Parent())
@@ -188,15 +164,12 @@ func parseNodeCloseBrace(node ast.Node, state jstate) (ast.Node, jstate, error) 
 // Handle open square bracket
 func parseNodeOpenSquare(node ast.Node, state jstate) (ast.Node, jstate, error) {
 	switch state {
-	case sFIELDVALUE:
-		// We are in a field
-		return node.Append(ast.NewArrayNode(node)), sARRAYVALUE, nil
-	case sARRAYVALUE:
+	case sARRAY:
 		// We are in an array
-		return node.Append(ast.NewArrayNode(node)), sARRAYVALUE, nil
+		return node.Append(ast.NewArrayNode(node)), sARRAY, nil
 	case sMAPVALUE:
 		// We are in a map
-		return node.Append(ast.NewArrayNode(node)), sARRAYVALUE, nil
+		return node.Append(ast.NewArrayNode(node)), sARRAY, nil
 	}
 	return node, state, ErrBadParameter.With("Unexpected '['")
 }
@@ -204,17 +177,13 @@ func parseNodeOpenSquare(node ast.Node, state jstate) (ast.Node, jstate, error) 
 // Handle close square bracket
 func parseNodeCloseSquare(node ast.Node, state jstate) (ast.Node, jstate, error) {
 	switch state {
-	case sARRAYVALUE:
-		// End of array - field - move to plugin
-		if node.Parent().Type() == ast.Field {
-			return node.Parent().Parent(), sFIELD, nil
-		}
+	case sARRAY:
 		// End of array - array
 		if node.Parent().Type() == ast.Array {
-			return node.Parent(), sARRAYVALUE, nil
+			return node.Parent(), sARRAY, nil
 		}
 		// End of array - map
-		if node.Parent().Type() == ast.Value && node.Parent().Parent().Type() == ast.Map {
+		if node.Parent().Parent().Type() == ast.Map {
 			return node.Parent().Parent(), sMAPKEY, nil
 		}
 		return node, state, ErrBadParameter.With("Unexpected parent ", node.Parent())
@@ -225,27 +194,33 @@ func parseNodeCloseSquare(node ast.Node, state jstate) (ast.Node, jstate, error)
 // Handle string
 func parseNodeString(node ast.Node, state jstate, value string) (ast.Node, jstate, error) {
 	switch state {
-	case sROOT:
-		// Plugin name - return a plugin (which is an array of fields)
-		return node.Append(ast.NewPluginNode(node, value)), sPLUGIN, nil
-	case sFIELD:
-		// field name - we expect a field value
-		return node.Append(ast.NewFieldNode(node, value)), sFIELDVALUE, nil
-	case sFIELDVALUE:
-		// Plugin field value - expect the next field
-		node.Append(ast.NewValueNode(node, value))
-		return node.Parent(), sFIELD, nil
 	case sMAPKEY:
+		// Check key type - at top level, key must be a label or else it must be an identifier
+		if node.Parent() == nil {
+			_, err := types.ParseLabel(value)
+			if err != nil {
+				return node, state, err
+			}
+		} else if !types.IsIdentifier(value) {
+			return node, state, ErrBadParameter.Withf("Invalid map key %q %v", value, node.Parent())
+		}
+
 		// Map field key - add a value
-		return node.Append(ast.NewValueNode(node, value)), sMAPVALUE, nil
+		child, err := ast.NewMapValueNode(node, value)
+		if err != nil {
+			return node, state, err
+		}
+		return node.Append(child), sMAPVALUE, nil
 	case sMAPVALUE:
-		// Map field value
-		node.Append(ast.NewValueNode(node, value))
-		return node.Parent(), sMAPKEY, nil
-	case sARRAYVALUE:
+		if node.Type() == ast.Value {
+			node.Append(ast.NewValueNode(node, value))
+			return node.Parent(), sMAPKEY, nil
+		}
+		return node, state, ErrBadParameter.With("Unexpected parent ", node.Parent())
+	case sARRAY:
 		// Array value
 		node.Append(ast.NewValueNode(node, value))
-		return node, sARRAYVALUE, nil
+		return node, sARRAY, nil
 	}
 	return node, state, ErrBadParameter.Withf("Unexpected %q", value)
 }
@@ -253,37 +228,33 @@ func parseNodeString(node ast.Node, state jstate, value string) (ast.Node, jstat
 // Handle bool
 func parseNodeBool(node ast.Node, state jstate, value bool) (ast.Node, jstate, error) {
 	switch state {
-	case sFIELDVALUE:
-		// Plugin field value
-		node.Append(ast.NewValueNode(node, value))
-		return node.Parent(), sFIELD, nil
 	case sMAPVALUE:
-		// Map field value
-		node.Append(ast.NewValueNode(node, value))
-		return node.Parent(), sMAPKEY, nil
-	case sARRAYVALUE:
+		if node.Type() == ast.Value {
+			node.Append(ast.NewValueNode(node, value))
+			return node.Parent(), sMAPKEY, nil
+		}
+		return node, state, ErrBadParameter.With("Unexpected parent ", node.Parent())
+	case sARRAY:
 		// Array value
 		node.Append(ast.NewValueNode(node, value))
-		return node, sARRAYVALUE, nil
+		return node, sARRAY, nil
 	}
 	return node, state, ErrBadParameter.Withf("Unexpected '%v'", value)
 }
 
-// Handle float64
-func parseNodeFloat64(node ast.Node, state jstate, value float64) (ast.Node, jstate, error) {
+// Handle json.Number
+func parseNodeNumber(node ast.Node, state jstate, value json.Number) (ast.Node, jstate, error) {
 	switch state {
-	case sFIELDVALUE:
-		// Plugin field value
-		node.Append(ast.NewValueNode(node, value))
-		return node.Parent(), sFIELD, nil
 	case sMAPVALUE:
-		// Map field value
-		node.Append(ast.NewValueNode(node, value))
-		return node.Parent(), sMAPKEY, nil
-	case sARRAYVALUE:
+		if node.Type() == ast.Value {
+			node.Append(ast.NewValueNode(node, value))
+			return node.Parent(), sMAPKEY, nil
+		}
+		return node, state, ErrBadParameter.With("Unexpected parent ", node.Parent())
+	case sARRAY:
 		// Array value
 		node.Append(ast.NewValueNode(node, value))
-		return node, sARRAYVALUE, nil
+		return node, sARRAY, nil
 	}
 	return node, state, ErrBadParameter.Withf("Unexpected '%v'", value)
 }
@@ -291,18 +262,16 @@ func parseNodeFloat64(node ast.Node, state jstate, value float64) (ast.Node, jst
 // Handle null
 func parseNodeNil(node ast.Node, state jstate) (ast.Node, jstate, error) {
 	switch state {
-	case sFIELDVALUE:
-		// Plugin field value
-		node.Append(ast.NewValueNode(node, nil))
-		return node.Parent(), sFIELD, nil
 	case sMAPVALUE:
-		// Map field value
-		node.Append(ast.NewValueNode(node, nil))
-		return node.Parent(), sMAPKEY, nil
-	case sARRAYVALUE:
+		if node.Type() == ast.Value {
+			node.Append(ast.NewValueNode(node, nil))
+			return node.Parent(), sMAPKEY, nil
+		}
+		return node, state, ErrBadParameter.With("Unexpected parent ", node.Parent())
+	case sARRAY:
 		// Array value
 		node.Append(ast.NewValueNode(node, nil))
-		return node, sARRAYVALUE, nil
+		return node, sARRAY, nil
 	}
 	return node, state, ErrBadParameter.With("Unexpected nil token")
 }
