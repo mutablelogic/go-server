@@ -11,11 +11,6 @@ import (
 
 type Node any
 
-type node struct {
-	Node
-	edges []Node
-}
-
 type dep struct {
 	// Node depends on several other nodes
 	edges map[Node][]Node
@@ -24,29 +19,10 @@ type dep struct {
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func NewDep() *dep {
+func NewGraph() *dep {
 	dep := new(dep)
 	dep.edges = make(map[Node][]Node)
 	return dep
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// STRINGIFY
-
-func (d *dep) String() string {
-	str := "dep{\n"
-	for a, b := range d.edges {
-		str += fmt.Sprint("  ", a) + " -> ["
-		for i, c := range b {
-			if i > 0 {
-				str += ", "
-			}
-			str += fmt.Sprint(c)
-		}
-		str += "]\n"
-	}
-	str += "}"
-	return str
 }
 
 ///////////////////////////////////////////////////////////////////////////////

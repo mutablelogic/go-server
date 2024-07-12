@@ -20,7 +20,7 @@ func NewNode(name string) *node {
 }
 
 func Test_dep_00(t *testing.T) {
-	d := dep.NewDep()
+	d := dep.NewGraph()
 	if d == nil {
 		t.Fatalf("Expected a new dep, got nil")
 	}
@@ -43,7 +43,7 @@ func Test_dep_00(t *testing.T) {
 
 func Test_dep_01(t *testing.T) {
 	assert := assert.New(t)
-	d := dep.NewDep()
+	d := dep.NewGraph()
 	if !assert.NotNil(d) {
 		t.SkipNow()
 	}
@@ -57,9 +57,8 @@ func Test_dep_01(t *testing.T) {
 	d.AddNode(a, b, c)
 	d.AddNode(root, a, b, c)
 	d.AddNode(b, root)
+	d.AddNode(c, root)
 
 	_, err := d.Resolve(root)
-	if !assert.NoError(err) {
-		t.SkipNow()
-	}
+	assert.Error(err)
 }

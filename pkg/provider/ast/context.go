@@ -40,15 +40,19 @@ func (ctx *Context) SetLabel(label types.Label) {
 }
 
 // Return the current path
-func (ctx *Context) Path() string {
-	return "/" + strings.Join(ctx.path, "/")
+func (ctx *Context) Path() types.Label {
+	return types.Label(strings.Join(ctx.path, ""))
 }
 
 /////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-func (ctx *Context) push(path string) {
-	ctx.path = append(ctx.path, path)
+func (ctx *Context) push(path string, sep bool) {
+	if sep {
+		ctx.path = append(ctx.path, types.LabelSeparator+path)
+	} else {
+		ctx.path = append(ctx.path, path)
+	}
 }
 
 func (ctx *Context) pop() {

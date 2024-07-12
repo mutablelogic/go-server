@@ -8,6 +8,7 @@ import (
 	// Packages
 	"github.com/mutablelogic/go-server"
 	"github.com/mutablelogic/go-server/pkg/provider/ast"
+	"github.com/mutablelogic/go-server/pkg/provider/dep"
 	"github.com/mutablelogic/go-server/pkg/provider/json"
 	"github.com/mutablelogic/go-server/pkg/types"
 
@@ -64,13 +65,14 @@ func (p *Parser) ParseJSON(r io.Reader) error {
 			continue
 		}
 
+		// Handle var block
 		label := config.Key()
 		if label == labelVar {
-			fmt.Println("TODO", label)
+			fmt.Println("TODO", label, config)
 			continue
 		}
 
-		// Parse a task block
+		// Handle task block
 		if label, err := types.ParseLabel(label); err != nil {
 			result = errors.Join(result, err)
 		} else if _, exists := p.configs[label]; exists {
@@ -86,39 +88,71 @@ func (p *Parser) ParseJSON(r io.Reader) error {
 	return result
 }
 
+type node struct {
+	label types.Label
+	path  types.Label
+}
+
 // Bind values
 func (p *Parser) Bind() error {
-	var result error
+	// Create a dependency graph and a root node
+	dep := dep.NewGraph()
+	root := &node{}
 
-	// Evaluate each set instruction, creating a dependency graph
+	// Evaluate each value, and create dependencies
 	ctx := ast.NewContext(func(ctx *ast.Context, value any) (any, error) {
-		switch value := value.(type) {
-		case string:
-			var expanded bool
-			value = Expand(value, func(key string) string {
-				expanded = true
-				return "(ref:" + key + ")"
-			})
-			if expanded {
-				fmt.Printf("EVAL %s.%s => %q (%T)\n", ctx.Label(), ctx.Path(), value, value)
-			} else {
-				fmt.Printf("SET %s.%s => %q (%T)\n", ctx.Label(), ctx.Path(), value, value)
-			}
-		default:
-			fmt.Printf("SET %s.%s => %q (%T)\n", ctx.Label(), ctx.Path(), value, value)
+		if node, others, err := eval(ctx, value); err != nil {
+			return nil, err
+		} else {
+			dep.AddNode(root, node)
+			dep.AddNode(node, others...)
 		}
 		return nil, nil
 	})
 
-	// Process each configuration in order to discover the dependencies
+	// Traverse the nodes to create a dependency graph
+	var result error
 	for label, config := range p.configs {
 		ctx.SetLabel(label)
-		_, err := config.Value(ctx)
-		if err != nil {
+		if _, err := config.Value(ctx); err != nil {
 			result = errors.Join(result, err)
 		}
+	}
+	if result != nil {
+		return result
+	}
+
+	// Resolve the dependency graph
+	resolved, err := dep.Resolve(root)
+	if err != nil {
+		return err
+	}
+
+	// Print out the resolved nodes
+	for _, n := range resolved {
+		fmt.Println(n.(*node).label, n.(*node).path, "=>")
 	}
 
 	// Return any errors
 	return result
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+// evaluate value
+func eval(ctx *ast.Context, value any) (dep.Node, []dep.Node, error) {
+	label := ctx.Label()
+	path := ctx.Path()
+	switch value := value.(type) {
+	case string:
+		result := []dep.Node{}
+		Expand(value, func(label string) string {
+			fmt.Println("label", label)
+			return ""
+		})
+		return &node{label, path}, result, nil
+	default:
+		return &node{label, path}, nil, nil
+	}
 }

@@ -71,7 +71,7 @@ func (r *mapNode) Value(ctx *Context) (any, error) {
 	for _, child := range r.C {
 		key := child.Key()
 
-		ctx.push(key)
+		ctx.push(key, true)
 		value, err := child.Children()[0].Value(ctx)
 		ctx.pop()
 		if err != nil {

@@ -71,7 +71,7 @@ func (r *arrayNode) Value(ctx *Context) (any, error) {
 	var err error
 	result := make([]any, len(r.C))
 	for i, child := range r.C {
-		ctx.push(fmt.Sprintf("[%d]", i))
+		ctx.push(fmt.Sprintf("[%d]", i), false)
 		value, err_ := child.Value(ctx)
 		ctx.pop()
 		if err != nil {
