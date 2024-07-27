@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	// Packages
+
 	"github.com/mutablelogic/go-server/pkg/provider"
 )
 
@@ -46,7 +47,8 @@ func main() {
 
 	// Create configurations
 	var result error
-	for _, plugin := range []string{"logger", "httpserver", "router", "nginx-handler", "auth-handler", "tokenjar-handler"} {
+	for _, plugin := range []string{"logger", "httpserver", "router", "router-frontend", "nginx-handler", "auth-handler", "tokenjar-handler"} {
+		// Create a new configuration for the plugin
 		if _, err := provider.New(plugin); err != nil {
 			result = errors.Join(result, err)
 		}
@@ -56,48 +58,34 @@ func main() {
 		os.Exit(1)
 	}
 
-	// TODO: Set parameters from a JSON file
+	// Create configuration manually
+	// SET does not actually set it:
+	// - checks the field exists
+	// - updates the dependencies between fields
+	// - marks that the value should be set later
+	// - there is a binding stage later which actually sets the value
+	// - this also ensures we set things in the right order
+	// GET will:
+	// - check the field exists
+	// - return a reference to the value if not applied yet
 	provider.Set("logger.flags", []string{"default", "prefix"})
+
+	provider.Set("nginx.binary", "/usr/local/bin/nginx")
+	provider.Set("nginx.data", "/var/run/nginx")
+	provider.Set("nginx.group", "www-data")
+
+	provider.Set("httpserver.listen", "run/go-server.sock")
+	provider.Set("httpserver.group", "www-data")
+	provider.Set("httpserver.router", provider.Get("router"))
+
+	provider.Set("auth.tokenjar", provider.Get("tokenjar"))
+	provider.Set("auth.tokenbytes", 16)
+	provider.Set("auth.bearer", true)
+
+	provider.Set("tokenjar.data", "run")
+	provider.Set("tokenjar.writeinterval", "30s")
 }
 
 /*
-{
-	"logger": {
-		"flags": ["default", "prefix"]
-	},
-	"nginx": {
-		"binary": "/usr/local/bin/nginx",
-		"data": "/var/run/nginx",
-		"group": "www-data",
-	},
-	httpserver": {
-		"listen": "run/go-server.sock",
-		"group": "www-data",
-		"router": "${ router }",
-	},
-	"router": {
-		"services": {
-			"nginx": {
-				"service": "${ nginx }",
-				"middleware": ["logger", "auth"]
-			},
-			"auth": {
-				"service": "${ auth }",
-				"middleware": ["logger", "auth"]
-			},
-			"router": {
-				"service": "${ router }",
-				"middleware": ["logger", "auth"]
-			},
-	},
-	"auth": {
-		"tokenjar": "${ tokenjar }",
-		"tokenbytes": 16,
-		"bearer": true,
-	},
-	"tokenjar": {
-		"data": "run",
-		"writeinterval": "30s",
-	},
-}
-*/
+
+ */

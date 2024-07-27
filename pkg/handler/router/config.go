@@ -29,6 +29,7 @@ const (
 	pathSep          = "/"
 	hostSep          = "."
 	envRequestPrefix = "REQUEST_PREFIX"
+	envServerName    = "SERVER_NAME"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

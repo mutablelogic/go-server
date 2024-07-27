@@ -1,0 +1,110 @@
+
+/* borders */
+:root {
+  --border-radius: 1px;
+}
+
+/* icon sizes */
+:root {
+  --icon-size-default: 1.5em;
+  --icon-size-small: 1em;
+  --icon-size-medium: 1.5em;
+  --icon-size-large: 2em;
+  --icon-size-xlarge: 3em;
+}
+
+/* fonts */
+:root {
+  --font-family-sans: 'IBM Plex Sans', 'Helvetica Neue', Arial, sans-serif;
+  --font-family-mono: 'IBM Plex Mono', 'Menlo', 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', Courier, monospace;
+  --font-family-condensed: 'IBM Plex Sans Condensed', 'Helvetica Neue', Arial, sans-serif;
+  --font-size-normal: 0.85rem;
+  --font-size-small: 0.75rem;
+  --font-size-large: 1.25rem;
+  --font-weight-light: 300;
+  --font-weight-normal: 400;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --font-weight-extrabold: 800;
+}
+
+/* This is where the global styles will go */
+body {
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-normal);
+  font-weight: var(--font-weight-normal);
+  margin: 0;
+  padding: 0;
+  background-color: #f0f0f0;
+}
+
+/* colors */
+:root {
+    --primary-color: #16f;
+    --secondary-color: #aaa;
+    --success-color: #285;
+    --warning-color: #f72;
+    --error-color: #f55;
+    --light-color: #eee;
+    --white-color: #fff;
+    --dark-color: #333;
+    --black-color: #000;
+    --grey-10-color: #EAEAEA;
+    --grey-20-color: #D0D0D0;
+    --grey-30-color: #B6B6B6;
+    --grey-40-color: #9C9C9C;
+    --grey-50-color: #828282;
+    --grey-60-color: #6A6A6A;
+    --grey-70-color: #4E4E4E;
+    --grey-80-color: #343434;
+    --grey-90-color: #1A1A1A;
+}
+
+/* nav-group */
+:root {
+    /* Navigational group */
+    --nav-group-padding-x: 0.5em;
+    --nav-group-padding-y: 0.5em;
+
+    /* Navigational items */
+    --nav-item-padding-x: 0.5em;
+    --nav-item-padding-y: 0.5em;
+    --nav-item-margin-x: 0.5em;
+    --nav-item-margin-y: 0;
+
+    --nav-item-border-radius: var(--border-radius);
+    --nav-item-color: var(--grey-80-color);
+    --nav-item-background-color: var(--grey-20-color);
+
+    --nav-item-color-hover: var(--grey-90-color);
+    --nav-item-background-color-hover: var(--white-color);
+
+    --nav-item-hover-font-weight: var(--font-weight-semibold);
+    --nav-item-selected-color: var(--light-color);
+    --nav-item-disabled-color: var(--grey-40-color);
+    --nav-item-divider-color: var(--grey-20-color);
+    --nav-item-selected-background-color: var(--primary-color);
+}
+
+/* forms */
+:root {
+  /* General controls */
+  --form-control-padding-x: 0.5em;
+  --form-control-padding-y: 0.1em;
+
+  /* Switches */
+  --form-switch-width: 2.5em;
+  --form-switch-height: 1.5em;
+  --form-switch-color: var(--primary-color); /* TODO: Does not work with the SVG yet */
+  --form-switch-background-color: var(--control-color);
+  --form-switch-border-radius: var(--form-switch-width);
+  --form-switch-background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8' fill='currentColor'><circle r='3'/></svg>");
+  --form-switch-transition: 300ms;
+
+  /* Selects */
+  --form-select-padding-x: 0.5em;
+  --form-select-padding-y: 0.1em;
+  --form-select-border-color: var(--control-color);
+  --form-select-background-color: var(--control-color);
+  --form-select-background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='currentColor'><path fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708'/></svg>");
+}

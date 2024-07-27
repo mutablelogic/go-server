@@ -14,6 +14,7 @@ import (
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	fcgi "github.com/mutablelogic/go-server/pkg/httpserver/fcgi"
 	provider "github.com/mutablelogic/go-server/pkg/provider"
+	"golang.org/x/exp/maps"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -58,15 +59,19 @@ func (router *router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := WithTime(r.Context(), time.Now())
 
 	// Process FastCGI environment - remove the REQUEST_PREFIX from the request path
+	// and set the host from SERVER_NAME
 	path := r.URL.Path
 	if env := fcgi.ProcessEnv(r); len(env) > 0 {
 		if prefix, exists := env[envRequestPrefix]; exists {
 			path = strings.TrimPrefix(path, canonicalPrefix(prefix))
 		}
+		if serverName, exists := env[envServerName]; exists {
+			r.Host = serverName
+		}
 	}
 
 	// Match the route (TODO: From cache)
-	matchedRoute, code := router.Match(canonicalHost(r.Host), r.Method, path)
+	matchedRoute, code := router.Match(r.Method, canonicalHost(r.Host), path)
 
 	// TODO: Cache the route if not already cached
 
@@ -128,7 +133,7 @@ func (router *router) AddHandlerFuncRe(ctx context.Context, path *regexp.Regexp,
 // Match handlers for a given method, host and path, Returns the match
 // and the status code, which can be 200, 308, 404 or 405. If the
 // status code is 308, then the path is the redirect path.
-func (router *router) Match(host, method, path string) (*matchedRoute, int) {
+func (router *router) Match(method, host, path string) (*matchedRoute, int) {
 	var results reqhandlers
 
 	// Check for host and path
@@ -141,13 +146,18 @@ func (router *router) Match(host, method, path string) (*matchedRoute, int) {
 			results = append(results, handlers...)
 		} else if redirect != "" {
 			// Bail out to redirect
-			return NewMatchedRoute(nil, redirect), http.StatusPermanentRedirect
+			return NewMatchedRoute(nil, "", "", redirect), http.StatusPermanentRedirect
 		}
 	}
 
 	// Bail out if no results
 	if len(results) == 0 {
 		return nil, http.StatusNotFound
+	}
+
+	// If it's an OPTIONS request, then return the route which returns allowed methods
+	if method == http.MethodOptions {
+		return NewMatchedRoute(newOptionsRoute(results), method, host, path), http.StatusOK
 	}
 
 	// Sort results by prefix and path length, with longest first
@@ -167,7 +177,7 @@ func (router *router) Match(host, method, path string) (*matchedRoute, int) {
 		}
 
 		// Return the route
-		return NewMatchedRoute(r, path, r.MatchRe(path)...), http.StatusOK
+		return NewMatchedRoute(r, method, host, path, r.MatchRe(path)...), http.StatusOK
 	}
 
 	// We had a match but not for the method
@@ -263,4 +273,20 @@ func (r reqhandlers) Less(i, j int) bool {
 
 func (r reqhandlers) Swap(i, j int) {
 	r[i], r[j] = r[j], r[i]
+}
+
+func newOptionsRoute(handlers reqhandlers) *route {
+	methods := make(map[string]bool, len(handlers))
+	methods[http.MethodOptions] = true
+	for _, h := range handlers {
+		for _, m := range h.methods {
+			methods[m] = true
+		}
+	}
+	return &route{
+		handler: func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Allow", strings.Join(maps.Keys(methods), ", "))
+			w.WriteHeader(http.StatusNoContent)
+		},
+	}
 }

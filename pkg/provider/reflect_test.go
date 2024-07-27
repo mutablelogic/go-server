@@ -15,20 +15,44 @@ func Test_reflect_001(t *testing.T) {
 	assert := assert.New(t)
 
 	meta, err := provider.NewPluginMeta(httpserver.Config{})
-	assert.NoError(err)
-	for k, v := range meta.Fields {
-		t.Log(meta.Name, k, v)
+	if !assert.NoError(err) {
+		t.SkipNow()
 	}
 
-	meta, err = provider.NewPluginMeta(router.Config{})
-	assert.NoError(err)
-	for k, v := range meta.Fields {
-		t.Log(meta.Name, k, v)
+	router := router.Config{}
+
+	httpserver := httpserver.Config{}
+	assert.NoError(meta.Set(&httpserver, "listen", "value"))
+	assert.Error(meta.Set(&httpserver, "listen", 99))
+	assert.NoError(meta.Set(&httpserver, "tls.key", "key"))
+	assert.NoError(meta.Set(&httpserver, "timeout", nil))
+	assert.NoError(meta.Set(&httpserver, "router", router))
+
+	t.Log(httpserver)
+
+}
+
+func Test_reflect_002(t *testing.T) {
+	assert := assert.New(t)
+
+	meta, err := provider.NewPluginMeta(router.Config{})
+	if !assert.NoError(err) {
+		t.SkipNow()
+	}
+	t.Log(meta)
+}
+
+func Test_reflect_003(t *testing.T) {
+	assert := assert.New(t)
+
+	meta, err := provider.NewPluginMeta(logger.Config{})
+	if !assert.NoError(err) {
+		t.SkipNow()
 	}
 
-	meta, err = provider.NewPluginMeta(logger.Config{})
-	assert.NoError(err)
-	for k, v := range meta.Fields {
-		t.Log(meta.Name, k, v)
-	}
+	plugin := &logger.Config{}
+	assert.NoError(meta.Set(plugin, "flags", []string{"0", "1"}))
+	assert.NoError(meta.Set(plugin, "flags", []string{}))
+
+	t.Log(plugin)
 }

@@ -11,6 +11,7 @@ import (
 
 	// Packages
 	server "github.com/mutablelogic/go-server"
+	routerFrontend "github.com/mutablelogic/go-server/npm/router"
 	ctx "github.com/mutablelogic/go-server/pkg/context"
 	auth "github.com/mutablelogic/go-server/pkg/handler/auth"
 	certmanager "github.com/mutablelogic/go-server/pkg/handler/certmanager"
@@ -119,9 +120,13 @@ func main() {
 		tasks = append(tasks, certmanager)
 	}
 
-	// Location of the FCGI unix socket - this should be the same
-	// as that listed in the nginx configuration
-	socket := filepath.Join(n.(nginx.Nginx).DataPath(), "nginx/go-server.sock")
+	// Router frontend
+	routerFrontend, err := routerFrontend.Config{}.New()
+	if err != nil {
+		log.Fatal("routerFrontend: ", err)
+	} else {
+		tasks = append(tasks, routerFrontend)
+	}
 
 	// Router
 	// TODO: Promote middleware to the root of the configuration to reduce
@@ -157,10 +162,13 @@ func main() {
 		tasks = append(tasks, r)
 	}
 
-	// Add router
+	// Add router and frontend
+	// The API is served from http[s]://[any]/api/router and the frontend is served from http[s]://static/router
+	// see the nginx default configuration to understand how the routing occurs in the proxy
 	r.(router.Router).AddServiceEndpoints("router", r.(server.ServiceEndpoints), logger.(server.Middleware), auth.(server.Middleware))
+	r.(router.Router).AddServiceEndpoints("static/router", routerFrontend.(server.ServiceEndpoints), logger.(server.Middleware))
 
-	// LDAP
+	// LDAP gets enabled if a password is set
 	if *ldap_password != "" {
 		ldap, err := ldap.Config{
 			URL:      "ldap://admin@cm1.local/",
@@ -174,6 +182,10 @@ func main() {
 			tasks = append(tasks, ldap)
 		}
 	}
+
+	// Location of the FCGI unix socket - this should be the same
+	// as that listed in the nginx configuration
+	socket := filepath.Join(n.(nginx.Nginx).DataPath(), "nginx/go-server.sock")
 
 	// HTTP Server
 	httpserver, err := httpserver.Config{

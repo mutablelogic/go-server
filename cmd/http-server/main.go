@@ -42,7 +42,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	static, err := static.Config{FS: filesys, Dir: true}.New()
+	static, err := static.Config{FS: filesys, DirListing: true}.New()
 	if err != nil {
 		log.Fatal(err)
 	}

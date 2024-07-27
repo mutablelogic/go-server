@@ -6,7 +6,7 @@ import (
 	"github.com/mutablelogic/go-server/pkg/types"
 )
 
-func Test_Label_000(t *testing.T) {
+func Test_label_000(t *testing.T) {
 	tests := []struct {
 		In  []string
 		Out string
@@ -28,6 +28,10 @@ func Test_Label_000(t *testing.T) {
 				return
 			} else if label != types.Label(test.Out) {
 				t.Errorf("Expected %v, got %v for %q", test.Out, label, test.In)
+			} else if _, err := types.ParseLabel(string(label)); err != nil {
+				t.Error(err)
+			} else if prefix := label.Prefix(); prefix != "a" {
+				t.Errorf("Expected prefix %q, got %q", "a", prefix)
 			}
 		})
 	}

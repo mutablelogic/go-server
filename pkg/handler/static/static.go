@@ -3,32 +3,37 @@ package static
 import (
 	"context"
 	"errors"
-	"fmt"
 	"html"
 	"io"
 	"io/fs"
 	"net/http"
 	"path"
+	"path/filepath"
 	"strings"
 
 	// Packages
 	server "github.com/mutablelogic/go-server"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
+
+	// Namespace imports
+	. "github.com/djthorpe/go-errors"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
 
 type Config struct {
-	FS   fs.FS  `hcl:"fs" description:"File system to serve"`
-	Dir  bool   `hcl:"dir" description:"Serve directory listings"`
-	Host string `hcl:"host" description:"Host to serve files on"`
+	FS         fs.FS  `hcl:"fs" description:"File system to serve"`
+	DirPrefix  string `hcl:"prefix" description:"Directory to serve files from"`
+	DirListing bool   `hcl:"dir" description:"Serve directory listings"`
+	Path       string `hcl:"path" description:"host/path to serve files on"`
 }
 
 type static struct {
-	fs   fs.FS
-	host string
-	dir  bool
+	fs     fs.FS
+	prefix string
+	path   string
+	dir    bool
 }
 
 // Ensure interfaces is implemented
@@ -41,7 +46,7 @@ var _ server.ServiceEndpoints = (*static)(nil)
 // GLOBALS
 
 const (
-	defaultName = "static-handler"
+	defaultName = "static"
 	indexPage   = "/index.html"
 )
 
@@ -61,9 +66,33 @@ func (Config) Description() string {
 // Create a new static handler from the configuration
 func (c Config) New() (server.Task, error) {
 	s := new(static)
-	s.fs = c.FS
-	s.dir = c.Dir
-	s.host = c.Host
+
+	// Check file system
+	if c.FS == nil {
+		return nil, ErrBadParameter.Withf("fs is nil")
+	} else {
+		s.fs = c.FS
+	}
+
+	// Check directory prefix
+	if c.DirPrefix != "" {
+		c.DirPrefix = path.Clean(c.DirPrefix)
+		if f, err := s.fs.Open(c.DirPrefix); err != nil {
+			return nil, err
+		} else if info, err := f.Stat(); err != nil {
+			return nil, err
+		} else if !info.IsDir() {
+			return nil, ErrBadParameter.With("not a directory prefix: ", c.DirPrefix)
+		} else {
+			s.prefix = c.DirPrefix
+		}
+	}
+
+	// Set other options
+	s.dir = c.DirListing
+	s.path = c.Path
+
+	// Return success
 	return s, nil
 }
 
@@ -72,7 +101,7 @@ func (c Config) New() (server.Task, error) {
 
 // Implement the http.Handler interface to serve files
 func (static *static) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	serveFile(w, r, static.fs, path.Clean(r.URL.Path), static.dir, true)
+	serveFile(w, r, static.fs, static.prefix, path.Clean(r.URL.Path), static.dir, true)
 }
 
 // Run the static handler until the context is cancelled
@@ -89,21 +118,22 @@ func (static *static) Label() string {
 
 // Add endpoints to the router
 func (static *static) AddEndpoints(ctx context.Context, router server.Router) {
-	router.AddHandler(ctx, static.host, static, "GET")
+	router.AddHandler(ctx, static.path, static, http.MethodGet)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
 // Serve a file from the file system
-func serveFile(w http.ResponseWriter, r *http.Request, filesystem fs.FS, name string, dir bool, shouldRedirect bool) {
+func serveFile(w http.ResponseWriter, r *http.Request, filesystem fs.FS, prefix, name string, dir bool, shouldRedirect bool) {
 	// redirect .../index.html to .../
 	if strings.HasSuffix(r.URL.Path, indexPage) {
 		redirect(w, r, "./")
 		return
 	}
 
-	// Remove initial / from name
+	// Add prefix and then fudge
+	name = filepath.Join(prefix, name)
 	if len(name) > 0 && name[0] == '/' {
 		name = name[1:]
 	}
@@ -120,7 +150,6 @@ func serveFile(w http.ResponseWriter, r *http.Request, filesystem fs.FS, name st
 		httpresponse.Error(w, http.StatusForbidden, err.Error())
 		return
 	} else if err != nil {
-		fmt.Println(filesystem, name)
 		httpresponse.Error(w, http.StatusInternalServerError, err.Error())
 		return
 	}

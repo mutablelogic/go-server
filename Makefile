@@ -1,6 +1,7 @@
 # Paths to tools needed in dependencies
 GO := $(shell which go)
 DOCKER := $(shell which docker)
+NPM := $(shell which npm)
 
 # Build flags
 BUILD_MODULE := $(shell cat go.mod | head -1 | cut -d ' ' -f 2)
@@ -21,14 +22,17 @@ DOCKER_REGISTRY ?= ghcr.io/mutablelogic
 BUILD_DIR := "build"
 CMD_DIR := $(wildcard cmd/*)
 PLUGIN_DIR := $(wildcard plugin/*)
+NPM_DIR := $(wildcard npm/*)
 BUILD_TAG := ${DOCKER_REGISTRY}/go-server-${OS}-${ARCH}:${VERSION}
 
 # Targets
-all: clean cmds plugins
+all: clean plugins cmds npm 
 
 cmds: $(CMD_DIR)
 
 plugins: $(PLUGIN_DIR)
+
+npm: $(NPM_DIR)
 
 docker: docker-dep
 	@echo build docker image: ${BUILD_TAG} for ${OS}/${ARCH}
@@ -60,7 +64,15 @@ $(PLUGIN_DIR): go-dep mkdir
 	@echo Build plugin $(notdir $@)
 	@${GO} build -buildmode=plugin ${BUILD_FLAGS} -o ${BUILD_DIR}/$(notdir $@).plugin ./$@
 
+$(NPM_DIR): npm-dep mkdir
+	@echo Build npm $(notdir $@)
+	@cd $@ && npm install && npm run build
+	@${GO} build -buildmode=plugin ${BUILD_FLAGS} -o ${BUILD_DIR}/$(notdir $@).npm.plugin ./$@
+
 FORCE:
+
+npm-dep:
+	@test -f "${NPM}" && test -x "${NPM}"  || (echo "Missing nom binary" && exit 1)
 
 go-dep:
 	@test -f "${GO}" && test -x "${GO}"  || (echo "Missing go binary" && exit 1)
