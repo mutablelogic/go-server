@@ -199,7 +199,9 @@ func (self *httpserver) Run(ctx context.Context) error {
 	}()
 
 	// Log the server is running
-	provider.Logger(ctx).Printf(ctx, "Starting %v server on %q", self.Type(), self.Addr())
+	if log := provider.Logger(ctx); log != nil {
+		log.Printf(ctx, "Starting %v server on %q", self.Type(), self.Addr())
+	}
 
 	// Run server in foreground, cancel when done
 	if err := self.runInForeground(); err != nil && !errors.Is(err, http.ErrServerClosed) {
