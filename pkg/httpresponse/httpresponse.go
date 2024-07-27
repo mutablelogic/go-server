@@ -144,3 +144,22 @@ func ErrorWith(w http.ResponseWriter, code int, v any, reason ...string) error {
 	}
 	return JSON(w, err, code, indent)
 }
+
+// Cors is a utility function to set the CORS headers
+// on a pre-flight request. Setting origin to an empty
+// string or not including methods will allow any
+// origin and any method
+func Cors(w http.ResponseWriter, origin string, methods ...string) error {
+	methods_ := "*"
+	if len(methods) > 0 {
+		methods_ = strings.ToUpper(strings.Join(methods, ","))
+	}
+	if origin == "" {
+		origin = "*"
+	}
+	return Empty(w, http.StatusOK,
+		"Access-Control-Allow-Origin", origin,
+		"Access-Control-Allow-Methods", methods_,
+		"Access-Control-Allow-Headers", "*",
+	)
+}
