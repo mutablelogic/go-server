@@ -149,3 +149,39 @@ func Test_httpresponse_004(t *testing.T) {
 		assert.Equal("{\n  \"code\": 404,\n  \"reason\": \"not found\",\n  \"detail\": \"this is the detail\"\n}\n", resp.Body.String())
 	})
 }
+
+func Test_httpresponse_005(t *testing.T) {
+	assert := assert.New(t)
+
+	t.Run("Cors_0", func(t *testing.T) {
+		resp := httptest.NewRecorder()
+		assert.NoError(httpresponse.Cors(resp, "test"))
+		assert.Equal(200, resp.Code)
+		assert.Equal("test", resp.Header().Get("Access-Control-Allow-Origin"))
+		assert.Equal("*", resp.Header().Get("Access-Control-Allow-Methods"))
+	})
+
+	t.Run("Cors_1", func(t *testing.T) {
+		resp := httptest.NewRecorder()
+		assert.NoError(httpresponse.Cors(resp, ""))
+		assert.Equal(200, resp.Code)
+		assert.Equal("*", resp.Header().Get("Access-Control-Allow-Origin"))
+		assert.Equal("*", resp.Header().Get("Access-Control-Allow-Methods"))
+	})
+
+	t.Run("Cors_2", func(t *testing.T) {
+		resp := httptest.NewRecorder()
+		assert.NoError(httpresponse.Cors(resp, "", "get"))
+		assert.Equal(200, resp.Code)
+		assert.Equal("*", resp.Header().Get("Access-Control-Allow-Origin"))
+		assert.Equal("GET", resp.Header().Get("Access-Control-Allow-Methods"))
+	})
+
+	t.Run("Cors_3", func(t *testing.T) {
+		resp := httptest.NewRecorder()
+		assert.NoError(httpresponse.Cors(resp, "*", "get", "post"))
+		assert.Equal(200, resp.Code)
+		assert.Equal("*", resp.Header().Get("Access-Control-Allow-Origin"))
+		assert.Equal("GET,POST", resp.Header().Get("Access-Control-Allow-Methods"))
+	})
+}
