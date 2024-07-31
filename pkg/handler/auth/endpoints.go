@@ -105,7 +105,7 @@ func (service *auth) CreateToken(w http.ResponseWriter, r *http.Request) {
 	var req TokenCreate
 
 	// Get the request
-	if err := httprequest.Read(r, &req); err != nil {
+	if err := httprequest.Body(&req, r); err != nil {
 		httpresponse.Error(w, http.StatusBadRequest, err.Error())
 		return
 	}

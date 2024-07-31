@@ -24,10 +24,11 @@ type ErrorResponse struct {
 // GLOBALS
 
 const (
-	ContentTypeKey   = "Content-Type"
-	ContentLengthKey = "Content-Length"
-	ContentTypeJSON  = "application/json"
-	ContentTypeText  = "text/plain"
+	ContentTypeKey        = "Content-Type"
+	ContentLengthKey      = "Content-Length"
+	ContentTypeJSON       = "application/json"
+	ContentTypeText       = "text/plain"
+	ContentTypeTextStream = "text/event-stream"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

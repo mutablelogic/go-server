@@ -171,7 +171,7 @@ func (service *nginx) ReadConfig(w http.ResponseWriter, r *http.Request) {
 // Create a new configuration
 func (service *nginx) CreateConfig(w http.ResponseWriter, r *http.Request) {
 	var create responseTemplate
-	if err := httprequest.Read(r, &create); err != nil {
+	if err := httprequest.Body(&create, r); err != nil {
 		httpresponse.Error(w, http.StatusBadRequest, err.Error())
 		return
 	} else if create.Name == "" {
@@ -264,7 +264,7 @@ func (service *nginx) DeleteConfig(tmpl *folders.Template, w http.ResponseWriter
 func (service *nginx) PatchConfig(tmpl *folders.Template, w http.ResponseWriter, r *http.Request) {
 	var patch responseTemplate
 	var modified bool
-	if err := httprequest.Read(r, &patch); err != nil {
+	if err := httprequest.Body(&patch, r); err != nil {
 		httpresponse.Error(w, http.StatusBadRequest, err.Error())
 		return
 	}
