@@ -87,6 +87,7 @@ func NewTextStream(w http.ResponseWriter, tuples ...string) *TextStream {
 					return
 				}
 				self.emit(evt)
+				ticker.Reset(defaultKeepAlive)
 			case <-ticker.C:
 				self.err = errors.Join(self.err, self.emit(&textevent{strPing, nil}))
 				ticker.Reset(defaultKeepAlive)

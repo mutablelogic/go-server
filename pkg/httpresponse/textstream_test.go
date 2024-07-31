@@ -17,7 +17,6 @@ func Test_textstream_001(t *testing.T) {
 		resp := httptest.NewRecorder()
 		ts := httpresponse.NewTextStream(resp)
 		assert.NotNil(ts)
-		t.Log(ts)
 		assert.NoError(ts.Close())
 	})
 
@@ -33,21 +32,22 @@ func Test_textstream_001(t *testing.T) {
 		assert.Equal("event: ping\n\n", resp.Body.String())
 	})
 
-	t.Run("EventNoData", func(t *testing.T) {
+	t.Run("EventDataAfterPing", func(t *testing.T) {
 		resp := httptest.NewRecorder()
 		ts := httpresponse.NewTextStream(resp)
 		assert.NotNil(ts)
 
+		time.Sleep(200 * time.Millisecond)
 		ts.Write("foo")
 
 		time.Sleep(1 * time.Second)
 		assert.NoError(ts.Close())
 		assert.Equal(100, resp.Code)
 		assert.Equal("text/event-stream", resp.Header().Get("Content-Type"))
-		assert.Equal("event: foo\n\n"+"event: ping\n\n", resp.Body.String())
+		assert.Equal("event: ping\n\n"+"event: foo\n\n", resp.Body.String())
 	})
 
-	t.Run("EventData", func(t *testing.T) {
+	t.Run("EventDataNoPing", func(t *testing.T) {
 		resp := httptest.NewRecorder()
 		ts := httpresponse.NewTextStream(resp)
 		assert.NotNil(ts)
@@ -58,7 +58,7 @@ func Test_textstream_001(t *testing.T) {
 		assert.NoError(ts.Close())
 		assert.Equal(100, resp.Code)
 		assert.Equal("text/event-stream", resp.Header().Get("Content-Type"))
-		assert.Equal("event: foo\n"+"data: \"bar\"\n\n"+"event: ping\n\n", resp.Body.String())
+		assert.Equal("event: foo\n"+"data: \"bar\"\n\n", resp.Body.String())
 	})
 
 	t.Run("EventDataData", func(t *testing.T) {
@@ -72,7 +72,7 @@ func Test_textstream_001(t *testing.T) {
 		assert.NoError(ts.Close())
 		assert.Equal(100, resp.Code)
 		assert.Equal("text/event-stream", resp.Header().Get("Content-Type"))
-		assert.Equal("event: foo\n"+"data: \"bar1\"\n"+"data: \"bar2\"\n\n"+"event: ping\n\n", resp.Body.String())
+		assert.Equal("event: foo\n"+"data: \"bar1\"\n"+"data: \"bar2\"\n\n", resp.Body.String())
 	})
 
 }
