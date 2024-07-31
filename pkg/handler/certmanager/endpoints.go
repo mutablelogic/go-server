@@ -193,7 +193,7 @@ func (service *certmanager) reqCreateCA(w http.ResponseWriter, r *http.Request) 
 	var req reqCreateCA
 
 	// Get the request
-	if err := httprequest.Read(r, &req); err != nil {
+	if err := httprequest.Body(&req, r); err != nil {
 		httpresponse.Error(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -211,7 +211,7 @@ func (service *certmanager) reqCreateCert(w http.ResponseWriter, r *http.Request
 	var req reqCreateCert
 
 	// Get the request
-	if err := httprequest.Read(r, &req); err != nil {
+	if err := httprequest.Body(&req, r); err != nil {
 		httpresponse.Error(w, http.StatusBadRequest, err.Error())
 		return
 	}
