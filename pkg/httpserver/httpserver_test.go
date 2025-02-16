@@ -1,25 +1,33 @@
 package httpserver_test
 
 import (
+	"crypto/tls"
 	"testing"
 
 	// Packages
-	"github.com/mutablelogic/go-server/pkg/httpserver"
-	"github.com/stretchr/testify/assert"
+	httpserver "github.com/mutablelogic/go-server/pkg/httpserver"
+	assert "github.com/stretchr/testify/assert"
 )
 
-func Test_httpserver_001(t *testing.T) {
+func Test_Server_001(t *testing.T) {
 	assert := assert.New(t)
-	config := httpserver.Config{}
-	assert.NotEmpty(config.Name())
-	assert.NotEmpty(config.Description())
-}
 
-func Test_httpserver_002(t *testing.T) {
-	assert := assert.New(t)
-	config := httpserver.Config{}
-	server, err := config.New()
-	assert.NoError(err)
-	assert.NotNil(server)
-	t.Log(server)
+	t.Run("1", func(t *testing.T) {
+		server, err := httpserver.New(":8080", nil, nil)
+		if assert.NoError(err) {
+			assert.NotNil(server)
+		}
+	})
+	t.Run("2", func(t *testing.T) {
+		server, err := httpserver.New("", nil, nil)
+		if assert.NoError(err) {
+			assert.NotNil(server)
+		}
+	})
+	t.Run("3", func(t *testing.T) {
+		server, err := httpserver.New("", nil, &tls.Config{})
+		if assert.NoError(err) {
+			assert.NotNil(server)
+		}
+	})
 }

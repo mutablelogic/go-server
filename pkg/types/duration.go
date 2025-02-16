@@ -1,0 +1,10 @@
+package types
+
+import "time"
+
+///////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS
+
+func DurationPtr(v time.Duration) *time.Duration {
+	return &v
+}
