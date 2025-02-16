@@ -30,7 +30,7 @@ type Task interface {
 type Provider interface {
 	Task
 
-	// Return a task given a plugin name
+	// Return a task given a plugin label
 	Task(context.Context, string) Task
 }
 
@@ -49,6 +49,7 @@ type HTTPRouter interface {
 // HTTP MIDDLEWARE
 
 type HTTPMiddleware interface {
+	// Return a http handler with middleware as the parent handler
 	HandleFunc(http.HandlerFunc) http.HandlerFunc
 }
 
