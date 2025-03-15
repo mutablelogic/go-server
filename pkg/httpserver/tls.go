@@ -7,9 +7,14 @@ import (
 	"fmt"
 	"io"
 	"os"
+)
 
-	// Packages
-	"github.com/mutablelogic/go-service/pkg/cert/schema"
+///////////////////////////////////////////////////////////////////////////////
+// GLOBALS
+
+const (
+	PemTypePrivateKey  = "PRIVATE KEY"
+	PemTypeCertificate = "CERTIFICATE"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -65,9 +70,9 @@ func readPemBlocks(data []byte) ([]byte, []byte, error) {
 
 		// Set certificate or key
 		switch block.Type {
-		case schema.PemTypePrivateKey:
+		case PemTypePrivateKey:
 			key = pem.EncodeToMemory(block)
-		case schema.PemTypeCertificate:
+		case PemTypeCertificate:
 			cert = pem.EncodeToMemory(block)
 		default:
 			return nil, nil, fmt.Errorf("invalid PEM block type: %q", block.Type)
