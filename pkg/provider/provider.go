@@ -2,186 +2,158 @@ package provider
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"log"
+	"encoding/json"
 	"sync"
 
 	// Packages
 	server "github.com/mutablelogic/go-server"
+	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
+	types "github.com/mutablelogic/go-server/pkg/types"
 )
 
-////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-// provider implements the server.Provider interface which runs a set of tasks
 type provider struct {
-	// All the tasks in order, with their current state
-	tasks []state
+	// Map labels to plugins
+	plugin map[string]server.Plugin
 
-	// All the loggers
-	loggers []server.Logger
+	// Map labels to tasks
+	task map[string]*state
+
+	// Order that the tasks were created
+	order []string
+
+	// Function to resolve plugin members
+	resolver ResolverFunc
 }
 
-// state is the state of a task
 type state struct {
-	sync.WaitGroup
 	server.Task
-
-	Context context.Context
-	Cancel  context.CancelFunc
-	Label   string
+	context.Context
+	context.CancelFunc
+	sync.WaitGroup
 }
 
-// Ensure that provider implements the server.Provider interface
-var _ server.Provider = (*provider)(nil)
+// ResolverFunc is a function that resolves a plugin from label and plugin
+type ResolverFunc func(context.Context, string, server.Plugin) (server.Plugin, error)
 
-////////////////////////////////////////////////////////////////////////////
-// GLOBALS
-
-const (
-	defaultName = "provider"
-)
-
-////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-// Create a new provider with tasks in the order they have been created.
-func NewProvider(tasks ...server.Task) server.Provider {
-	p := new(provider)
+func New(resolver ResolverFunc, plugins ...server.Plugin) (*provider, error) {
+	self := new(provider)
+	self.plugin = make(map[string]server.Plugin, len(plugins))
+	self.task = make(map[string]*state, len(plugins))
+	self.order = make([]string, 0, len(plugins))
+	self.resolver = resolver
 
-	// Enumerate all the tasks
-	for _, task := range tasks {
-		p.tasks = append(p.tasks, state{Task: task, Label: task.Label()})
+	// Add the plugins
+	for _, plugin := range plugins {
+		// Check plugin
+		if plugin == nil {
+			return nil, httpresponse.ErrInternalError.With("Plugin is nil")
+		} else if !types.IsIdentifier(plugin.Name()) {
+			return nil, httpresponse.ErrInternalError.Withf("Plugin name %q is not valid", plugin.Name())
+		}
 
-		// If it's a logger, then add to the list of loggers
-		if logger, ok := task.(server.Logger); ok {
-			p.loggers = append(p.loggers, logger)
+		// TODO: Don't use names, use labels!
+		label := plugin.Name()
+		if _, exists := self.plugin[label]; exists {
+			return nil, httpresponse.ErrInternalError.Withf("Plugin %q already exists", plugin.Name())
+		} else {
+			self.plugin[label] = plugin
 		}
 	}
 
 	// Return success
-	return p
+	return self, nil
 }
 
-////////////////////////////////////////////////////////////////////////////
-// PUBLIC METHODS - TASK
+////////////////////////////////////////////////////////////////////////////////
+// STRINGIFY
 
-// Run all the tasks in parallel, and cancel them all in the reverse order
-// when the context is cancelled.
-func (p *provider) Run(ctx context.Context) error {
-	var result error
-	var wg sync.WaitGroup
-
-	// Create a child context which will allow us to cancel all the tasks
-	// prematurely if any of them fail
-	child, prematureCancel := context.WithCancel(ctx)
-	defer prematureCancel()
-
-	// Run all the tasks in parallel
-	for i := range p.tasks {
-		// Create a context for each task
-		ctx, cancel := context.WithCancel(WithLabel(context.Background(), p.tasks[i].Label))
-		ctx = WithLogger(ctx, p)
-
-		// Set the context and cancel function
-		p.tasks[i].Context = ctx
-		p.tasks[i].Cancel = cancel
-		p.tasks[i].Add(1)
-
-		// Run the task in a goroutine
-		wg.Add(1)
-		go func(i int) {
-			defer p.tasks[i].Done()
-			defer p.tasks[i].Cancel()
-			defer wg.Done()
-
-			p.Print(ctx, "Running")
-			if err := p.tasks[i].Run(ctx); err != nil {
-				result = errors.Join(result, fmt.Errorf("[%s] %w", Label(ctx), err))
-
-				// We indicate we should cancel
-				prematureCancel()
-			}
-		}(i)
+func (provider *provider) String() string {
+	type jtask struct {
+		Name        string        `json:"name"`
+		Description string        `json:"description,omitempty"`
+		Label       string        `json:"label,omitempty"`
+		Plugin      server.Plugin `json:"plugin,omitempty"`
+		Task        server.Task   `json:"task,omitempty"`
 	}
-
-	// Wait for the cancel
-	<-child.Done()
-
-	// Cancel all the tasks in reverse order, waiting for each to complete
-	// before cancelling the next
-	for i := len(p.tasks) - 1; i >= 0; i-- {
-		p.Print(p.tasks[i].Context, "Stopping")
-		p.tasks[i].Cancel()
-		p.tasks[i].Wait()
-
-		// TODO: If the task is in the set of loggers, then remove it
-		// from the list of loggers
+	result := make([]jtask, 0, len(provider.task))
+	for _, label := range provider.order {
+		plugin := provider.plugin[label]
+		result = append(result, jtask{
+			Name:        plugin.Name(),
+			Description: plugin.Description(),
+			Label:       label,
+			Plugin:      plugin,
+			Task:        provider.task[label].Task,
+		})
 	}
-
-	// Wait for all the tasks to complete
-	wg.Wait()
-
-	// Return any errors
-	return result
+	data, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		return err.Error()
+	}
+	return string(data)
 }
 
-func (p *provider) Label() string {
-	return defaultName
+////////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS
+
+// Return a task from a label
+func (provider *provider) Task(ctx context.Context, label string) server.Task {
+	provider.Print(ctx, "Called Task for ", label)
+
+	// If the task is already created, then return it
+	if task, exists := provider.task[label]; exists {
+		return task.Task
+	}
+
+	// If the plugin doesn't exist, return nil
+	plugin, exists := provider.plugin[label]
+	if !exists {
+		return nil
+	}
+
+	// Resolve the plugin
+	if provider.resolver != nil {
+		var err error
+		plugin, err = provider.resolver(withProvider(ctx, provider), label, plugin)
+		if err != nil {
+			provider.Print(ctx, "Error: ", label, ": ", err)
+			return nil
+		}
+	}
+
+	// Create the task
+	task, err := plugin.New(withPath(ctx, label))
+	if err != nil {
+		provider.Print(ctx, "Error: ", label, ": ", err)
+		return nil
+	} else if task == nil {
+		provider.Print(ctx, "Error: ", label, ": ", httpresponse.ErrInternalError.With("Task is nil"))
+		return nil
+	}
+
+	// Set the task and order
+	provider.task[label] = &state{Task: task}
+	provider.order = append(provider.order, label)
+
+	// Return the task
+	return task
 }
 
-////////////////////////////////////////////////////////////////////////////
-// PUBLIC METHODS - LOGGER
+////////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
 
-func (p *provider) Print(ctx context.Context, args ...any) {
-	var wg sync.WaitGroup
-
-	// With no loggers, just print to stdout
-	if len(p.loggers) == 0 {
-		log.Print(args...)
-		return
+// Make all tasks
+func (provider *provider) constructor(ctx context.Context) error {
+	for label := range provider.plugin {
+		if task := provider.Task(ctx, label); task == nil {
+			return httpresponse.ErrConflict.Withf("Failed to create task %q", label)
+		}
 	}
-
-	// With one logger, just print to that logger
-	if len(p.loggers) == 1 {
-		p.loggers[0].Print(ctx, args...)
-		return
-	}
-
-	// With more loggers, print to all of them in parallel
-	for _, logger := range p.loggers {
-		wg.Add(1)
-		go func(logger server.Logger) {
-			defer wg.Done()
-			logger.Print(ctx, args...)
-		}(logger)
-	}
-	wg.Wait()
-}
-
-func (p *provider) Printf(ctx context.Context, fmt string, args ...any) {
-	var wg sync.WaitGroup
-
-	// With no loggers, just print to stdout
-	if len(p.loggers) == 0 {
-		log.Printf(fmt, args...)
-		return
-	}
-
-	// With one logger, just print to that logger
-	if len(p.loggers) == 1 {
-		p.loggers[0].Printf(ctx, fmt, args...)
-		return
-	}
-
-	// With more loggers, print to all of them in parallel
-	for _, logger := range p.loggers {
-		wg.Add(1)
-		go func(logger server.Logger) {
-			defer wg.Done()
-			logger.Printf(ctx, fmt, args...)
-		}(logger)
-	}
-	wg.Wait()
+	return nil
 }

@@ -4,18 +4,25 @@ import (
 	"testing"
 
 	// Packages
-	"github.com/mutablelogic/go-server/pkg/handler/logger"
-	"github.com/mutablelogic/go-server/pkg/handler/router"
-	"github.com/mutablelogic/go-server/pkg/httpserver"
-	"github.com/mutablelogic/go-server/pkg/provider"
-	"github.com/stretchr/testify/assert"
+	provider "github.com/mutablelogic/go-server/pkg/provider"
+	httpserver "github.com/mutablelogic/go-server/plugin/httpserver"
+	assert "github.com/stretchr/testify/assert"
 )
 
-func Test_provider_001(t *testing.T) {
+func Test_Provider_001(t *testing.T) {
 	assert := assert.New(t)
 
-	provider, err := provider.New(httpserver.Config{}, router.Config{}, logger.Config{})
-	assert.NoError(err)
+	t.Run("1", func(t *testing.T) {
+		provider, err := provider.New()
+		if assert.NoError(err) {
+			assert.NotNil(provider)
+		}
+	})
 
-	t.Log(provider)
+	t.Run("2", func(t *testing.T) {
+		provider, err := provider.New(httpserver.Config{})
+		if assert.NoError(err) {
+			assert.NotNil(provider)
+		}
+	})
 }

@@ -1,92 +1,124 @@
-# Paths to tools needed in dependencies
-GO := $(shell which go)
-DOCKER := $(shell which docker)
-NPM := $(shell which npm)
+# Executables
+GO ?= $(shell which go 2>/dev/null)
+DOCKER ?= $(shell which docker 2>/dev/null)
 
-# Build flags
-BUILD_MODULE := $(shell cat go.mod | head -1 | cut -d ' ' -f 2)
-BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/version.GitSource=${BUILD_MODULE}
-BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/version.GitTag=$(shell git describe --tags --always)
-BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/version.GitBranch=$(shell git name-rev HEAD --name-only --always)
-BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/version.GitHash=$(shell git rev-parse HEAD)
-BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/version.GoBuildTime=$(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
-BUILD_FLAGS = -ldflags "-s -w $(BUILD_LD_FLAGS)" 
+# Locations
+BUILD_DIR ?= build
+CMD_DIR := $(wildcard cmd/*)
+PLUGIN_DIR := $(wildcard plugin/*)
+
+# VERBOSE=1
+ifneq ($(VERBOSE),)
+  VERBOSE_FLAG = -v
+else
+  VERBOSE_FLAG =
+endif
 
 # Set OS and Architecture
 ARCH ?= $(shell arch | tr A-Z a-z | sed 's/x86_64/amd64/' | sed 's/i386/amd64/' | sed 's/armv7l/arm/' | sed 's/aarch64/arm64/')
 OS ?= $(shell uname | tr A-Z a-z)
 VERSION ?= $(shell git describe --tags --always | sed 's/^v//')
-DOCKER_REGISTRY ?= ghcr.io/mutablelogic
 
-# Paths to locations, etc
-BUILD_DIR := "build"
-CMD_DIR := $(wildcard cmd/*)
-PLUGIN_DIR := $(wildcard plugin/*)
-NPM_DIR := $(wildcard npm/*)
-BUILD_TAG := ${DOCKER_REGISTRY}/go-server-${OS}-${ARCH}:${VERSION}
+# Set build flags
+BUILD_MODULE = $(shell cat go.mod | head -1 | cut -d ' ' -f 2)
+BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/version.GitSource=${BUILD_MODULE}
+BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/version.GitTag=$(shell git describe --tags --always)
+BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/version.GitBranch=$(shell git name-rev HEAD --name-only --always)
+BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/version.GitHash=$(shell git rev-parse HEAD)
+BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/version.GoBuildTime=$(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
+BUILD_FLAGS = -ldflags "-s -w ${BUILD_LD_FLAGS}" 
 
-# Targets
-all: clean plugins cmds npm 
+# Docker
+DOCKER_REPO ?= ghcr.io/mutablelogic/go-server
+DOCKER_SOURCE ?= ${BUILD_MODULE}
+DOCKER_TAG = ${DOCKER_REPO}-${OS}-${ARCH}:${VERSION}
 
-cmds: $(CMD_DIR)
+###############################################################################
+# ALL
 
-plugins: $(PLUGIN_DIR)
+.PHONY: all
+all: clean build
 
-npm: $(NPM_DIR)
+###############################################################################
+# BUILD
 
+# Build the commands in the cmd directory
+.PHONY: build
+build: tidy $(CMD_DIR) $(PLUGIN_DIR)
+
+$(CMD_DIR): go-dep mkdir
+	@echo Build command $(notdir $@) GOOS=${OS} GOARCH=${ARCH}
+	@GOOS=${OS} GOARCH=${ARCH} ${GO} build ${BUILD_FLAGS} -o ${BUILD_DIR}/$(notdir $@) ./$@
+
+
+$(PLUGIN_DIR): go-dep mkdir
+	@echo Build plugin $(notdir $@) GOOS=${OS} GOARCH=${ARCH}
+	@GOOS=${OS} GOARCH=${ARCH} ${GO} build -buildmode=plugin ${BUILD_FLAGS} -o ${BUILD_DIR}/$(notdir $@).plugin ./$@
+
+# Build the docker image
+.PHONY: docker
 docker: docker-dep
-	@echo build docker image: ${BUILD_TAG} for ${OS}/${ARCH}
+	@echo build docker image ${DOCKER_TAG} OS=${OS} ARCH=${ARCH} SOURCE=${DOCKER_SOURCE} VERSION=${VERSION}
 	@${DOCKER} build \
-		--tag ${BUILD_TAG} \
+		--tag ${DOCKER_TAG} \
 		--build-arg ARCH=${ARCH} \
 		--build-arg OS=${OS} \
-		--build-arg SOURCE=${BUILD_MODULE} \
+		--build-arg SOURCE=${DOCKER_SOURCE} \
 		--build-arg VERSION=${VERSION} \
 		-f etc/docker/Dockerfile .
 
-docker-tag: docker-dep
-	@echo ${BUILD_TAG}
+# Push docker container
+.PHONY: docker-push
+docker-push: docker-dep 
+	@echo push docker image: ${DOCKER_TAG}
+	@${DOCKER} push ${DOCKER_TAG}
 
-docker-push: docker-dep
-	@echo push docker image: ${BUILD_TAG}
-	@${DOCKER} push ${BUILD_TAG}
+# Print out the version
+.PHONY: docker-version
+docker-version: docker-dep 
+	@echo "tag=${VERSION}"
 
-test: go-dep
-	@echo Test
+###############################################################################
+# TEST
+
+.PHONY: test
+test: unit-test coverage-test
+
+.PHONY: unit-test
+unit-test: go-dep
+	@echo Unit Tests
+	@${GO} test ${VERBOSE_FLAG} ./pkg/...
+
+.PHONY: coverage-test
+coverage-test: go-dep mkdir
+	@echo Test Coverage
+	@${GO} test -coverprofile ${BUILD_DIR}/coverprofile.out ./pkg/...
+
+###############################################################################
+# CLEAN
+
+.PHONY: tidy
+tidy:
+	@echo Running go mod tidy
 	@${GO} mod tidy
-	@${GO} test ./pkg/...
 
-$(CMD_DIR): go-dep mkdir
-	@echo Build cmd $(notdir $@)
-	@${GO} build ${BUILD_FLAGS} -o ${BUILD_DIR}/$(notdir $@) ./$@
-
-$(PLUGIN_DIR): go-dep mkdir
-	@echo Build plugin $(notdir $@)
-	@${GO} build -buildmode=plugin ${BUILD_FLAGS} -o ${BUILD_DIR}/$(notdir $@).plugin ./$@
-
-$(NPM_DIR): npm-dep mkdir
-	@echo Build npm $(notdir $@)
-	@cd $@ && npm install && npm run build
-	@${GO} build -buildmode=plugin ${BUILD_FLAGS} -o ${BUILD_DIR}/$(notdir $@).npm.plugin ./$@
-
-FORCE:
-
-npm-dep:
-	@test -f "${NPM}" && test -x "${NPM}"  || (echo "Missing nom binary" && exit 1)
-
-go-dep:
-	@test -f "${GO}" && test -x "${GO}"  || (echo "Missing go binary" && exit 1)
-
-docker-dep:
-	@test -f "${DOCKER}" && test -x "${DOCKER}"  || (echo "Missing docker binary" && exit 1)
-
+.PHONY: mkdir
 mkdir:
-	@echo Mkdir ${BUILD_DIR}
 	@install -d ${BUILD_DIR}
 
+.PHONY: clean
 clean:
 	@echo Clean
 	@rm -fr $(BUILD_DIR)
-	@${GO} mod tidy
 	@${GO} clean
 
+###############################################################################
+# DEPENDENCIES
+
+.PHONY: go-dep
+go-dep:
+	@test -f "${GO}" && test -x "${GO}"  || (echo "Missing go binary" && exit 1)
+
+.PHONY: docker-dep
+docker-dep:
+	@test -f "${DOCKER}" && test -x "${DOCKER}"  || (echo "Missing docker binary" && exit 1)

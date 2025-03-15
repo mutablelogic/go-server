@@ -3,50 +3,56 @@ package provider
 import (
 	"context"
 
-	"github.com/mutablelogic/go-server"
+	// Packages
+	server "github.com/mutablelogic/go-server"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type ProviderContextKey int
-
-////////////////////////////////////////////////////////////////////////////////
-// GLOBALS
+type ctx int
 
 const (
-	_ ProviderContextKey = iota
-	contextLabel
-	contextLogger
+	ctxProvider ctx = iota
+	ctxPath
 )
 
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-// WithLabel returns a context with the given label
-func WithLabel(ctx context.Context, label string) context.Context {
-	return context.WithValue(ctx, contextLabel, label)
-}
-
-// Label returns the label from the context, or zero value if not defined
-func Label(ctx context.Context) string {
-	if value, ok := ctx.Value(contextLabel).(string); ok {
-		return value
-	} else {
-		return ""
-	}
-}
-
-// WithLogger returns a context with the given logger
-func WithLogger(ctx context.Context, logger server.Logger) context.Context {
-	return context.WithValue(ctx, contextLogger, logger)
-}
-
-// Logger returns the logger from the context, or nil if not defined
-func Logger(ctx context.Context) server.Logger {
-	if value, ok := ctx.Value(contextLogger).(server.Logger); ok {
-		return value
-	} else {
+func Provider(ctx context.Context) server.Provider {
+	if value := ctx.Value(ctxProvider); value == nil {
 		return nil
+	} else {
+		return value.(server.Provider)
 	}
+}
+
+func Path(ctx context.Context) []string {
+	if value, ok := ctx.Value(ctxPath).([]string); !ok {
+		return nil
+	} else {
+		return value
+	}
+}
+
+func Log(ctx context.Context) server.Logger {
+	if value := ctx.Value(ctxProvider); value == nil {
+		return nil
+	} else {
+		return value.(server.Logger)
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+// Set the provider in the context
+func withProvider(parent context.Context, provider server.Provider) context.Context {
+	return context.WithValue(parent, ctxProvider, provider)
+}
+
+// Append a path to the context
+func withPath(parent context.Context, path ...string) context.Context {
+	return context.WithValue(parent, ctxPath, append(Path(parent), path...))
 }

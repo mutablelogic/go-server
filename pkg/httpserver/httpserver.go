@@ -3,409 +3,124 @@ package httpserver
 import (
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"net"
 	"net/http"
-	"os"
-	"os/user"
-	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	// Packages
-	"github.com/mutablelogic/go-server"
-	fcgi "github.com/mutablelogic/go-server/pkg/httpserver/fcgi"
 	"github.com/mutablelogic/go-server/pkg/provider"
-
-	// Namespace imports
-	. "github.com/djthorpe/go-errors"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-// Server configuration
-type Config struct {
-	Listen string `hcl:"listen" description:"Network address and port to listen on, or path to file socket"`
-	TLS    struct {
-		Key  string `hcl:"key" description:"Path to private key (if provided, tls.cert is also required)"`
-		Cert string `hcl:"cert" description:"Path to certificate (if provided, tls.key is also required)"`
-	} `hcl:"tls"`
-	Timeout time.Duration `hcl:"timeout" description:"Read request timeout"`
-	Owner   string        `hcl:"owner" description:"User ID of the file socket (if listen is a file socket)"`
-	Group   string        `hcl:"group" description:"Group ID of the file socket (if listen is a file socket)"`
-	Router  http.Handler  `hcl:"router" description:"HTTP router for requests"`
+type server struct {
+	http http.Server
 }
-
-// Server interface
-type Server interface {
-	server.Task
-
-	// Return the type of server (http, https or fcgi)
-	Type() string
-
-	// Return the listening address or path
-	Addr() string
-
-	// Return the router associated with the server
-	Router() http.Handler
-}
-
-// http server instance
-type httpserver struct {
-	fcgi *fcgi.Server
-	http *http.Server
-}
-
-// Check interfaces are satisfied
-var _ server.Plugin = Config{}
-var _ server.Task = (*httpserver)(nil)
 
 ///////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 
 const (
-	defaultName      = "httpserver"
-	defaultTimeout   = 10 * time.Second
-	defaultListen    = ":http"
-	defaultListenTLS = ":https"
-	defaultMode      = os.FileMode(0600)
-	defaultDirMode   = os.FileMode(0700)
-	groupMode        = os.FileMode(0060)
-	groupDirMode     = os.FileMode(0070)
-	allMode          = os.FileMode(0777)
+	defaultListenHost      = "localhost"
+	defaultListenPortHttp  = "http"
+	defaultListenPortHttps = "https"
+	defaultShutdownTimeout = 30 * time.Second
+	defaultReadTimeout     = 5 * time.Minute
+	defaultWriteTimeout    = 5 * time.Minute
 )
 
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-// Name returns the name of the service
-func (Config) Name() string {
-	return defaultName
-}
+func New(listen string, router http.Handler, cert *tls.Config, opts ...Opt) (*server, error) {
+	server := new(server)
 
-// Description returns the description of the service
-func (Config) Description() string {
-	return "serves requests and provides responses over HTTP, HTTPS and FCGI"
-}
-
-// Create a new http server from the configuration
-func (c Config) New() (server.Task, error) {
-	self := new(httpserver)
-
-	// Create a default router if not provided
-	if c.Router == nil {
-		c.Router = http.DefaultServeMux
-	}
-
-	// Set defaults
-	if c.Listen == "" {
-		if c.TLS.Cert != "" || c.TLS.Key != "" {
-			c.Listen = defaultListenTLS
-		} else {
-			c.Listen = defaultListen
-		}
-	}
-
-	// Choose HTTP or FCGI server
-	if strings.ContainsRune(c.Listen, ':') {
-		host, port, err := c.isHostPort()
-		if err != nil {
-			return nil, err
-		}
-
-		// Read the TLS configuration
-		tls, err := c.tls()
-		if err != nil {
-			return nil, err
-		}
-
-		// Create net server
-		addr := fmt.Sprintf("%s:%d", host, port)
-		if http, err := netserver(addr, tls, c.timeout(), c.Router); err != nil {
-			return nil, err
-		} else {
-			self.http = http
-		}
-	} else if abs, err := filepath.Abs(c.Listen); err != nil {
+	// Apply options
+	opt, err := apply(opts...)
+	if err != nil {
 		return nil, err
-	} else {
-		// file socket parameters
-		if owner, err := c.owner(); err != nil {
-			return nil, err
-		} else if group, err := c.group(); err != nil {
-			return nil, err
-		} else if fcgi, err := fcgiserver(abs, owner, group, c.fileMode(), c.dirMode(), c.Router); err != nil {
-			return nil, err
+	}
+
+	// Set default listen host
+	if listen == "" {
+		listen = defaultListenHost
+	}
+
+	// Join host and port
+	if !strings.Contains(listen, ":") {
+		if cert == nil {
+			listen = net.JoinHostPort(listen, defaultListenPortHttp)
 		} else {
-			self.fcgi = fcgi
+			listen = net.JoinHostPort(listen, defaultListenPortHttps)
 		}
 	}
+
+	// Set other options
+	server.http.Addr = listen
+	server.http.TLSConfig = cert
+	server.http.Handler = router
+	server.http.WriteTimeout = opt.w
+	server.http.ReadTimeout = opt.r
 
 	// Return success
-	return self, nil
+	return server, nil
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// STRINGIFY
+// TASK
 
-// Return the configuration as a string
-func (c Config) String() string {
-	data, _ := json.MarshalIndent(c, "", "  ")
-	return string(data)
-}
-
-func (h httpserver) String() string {
-	var server struct {
-		Type string `json:"type"`
-		Addr string `json:"addr"`
-	}
-	if h.fcgi != nil {
-		server.Type = "fcgi"
-		server.Addr = h.fcgi.Addr
-	}
-	if h.http != nil {
-		server.Type = "http"
-		server.Addr = h.http.Addr
-	}
-	data, _ := json.MarshalIndent(server, "", "  ")
-	return string(data)
-}
-
-/////////////////////////////////////////////////////////////////////
-// PUBLIC METHODS
-
-// Run the http server until the context is cancelled
-func (self *httpserver) Run(ctx context.Context) error {
-	var result error
+func (server *server) Run(parent context.Context) error {
 	var wg sync.WaitGroup
 
-	// Create cancelable context
-	child, cancel := context.WithCancel(ctx)
-	defer cancel()
+	// Make a cancelable context
+	ctx, cancel := context.WithCancel(parent)
 
-	// Stop server on context cancel
+	// Wait for cancel in a background process
 	wg.Add(1)
-	go func() {
+	go func(ctx context.Context) {
 		defer wg.Done()
-		<-child.Done()
-		if err := self.stop(); err != nil {
-			result = errors.Join(result, err)
+
+		// Wait for context to be done
+		<-ctx.Done()
+
+		// Stop server, terminate connections after 30 seconds
+		if err := server.shutdown(); err != nil {
+			provider.Log(parent).Print(parent, err)
 		}
-	}()
+	}(ctx)
 
-	// Log the server is running
-	if log := provider.Logger(ctx); log != nil {
-		log.Printf(ctx, "Starting %v server on %q", self.Type(), self.Addr())
+	// Run server as a foreground process
+	var result error
+	if server.http.TLSConfig != nil {
+		result = server.http.ListenAndServeTLS("", "")
+	} else {
+		result = server.http.ListenAndServe()
 	}
 
-	// Run server in foreground, cancel when done
-	if err := self.runInForeground(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		result = errors.Join(result, err)
-		cancel()
-	}
+	// Cancel waiting for CTRL+C, if not already cancelled
+	cancel()
 
-	// Wait for gorutines to finish
+	// Wait for the goroutine to complete
 	wg.Wait()
 
-	// Return any errors
-	return result
-}
-
-// Return the label for the task
-func (self *httpserver) Label() string {
-	// TODO
-	return defaultName
-}
-
-// Return the router for the server
-func (self *httpserver) Router() http.Handler {
-	if self.fcgi != nil {
-		return self.fcgi.Handler
+	// If result is http.ErrServerClosed, return nil
+	if errors.Is(result, http.ErrServerClosed) {
+		return nil
 	} else {
-		return self.http.Handler
+		provider.Log(parent).Print(parent, result)
+		return result
 	}
 }
 
-// Return the type of server
-func (self *httpserver) Type() string {
-	if self.fcgi != nil {
-		return "fcgi"
-	}
-	return "http"
-}
-
-// Return the listening address or path
-func (self *httpserver) Addr() string {
-	if self.fcgi != nil {
-		return self.fcgi.Addr
-	}
-	return self.http.Addr
-}
-
-/////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-// Return the timeout value from the configuration
-func (c Config) timeout() time.Duration {
-	if c.Timeout != 0 {
-		return c.Timeout
-	} else {
-		return defaultTimeout
-	}
-}
-
-// Return the TLS configuration
-func (c Config) tls() (*tls.Config, error) {
-	if c.TLS.Cert == "" || c.TLS.Key == "" {
-		return nil, nil
-	}
-	if cert, err := tls.LoadX509KeyPair(c.TLS.Cert, c.TLS.Cert); err != nil {
-		return nil, fmt.Errorf("LoadX509KeyPair: %w", err)
-	} else {
-		return &tls.Config{
-			Certificates: []tls.Certificate{cert},
-		}, nil
-	}
-}
-
-// Return the uid of the socket owner
-func (c Config) owner() (int, error) {
-	if c.Owner == "" {
-		return -1, nil
-	}
-	if user, err := user.Lookup(c.Owner); err != nil {
-		return -1, err
-	} else if uid, err := strconv.ParseUint(user.Uid, 0, 32); err != nil {
-		return -1, err
-	} else {
-		return int(uid), nil
-	}
-}
-
-// Return the gid of the socket group
-func (c Config) group() (int, error) {
-	if c.Group == "" {
-		return -1, nil
-	}
-	if group, err := user.LookupGroup(c.Group); err != nil {
-		return -1, err
-	} else if gid, err := strconv.ParseUint(group.Gid, 0, 32); err != nil {
-		return -1, err
-	} else {
-		return int(gid), nil
-	}
-}
-
-// Return the socket filemode
-func (c Config) fileMode() os.FileMode {
-	fileMode := defaultMode
-	if gid, err := c.group(); gid != -1 && err == nil {
-		fileMode |= groupMode
-	}
-	return (fileMode & allMode)
-}
-
-// Return the socket dir mode
-func (c Config) dirMode() os.FileMode {
-	dirMode := defaultDirMode
-	if gid, err := c.group(); gid != -1 && err == nil {
-		dirMode |= groupDirMode
-	}
-	return (dirMode & allMode)
-}
-
-// Returns the host and port number from the configuration
-// Random port number is chosen if port is not provided or is zero
-func (c Config) isHostPort() (string, int, error) {
-	// Empty string not acceptable
-	if c.Listen == "" {
-		return "", 0, ErrBadParameter.With("empty listen address")
-	}
-	// Check for host:port and if no error, return true
-	if host, port, err := net.SplitHostPort(c.Listen); err != nil {
-		return "", 0, err
-	} else if port == "" || port == "0" {
-		if port, err := getFreePort(); err != nil {
-			return "", 0, err
-		} else {
-			return host, port, nil
-		}
-	} else if port_, err := strconv.ParseUint(port, 10, 16); err != nil {
-		if port_, err := net.LookupPort("tcp", port); err != nil {
-			return "", 0, err
-		} else {
-			return host, port_, nil
-		}
-	} else {
-		return host, int(port_), nil
-	}
-}
-
-// getFreePort returns a random free port
-func getFreePort() (int, error) {
-	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
-	if err != nil {
-		return 0, err
-	}
-	l, err := net.ListenTCP("tcp", addr)
-	if err != nil {
-		return 0, err
-	}
-	defer l.Close()
-	return l.Addr().(*net.TCPAddr).Port, nil
-}
-
-// Run the server and block until stopped
-func (self *httpserver) runInForeground() error {
-	if self.fcgi != nil {
-		return self.fcgi.ListenAndServe()
-	} else if self.http.TLSConfig != nil {
-		return self.http.ListenAndServeTLS("", "")
-	} else {
-		return self.http.ListenAndServe()
-	}
-}
-
-// Stop the server
-func (self *httpserver) stop() error {
-	if self.fcgi != nil {
-		return self.fcgi.Close()
-	} else {
-		return self.http.Close()
-	}
-}
-
-// Create a fastcgi file socket server
-func fcgiserver(path string, uid, gid int, fileMode os.FileMode, dirMode os.FileMode, handler http.Handler) (*fcgi.Server, error) {
-	fcgi := new(fcgi.Server)
-	fcgi.Network = "unix"
-	fcgi.Addr = path
-	fcgi.Handler = handler
-	fcgi.Owner = uid
-	fcgi.Group = gid
-	fcgi.Mode = fileMode
-	fcgi.DirMode = dirMode
-
-	// Return success
-	return fcgi, nil
-}
-
-// Create a network socket server
-func netserver(addr string, config *tls.Config, timeout time.Duration, handler http.Handler) (*http.Server, error) {
-	srv := new(http.Server)
-	srv.Addr = addr
-	srv.Handler = handler
-	srv.ReadHeaderTimeout = timeout
-	srv.IdleTimeout = timeout
-	if config != nil {
-		srv.TLSConfig = config
-	}
-
-	// Return success
-	return srv, nil
+func (server *server) shutdown() error {
+	shutdownContext, cancel := context.WithTimeout(context.Background(), defaultShutdownTimeout)
+	defer cancel()
+	return server.http.Shutdown(shutdownContext)
 }
