@@ -11,7 +11,6 @@ import (
 	server "github.com/mutablelogic/go-server"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	httpserver "github.com/mutablelogic/go-server/pkg/httpserver"
-	provider "github.com/mutablelogic/go-server/pkg/provider"
 	types "github.com/mutablelogic/go-server/pkg/types"
 )
 
@@ -20,7 +19,7 @@ import (
 
 type Config struct {
 	Listen       *url.URL      `kong:"-"`
-	Router       string        `kong:"-"`
+	Router       http.Handler  `kong:"-"`
 	ReadTimeout  time.Duration `name:"read-timeout" default:"5m" help:"Read timeout"`
 	WriteTimeout time.Duration `name:"write-timeout" default:"5m" help:"Write timeout"`
 	TLS          struct {
@@ -32,16 +31,29 @@ type Config struct {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// GLOBALS
+
+var (
+	defaultListen = &url.URL{
+		Scheme: types.SchemeInsecure,
+		Host:   "localhost:8080",
+	}
+)
+
+////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
 func (c Config) New(ctx context.Context) (server.Task, error) {
-	// Get the router from the provider
-	router, ok := provider.Provider(ctx).Task(ctx, c.Router).(http.Handler)
-	if !ok || router == nil {
-		return nil, httpresponse.ErrNotFound.Withf("Router %q not found", c.Router)
+	// Set the default router
+	if c.Router == nil {
+		c.Router = http.DefaultServeMux
 	}
 
 	// Check listen scheme
+	if c.Listen == nil {
+		c.Listen = defaultListen
+	}
+
 	if c.Listen.Scheme != types.SchemeInsecure && c.Listen.Scheme != types.SchemeSecure {
 		return nil, httpresponse.ErrBadRequest.Withf("Invalid listen scheme: %q", c.Listen.Scheme)
 	}
@@ -64,7 +76,7 @@ func (c Config) New(ctx context.Context) (server.Task, error) {
 	}
 
 	// Return the server
-	return httpserver.New(c.Listen.Host, router, tls, httpserver.WithReadTimeout(c.ReadTimeout), httpserver.WithWriteTimeout(c.WriteTimeout))
+	return httpserver.New(c.Listen.Host, c.Router, tls, httpserver.WithReadTimeout(c.ReadTimeout), httpserver.WithWriteTimeout(c.WriteTimeout))
 }
 
 ////////////////////////////////////////////////////////////////////////////////

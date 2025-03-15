@@ -53,16 +53,3 @@ func IsUppercase(s string) bool {
 	}
 	return true
 }
-
-// StringPtr returns a pointer to a string
-func StringPtr(s string) *string {
-	return &s
-}
-
-// PtrString returns a string from a pointer
-func PtrString(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
-}
