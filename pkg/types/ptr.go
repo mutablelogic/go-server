@@ -20,6 +20,19 @@ func BoolPtr(v bool) *bool {
 	return &v
 }
 
+// Int32Ptr returns a pointer to a int32
+func Int32Ptr(v int32) *int32 {
+	return &v
+}
+
+// PtrInt32 returns a int32 from a pointer
+func PtrInt32(v *int32) int32 {
+	if v == nil {
+		return 0
+	}
+	return *v
+}
+
 // Uint64Ptr returns a pointer to a uint64
 func Uint64Ptr(v uint64) *uint64 {
 	return &v
