@@ -1,6 +1,7 @@
 package types
 
 import (
+	"strconv"
 	"strings"
 	"unicode"
 )
@@ -52,4 +53,13 @@ func IsUppercase(s string) bool {
 		}
 	}
 	return true
+}
+
+// Unquote returns a string with the input string unquoted
+func Unquote(s string) string {
+	if str, err := strconv.Unquote(s); err == nil {
+		return str
+	} else {
+		return s
+	}
 }

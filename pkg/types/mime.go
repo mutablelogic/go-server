@@ -1,6 +1,8 @@
 package types
 
-import "mime"
+import (
+	"mime"
+)
 
 ///////////////////////////////////////////////////////////////////////////////
 // GLOBALS
@@ -13,6 +15,7 @@ const (
 	ContentTypeCSV       = "text/csv"
 	ContentTypeTextXml   = "text/xml"
 	ContentTypeTextPlain = "text/plain"
+	ContentTypeFormData  = "multipart/form-data"
 	ContentTypeAny       = "*/*"
 )
 

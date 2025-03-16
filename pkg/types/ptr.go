@@ -33,6 +33,11 @@ func PtrUint64(v *uint64) uint64 {
 	return *v
 }
 
+// Int64Ptr returns a pointer to a int64
+func Int64Ptr(v int64) *int64 {
+	return &v
+}
+
 // PtrInt64 returns a int64 from a pointer
 func PtrInt64(v *int64) int64 {
 	if v == nil {
