@@ -17,6 +17,13 @@ import (
 func JSON(w http.ResponseWriter, code, indent int, v any) error {
 	// Set the default content type, write the header
 	w.Header().Set(types.ContentTypeHeader, types.ContentTypeJSON)
+
+	// Modify the status code if it is not already set
+	if code == 0 {
+		code = http.StatusInternalServerError
+	}
+
+	// Write the status code
 	w.WriteHeader(code)
 
 	// Create an encoder for the response
