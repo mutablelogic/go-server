@@ -82,5 +82,5 @@ type Logger interface {
 
 type PG interface {
 	Task
-	pg.PoolConn
+	Conn() pg.PoolConn
 }

@@ -12,6 +12,7 @@ import (
 
 type opt struct {
 	worker string
+	schema string
 }
 
 // Opt represents a function that modifies the options
@@ -39,10 +40,20 @@ func applyOpts(opts ...Opt) (*opt, error) {
 
 func OptWorker(worker string) Opt {
 	return func(o *opt) error {
-		if worker = strings.TrimSpace(worker); worker == "" {
+		if v = strings.TrimSpace(v); v == "" {
 			return httpresponse.ErrBadRequest.With("empty worker name")
 		}
-		o.worker = worker
+		o.worker = v
+		return nil
+	}
+}
+
+func OptSchema(v string) Opt {
+	return func(o *opt) error {
+		if v = strings.TrimSpace(v); v == "" {
+			return httpresponse.ErrBadRequest.With("empty schema name")
+		}
+		o.schema = v
 		return nil
 	}
 }

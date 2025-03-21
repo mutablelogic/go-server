@@ -37,6 +37,7 @@ func New(ctx context.Context, conn pg.PoolConn, opt ...Opt) (*Client, error) {
 		return nil, httpresponse.ErrInternalError.Withf("Cannot create listener")
 	} else {
 		self.listener = listener
+		self.conn = conn.With("schema", schema.SchemaName).(pg.PoolConn)
 		self.topics = []string{schema.TopicQueueInsert}
 	}
 

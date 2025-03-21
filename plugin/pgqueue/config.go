@@ -34,7 +34,7 @@ func (c Config) New(ctx context.Context) (server.Task, error) {
 	}
 
 	// Create a new client
-	client, err := pgqueue.New(ctx, c.Pool, opts...)
+	client, err := pgqueue.New(ctx, c.Pool.Conn(), opts...)
 	if err != nil {
 		return nil, err
 	}

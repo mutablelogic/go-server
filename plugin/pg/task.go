@@ -12,7 +12,7 @@ import (
 // TYPES
 
 type pgpool struct {
-	pg.PoolConn
+	conn pg.PoolConn
 }
 
 var _ server.Task = (*pgpool)(nil)
@@ -20,12 +20,16 @@ var _ server.Task = (*pgpool)(nil)
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func taskWithConn(conn pg.PoolConn) *pgpool {
+func taskWith(conn pg.PoolConn) *pgpool {
 	return &pgpool{conn}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
+
+func (pg *pgpool) Conn() pg.PoolConn {
+	return pg.conn
+}
 
 func (*pgpool) Run(ctx context.Context) error {
 	<-ctx.Done()
