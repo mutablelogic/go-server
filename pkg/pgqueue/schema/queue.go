@@ -205,7 +205,7 @@ func (q Queue) Insert(bind *pg.Bind) (string, error) {
 }
 
 // Patch
-func (q Queue) Patch(bind *pg.Bind) error {
+func (q Queue) Update(bind *pg.Bind) error {
 	var patch []string
 
 	// Queue name

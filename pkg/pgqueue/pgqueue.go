@@ -68,11 +68,12 @@ func New(ctx context.Context, conn pg.PoolConn, opt ...Opt) (*Client, error) {
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func (client *Client) CreateQueue(ctx context.Context, meta schema.Queue) error {
+func (client *Client) CreateQueue(ctx context.Context, meta schema.Queue) (*schema.Queue, error) {
+	var queue schema.Queue
 	if err := client.conn.Tx(ctx, func(conn pg.Conn) error {
-		return client.conn.Insert(ctx, meta)
+		return client.conn.Insert(ctx, &queue, meta)
 	}); err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+	return &queue, nil
 }

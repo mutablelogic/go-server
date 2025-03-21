@@ -12,7 +12,7 @@ import (
 // TYPES
 
 type pgpool struct {
-	conn pg.PoolConn
+	pg.PoolConn
 }
 
 var _ server.Task = (*pgpool)(nil)
@@ -21,7 +21,7 @@ var _ server.Task = (*pgpool)(nil)
 // LIFECYCLE
 
 func taskWithConn(conn pg.PoolConn) *pgpool {
-	return &pgpool{conn: conn}
+	return &pgpool{conn}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
