@@ -3,6 +3,9 @@ package server
 import (
 	"context"
 	"net/http"
+
+	// Packages
+	"github.com/djthorpe/go-pg"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -72,4 +75,12 @@ type Logger interface {
 	// Append structured data to the log in key-value pairs
 	// where the key is a string and the value is any type
 	//With(...any) Logger
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PGPOOL
+
+type PG interface {
+	Task
+	pg.PoolConn
 }
