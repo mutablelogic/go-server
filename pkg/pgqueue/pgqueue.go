@@ -2,6 +2,7 @@ package pgqueue
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -69,11 +70,36 @@ func New(ctx context.Context, conn pg.PoolConn, opt ...Opt) (*Client, error) {
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
+// CreateQueue creates a new queue, and returns it.
 func (client *Client) CreateQueue(ctx context.Context, meta schema.Queue) (*schema.Queue, error) {
 	var queue schema.Queue
 	if err := client.conn.Tx(ctx, func(conn pg.Conn) error {
 		return client.conn.Insert(ctx, &queue, meta)
 	}); err != nil {
+		return nil, err
+	}
+	return &queue, nil
+}
+
+// GetQueue returns a queue with the given name.
+func (client *Client) GetQueue(ctx context.Context, name string) (*schema.Queue, error) {
+	var queue schema.Queue
+	if err := client.conn.Get(ctx, &queue, schema.QueueName(name)); err != nil {
+		if errors.Is(err, pg.ErrNotFound) {
+			return nil, httpresponse.ErrNotFound.Withf("Queue %q not found", name)
+		}
+		return nil, err
+	}
+	return &queue, nil
+}
+
+// DeleteQueue deletes a queue with the given name, and returns the deleted queue.
+func (client *Client) DeleteQueue(ctx context.Context, name string) (*schema.Queue, error) {
+	var queue schema.Queue
+	if err := client.conn.Delete(ctx, &queue, schema.QueueName(name)); err != nil {
+		if errors.Is(err, pg.ErrNotFound) {
+			return nil, httpresponse.ErrNotFound.Withf("Queue %q not found", name)
+		}
 		return nil, err
 	}
 	return &queue, nil

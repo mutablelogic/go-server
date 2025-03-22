@@ -3,7 +3,6 @@ package schema
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"strings"
 	"time"
 
@@ -15,6 +14,8 @@ import (
 
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
+
+type QueueName string
 
 type Queue struct {
 	Queue      string         `json:"queue,omitempty"`
@@ -129,7 +130,14 @@ func (l *QueueStatusResponse) Scan(row pg.Row) error {
 ////////////////////////////////////////////////////////////////////////////////
 // SELECTOR
 
-func (q Queue) Select(bind *pg.Bind, op pg.Op) (string, error) {
+func (q QueueName) Select(bind *pg.Bind, op pg.Op) (string, error) {
+	// Set queue name
+	if name, err := q.queueName(); err != nil {
+		return "", err
+	} else {
+		bind.Set("id", name)
+	}
+
 	switch op {
 	case pg.Get:
 		return queueGet, nil
@@ -138,7 +146,7 @@ func (q Queue) Select(bind *pg.Bind, op pg.Op) (string, error) {
 	case pg.Delete:
 		return queueDelete, nil
 	default:
-		return "", fmt.Errorf("Unsupported Queue operation %q", op)
+		return "", httpresponse.ErrInternalError.Withf("Unsupported QueueName operation %q", op)
 	}
 }
 
@@ -147,7 +155,7 @@ func (q QueueCleanRequest) Select(bind *pg.Bind, op pg.Op) (string, error) {
 	case pg.List:
 		return queueClean, nil
 	default:
-		return "", fmt.Errorf("Unsupported QueueCleanRequest operation %q", op)
+		return "", httpresponse.ErrInternalError.Withf("Unsupported QueueCleanRequest operation %q", op)
 	}
 }
 
@@ -160,7 +168,7 @@ func (l QueueListRequest) Select(bind *pg.Bind, op pg.Op) (string, error) {
 	case pg.List:
 		return queueList, nil
 	default:
-		return "", fmt.Errorf("Unsupported QueueListRequest operation %q", op)
+		return "", httpresponse.ErrInternalError.Withf("Unsupported QueueListRequest operation %q", op)
 	}
 }
 
@@ -183,7 +191,7 @@ func (l QueueStatusRequest) Select(bind *pg.Bind, op pg.Op) (string, error) {
 	case pg.List:
 		return queueStats, nil
 	default:
-		return "", fmt.Errorf("Unsupported QueueStatusRequest operation %q", op)
+		return "", httpresponse.ErrInternalError.Withf("Unsupported QueueStatusRequest operation %q", op)
 	}
 }
 
@@ -193,7 +201,7 @@ func (l QueueStatusRequest) Select(bind *pg.Bind, op pg.Op) (string, error) {
 // Insert
 func (q Queue) Insert(bind *pg.Bind) (string, error) {
 	// Queue name
-	queue, err := q.queueName()
+	queue, err := QueueName(q.Queue).queueName()
 	if err != nil {
 		return "", err
 	} else {
@@ -209,7 +217,7 @@ func (q Queue) Update(bind *pg.Bind) error {
 	var patch []string
 
 	// Queue name
-	if queue, err := q.queueName(); err != nil {
+	if queue, err := QueueName(q.Queue).queueName(); err != nil {
 		return err
 	} else {
 		patch = append(patch, `queue=`+bind.Set("queue", queue))
@@ -238,8 +246,8 @@ func (q Queue) Update(bind *pg.Bind) error {
 }
 
 // Normalize queue name
-func (q Queue) queueName() (string, error) {
-	if queue := strings.ToLower(strings.TrimSpace(q.Queue)); queue == "" {
+func (q QueueName) queueName() (string, error) {
+	if queue := strings.ToLower(strings.TrimSpace(string(q))); queue == "" {
 		return "", httpresponse.ErrBadRequest.With("Missing queue name")
 	} else if !types.IsIdentifier(queue) {
 		return "", httpresponse.ErrBadRequest.With("Invalid queue name")
