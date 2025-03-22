@@ -27,9 +27,6 @@ func Test_Queue_001(t *testing.T) {
 	conn := conn.Begin(t)
 	defer conn.Close()
 
-	// Ping the database
-	assert.NoError(conn.Ping(context.Background()))
-
 	// Create pgqueue
 	client, err := pgqueue.New(context.TODO(), conn.PoolConn, pgqueue.OptWorker(t.Name()))
 	assert.NoError(err)
@@ -161,5 +158,88 @@ func Test_Queue_001(t *testing.T) {
 		})
 		assert.Error(err)
 		assert.ErrorIs(err, httpresponse.ErrNotFound)
+	})
+
+	// List queue
+	t.Run("ListQueue_1", func(t *testing.T) {
+		_, err := client.CreateQueue(context.TODO(), schema.Queue{
+			Queue: "queue_name_9",
+		})
+		assert.NoError(err)
+
+		list, err := client.ListQueues(context.TODO())
+		assert.NoError(err)
+		assert.NotNil(list)
+		assert.NotNil(list.Body)
+		assert.GreaterOrEqual(len(list.Body), 1)
+		assert.Equal(len(list.Body), int(list.Count))
+	})
+
+	// List queue
+	t.Run("ListQueue_2", func(t *testing.T) {
+		_, err := client.CreateQueue(context.TODO(), schema.Queue{
+			Queue: "queue_name_10",
+		})
+		assert.NoError(err)
+
+		list, err := client.ListQueues(context.TODO(), pgqueue.OptLimit(0))
+		assert.NoError(err)
+		assert.NotNil(list)
+		assert.NotNil(list.Body)
+		assert.GreaterOrEqual(int(list.Count), 1)
+		assert.Equal(len(list.Body), 0)
+	})
+}
+
+func Test_Ticker_001(t *testing.T) {
+	assert := assert.New(t)
+	conn := conn.Begin(t)
+	defer conn.Close()
+
+	// Create pgqueue
+	client, err := pgqueue.New(context.TODO(), conn.PoolConn, pgqueue.OptWorker(t.Name()))
+	assert.NoError(err)
+	assert.NotNil(client)
+
+	// Create ticker which is disabled (NULL interval)
+	t.Run("CreateTicker_1", func(t *testing.T) {
+		ticker, err := client.CreateTicker(context.TODO(), schema.TickerMeta{
+			Ticker: "ticker_1",
+		})
+		assert.NoError(err)
+		assert.NotNil(ticker)
+		assert.NotNil(ticker.Ticker)
+		assert.Equal("ticker_1", ticker.Ticker)
+		assert.Nil(ticker.Interval)
+	})
+
+	// Create ticker with 1 minute interval
+	t.Run("CreateTicker_2", func(t *testing.T) {
+		ticker, err := client.CreateTicker(context.TODO(), schema.TickerMeta{
+			Ticker:   "ticker_2",
+			Interval: types.DurationPtr(1 * time.Minute),
+		})
+		assert.NoError(err)
+		assert.NotNil(ticker)
+		assert.NotNil(ticker.Ticker)
+		assert.Equal("ticker_2", ticker.Ticker)
+		assert.Equal(1*time.Minute, types.PtrDuration(ticker.Interval))
+	})
+
+	// Get ticker
+	t.Run("GetTicker_1", func(t *testing.T) {
+		ticker, err := client.CreateTicker(context.TODO(), schema.TickerMeta{
+			Ticker:   "ticker_3",
+			Interval: types.DurationPtr(1 * time.Minute),
+		})
+		assert.NoError(err)
+		assert.NotNil(ticker)
+
+		ticker2, err := client.GetTicker(context.TODO(), ticker.TickerName(ticker.Ticker))
+		assert.NoError(err)
+		assert.NotNil(ticker2)
+		assert.NotNil(ticker2.Ticker)
+		assert.Equal(ticker.Ticker, ticker2.Ticker)
+		assert.Equal(ticker.Interval, ticker2.Interval)
 	})
 }

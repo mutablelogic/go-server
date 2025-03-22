@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"strings"
 
 	// Packages
 	pg "github.com/djthorpe/go-pg"
@@ -31,6 +29,8 @@ func New(ctx context.Context, conn pg.PoolConn, opt ...Opt) (*Client, error) {
 	opts, err := applyOpts(opt...)
 	if err != nil {
 		return nil, err
+	} else {
+		self.worker = opts.worker
 	}
 
 	// Create a listener
@@ -38,17 +38,11 @@ func New(ctx context.Context, conn pg.PoolConn, opt ...Opt) (*Client, error) {
 		return nil, httpresponse.ErrInternalError.Withf("Cannot create listener")
 	} else {
 		self.listener = listener
-		self.conn = conn.With("schema", schema.SchemaName).(pg.PoolConn)
+		self.conn = conn.With(
+			"schema", schema.SchemaName,
+			"ns", opts.namespace,
+		).(pg.PoolConn)
 		self.topics = []string{schema.TopicQueueInsert}
-	}
-
-	// Set worker name
-	if worker := strings.TrimSpace(opts.worker); worker != "" {
-		self.worker = worker
-	} else if hostname, err := os.Hostname(); err != nil {
-		return nil, httpresponse.ErrInternalError.With(err)
-	} else {
-		self.worker = fmt.Sprint(hostname, ".", os.Getpid())
 	}
 
 	// If the schema does not exist, then bootstrap it
@@ -115,4 +109,48 @@ func (client *Client) UpdateQueue(ctx context.Context, name string, meta schema.
 		return nil, err
 	}
 	return &queue, nil
+}
+
+// ListQueues returns all queues as a list
+func (client *Client) ListQueues(ctx context.Context, opt ...Opt) (*schema.QueueList, error) {
+	var list schema.QueueList
+
+	// Apply options
+	opts, err := applyOpts(opt...)
+	if err != nil {
+		return nil, err
+	}
+
+	// Perform list
+	list.Body = make([]schema.Queue, 0, 10)
+	if err := client.conn.List(ctx, &list, schema.QueueListRequest{
+		OffsetLimit: opts.OffsetLimit,
+	}); err != nil {
+		return nil, err
+	}
+	return &list, nil
+}
+
+// CreateTicker creates a new ticker, and returns it.
+func (client *Client) CreateTicker(ctx context.Context, meta schema.TickerMeta) (*schema.Ticker, error) {
+	var ticker schema.Ticker
+	if err := client.conn.Tx(ctx, func(conn pg.Conn) error {
+		return client.conn.Insert(ctx, &ticker, meta)
+	}); err != nil {
+		return nil, err
+	}
+	fmt.Println("Created ticker:", ticker)
+	return &ticker, nil
+}
+
+// GetTicker returns a ticker with the given name.
+func (client *Client) GetTicker(ctx context.Context, name string) (*schema.Ticker, error) {
+	var ticker schema.Ticker
+	if err := client.conn.Get(ctx, &ticker, schema.TickerName(name)); err != nil {
+		if errors.Is(err, pg.ErrNotFound) {
+			return nil, httpresponse.ErrNotFound.Withf("Ticker %q not found", name)
+		}
+		return nil, err
+	}
+	return &ticker, nil
 }

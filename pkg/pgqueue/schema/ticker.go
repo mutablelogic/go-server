@@ -9,6 +9,7 @@ import (
 
 	// Packages
 	pg "github.com/djthorpe/go-pg"
+	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	types "github.com/mutablelogic/go-server/pkg/types"
 )
 
@@ -16,9 +17,8 @@ import (
 // TYPES
 
 type TickerMeta struct {
-	Namespace string         `json:"ns"`
-	Ticker    string         `json:"ticker"`
-	Interval  *time.Duration `json:"interval,omitempty"`
+	Ticker   string         `json:"ticker"`
+	Interval *time.Duration `json:"interval,omitempty"`
 }
 
 type Ticker struct {
@@ -41,17 +41,10 @@ func (t Ticker) String() string {
 // SELECTOR
 
 func (t TickerMeta) Select(bind *pg.Bind, op pg.Op) (string, error) {
-	// Set namespace
-	if ns := strings.TrimSpace(t.Namespace); ns == "" {
-		return "", fmt.Errorf("Namespace is required")
-	} else {
-		bind.Set("ns", ns)
-	}
-
 	// Set ticker unless op is List
 	if op != pg.List {
 		if ticker := strings.TrimSpace(t.Ticker); ticker == "" {
-			return "", fmt.Errorf("Ticker is required")
+			return "", httpresponse.ErrBadRequest.With("Ticker name is required")
 		} else {
 			bind.Set("ticker", ticker)
 		}
@@ -76,23 +69,16 @@ func (t TickerMeta) Select(bind *pg.Bind, op pg.Op) (string, error) {
 // READER
 
 func (r *Ticker) Scan(row pg.Row) error {
-	return row.Scan(&r.Namespace, &r.Ticker, &r.Interval, &r.Ts)
+	return row.Scan(&r.Ticker, &r.Interval, &r.Ts)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // WRITER
 
 func (w TickerMeta) Insert(bind *pg.Bind) (string, error) {
-	// Set ticker and namespace
-	if ns := strings.TrimSpace(w.Namespace); ns == "" {
-		return "", fmt.Errorf("Namespace is required")
-	} else if !types.IsIdentifier(ns) {
-		return "", fmt.Errorf("Namespace is not an identifier")
-	} else {
-		bind.Set("ns", ns)
-	}
+	// Set ticker
 	if ticker := strings.TrimSpace(w.Ticker); ticker == "" {
-		return "", fmt.Errorf("Ticker is required")
+		return "", fmt.Errorf("Ticker name is required")
 	} else if !types.IsIdentifier(ticker) {
 		return "", fmt.Errorf("Ticker is not an identifier")
 	} else {
@@ -110,7 +96,7 @@ func (w TickerMeta) Insert(bind *pg.Bind) (string, error) {
 	return tickerInsert, nil
 }
 
-func (w TickerMeta) Patch(bind *pg.Bind) error {
+func (w TickerMeta) Update(bind *pg.Bind) error {
 	var patch []string
 
 	// Set interval
@@ -120,7 +106,7 @@ func (w TickerMeta) Patch(bind *pg.Bind) error {
 
 	// Set patch
 	if len(patch) == 0 {
-		return fmt.Errorf("No patch values")
+		return httpresponse.ErrBadRequest.With("No patch values")
 	} else {
 		bind.Set("patch", strings.Join(patch, ","))
 	}
@@ -164,11 +150,8 @@ const (
 			("ns", "ticker", "interval", "ts") 
 		VALUES 
 			(@ns, @ticker, @interval, DEFAULT)
-		ON CONFLICT ("ns", "ticker") DO UPDATE SET
-			"interval" = EXCLUDED."interval",
-			"ts" = DEFAULT
 		RETURNING
-			"ns", "ticker", "interval", "ts"
+			"ticker", "interval", "ts"
 	`
 	tickerPatch = `
 		UPDATE ${"schema"}.ticker SET

@@ -288,27 +288,30 @@ const (
 	taskCreateTable = `
         CREATE TABLE IF NOT EXISTS ${"schema"}."task" (
             -- task id
-            "id" SERIAL PRIMARY KEY,
-            -- queue
-            "queue" TEXT NOT NULL REFERENCES ${"schema"}."queue" ON DELETE CASCADE,
+            "id"                         SERIAL PRIMARY KEY,
+            -- namespace and queue
+			"ns"                         TEXT NOT NULL,
+            "queue"                      TEXT NOT NULL,
             -- task payload and result
             -- result is used for both successful and unsuccessful tasks
-            "payload" JSONB NOT NULL DEFAULT '{}',
-            "result" JSONB NOT NULL DEFAULT 'null',
+            "payload"                    JSONB NOT NULL DEFAULT '{}',
+            "result"                     JSONB NOT NULL DEFAULT 'null',
             -- worker identifier
-            "worker" TEXT,
+            "worker"                     TEXT,
             -- when the task has been created
-            "created_at"  TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC'),
+            "created_at"                 TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC'),
             -- when the task should be next run (or NULL if it should be run now)
-            "delayed_at"  TIMESTAMP,
+            "delayed_at"                 TIMESTAMP,
             -- when the task has been started, finished and when it expires (dies)
-            "started_at"  TIMESTAMP,
-            "finished_at" TIMESTAMP,
-            "dies_at"     TIMESTAMP,
+            "started_at"                 TIMESTAMP,
+            "finished_at"                TIMESTAMP,
+            "dies_at"                    TIMESTAMP,
             -- task maximum retries. when this reaches zero the task is marked as failed
-            "retries" INTEGER NOT NULL,
+            "retries"                    INTEGER NOT NULL,
             -- the initial retry value
-            "initial_retries" INTEGER NOT NULL
+            "initial_retries"            INTEGER NOT NULL,
+			-- foreign key (ns, queue) references queue (ns, queue)
+			FOREIGN KEY ("ns", "queue") REFERENCES ${"schema"}.queue ("ns", "queue") ON DELETE CASCADE
         )
     `
 	taskCreateInsertFunc = `

@@ -79,3 +79,11 @@ func PtrTime(t *time.Time) time.Time {
 func DurationPtr(v time.Duration) *time.Duration {
 	return &v
 }
+
+// PtrDuration returns a duration from a pointer
+func PtrDuration(v *time.Duration) time.Duration {
+	if v == nil {
+		return 0
+	}
+	return *v
+}

@@ -160,7 +160,6 @@ func (q QueueCleanRequest) Select(bind *pg.Bind, op pg.Op) (string, error) {
 }
 
 func (l QueueListRequest) Select(bind *pg.Bind, op pg.Op) (string, error) {
-	// Bind parameters
 	bind.Set("where", "")
 	l.OffsetLimit.Bind(bind, QueueListLimit)
 
@@ -277,21 +276,24 @@ func bootstrapQueue(ctx context.Context, conn pg.Conn) error {
 const (
 	queueCreateTable = `
 		CREATE TABLE IF NOT EXISTS ${"schema"}.queue (
-			-- queue name
-			"queue" TEXT PRIMARY KEY,
+			-- namespace and queue name
+			"ns" TEXT NOT NULL,
+			"queue" TEXT NOT NULL,
 			-- time-to-live for queue messages
 			"ttl" INTERVAL DEFAULT INTERVAL '1 hour',
 			-- number of retries before failing
 			"retries" INTEGER NOT NULL DEFAULT 3 CHECK ("retries" >= 0),
 			-- delay between retries in seconds
-			"retry_delay" INTERVAL NOT NULL DEFAULT INTERVAL '2 minute'
+			"retry_delay" INTERVAL NOT NULL DEFAULT INTERVAL '2 minute',
+			-- primary key
+			PRIMARY KEY ("ns", "queue")
 		)
 	`
 	queueInsert = `
 		INSERT INTO ${"schema"}.queue (
-			queue, ttl, retries, retry_delay
+			ns, queue, ttl, retries, retry_delay
 		) VALUES (
-		 	@queue, DEFAULT, DEFAULT, DEFAULT
+		 	@ns, @queue, DEFAULT, DEFAULT, DEFAULT
 		) RETURNING 
 			queue, ttl, retries, retry_delay
 	`
@@ -302,18 +304,24 @@ const (
 			${"schema"}.queue
 		WHERE
 			queue = @id
+		AND
+			ns = @ns
 	`
 	queuePatch = `
 		UPDATE ${"schema"}.queue SET
 			${patch}
 		WHERE
 			queue = @id
+		AND
+			ns = @ns
 		RETURNING
 			queue, ttl, retries, retry_delay
 	`
 	queueDelete = `
 		DELETE FROM ${"schema"}.queue WHERE
 			queue = @id
+		AND
+			ns = @ns
 		RETURNING
 			queue, ttl, retries, retry_delay
 	`
@@ -321,10 +329,12 @@ const (
 		SELECT
 			queue, ttl, retries, retry_delay
 		FROM 
-			${"schema"}.queue ${where}
+			${"schema"}.queue 
+		WHERE
+			ns = @ns ${where}
 	`
 	queueClean = `
-		SELECT * FROM ${"schema"}.queue_clean(@id)
+		SELECT * FROM ${"schema"}.queue_clean(@ns, @id)
 	`
 	queueStatsView = `
 		CREATE OR REPLACE VIEW ${"schema"}."queue_status" AS
@@ -342,6 +352,6 @@ const (
 			1, 2
 	`
 	queueStats = `
-		SELECT "queue", "status", "count" FROM ${"schema"}.queue_status ${where}
+		SELECT "queue", "status", "count" FROM ${"schema"}.queue_status WHERE "ns" = @ns ${where}
 	`
 )

@@ -13,6 +13,7 @@ import (
 
 const (
 	SchemaName       = "pgqueue"
+	DefaultNamespace = "default"
 	DefaultPrefix    = "/queue/v1"
 	TopicQueueInsert = "queue_insert"
 	QueueListLimit   = 100
