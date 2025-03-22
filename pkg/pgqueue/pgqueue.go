@@ -104,3 +104,15 @@ func (client *Client) DeleteQueue(ctx context.Context, name string) (*schema.Que
 	}
 	return &queue, nil
 }
+
+// UpdateQueue updates an existing queue with the given name, and returns the queue.
+func (client *Client) UpdateQueue(ctx context.Context, name string, meta schema.Queue) (*schema.Queue, error) {
+	var queue schema.Queue
+	if err := client.conn.Update(ctx, &queue, schema.QueueName(name), meta); err != nil {
+		if errors.Is(err, pg.ErrNotFound) {
+			return nil, httpresponse.ErrNotFound.Withf("Queue %q not found", name)
+		}
+		return nil, err
+	}
+	return &queue, nil
+}

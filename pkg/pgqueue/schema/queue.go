@@ -217,10 +217,12 @@ func (q Queue) Update(bind *pg.Bind) error {
 	var patch []string
 
 	// Queue name
-	if queue, err := QueueName(q.Queue).queueName(); err != nil {
-		return err
-	} else {
-		patch = append(patch, `queue=`+bind.Set("queue", queue))
+	if q.Queue != "" {
+		if queue, err := QueueName(q.Queue).queueName(); err != nil {
+			return err
+		} else {
+			patch = append(patch, `queue=`+bind.Set("queue", queue))
+		}
 	}
 
 	// Set patch values
