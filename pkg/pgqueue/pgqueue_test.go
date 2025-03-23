@@ -6,6 +6,7 @@ import (
 	"time"
 
 	// Packages
+	"github.com/djthorpe/go-pg"
 	test "github.com/djthorpe/go-pg/pkg/test"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	pgqueue "github.com/mutablelogic/go-server/pkg/pgqueue"
@@ -167,7 +168,7 @@ func Test_Queue_001(t *testing.T) {
 		})
 		assert.NoError(err)
 
-		list, err := client.ListQueues(context.TODO())
+		list, err := client.ListQueues(context.TODO(), schema.QueueListRequest{})
 		assert.NoError(err)
 		assert.NotNil(list)
 		assert.NotNil(list.Body)
@@ -182,7 +183,11 @@ func Test_Queue_001(t *testing.T) {
 		})
 		assert.NoError(err)
 
-		list, err := client.ListQueues(context.TODO(), pgqueue.OptLimit(0))
+		list, err := client.ListQueues(context.TODO(), schema.QueueListRequest{
+			OffsetLimit: pg.OffsetLimit{
+				Limit: types.Uint64Ptr(0),
+			},
+		})
 		assert.NoError(err)
 		assert.NotNil(list)
 		assert.NotNil(list.Body)
@@ -235,11 +240,105 @@ func Test_Ticker_001(t *testing.T) {
 		assert.NoError(err)
 		assert.NotNil(ticker)
 
-		ticker2, err := client.GetTicker(context.TODO(), ticker.TickerName(ticker.Ticker))
+		ticker2, err := client.GetTicker(context.TODO(), ticker.Ticker)
 		assert.NoError(err)
 		assert.NotNil(ticker2)
 		assert.NotNil(ticker2.Ticker)
 		assert.Equal(ticker.Ticker, ticker2.Ticker)
 		assert.Equal(ticker.Interval, ticker2.Interval)
+	})
+
+	// Get non-existent ticker
+	t.Run("GetTicker_2", func(t *testing.T) {
+		ticker, err := client.GetTicker(context.TODO(), "nonexistent_ticker")
+		assert.Error(err)
+		assert.ErrorIs(err, httpresponse.ErrNotFound)
+		assert.Nil(ticker)
+	})
+
+	// Update ticker - non-existent ticker
+	t.Run("UpdateTicker_1", func(t *testing.T) {
+		ticker, err := client.UpdateTicker(context.TODO(), "nonexistent_ticker", schema.TickerMeta{
+			Ticker: "ticker_4",
+		})
+		assert.Error(err)
+		assert.ErrorIs(err, httpresponse.ErrNotFound)
+		assert.Nil(ticker)
+	})
+
+	// Update ticker - name and interval
+	t.Run("UpdateTicker_2", func(t *testing.T) {
+		ticker, err := client.CreateTicker(context.TODO(), schema.TickerMeta{
+			Ticker:   "ticker_5",
+			Interval: types.DurationPtr(1 * time.Minute),
+		})
+		assert.NoError(err)
+		assert.NotNil(ticker)
+
+		ticker2, err := client.UpdateTicker(context.TODO(), ticker.Ticker, schema.TickerMeta{
+			Ticker:   "ticker_6",
+			Interval: types.DurationPtr(2 * time.Minute),
+		})
+		assert.NoError(err)
+		assert.Equal("ticker_6", ticker2.Ticker)
+		assert.Equal(2*time.Minute, types.PtrDuration(ticker2.Interval))
+	})
+
+	// Delete ticker - non-existent ticker
+	t.Run("DeleteTicker_1", func(t *testing.T) {
+		ticker, err := client.DeleteTicker(context.TODO(), "nonexistent_ticker")
+		assert.Error(err)
+		assert.ErrorIs(err, httpresponse.ErrNotFound)
+		assert.Nil(ticker)
+	})
+
+	// Delete ticker
+	t.Run("DeleteTicker_2", func(t *testing.T) {
+		ticker, err := client.CreateTicker(context.TODO(), schema.TickerMeta{
+			Ticker:   "ticker_7",
+			Interval: types.DurationPtr(1 * time.Minute),
+		})
+		assert.NoError(err)
+		assert.NotNil(ticker)
+
+		ticker2, err := client.DeleteTicker(context.TODO(), ticker.Ticker)
+		assert.NoError(err)
+		assert.NotNil(ticker2)
+		assert.Equal(ticker.Ticker, ticker2.Ticker)
+
+		_, err = client.GetTicker(context.TODO(), ticker.Ticker)
+		assert.Error(err)
+		assert.ErrorIs(err, httpresponse.ErrNotFound)
+	})
+
+	// List tickers
+	t.Run("ListTicker_1", func(t *testing.T) {
+		ticker, err := client.CreateTicker(context.TODO(), schema.TickerMeta{
+			Ticker:   "ticker_8",
+			Interval: types.DurationPtr(1 * time.Minute),
+		})
+		assert.NoError(err)
+		assert.NotNil(ticker)
+
+		tickers, err := client.ListTickers(context.TODO(), schema.TickerListRequest{})
+		assert.NoError(err)
+		assert.NotNil(tickers)
+		assert.NotNil(tickers.Body)
+		assert.GreaterOrEqual(len(tickers.Body), 1)
+		assert.Equal(len(tickers.Body), int(tickers.Count))
+	})
+
+	// Next ticker
+	t.Run("NextTicker_1", func(t *testing.T) {
+		ticker, err := client.CreateTicker(context.TODO(), schema.TickerMeta{
+			Ticker:   "ticker_9",
+			Interval: types.DurationPtr(1 * time.Minute),
+		})
+		assert.NoError(err)
+		assert.NotNil(ticker)
+
+		ticker2, err := client.NextTicker(context.TODO())
+		assert.NoError(err)
+		assert.NotNil(ticker2)
 	})
 }

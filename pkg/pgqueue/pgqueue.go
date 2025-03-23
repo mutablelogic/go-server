@@ -3,7 +3,6 @@ package pgqueue
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	// Packages
 	pg "github.com/djthorpe/go-pg"
@@ -112,20 +111,12 @@ func (client *Client) UpdateQueue(ctx context.Context, name string, meta schema.
 }
 
 // ListQueues returns all queues as a list
-func (client *Client) ListQueues(ctx context.Context, opt ...Opt) (*schema.QueueList, error) {
+func (client *Client) ListQueues(ctx context.Context, req schema.QueueListRequest) (*schema.QueueList, error) {
 	var list schema.QueueList
-
-	// Apply options
-	opts, err := applyOpts(opt...)
-	if err != nil {
-		return nil, err
-	}
 
 	// Perform list
 	list.Body = make([]schema.Queue, 0, 10)
-	if err := client.conn.List(ctx, &list, schema.QueueListRequest{
-		OffsetLimit: opts.OffsetLimit,
-	}); err != nil {
+	if err := client.conn.List(ctx, &list, req); err != nil {
 		return nil, err
 	}
 	return &list, nil
@@ -139,7 +130,6 @@ func (client *Client) CreateTicker(ctx context.Context, meta schema.TickerMeta) 
 	}); err != nil {
 		return nil, err
 	}
-	fmt.Println("Created ticker:", ticker)
 	return &ticker, nil
 }
 
@@ -152,5 +142,55 @@ func (client *Client) GetTicker(ctx context.Context, name string) (*schema.Ticke
 		}
 		return nil, err
 	}
+	return &ticker, nil
+}
+
+// UpdateTicker updates a ticker with the given name.
+func (client *Client) UpdateTicker(ctx context.Context, name string, meta schema.TickerMeta) (*schema.Ticker, error) {
+	var ticker schema.Ticker
+	if err := client.conn.Update(ctx, &ticker, schema.TickerName(name), meta); err != nil {
+		if errors.Is(err, pg.ErrNotFound) {
+			return nil, httpresponse.ErrNotFound.Withf("Ticker %q not found", name)
+		}
+		return nil, err
+	}
+	return &ticker, nil
+}
+
+// DeleteTicker deletes an existing ticker, and returns the deleted ticker.
+func (client *Client) DeleteTicker(ctx context.Context, name string) (*schema.Ticker, error) {
+	var ticker schema.Ticker
+	if err := client.conn.Delete(ctx, &ticker, schema.TickerName(name)); err != nil {
+		if errors.Is(err, pg.ErrNotFound) {
+			return nil, httpresponse.ErrNotFound.Withf("Ticker %q not found", name)
+		}
+		return nil, err
+	}
+	return &ticker, nil
+}
+
+// ListTickers returns all tickers in a namespace as a list
+func (client *Client) ListTickers(ctx context.Context, req schema.TickerListRequest) (*schema.TickerList, error) {
+	var list schema.TickerList
+
+	// Perform list
+	list.Body = make([]schema.Ticker, 0, 10)
+	if err := client.conn.List(ctx, &list, req); err != nil {
+		return nil, err
+	}
+	return &list, nil
+}
+
+// NextTicker returns the next matured ticker, or nil
+func (client *Client) NextTicker(ctx context.Context) (*schema.Ticker, error) {
+	var ticker schema.Ticker
+	if err := client.conn.Get(ctx, &ticker, schema.TickerNext{}); errors.Is(err, pg.ErrNotFound) {
+		// No matured ticker
+		return nil, nil
+	} else if err != nil {
+		return nil, err
+	}
+
+	// Return matured ticker
 	return &ticker, nil
 }

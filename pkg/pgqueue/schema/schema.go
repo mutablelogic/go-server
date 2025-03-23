@@ -17,6 +17,7 @@ const (
 	DefaultPrefix    = "/queue/v1"
 	TopicQueueInsert = "queue_insert"
 	QueueListLimit   = 100
+	TickerListLimit  = 100
 	TaskListLimit    = 100
 	TickerPeriod     = 15 * time.Second
 )
