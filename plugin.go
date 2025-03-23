@@ -5,7 +5,8 @@ import (
 	"net/http"
 
 	// Packages
-	"github.com/djthorpe/go-pg"
+	pg "github.com/djthorpe/go-pg"
+	schema "github.com/mutablelogic/go-server/pkg/pgqueue/schema"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -81,6 +82,21 @@ type Logger interface {
 // PGPOOL
 
 type PG interface {
-	Task
+	// Return the connection pool
 	Conn() pg.PoolConn
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PGQUEUE
+
+type PGCallback func(context.Context, any) (any, error)
+
+type PGQueue interface {
+	Task
+
+	// Register a ticker with a callback, and return the registered ticker
+	RegisterTicker(context.Context, schema.TickerMeta, PGCallback) error
+
+	// Register a queue with a callback, and return the registered queue
+	RegisterQueue(context.Context, schema.Queue, PGCallback) error
 }

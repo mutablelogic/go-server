@@ -20,7 +20,7 @@ var _ server.Task = (*pgpool)(nil)
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func taskWith(conn pg.PoolConn) *pgpool {
+func NewTask(conn pg.PoolConn) *pgpool {
 	return &pgpool{conn}
 }
 

@@ -3,11 +3,13 @@ package pgqueue
 import (
 	"context"
 	"errors"
+	"time"
 
 	// Packages
 	pg "github.com/djthorpe/go-pg"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	schema "github.com/mutablelogic/go-server/pkg/pgqueue/schema"
+	"github.com/mutablelogic/go-server/pkg/types"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -58,6 +60,16 @@ func New(ctx context.Context, conn pg.PoolConn, opt ...Opt) (*Client, error) {
 
 	// Return success
 	return self, nil
+}
+
+func (client *Client) Close(ctx context.Context) error {
+	var result error
+	if client.listener != nil {
+		result = errors.Join(result, client.listener.Close(ctx))
+	}
+
+	// Return any errors
+	return result
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -231,4 +243,37 @@ func (client *Client) NextTicker(ctx context.Context) (*schema.Ticker, error) {
 
 	// Return matured ticker
 	return &ticker, nil
+}
+
+// RunTickerLoop runs a loop to process matured tickers, or NextTicker returns an error
+func (client *Client) RunTickerLoop(ctx context.Context, ch chan<- *schema.Ticker) error {
+	delta := schema.TickerPeriod
+	timer := time.NewTimer(100 * time.Millisecond)
+	defer timer.Stop()
+
+	// Loop until context is cancelled
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-timer.C:
+			// Check for matured tickers
+			ticker, err := client.NextTicker(ctx)
+			if err != nil {
+				return err
+			}
+
+			if ticker != nil {
+				ch <- ticker
+
+				// Reset timer to minimum period
+				if dur := types.PtrDuration(ticker.Interval); dur >= time.Second && dur < delta {
+					delta = dur
+				}
+			}
+
+			// Next loop
+			timer.Reset(delta)
+		}
+	}
 }
