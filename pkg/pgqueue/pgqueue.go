@@ -63,12 +63,30 @@ func New(ctx context.Context, conn pg.PoolConn, opt ...Opt) (*Client, error) {
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
+// RegisterQueue creates a new queue, or updates an existing queue, and returns it.
+func (client *Client) RegisterQueue(ctx context.Context, meta schema.Queue) (*schema.Queue, error) {
+	var queue schema.Queue
+	if err := client.conn.Tx(ctx, func(conn pg.Conn) error {
+		// Get a queue
+		if err := conn.Get(ctx, &queue, schema.QueueName(meta.Queue)); err != nil && !errors.Is(err, pg.ErrNotFound) {
+			return err
+		} else if errors.Is(err, pg.ErrNotFound) {
+			// If the queue does not exist, then create it
+			return conn.Insert(ctx, &queue, meta)
+		} else {
+			// If the queue exists, then update it
+			return conn.Update(ctx, &queue, schema.QueueName(meta.Queue), meta)
+		}
+	}); err != nil {
+		return nil, err
+	}
+	return &queue, nil
+}
+
 // CreateQueue creates a new queue, and returns it.
 func (client *Client) CreateQueue(ctx context.Context, meta schema.Queue) (*schema.Queue, error) {
 	var queue schema.Queue
-	if err := client.conn.Tx(ctx, func(conn pg.Conn) error {
-		return client.conn.Insert(ctx, &queue, meta)
-	}); err != nil {
+	if err := client.conn.Insert(ctx, &queue, meta); err != nil {
 		return nil, err
 	}
 	return &queue, nil
@@ -120,6 +138,26 @@ func (client *Client) ListQueues(ctx context.Context, req schema.QueueListReques
 		return nil, err
 	}
 	return &list, nil
+}
+
+// RegisterTicker creates a new ticker, or updates an existing ticker, and returns it.
+func (client *Client) RegisterTicker(ctx context.Context, meta schema.TickerMeta) (*schema.Ticker, error) {
+	var ticker schema.Ticker
+	if err := client.conn.Tx(ctx, func(conn pg.Conn) error {
+		// Get a ticker
+		if err := conn.Get(ctx, &ticker, schema.TickerName(meta.Ticker)); err != nil && !errors.Is(err, pg.ErrNotFound) {
+			return err
+		} else if errors.Is(err, pg.ErrNotFound) {
+			// If the ticker does not exist, then create it
+			return conn.Insert(ctx, &ticker, meta)
+		} else {
+			// If the ticker exists, then update it
+			return conn.Update(ctx, &ticker, schema.TickerName(meta.Ticker), meta)
+		}
+	}); err != nil {
+		return nil, err
+	}
+	return &ticker, nil
 }
 
 // CreateTicker creates a new ticker, and returns it.
