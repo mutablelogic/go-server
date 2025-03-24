@@ -9,7 +9,7 @@ import (
 	test "github.com/djthorpe/go-pg/pkg/test"
 	server "github.com/mutablelogic/go-server"
 	schema "github.com/mutablelogic/go-server/pkg/pgqueue/schema"
-	"github.com/mutablelogic/go-server/pkg/types"
+	types "github.com/mutablelogic/go-server/pkg/types"
 	pg "github.com/mutablelogic/go-server/plugin/pg"
 	pgqueue "github.com/mutablelogic/go-server/plugin/pgqueue"
 	assert "github.com/stretchr/testify/assert"
@@ -25,30 +25,56 @@ func TestMain(m *testing.M) {
 
 func Test_task_001(t *testing.T) {
 	assert := assert.New(t)
-	pgqueue, err := pgqueue.Config{
+	client, err := pgqueue.Config{
 		Pool: pg.NewTask(conn.PoolConn),
 	}.New(context.TODO())
 	if assert.NoError(err) {
-		assert.NotNil(pgqueue)
+		assert.NotNil(client)
 	}
 
-	t.Run("RegisterTicker", func(t *testing.T) {
+	t.Run("RegisterTicker_1", func(t *testing.T) {
 		// Create a ticker
-		ticker, err := pgqueue.(server.PGQueue).RegisterTicker(context.TODO(), schema.TickerMeta{
+		err := client.(server.PGQueue).RegisterTicker(context.TODO(), schema.TickerMeta{
 			Ticker:   "ticker_name_1",
 			Interval: types.DurationPtr(time.Second),
+		}, func(ctx context.Context, _ any) error {
+			// Callback function for ticker
+			t.Log("Ticker fired", pgqueue.Ticker(ctx))
+			return nil
 		})
 		if !assert.NoError(err) {
 			t.SkipNow()
 		}
-		assert.NotNil(ticker)
 
-		// Run for 30 seconds
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		// Run for 10 seconds
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
 		// Run tickers
-		err = pgqueue.Run(ctx)
+		err = client.Run(ctx)
+		if !assert.NoError(err) {
+			t.SkipNow()
+		}
+	})
+
+	t.Run("RegisterTicker_2", func(t *testing.T) {
+		// Create a ticker
+		err := client.(server.PGQueue).RegisterTicker(context.TODO(), schema.TickerMeta{
+			Ticker:   "ticker_name_2",
+			Interval: types.DurationPtr(time.Second),
+		}, func(ctx context.Context, _ any) error {
+			panic("test panic" + pgqueue.Ticker(ctx).Ticker)
+		})
+		if !assert.NoError(err) {
+			t.SkipNow()
+		}
+
+		// Run for 10 seconds
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		// Run tickers
+		err = client.Run(ctx)
 		if !assert.NoError(err) {
 			t.SkipNow()
 		}

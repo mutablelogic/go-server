@@ -3,6 +3,7 @@ package pgqueue
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -11,13 +12,21 @@ import (
 	server "github.com/mutablelogic/go-server"
 	pgqueue "github.com/mutablelogic/go-server/pkg/pgqueue"
 	schema "github.com/mutablelogic/go-server/pkg/pgqueue/schema"
+	"github.com/mutablelogic/go-server/pkg/types"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
 
 type task struct {
-	pgqueue *pgqueue.Client
+	sync.WaitGroup
+	client  *pgqueue.Client
+	tickers map[string]exec
+}
+
+type exec struct {
+	deadline time.Duration
+	fn       server.PGCallback
 }
 
 var _ server.Task = (*task)(nil)
@@ -26,7 +35,10 @@ var _ server.Task = (*task)(nil)
 // LIFECYCLE
 
 func taskWith(queue *pgqueue.Client) *task {
-	return &task{queue}
+	return &task{
+		client:  queue,
+		tickers: make(map[string]exec, 10),
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,13 +46,12 @@ func taskWith(queue *pgqueue.Client) *task {
 
 func (t *task) Run(ctx context.Context) error {
 	var result error
-	var wg sync.WaitGroup
 
 	// Defer closing the listener
 	defer func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		result = errors.Join(result, t.pgqueue.Close(ctx))
+		result = errors.Join(result, t.client.Close(ctx))
 	}()
 
 	// Create a ticker channel and defer close it
@@ -48,10 +59,10 @@ func (t *task) Run(ctx context.Context) error {
 	defer close(tickerch)
 
 	// Emit ticker events
-	wg.Add(1)
+	t.Add(1)
 	go func(ctx context.Context) {
-		defer wg.Done()
-		result = errors.Join(result, t.pgqueue.RunTickerLoop(ctx, tickerch))
+		defer t.Done()
+		result = errors.Join(result, t.client.RunTickerLoop(ctx, tickerch))
 	}(ctx)
 
 	// Continue until context is done
@@ -61,12 +72,12 @@ FOR_LOOP:
 		case <-ctx.Done():
 			break FOR_LOOP
 		case ticker := <-tickerch:
-			log.Println(ctx, "TICKER", ticker.Ticker)
+			t.execTicker(ctx, ticker)
 		}
 	}
 
 	// Wait for goroutines to finish
-	wg.Wait()
+	t.Wait()
 
 	// Return any errors
 	return result
@@ -74,9 +85,15 @@ FOR_LOOP:
 
 // Register a ticker with a callback, and return the registered ticker
 func (t *task) RegisterTicker(ctx context.Context, meta schema.TickerMeta, fn server.PGCallback) error {
-	_, err := t.pgqueue.RegisterTicker(ctx, meta)
+	ticker, err := t.client.RegisterTicker(ctx, meta)
 	if err != nil {
 		return err
+	}
+
+	// Add the ticker to the map
+	t.tickers[ticker.Ticker] = exec{
+		deadline: types.PtrDuration(ticker.Interval),
+		fn:       fn,
 	}
 
 	// Return success
@@ -85,13 +102,71 @@ func (t *task) RegisterTicker(ctx context.Context, meta schema.TickerMeta, fn se
 
 // Register a queue with a callback, and return the registered queue
 func (t *task) RegisterQueue(ctx context.Context, meta schema.Queue, fn server.PGCallback) error {
-	_, err := t.pgqueue.RegisterQueue(ctx, meta)
+	_, err := t.client.RegisterQueue(ctx, meta)
 	if err != nil {
 		return err
 	}
 
 	// Return success
 	return nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+func contextWithDeadline(ctx context.Context, deadline time.Duration) (context.Context, context.CancelFunc) {
+	if deadline > 0 {
+		return context.WithTimeout(ctx, deadline)
+	}
+	return ctx, func() {}
+}
+
+// Execute a callback function for a ticker or queue
+func (t *task) exec(ctx context.Context, fn exec, in any) error {
+	var result error
+
+	// Create a context with a deadline
+	deadline, cancel := contextWithDeadline(ctx, fn.deadline)
+	defer cancel()
+
+	// Catch panics
+	defer func() {
+		if r := recover(); r != nil {
+			result = errors.Join(result, fmt.Errorf("PANIC: %v", r))
+		}
+	}()
+
+	// Run the ticker handler
+	err := fn.fn(deadline, in)
+	if err != nil {
+		result = errors.Join(result, err)
+	}
+
+	// Concatenate any errors from the deadline
+	if deadline.Err() != nil {
+		result = errors.Join(result, deadline.Err())
+	}
+
+	// Return any errors
+	return result
+}
+
+// Execute a ticker callback
+func (t *task) execTicker(ctx context.Context, ticker *schema.Ticker) {
+	fn, exists := t.tickers[ticker.Ticker]
+	if !exists {
+		return
+	}
+
+	// Execute the callback function in a goroutine
+	t.Add(1)
+	go func(ctx context.Context) {
+		defer t.Done()
+		if err := t.exec(ctx, fn, ticker); err != nil {
+			// TODO: Emit any errors on an err channel
+			log.Println(ctx, "TICKER", ticker.Ticker, err)
+		}
+	}(contextWithTicker(ctx, ticker))
 }
 
 /*

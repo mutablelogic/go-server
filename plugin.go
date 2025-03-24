@@ -89,7 +89,7 @@ type PG interface {
 ///////////////////////////////////////////////////////////////////////////////
 // PGQUEUE
 
-type PGCallback func(context.Context, any) (any, error)
+type PGCallback func(context.Context, any) error
 
 type PGQueue interface {
 	Task
