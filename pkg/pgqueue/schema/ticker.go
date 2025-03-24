@@ -200,6 +200,7 @@ func (q TickerName) tickerName() (string, error) {
 func bootstrapTicker(ctx context.Context, conn pg.Conn) error {
 	q := []string{
 		tickerCreateTable,
+		tickerNextFunc,
 	}
 	for _, query := range q {
 		if err := conn.Exec(ctx, query); err != nil {
@@ -223,6 +224,23 @@ const (
 			PRIMARY KEY ("ns", "ticker")
 		)
 	`
+	tickerNextFunc = `
+        -- Return the next matured ticker for a namespace
+        CREATE OR REPLACE FUNCTION ${"schema"}.ticker_next(ns TEXT) RETURNS TABLE (
+            "ticker" TEXT, "interval" INTERVAL, "ts" TIMESTAMP
+        ) AS $$
+			WITH 
+				next_ticker AS (` + tickerSelect + `WHERE "ns" = ns AND ("ts" IS NULL OR "ts" + "interval" < TIMEZONE('UTC', NOW())))
+			UPDATE
+				${"schema"}.ticker
+			SET
+				"ts" = TIMEZONE('UTC', NOW())
+			WHERE
+				"ns" = ns AND "ticker" = (SELECT "ticker" FROM next_ticker ORDER BY "ts" LIMIT 1 FOR UPDATE SKIP LOCKED)
+			RETURNING		
+				"ticker", "interval", "ts"
+        $$ LANGUAGE SQL
+    `
 	tickerInsert = `
 		INSERT INTO ${"schema"}.ticker 
 			("ns", "ticker", "interval", "ts") 
@@ -257,15 +275,6 @@ const (
 	tickerList = tickerSelect + ` WHERE "ns" = @ns`
 	tickerGet  = tickerList + ` AND "ticker" = @id`
 	tickerNext = `
-		WITH 
-			next_ticker AS (` + tickerSelect + `WHERE "ns" = @ns AND ("ts" IS NULL OR "ts" + "interval" < TIMEZONE('UTC', NOW())))
-		UPDATE
-			${"schema"}.ticker
-		SET
-			"ts" = TIMEZONE('UTC', NOW())
-		WHERE
-			"ns" = @ns AND "ticker" = (SELECT "ticker" FROM next_ticker ORDER BY "ts" LIMIT 1 FOR UPDATE SKIP LOCKED)
-		RETURNING		
-			"ticker", "interval", "ts"
+		SELECT * FROM ${"schema"}.ticker_next(@ns)
 	`
 )

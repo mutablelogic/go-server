@@ -63,7 +63,34 @@ func Test_task_001(t *testing.T) {
 			Ticker:   "ticker_name_2",
 			Interval: types.DurationPtr(time.Second),
 		}, func(ctx context.Context, _ any) error {
-			panic("test panic" + pgqueue.Ticker(ctx).Ticker)
+			panic("test panic " + pgqueue.Ticker(ctx).Ticker)
+		})
+		if !assert.NoError(err) {
+			t.SkipNow()
+		}
+
+		// Run for 10 seconds
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		// Run tickers
+		err = client.Run(ctx)
+		if !assert.NoError(err) {
+			t.SkipNow()
+		}
+	})
+
+	t.Run("RegisterTicker_3", func(t *testing.T) {
+		// Create a ticker
+		err := client.(server.PGQueue).RegisterTicker(context.TODO(), schema.TickerMeta{
+			Ticker:   "ticker_name_3",
+			Interval: types.DurationPtr(time.Second),
+		}, func(ctx context.Context, _ any) error {
+			// Callback function for ticker
+			t.Log("Ticker fired", pgqueue.Ticker(ctx))
+			// Sleep beyond the deadline
+			time.Sleep(2 * time.Second)
+			return nil
 		})
 		if !assert.NoError(err) {
 			t.SkipNow()

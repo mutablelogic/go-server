@@ -58,6 +58,10 @@ func (t *task) Run(ctx context.Context) error {
 	tickerch := make(chan *schema.Ticker)
 	defer close(tickerch)
 
+	// Create an error channel and defer close it
+	errch := make(chan error)
+	defer close(errch)
+
 	// Emit ticker events
 	t.Add(1)
 	go func(ctx context.Context) {
@@ -72,7 +76,9 @@ FOR_LOOP:
 		case <-ctx.Done():
 			break FOR_LOOP
 		case ticker := <-tickerch:
-			t.execTicker(ctx, ticker)
+			t.execTicker(ctx, ticker, errch)
+		case err := <-errch:
+			log.Println("ERROR:", err)
 		}
 	}
 
@@ -122,9 +128,7 @@ func contextWithDeadline(ctx context.Context, deadline time.Duration) (context.C
 }
 
 // Execute a callback function for a ticker or queue
-func (t *task) exec(ctx context.Context, fn exec, in any) error {
-	var result error
-
+func (t *task) exec(ctx context.Context, fn exec, in any) (result error) {
 	// Create a context with a deadline
 	deadline, cancel := contextWithDeadline(ctx, fn.deadline)
 	defer cancel()
@@ -152,7 +156,7 @@ func (t *task) exec(ctx context.Context, fn exec, in any) error {
 }
 
 // Execute a ticker callback
-func (t *task) execTicker(ctx context.Context, ticker *schema.Ticker) {
+func (t *task) execTicker(ctx context.Context, ticker *schema.Ticker, errch chan<- error) {
 	fn, exists := t.tickers[ticker.Ticker]
 	if !exists {
 		return
@@ -163,8 +167,7 @@ func (t *task) execTicker(ctx context.Context, ticker *schema.Ticker) {
 	go func(ctx context.Context) {
 		defer t.Done()
 		if err := t.exec(ctx, fn, ticker); err != nil {
-			// TODO: Emit any errors on an err channel
-			log.Println(ctx, "TICKER", ticker.Ticker, err)
+			errch <- fmt.Errorf("TICKER %q: %w", ticker.Ticker, err)
 		}
 	}(contextWithTicker(ctx, ticker))
 }
