@@ -336,9 +336,7 @@ const (
             FROM
                 ${"schema"}."queue"
             WHERE
-                "queue" = q
-			AND
-				"ns" = ns
+                "queue" = q AND "ns" = ns
             LIMIT
                 1
         ) INSERT INTO 
@@ -375,36 +373,36 @@ const (
     `
 	taskRetainFunc = `
         -- A specific worker locks a task in a queue for processing
-        CREATE OR REPLACE FUNCTION ${"schema"}.queue_lock(q TEXT, w TEXT) RETURNS BIGINT AS $$
+        CREATE OR REPLACE FUNCTION ${"schema"}.queue_lock(ns TEXT, q TEXT, w TEXT) RETURNS BIGINT AS $$
         UPDATE ${"schema"}."task" SET 
             "started_at" = TIMEZONE('UTC', NOW()), "worker" = w, "result" = 'null'
         WHERE "id" = (
             SELECT 
-                    "id" 
+				"id" 
             FROM
-                    ${"schema"}."task"
+				${"schema"}."task"
             WHERE
-                    "queue" = q
+				("queue" = q AND "ns" = ns)
             AND
-                    ("started_at" IS NULL AND "finished_at" IS NULL AND "dies_at" > TIMEZONE('UTC', NOW()))
+				("started_at" IS NULL AND "finished_at" IS NULL AND "dies_at" > TIMEZONE('UTC', NOW()))
             AND 
-                    ("delayed_at" IS NULL OR "delayed_at" <= TIMEZONE('UTC', NOW()))
+                ("delayed_at" IS NULL OR "delayed_at" <= TIMEZONE('UTC', NOW()))
             AND
-                    ("retries" > 0)
+                ("retries" > 0)
             ORDER BY
-                    "created_at"
+                "created_at"
             FOR UPDATE SKIP LOCKED LIMIT 1
         ) RETURNING
-                "id"
+			"id"
         $$ LANGUAGE SQL
     `
 	taskReleaseFunc = `
         -- Unlock a task in a queue with successful result
-        CREATE OR REPLACE FUNCTION ${"schema"}.queue_unlock(q TEXT, tid BIGINT, r JSONB) RETURNS BIGINT AS $$
+        CREATE OR REPLACE FUNCTION ${"schema"}.queue_unlock(ns TEXT, q TEXT, tid BIGINT, r JSONB) RETURNS BIGINT AS $$
             UPDATE ${"schema"}."task" SET 
                     "finished_at" = TIMEZONE('UTC', NOW()), "dies_at" = NULL, "result" = r
             WHERE 
-                    ("id" = tid) AND ("queue" = q)
+                    ("id" = tid) AND ("ns" = ns) AND ("queue" = q)
             AND
                     ("started_at" IS NOT NULL AND "finished_at" IS NULL AND "dies_at" > TIMEZONE('UTC', NOW()))
             RETURNING
@@ -449,25 +447,25 @@ const (
             JOIN            	
                 ${"schema"}."queue" Q
             ON
-                T.queue = Q.queue
+                T."queue" = Q."queue" AND T."ns" = Q."ns"
             WHERE
                 T."id" = tid
         $$ LANGUAGE SQL
     `
 	taskFailFunc = `
         -- Unlock a task in a queue with fail result
-        CREATE OR REPLACE FUNCTION ${"schema"}.queue_fail(q TEXT, tid BIGINT, r JSONB) RETURNS BIGINT AS $$
+        CREATE OR REPLACE FUNCTION ${"schema"}.queue_fail(ns TEXT, q TEXT, tid BIGINT, r JSONB) RETURNS BIGINT AS $$
             UPDATE ${"schema"}."task" SET 
                 "retries" = "retries" - 1, "result" = r, "started_at" = NULL, "finished_at" = NULL, "delayed_at" = ${"schema"}.queue_backoff(tid)
             WHERE 
-                "queue" = q AND "id" = tid AND "retries" > 0 AND ("started_at" IS NOT NULL AND "finished_at" IS NULL)
+                "ns" = ns AND "queue" = q AND "id" = tid AND "retries" > 0 AND ("started_at" IS NOT NULL AND "finished_at" IS NULL)
             RETURNING
                 "id"
         $$ LANGUAGE SQL 
     `
 	taskCleanFunc = `
 		-- Cleanup tasks in a queue which are in an end state 
-		CREATE OR REPLACE FUNCTION ${"schema"}.queue_clean(q TEXT) RETURNS TABLE (
+		CREATE OR REPLACE FUNCTION ${"schema"}.queue_clean(ns TEXT, q TEXT) RETURNS TABLE (
             "id" BIGINT, "queue" TEXT, "payload" JSONB, "result" JSONB, "worker" TEXT, "created_at" TIMESTAMP, "delayed_at" TIMESTAMP, "started_at" TIMESTAMP, "finished_at" TIMESTAMP, "dies_at" TIMESTAMP, "retries" INTEGER
         ) AS $$
 			DELETE FROM
@@ -480,7 +478,7 @@ const (
                         FROM 
                             ${"schema"}."task" 
                         WHERE
-                            "queue" = q
+                            "ns" = ns AND "queue" = q
                         AND
                             (dies_at IS NULL OR dies_at < TIMEZONE('UTC', NOW()))
                     ) SELECT 
@@ -500,15 +498,15 @@ const (
 	`
 	taskRetain = `
         -- Returns the id of the task which has been retained
-        SELECT ${"schema"}.queue_lock(@id, @worker)
+        SELECT ${"schema"}.queue_lock(@ns, @id, @worker)
     `
 	taskRelease = `
         -- Returns the id of the task which has been released
-        SELECT ${"schema"}.queue_unlock(@id, @task, @result)
+        SELECT ${"schema"}.queue_unlock(@ns, @id, @task, @result)
     `
 	taskFail = `
         -- Returns the id of the task which has been failed
-        SELECT ${"schema"}.queue_fail(@id, @task, @result)
+        SELECT ${"schema"}.queue_fail(@ns, @id, @task, @result)
     `
 	taskSelect = `
         SELECT 

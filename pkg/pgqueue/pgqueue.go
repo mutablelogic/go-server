@@ -75,6 +75,11 @@ func (client *Client) Close(ctx context.Context) error {
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
+// Worker returns the worker name
+func (client *Client) Worker() string {
+	return client.worker
+}
+
 // RegisterQueue creates a new queue, or updates an existing queue, and returns it.
 func (client *Client) RegisterQueue(ctx context.Context, meta schema.Queue) (*schema.Queue, error) {
 	var queue schema.Queue
@@ -98,7 +103,15 @@ func (client *Client) RegisterQueue(ctx context.Context, meta schema.Queue) (*sc
 // CreateQueue creates a new queue, and returns it.
 func (client *Client) CreateQueue(ctx context.Context, meta schema.Queue) (*schema.Queue, error) {
 	var queue schema.Queue
-	if err := client.conn.Insert(ctx, &queue, meta); err != nil {
+	if err := client.conn.Tx(ctx, func(conn pg.Conn) error {
+		if err := client.conn.Insert(ctx, &queue, meta); err != nil {
+			return err
+		} else if err := conn.Update(ctx, &queue, schema.QueueName(queue.Queue), meta); err != nil {
+			return err
+		}
+		// Commit the transaction
+		return nil
+	}); err != nil {
 		return nil, err
 	}
 	return &queue, nil

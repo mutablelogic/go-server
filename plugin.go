@@ -94,6 +94,9 @@ type PGCallback func(context.Context, any) error
 type PGQueue interface {
 	Task
 
+	// Return the worker name
+	Worker() string
+
 	// Register a ticker with a callback, and return the registered ticker
 	RegisterTicker(context.Context, schema.TickerMeta, PGCallback) (*schema.Ticker, error)
 

@@ -28,10 +28,10 @@ func Test_Task_001(t *testing.T) {
 	})
 	assert.NoError(err)
 	assert.NotNil(queue)
-	assert.Equal(types.PtrUint64(queue.Retries), 10)
+	assert.Equal(types.PtrUint64(queue.Retries), uint64(10))
 
-	// Create a task
-	t.Run("CreateTask_1", func(t *testing.T) {
+	t.Run("CreateTask", func(t *testing.T) {
+		// Create a task
 		task, err := client.CreateTask(context.TODO(), queue.Queue, schema.TaskMeta{
 			Payload: "task_payload_1",
 		})
@@ -39,8 +39,60 @@ func Test_Task_001(t *testing.T) {
 			assert.NotNil(task)
 			assert.Equal(task.Queue, queue.Queue)
 			assert.Equal(task.Payload, "task_payload_1")
-			assert.Equal(types.PtrUint64(task.Retries), 10)
+			assert.Equal(types.PtrUint64(task.Retries), uint64(10))
 			t.Log("Task created", task)
 		}
+
+		// Retain the task
+		task2, err := client.RetainTask(context.TODO(), queue.Queue)
+		if assert.NoError(err) {
+			assert.NotNil(task2)
+			assert.Equal(task2.Queue, queue.Queue)
+			assert.Equal(task2.Payload, "task_payload_1")
+			assert.Equal(types.PtrString(task2.Worker), client.Worker())
+			assert.Equal(types.PtrUint64(task2.Retries), uint64(10))
+			assert.NotNil(task2.CreatedAt)
+			assert.NotNil(task2.StartedAt)
+			assert.NotNil(task2.DiesAt)
+			t.Log("Task retained", task2)
+		}
+	})
+
+	t.Run("RetainTask", func(t *testing.T) {
+		// Retain a task which does not exist
+		task2, err := client.RetainTask(context.TODO(), queue.Queue)
+		if assert.NoError(err) {
+			assert.Nil(task2)
+		}
+	})
+
+	t.Run("ReleaseTask", func(t *testing.T) {
+		// Create a task
+		task, err := client.CreateTask(context.TODO(), queue.Queue, schema.TaskMeta{
+			Payload: "task_payload_2",
+		})
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+		assert.NotNil(task)
+		t.Log("Task created", task)
+
+		// Retain the task
+		task2, err := client.RetainTask(context.TODO(), queue.Queue)
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+		assert.NotNil(task2)
+		assert.Equal(task2.Payload, "task_payload_2")
+		t.Log("Task retained", task2)
+
+		// Release the task
+		task3, err := client.ReleaseTask(context.TODO(), types.PtrUint64(task2.Id), "completed")
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+		assert.NotNil(task3)
+		assert.Equal(task3.Payload, "completed")
+		t.Log("Task released", task3)
 	})
 }

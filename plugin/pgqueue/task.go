@@ -30,6 +30,7 @@ type exec struct {
 }
 
 var _ server.Task = (*task)(nil)
+var _ server.PGQueue = (*task)(nil)
 
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
@@ -90,6 +91,11 @@ FOR_LOOP:
 
 	// Return any errors
 	return result
+}
+
+// Return the worker name
+func (t *task) Worker() string {
+	return t.client.Worker()
 }
 
 // Register a ticker with a callback, and return the registered ticker
