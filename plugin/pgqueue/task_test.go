@@ -23,7 +23,7 @@ func TestMain(m *testing.M) {
 	test.Main(m, &conn)
 }
 
-func Test_task_001(t *testing.T) {
+func Test_Ticker(t *testing.T) {
 	assert := assert.New(t)
 	client, err := pgqueue.Config{
 		Pool: pg.NewTask(conn.PoolConn),
@@ -32,9 +32,9 @@ func Test_task_001(t *testing.T) {
 		assert.NotNil(client)
 	}
 
-	t.Run("RegisterTicker_1", func(t *testing.T) {
+	t.Run("1", func(t *testing.T) {
 		// Create a ticker
-		err := client.(server.PGQueue).RegisterTicker(context.TODO(), schema.TickerMeta{
+		ticker, err := client.(server.PGQueue).RegisterTicker(context.TODO(), schema.TickerMeta{
 			Ticker:   "ticker_name_1",
 			Interval: types.DurationPtr(time.Second),
 		}, func(ctx context.Context, _ any) error {
@@ -55,11 +55,17 @@ func Test_task_001(t *testing.T) {
 		if !assert.NoError(err) {
 			t.SkipNow()
 		}
+
+		// Delete the ticker
+		err = client.(server.PGQueue).DeleteTicker(context.TODO(), ticker.Ticker)
+		if !assert.NoError(err) {
+			t.SkipNow()
+		}
 	})
 
-	t.Run("RegisterTicker_2", func(t *testing.T) {
+	t.Run("2", func(t *testing.T) {
 		// Create a ticker
-		err := client.(server.PGQueue).RegisterTicker(context.TODO(), schema.TickerMeta{
+		ticker, err := client.(server.PGQueue).RegisterTicker(context.TODO(), schema.TickerMeta{
 			Ticker:   "ticker_name_2",
 			Interval: types.DurationPtr(time.Second),
 		}, func(ctx context.Context, _ any) error {
@@ -78,19 +84,30 @@ func Test_task_001(t *testing.T) {
 		if !assert.NoError(err) {
 			t.SkipNow()
 		}
+
+		// Delete the ticker
+		err = client.(server.PGQueue).DeleteTicker(context.TODO(), ticker.Ticker)
+		if !assert.NoError(err) {
+			t.SkipNow()
+		}
 	})
 
-	t.Run("RegisterTicker_3", func(t *testing.T) {
+	t.Run("3", func(t *testing.T) {
 		// Create a ticker
-		err := client.(server.PGQueue).RegisterTicker(context.TODO(), schema.TickerMeta{
+		ticker, err := client.(server.PGQueue).RegisterTicker(context.TODO(), schema.TickerMeta{
 			Ticker:   "ticker_name_3",
 			Interval: types.DurationPtr(time.Second),
 		}, func(ctx context.Context, _ any) error {
 			// Callback function for ticker
 			t.Log("Ticker fired", pgqueue.Ticker(ctx))
-			// Sleep beyond the deadline
-			time.Sleep(2 * time.Second)
-			return nil
+			select {
+			case <-ctx.Done():
+				// Context cancelled
+				return ctx.Err()
+			case <-time.After(2 * time.Second):
+				// Sleep beyond the deadline
+				return nil
+			}
 		})
 		if !assert.NoError(err) {
 			t.SkipNow()
@@ -102,6 +119,12 @@ func Test_task_001(t *testing.T) {
 
 		// Run tickers
 		err = client.Run(ctx)
+		if !assert.NoError(err) {
+			t.SkipNow()
+		}
+
+		// Delete the ticker
+		err = client.(server.PGQueue).DeleteTicker(context.TODO(), ticker.Ticker)
 		if !assert.NoError(err) {
 			t.SkipNow()
 		}

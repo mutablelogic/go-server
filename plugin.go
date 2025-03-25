@@ -95,8 +95,11 @@ type PGQueue interface {
 	Task
 
 	// Register a ticker with a callback, and return the registered ticker
-	RegisterTicker(context.Context, schema.TickerMeta, PGCallback) error
+	RegisterTicker(context.Context, schema.TickerMeta, PGCallback) (*schema.Ticker, error)
 
 	// Register a queue with a callback, and return the registered queue
-	RegisterQueue(context.Context, schema.Queue, PGCallback) error
+	RegisterQueue(context.Context, schema.Queue, PGCallback) (*schema.Queue, error)
+
+	// Delete a ticker by name
+	DeleteTicker(context.Context, string) error
 }

@@ -148,26 +148,34 @@ func (t TaskMeta) Insert(bind *pg.Bind) (string, error) {
 	return taskInsert, nil
 }
 
-func (t TaskMeta) Patch(bind *pg.Bind) error {
-	var patch []string
+func (t TaskMeta) Update(bind *pg.Bind) error {
+	bind.Del("patch")
+
+	// DelayedAt
 	if t.DelayedAt != nil {
 		if t.DelayedAt.Before(time.Now()) {
 			return fmt.Errorf("delayed_at is in the past")
 		}
-		patch = append(patch, `delayed_at = `+bind.Set("delayed_at", t.DelayedAt))
+		bind.Append("patch", `delayed_at = `+bind.Set("delayed_at", t.DelayedAt))
 	}
+
+	// Payload
 	if t.Payload != nil {
 		data, err := json.Marshal(t.Payload)
 		if err != nil {
 			return err
-		} else {
-			patch = append(patch, `payload = `+bind.Set("payload", string(data)))
 		}
+		bind.Append("patch", `payload = `+bind.Set("payload", string(data)))
 	}
-	if len(patch) == 0 {
+
+	// Set patch
+	if patch := bind.Join("patch", ", "); patch == "" {
 		return fmt.Errorf("no fields to update")
+	} else {
+		bind.Set("patch", patch)
 	}
-	bind.Set("patch", strings.Join(patch, ", "))
+
+	// Return success
 	return nil
 }
 
@@ -316,7 +324,7 @@ const (
     `
 	taskCreateInsertFunc = `
         -- Insert a new payload into a queue
-        CREATE OR REPLACE FUNCTION ${"schema"}.queue_insert(q TEXT, p JSONB, delayed_at TIMESTAMP) RETURNS BIGINT AS $$
+        CREATE OR REPLACE FUNCTION ${"schema"}.queue_insert(ns TEXT, q TEXT, p JSONB, delayed_at TIMESTAMP) RETURNS BIGINT AS $$
         WITH defaults AS (
             -- Select the retries and ttl from the queue defaults
             SELECT
@@ -328,13 +336,15 @@ const (
             FROM
                 ${"schema"}."queue"
             WHERE
-                queue = q
+                "queue" = q
+			AND
+				"ns" = ns
             LIMIT
                 1
         ) INSERT INTO 
-            ${"schema"}."task" ("queue", "payload", "delayed_at", "retries", "initial_retries", "dies_at")
+            ${"schema"}."task" ("ns", "queue", "payload", "delayed_at", "retries", "initial_retries", "dies_at")
         SELECT
-            q, p, CASE
+            ns, q, p, CASE
                 WHEN "delayed_at" IS NULL THEN NULL
                 WHEN "delayed_at" < TIMEZONE('UTC', NOW()) THEN (NOW() AT TIME ZONE 'UTC')
                 ELSE "delayed_at"
@@ -348,7 +358,7 @@ const (
 	taskCreateNotifyFunc = `
         CREATE OR REPLACE FUNCTION ${"schema"}.queue_notify() RETURNS TRIGGER AS $$
         BEGIN
-            PERFORM pg_notify('queue_insert',LOWER(NEW.queue));
+            PERFORM pg_notify('queue_insert', LOWER(NEW.queue));
             RETURN NEW;
         END;
         $$ LANGUAGE plpgsql
@@ -361,7 +371,7 @@ const (
     `
 	taskInsert = `
         -- Insert a new task into a queue and return the id
-        SELECT ${"schema"}.queue_insert(@queue, @payload, @delayed_at)
+        SELECT ${"schema"}.queue_insert(@ns, @queue, @payload, @delayed_at)
     `
 	taskRetainFunc = `
         -- A specific worker locks a task in a queue for processing

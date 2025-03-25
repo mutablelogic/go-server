@@ -62,7 +62,7 @@ func (t *task) Run(ctx context.Context) error {
 	errch := make(chan error)
 	defer close(errch)
 
-	// Emit ticker events
+	// Emit ticker events until the context is cancelled
 	t.Add(1)
 	go func(ctx context.Context) {
 		defer t.Done()
@@ -70,10 +70,13 @@ func (t *task) Run(ctx context.Context) error {
 	}(ctx)
 
 	// Continue until context is done
+	// TODO: Context should be done when all goroutines have ended, not when the
+	// context is done
 FOR_LOOP:
 	for {
 		select {
 		case <-ctx.Done():
+			// Break out of the loop
 			break FOR_LOOP
 		case ticker := <-tickerch:
 			t.execTicker(ctx, ticker, errch)
@@ -90,10 +93,10 @@ FOR_LOOP:
 }
 
 // Register a ticker with a callback, and return the registered ticker
-func (t *task) RegisterTicker(ctx context.Context, meta schema.TickerMeta, fn server.PGCallback) error {
+func (t *task) RegisterTicker(ctx context.Context, meta schema.TickerMeta, fn server.PGCallback) (*schema.Ticker, error) {
 	ticker, err := t.client.RegisterTicker(ctx, meta)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Add the ticker to the map
@@ -103,18 +106,32 @@ func (t *task) RegisterTicker(ctx context.Context, meta schema.TickerMeta, fn se
 	}
 
 	// Return success
-	return nil
+	return ticker, nil
 }
 
-// Register a queue with a callback, and return the registered queue
-func (t *task) RegisterQueue(ctx context.Context, meta schema.Queue, fn server.PGCallback) error {
-	_, err := t.client.RegisterQueue(ctx, meta)
+// Delete an existing ticker
+func (t *task) DeleteTicker(ctx context.Context, name string) error {
+	ticker, err := t.client.DeleteTicker(ctx, name)
 	if err != nil {
 		return err
 	}
 
+	// Remove the ticker from the map
+	delete(t.tickers, ticker.Ticker)
+
 	// Return success
 	return nil
+}
+
+// Register a queue with a callback, and return the registered queue
+func (t *task) RegisterQueue(ctx context.Context, meta schema.Queue, fn server.PGCallback) (*schema.Queue, error) {
+	queue, err := t.client.RegisterQueue(ctx, meta)
+	if err != nil {
+		return nil, err
+	}
+
+	// Return success
+	return queue, nil
 }
 
 ////////////////////////////////////////////////////////////////////////////////
