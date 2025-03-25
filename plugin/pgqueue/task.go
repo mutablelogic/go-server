@@ -82,6 +82,7 @@ FOR_LOOP:
 		case ticker := <-tickerch:
 			t.execTicker(ctx, ticker, errch)
 		case err := <-errch:
+			// TODO: Handle errors, for now, just log them
 			log.Println("ERROR:", err)
 		}
 	}
@@ -138,6 +139,18 @@ func (t *task) RegisterQueue(ctx context.Context, meta schema.Queue, fn server.P
 
 	// Return success
 	return queue, nil
+}
+
+// Push a task onto a queue, and return the task
+func (t *task) CreateTask(ctx context.Context, queue string, payload any, delay time.Duration) (*schema.Task, error) {
+	var delayedAt *time.Time
+	if delay > 0 {
+		delayedAt = types.TimePtr(time.Now().Add(delay))
+	}
+	return t.client.CreateTask(ctx, queue, schema.TaskMeta{
+		Payload:   payload,
+		DelayedAt: delayedAt,
+	})
 }
 
 ////////////////////////////////////////////////////////////////////////////////

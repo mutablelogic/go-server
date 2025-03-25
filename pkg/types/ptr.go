@@ -67,6 +67,14 @@ func PtrBool(v *bool) bool {
 	return *v
 }
 
+// PtrTime returns a pointer to a time.Time
+func TimePtr(t time.Time) *time.Time {
+	if t.IsZero() {
+		return nil
+	}
+	return &t
+}
+
 // PtrTime returns a time.Time from a pointer
 func PtrTime(t *time.Time) time.Time {
 	if t == nil {

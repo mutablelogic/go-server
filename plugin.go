@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"net/http"
+	"time"
 
 	// Packages
 	pg "github.com/djthorpe/go-pg"
@@ -102,6 +103,9 @@ type PGQueue interface {
 
 	// Register a queue with a callback, and return the registered queue
 	RegisterQueue(context.Context, schema.Queue, PGCallback) (*schema.Queue, error)
+
+	// Create a task for a queue with a payload and optional delay, and return it
+	CreateTask(context.Context, string, any, time.Duration) (*schema.Task, error)
 
 	// Delete a ticker by name
 	DeleteTicker(context.Context, string) error
