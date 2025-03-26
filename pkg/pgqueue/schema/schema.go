@@ -20,6 +20,7 @@ const (
 	TickerListLimit  = 100
 	TaskListLimit    = 100
 	TickerPeriod     = 15 * time.Second
+	TaskPeriod       = 15 * time.Second
 )
 
 ////////////////////////////////////////////////////////////////////////////////

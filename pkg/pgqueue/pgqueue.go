@@ -16,7 +16,6 @@ import (
 type Client struct {
 	conn     pg.PoolConn
 	listener pg.Listener
-	topics   []string
 	worker   string
 }
 
@@ -37,11 +36,19 @@ func New(ctx context.Context, conn pg.PoolConn, opt ...Opt) (*Client, error) {
 		return nil, httpresponse.ErrInternalError.Withf("Cannot create listener")
 	} else {
 		self.listener = listener
-		self.conn = conn.With(
-			"schema", schema.SchemaName,
-			"ns", opts.namespace,
-		).(pg.PoolConn)
-		self.topics = []string{schema.TopicQueueInsert}
+	}
+
+	// Set the connection
+	self.conn = conn.With(
+		"schema", schema.SchemaName,
+		"ns", opts.namespace,
+	).(pg.PoolConn)
+
+	// Listen for topics
+	for _, topic := range []string{opts.namespace + "_" + schema.TopicQueueInsert} {
+		if err := self.listener.Listen(ctx, topic); err != nil {
+			return nil, httpresponse.ErrInternalError.Withf("Cannot listen to topic %q: %v", topic, err)
+		}
 	}
 
 	// If the schema does not exist, then bootstrap it

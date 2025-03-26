@@ -108,7 +108,7 @@ func (client *Client) NextTicker(ctx context.Context) (*schema.Ticker, error) {
 	return &ticker, nil
 }
 
-// RunTickerLoop runs a loop to process matured tickers, or NextTicker returns an error
+// RunTickerLoop runs a loop to process matured tickers, until the context is cancelled.
 func (client *Client) RunTickerLoop(ctx context.Context, ch chan<- *schema.Ticker) error {
 	delta := schema.TickerPeriod
 	timer := time.NewTimer(100 * time.Millisecond)

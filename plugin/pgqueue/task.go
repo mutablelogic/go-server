@@ -70,6 +70,17 @@ func (t *task) Run(ctx context.Context) error {
 		result = errors.Join(result, t.client.RunTickerLoop(ctx, tickerch))
 	}(ctx)
 
+	// Create a task channel and defer close it
+	taskch := make(chan *schema.Task)
+	defer close(taskch)
+
+	// Emit task events until the context is cancelled
+	t.Add(1)
+	go func(ctx context.Context) {
+		defer t.Done()
+		result = errors.Join(result, t.client.RunTaskLoop(ctx, taskch, errch))
+	}(ctx)
+
 	// Continue until context is done
 	parent, parentCancel := context.WithCancel(context.Background())
 	go func(ctx context.Context, parentCancel context.CancelFunc) {
@@ -90,6 +101,9 @@ FOR_LOOP:
 			break FOR_LOOP
 		case ticker := <-tickerch:
 			t.execTicker(ctx, ticker, errch)
+		case task := <-taskch:
+			// TODO: Handle tasks, for now, just log them
+			log.Println("TASK:", task)
 		case err := <-errch:
 			// TODO: Handle errors, for now, just log them
 			log.Println("ERROR:", err)

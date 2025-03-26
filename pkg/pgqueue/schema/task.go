@@ -10,25 +10,22 @@ import (
 	// Packages
 	pg "github.com/djthorpe/go-pg"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
-	"github.com/mutablelogic/go-server/pkg/types"
+	types "github.com/mutablelogic/go-server/pkg/types"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type TaskId struct {
-	Id *uint64 `json:"id,omitempty"`
-}
+type TaskId uint64
 
 type TaskRetain struct {
-	Queue  string `json:"queue,omitempty"`
 	Worker string `json:"worker,omitempty"`
 }
 
 type TaskRelease struct {
-	TaskId
-	Fail   bool `json:"fail,omitempty"`
-	Result any  `json:"result,omitempty"`
+	Id     uint64 `json:"id,omitempty"`
+	Fail   bool   `json:"fail,omitempty"`
+	Result any    `json:"result,omitempty"`
 }
 
 type TaskMeta struct {
@@ -37,7 +34,7 @@ type TaskMeta struct {
 }
 
 type Task struct {
-	TaskId
+	Id uint64 `json:"id,omitempty"`
 	TaskMeta
 	Worker     *string    `json:"worker,omitempty"`
 	Queue      string     `json:"queue,omitempty"`
@@ -96,7 +93,13 @@ func (t TaskList) String() string {
 // READER
 
 func (t *TaskId) Scan(row pg.Row) error {
-	return row.Scan(&t.Id)
+	var id *uint64
+	if err := row.Scan(&id); err != nil {
+		return err
+	} else {
+		*t = TaskId(types.PtrUint64(id))
+	}
+	return nil
 }
 
 func (t *Task) Scan(row pg.Row) error {
@@ -184,7 +187,7 @@ func (t TaskMeta) Update(bind *pg.Bind) error {
 // SELECTOR
 
 func (t TaskId) Select(bind *pg.Bind, op pg.Op) (string, error) {
-	bind.Set("tid", t.Id)
+	bind.Set("tid", t)
 	switch op {
 	case pg.Get:
 		return taskGet, nil
@@ -215,13 +218,6 @@ func (l TaskListRequest) Select(bind *pg.Bind, op pg.Op) (string, error) {
 }
 
 func (t TaskRetain) Select(bind *pg.Bind, op pg.Op) (string, error) {
-	// Queue is required
-	if queue := strings.TrimSpace(t.Queue); queue == "" {
-		return "", httpresponse.ErrBadRequest.Withf("Missing queue")
-	} else {
-		bind.Set("id", queue)
-	}
-
 	// Worker is required
 	if worker := strings.TrimSpace(t.Worker); worker == "" {
 		return "", httpresponse.ErrBadRequest.Withf("Missing worker")
@@ -239,10 +235,10 @@ func (t TaskRetain) Select(bind *pg.Bind, op pg.Op) (string, error) {
 }
 
 func (t TaskRelease) Select(bind *pg.Bind, op pg.Op) (string, error) {
-	if t.Id == nil || *t.Id == 0 {
+	if t.Id == 0 {
 		return "", httpresponse.ErrBadRequest.Withf("Missing task id")
 	} else {
-		bind.Set("tid", types.PtrUint64(t.Id))
+		bind.Set("tid", t.Id)
 	}
 
 	// Result of the task
@@ -357,7 +353,7 @@ const (
 	taskCreateNotifyFunc = `
         CREATE OR REPLACE FUNCTION ${"schema"}.queue_notify() RETURNS TRIGGER AS $$
         BEGIN
-            PERFORM pg_notify('queue_insert', LOWER(NEW.queue));
+            PERFORM pg_notify(LOWER(NEW.ns) || '_queue_insert', LOWER(NEW.queue));
             RETURN NEW;
         END;
         $$ LANGUAGE plpgsql
@@ -374,7 +370,7 @@ const (
     `
 	taskRetainFunc = `
         -- A specific worker locks a task in a queue for processing
-        CREATE OR REPLACE FUNCTION ${"schema"}.queue_lock(ns TEXT, q TEXT, w TEXT) RETURNS BIGINT AS $$
+        CREATE OR REPLACE FUNCTION ${"schema"}.queue_lock(ns TEXT, w TEXT) RETURNS BIGINT AS $$
         UPDATE ${"schema"}."task" SET 
             "started_at" = TIMEZONE('UTC', NOW()), "worker" = w, "result" = 'null'
         WHERE "id" = (
@@ -383,7 +379,7 @@ const (
             FROM
 				${"schema"}."task"
             WHERE
-				("queue" = q AND "ns" = ns)
+				"ns" = ns
             AND
 				("started_at" IS NULL AND "finished_at" IS NULL AND "dies_at" > TIMEZONE('UTC', NOW()))
             AND 
@@ -461,7 +457,7 @@ const (
             WHERE 
                 "id" = tid AND "retries" > 0 AND ("started_at" IS NOT NULL AND "finished_at" IS NULL)
             RETURNING
-                "id"
+				"id"
         $$ LANGUAGE SQL 
     `
 	taskCleanFunc = `
@@ -499,7 +495,7 @@ const (
 	`
 	taskRetain = `
         -- Returns the id of the task which has been retained
-        SELECT ${"schema"}.queue_lock(@ns, @id, @worker)
+        SELECT ${"schema"}.queue_lock(@ns, @worker)
     `
 	taskRelease = `
         -- Returns the id of the task which has been released
