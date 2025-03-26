@@ -71,14 +71,15 @@ func (t *task) Run(ctx context.Context) error {
 	}(ctx)
 
 	// Continue until context is done
-	parent, cancel := context.WithCancel(ctx)
-	defer cancel()
-	go func() {
-		// Context should be done when all goroutines have ended,
-		// then cancel the runloop
+	parent, parentCancel := context.WithCancel(context.Background())
+	go func(ctx context.Context, parentCancel context.CancelFunc) {
+		// Wait for the context to be done
+		<-ctx.Done()
+		// Wait for the goroutines to finish
 		t.Wait()
-		cancel()
-	}()
+		// Cancel the runLoop
+		parentCancel()
+	}(ctx, parentCancel)
 
 	// Runloop until the parent context is done
 FOR_LOOP:
@@ -188,7 +189,7 @@ func (t *task) exec(ctx context.Context, fn exec, in any) (result error) {
 	}
 
 	// Concatenate any errors from the deadline
-	if deadline.Err() != nil {
+	if deadline.Err() != nil && !errors.Is(err, deadline.Err()) {
 		result = errors.Join(result, deadline.Err())
 	}
 
