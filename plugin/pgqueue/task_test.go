@@ -43,7 +43,7 @@ func Test_Ticker(t *testing.T) {
 			return nil
 		})
 		if !assert.NoError(err) {
-			t.SkipNow()
+			t.FailNow()
 		}
 
 		// Run for 10 seconds
@@ -53,13 +53,13 @@ func Test_Ticker(t *testing.T) {
 		// Run tickers
 		err = client.Run(ctx)
 		if !assert.NoError(err) {
-			t.SkipNow()
+			t.FailNow()
 		}
 
 		// Delete the ticker
 		err = client.(server.PGQueue).DeleteTicker(context.TODO(), ticker.Ticker)
 		if !assert.NoError(err) {
-			t.SkipNow()
+			t.FailNow()
 		}
 	})
 
@@ -72,7 +72,7 @@ func Test_Ticker(t *testing.T) {
 			panic("test panic " + pgqueue.Ticker(ctx).Ticker)
 		})
 		if !assert.NoError(err) {
-			t.SkipNow()
+			t.FailNow()
 		}
 
 		// Run for 10 seconds
@@ -82,13 +82,13 @@ func Test_Ticker(t *testing.T) {
 		// Run tickers
 		err = client.Run(ctx)
 		if !assert.NoError(err) {
-			t.SkipNow()
+			t.FailNow()
 		}
 
 		// Delete the ticker
 		err = client.(server.PGQueue).DeleteTicker(context.TODO(), ticker.Ticker)
 		if !assert.NoError(err) {
-			t.SkipNow()
+			t.FailNow()
 		}
 	})
 
@@ -110,7 +110,7 @@ func Test_Ticker(t *testing.T) {
 			}
 		})
 		if !assert.NoError(err) {
-			t.SkipNow()
+			t.FailNow()
 		}
 
 		// Run for 10 seconds
@@ -120,13 +120,13 @@ func Test_Ticker(t *testing.T) {
 		// Run tickers
 		err = client.Run(ctx)
 		if !assert.NoError(err) {
-			t.SkipNow()
+			t.FailNow()
 		}
 
 		// Delete the ticker
 		err = client.(server.PGQueue).DeleteTicker(context.TODO(), ticker.Ticker)
 		if !assert.NoError(err) {
-			t.SkipNow()
+			t.FailNow()
 		}
 	})
 }

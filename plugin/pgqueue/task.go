@@ -71,12 +71,20 @@ func (t *task) Run(ctx context.Context) error {
 	}(ctx)
 
 	// Continue until context is done
-	// TODO: Context should be done when all goroutines have ended, not when the
-	// context is done
+	parent, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go func() {
+		// Context should be done when all goroutines have ended,
+		// then cancel the runloop
+		t.Wait()
+		cancel()
+	}()
+
+	// Runloop until the parent context is done
 FOR_LOOP:
 	for {
 		select {
-		case <-ctx.Done():
+		case <-parent.Done():
 			// Break out of the loop
 			break FOR_LOOP
 		case ticker := <-tickerch:
@@ -86,9 +94,6 @@ FOR_LOOP:
 			log.Println("ERROR:", err)
 		}
 	}
-
-	// Wait for goroutines to finish
-	t.Wait()
 
 	// Return any errors
 	return result

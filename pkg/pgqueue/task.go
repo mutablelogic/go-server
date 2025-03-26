@@ -2,6 +2,7 @@ package pgqueue
 
 import (
 	"context"
+	"fmt"
 
 	// Packages
 
@@ -57,7 +58,9 @@ func (client *Client) ReleaseTask(ctx context.Context, task uint64, result any) 
 	} else if taskId.Id == nil {
 		// No task found
 		return nil, pg.ErrNotFound
-	} else if err := client.conn.Get(ctx, &taskObj, taskId); err != nil {
+	}
+	fmt.Println("taskId", taskId)
+	if err := client.conn.Get(ctx, &taskObj, taskId); err != nil {
 		return nil, err
 	}
 	return &taskObj.Task, nil

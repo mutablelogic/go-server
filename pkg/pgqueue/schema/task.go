@@ -10,6 +10,7 @@ import (
 	// Packages
 	pg "github.com/djthorpe/go-pg"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
+	"github.com/mutablelogic/go-server/pkg/types"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -183,7 +184,7 @@ func (t TaskMeta) Update(bind *pg.Bind) error {
 // SELECTOR
 
 func (t TaskId) Select(bind *pg.Bind, op pg.Op) (string, error) {
-	bind.Set("id", t.Id)
+	bind.Set("tid", t.Id)
 	switch op {
 	case pg.Get:
 		return taskGet, nil
@@ -241,7 +242,7 @@ func (t TaskRelease) Select(bind *pg.Bind, op pg.Op) (string, error) {
 	if t.Id == nil || *t.Id == 0 {
 		return "", httpresponse.ErrBadRequest.Withf("Missing task id")
 	} else {
-		bind.Set("task", *t.Id)
+		bind.Set("tid", types.PtrUint64(t.Id))
 	}
 
 	// Result of the task
@@ -398,23 +399,23 @@ const (
     `
 	taskReleaseFunc = `
         -- Unlock a task in a queue with successful result
-        CREATE OR REPLACE FUNCTION ${"schema"}.queue_unlock(ns TEXT, q TEXT, tid BIGINT, r JSONB) RETURNS BIGINT AS $$
+        CREATE OR REPLACE FUNCTION ${"schema"}.queue_unlock(tid BIGINT, r JSONB) RETURNS BIGINT AS $$
             UPDATE ${"schema"}."task" SET 
-                    "finished_at" = TIMEZONE('UTC', NOW()), "dies_at" = NULL, "result" = r
+				"finished_at" = TIMEZONE('UTC', NOW()), "dies_at" = NULL, "result" = r
             WHERE 
-                    ("id" = tid) AND ("ns" = ns) AND ("queue" = q)
+				("id" = tid)
             AND
-                    ("started_at" IS NOT NULL AND "finished_at" IS NULL AND "dies_at" > TIMEZONE('UTC', NOW()))
+				("started_at" IS NOT NULL AND "finished_at" IS NULL AND "dies_at" > TIMEZONE('UTC', NOW()))
             RETURNING
-                    "id"
+				"id"
         $$ LANGUAGE SQL
     `
 	taskStatusType = `
         -- Create the status type
         DO $$ BEGIN
-                CREATE TYPE ${"schema"}.STATUS AS ENUM('expired', 'new', 'failed', 'retry', 'retained', 'released', 'unknown');
+			CREATE TYPE ${"schema"}.STATUS AS ENUM('expired', 'new', 'failed', 'retry', 'retained', 'released', 'unknown');
         EXCEPTION
-                WHEN duplicate_object THEN null;
+			WHEN duplicate_object THEN null;
         END $$;
     `
 	taskStatusFunc = `
@@ -454,11 +455,11 @@ const (
     `
 	taskFailFunc = `
         -- Unlock a task in a queue with fail result
-        CREATE OR REPLACE FUNCTION ${"schema"}.queue_fail(ns TEXT, q TEXT, tid BIGINT, r JSONB) RETURNS BIGINT AS $$
+        CREATE OR REPLACE FUNCTION ${"schema"}.queue_fail(tid BIGINT, r JSONB) RETURNS BIGINT AS $$
             UPDATE ${"schema"}."task" SET 
                 "retries" = "retries" - 1, "result" = r, "started_at" = NULL, "finished_at" = NULL, "delayed_at" = ${"schema"}.queue_backoff(tid)
             WHERE 
-                "ns" = ns AND "queue" = q AND "id" = tid AND "retries" > 0 AND ("started_at" IS NOT NULL AND "finished_at" IS NULL)
+                "id" = tid AND "retries" > 0 AND ("started_at" IS NOT NULL AND "finished_at" IS NULL)
             RETURNING
                 "id"
         $$ LANGUAGE SQL 
@@ -502,11 +503,11 @@ const (
     `
 	taskRelease = `
         -- Returns the id of the task which has been released
-        SELECT ${"schema"}.queue_unlock(@ns, @id, @task, @result)
+        SELECT ${"schema"}.queue_unlock(@tid, @result)
     `
 	taskFail = `
         -- Returns the id of the task which has been failed
-        SELECT ${"schema"}.queue_fail(@ns, @id, @task, @result)
+        SELECT ${"schema"}.queue_fail(@tid, @result)
     `
 	taskSelect = `
         SELECT 
@@ -514,6 +515,6 @@ const (
         FROM
             ${"schema"}."task"
     `
-	taskGet  = taskSelect + `WHERE "id" = @id`
+	taskGet  = taskSelect + `WHERE "id" = @tid`
 	taskList = `WITH q AS (` + taskSelect + `) SELECT * FROM q ${where}`
 )

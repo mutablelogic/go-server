@@ -11,7 +11,7 @@ import (
 	assert "github.com/stretchr/testify/assert"
 )
 
-func Test_Task_001(t *testing.T) {
+func Test_Task(t *testing.T) {
 	assert := assert.New(t)
 	conn := conn.Begin(t)
 	defer conn.Close()
@@ -92,7 +92,10 @@ func Test_Task_001(t *testing.T) {
 			t.FailNow()
 		}
 		assert.NotNil(task3)
-		assert.Equal(task3.Payload, "completed")
+		assert.Equal(task2.Payload, task3.Payload)
+		assert.Equal("completed", task3.Result)
+		assert.Equal(client.Worker(), types.PtrString(task3.Worker))
+		assert.NotZero(types.PtrTime(task3.FinishedAt))
 		t.Log("Task released", task3)
 	})
 }
