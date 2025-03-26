@@ -22,6 +22,7 @@ type task struct {
 	sync.WaitGroup
 	client  *pgqueue.Client
 	tickers map[string]exec
+	queues  map[string]exec
 }
 
 type exec struct {
@@ -39,6 +40,7 @@ func taskWith(queue *pgqueue.Client) *task {
 	return &task{
 		client:  queue,
 		tickers: make(map[string]exec, 10),
+		queues:  make(map[string]exec, 10),
 	}
 }
 
@@ -102,8 +104,7 @@ FOR_LOOP:
 		case ticker := <-tickerch:
 			t.execTicker(ctx, ticker, errch)
 		case task := <-taskch:
-			// TODO: Handle tasks, for now, just log them
-			log.Println("TASK:", task)
+			t.execTask(ctx, task, errch)
 		case err := <-errch:
 			// TODO: Handle errors, for now, just log them
 			log.Println("ERROR:", err)
@@ -157,6 +158,12 @@ func (t *task) RegisterQueue(ctx context.Context, meta schema.Queue, fn server.P
 		return nil, err
 	}
 
+	// Add the queue to the map
+	t.queues[queue.Queue] = exec{
+		deadline: types.PtrDuration(queue.TTL),
+		fn:       fn,
+	}
+
 	// Return success
 	return queue, nil
 }
@@ -196,7 +203,7 @@ func (t *task) exec(ctx context.Context, fn exec, in any) (result error) {
 		}
 	}()
 
-	// Run the ticker handler
+	// Run the ticker or task handler
 	err := fn.fn(deadline, in)
 	if err != nil {
 		result = errors.Join(result, err)
@@ -222,92 +229,28 @@ func (t *task) execTicker(ctx context.Context, ticker *schema.Ticker, errch chan
 	t.Add(1)
 	go func(ctx context.Context) {
 		defer t.Done()
-		if err := t.exec(ctx, fn, ticker); err != nil {
+		if err := t.exec(ctx, fn, nil); err != nil {
 			errch <- fmt.Errorf("TICKER %q: %w", ticker.Ticker, err)
 		}
 	}(contextWithTicker(ctx, ticker))
 }
 
-/*
-
-	// Defer closing the listener
-	defer func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		t.listener.Close(ctx)
-	}()
-
-	// Subscribe to pg topics
-	for _, topic := range t.topics {
-		if err := t.listener.Listen(ctx, topic); err != nil {
-			return err
-		}
+// Execute a task callback
+func (t *task) execTask(ctx context.Context, task *schema.Task, errch chan<- error) {
+	fn, exists := t.queues[task.Queue]
+	if !exists {
+		return
 	}
 
-	// Create channel for notifications, which we close when we're done
-	evt := make(chan *pg.Notification)
-	defer close(evt)
-
-	// Notifications
-	t.wg.Add(1)
+	// Execute the callback function in a goroutine - and then release or fail the task
+	t.Add(1)
 	go func(ctx context.Context) {
-		defer t.wg.Done()
-		runNotificationsForListener(ctx, t.listener, evt)
-	}(ctx)
-
-	// Ticker namespaces
-	tickerch := make(chan *schema.Ticker)
-	defer close(tickerch)
-	for namespace := range t.ticker {
-		t.wg.Add(1)
-		go func(ctx context.Context) {
-			defer t.wg.Done()
-			t.runTickerForNamespace(ctx, namespace, tickerch)
-		}(ctx)
-	}
-
-	// Queue processing
-	defer close(t.taskch)
-
-	// Process notifications and tickers in the main loop
-FOR_LOOP:
-	for {
-		select {
-		case <-ctx.Done():
-			break FOR_LOOP
-		case notification := <-evt:
-			// Notification that a queue task has been inserted
-			now := time.Now()
-			provider.Log(ctx).With("channel", notification.Channel, "payload", string(notification.Payload)).Print(ctx, "NOTIFICATION")
-			if err := t.processNotificationTopic(ctx, notification.Channel, string(notification.Payload)); err != nil {
-				provider.Log(ctx).With("channel", notification.Channel, "duration_ms", time.Since(now).Milliseconds()).Print(ctx, "  ", err)
-			} else {
-				provider.Log(ctx).With("channel", notification.Channel, "duration_ms", time.Since(now).Milliseconds()).Print(ctx, "  ", "COMPLETED")
-			}
-		case ticker := <-tickerch:
-			// Notification that a ticker has fired
-			now := time.Now()
-			provider.Log(ctx).With("namespace", ticker.Namespace, "ticker", ticker.Ticker).Print(ctx, "TICKER")
-			if err := t.processTicker(ctx, ticker); err != nil {
-				provider.Log(ctx).With("namespace", ticker.Namespace, "ticker", ticker.Ticker, "duration_ms", time.Since(now).Milliseconds()).Print(ctx, "  ", err)
-			} else {
-				provider.Log(ctx).With("namespace", ticker.Namespace, "ticker", ticker.Ticker, "duration_ms", time.Since(now).Milliseconds()).Print(ctx, "  ", "COMPLETED")
-			}
-		case task := <-t.taskch:
-			// Notification that a task has been locked for processing
-			now := time.Now()
-			provider.Log(ctx).With("queue", task.Queue, "id", *task.Id).Print(ctx, "TASK")
-			if result, err := t.processTask(ctx, task); err != nil {
-				provider.Log(ctx).With("queue", task.Queue, "id", *task.Id, "duration_ms", time.Since(now).Milliseconds()).Print(ctx, "  ", err)
-			} else {
-				provider.Log(ctx).With("queue", task.Queue, "id", *task.Id, "result", result, "duration_ms", time.Since(now).Milliseconds()).Print(ctx, "  ", "COMPLETED")
-			}
+		defer t.Done()
+		if err := t.exec(ctx, fn, task.Payload); err != nil {
+			// TODO: Fail task
+			errch <- fmt.Errorf("TASK %q_%d: %w", task.Queue, task.Id, err)
+		} else {
+			// TODO: Release task
 		}
-	}
-
-	// Wait for goroutines to finish
-	t.wg.Wait()
-
-	// Return success
-	return nil
-}*/
+	}(contextWithTask(ctx, task))
+}
