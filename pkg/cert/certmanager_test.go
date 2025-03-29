@@ -66,13 +66,11 @@ func Test_CertManager_001(t *testing.T) {
 	// Update name
 	t.Run("UpdateName", func(t *testing.T) {
 		name, err := certmanager.UpdateName(context.TODO(), types.PtrUint64(certmanager.Root().Subject), schema.NameMeta{
-			CommonName: "root_2",
-			Org:        types.StringPtr("mutablelogic"),
+			Org: types.StringPtr("mutablelogic"),
 		})
 		if !assert.NoError(err) {
 			t.FailNow()
 		}
-		assert.Equal("root_2", name.CommonName)
 		assert.Equal("mutablelogic", types.PtrString(name.Org))
 	})
 
