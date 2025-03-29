@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"encoding/json"
 	"net"
 	"time"
 )
@@ -21,4 +22,15 @@ type CertMeta struct {
 	IsCA         bool      `json:"is_ca,omitempty"`
 	KeyType      string    `json:"key_type,omitempty"`
 	KeyBits      string    `json:"key_subtype,omitempty"`
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// STRINGIFY
+
+func (c CertMeta) String() string {
+	data, err := json.MarshalIndent(c, "", "  ")
+	if err != nil {
+		return err.Error()
+	}
+	return string(data)
 }

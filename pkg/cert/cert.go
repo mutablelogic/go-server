@@ -14,7 +14,7 @@ import (
 
 	// Packages
 	schema "github.com/mutablelogic/go-server/pkg/cert/schema"
-	"github.com/mutablelogic/go-server/pkg/types"
+	types "github.com/mutablelogic/go-server/pkg/types"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -88,11 +88,16 @@ func New(opts ...Opt) (*Cert, error) {
 
 	// Set the name from the common name
 	cert.Name = cert.x509.Subject.CommonName
+	if cert.Name == "" {
+		cert.Name = fmt.Sprintf("%x", cert.x509.SerialNumber)
+	}
 
 	// Create the certificate
 	signer := cert.Signer
 	if signer == nil {
 		signer = cert
+	} else {
+		cert.x509.Issuer = signer.x509.Subject
 	}
 	if data, err := x509.CreateCertificate(rand.Reader, &cert.x509, &signer.x509, cert.PublicKey(), signer.priv); err != nil {
 		return nil, err
@@ -144,6 +149,11 @@ func Read(r io.Reader) (*Cert, error) {
 		data = rest
 	}
 
+	// Set name from serial number if not set
+	if cert.Name == "" {
+		cert.Name = fmt.Sprintf("%x", cert.x509.SerialNumber)
+	}
+
 	// Return success
 	return cert, nil
 }
@@ -169,10 +179,11 @@ func (c Cert) String() string {
 // Return metadata from a cert
 func (c Cert) Meta() schema.CertMeta {
 	signerNamePtr := func() *string {
-		if c.Signer == nil {
+		if c.Signer != nil {
+			return types.StringPtr(c.Signer.Name)
+		} else {
 			return nil
 		}
-		return types.StringPtr(c.Signer.Name)
 	}
 	return schema.CertMeta{
 		Name:         c.Name,
@@ -186,6 +197,27 @@ func (c Cert) Meta() schema.CertMeta {
 		IsCA:         c.IsCA(),
 		KeyType:      c.keyType(),
 		KeyBits:      c.keySubtype(),
+	}
+}
+
+// Return metadata from a cert
+func (c Cert) SubjectMeta() schema.NameMeta {
+	fieldPtr := func(field []string) *string {
+		if len(field) > 0 {
+			return types.StringPtr(field[0])
+		} else {
+			return nil
+		}
+	}
+	return schema.NameMeta{
+		CommonName:    c.x509.Subject.CommonName,
+		Org:           fieldPtr(c.x509.Subject.Organization),
+		Unit:          fieldPtr(c.x509.Subject.OrganizationalUnit),
+		Country:       fieldPtr(c.x509.Subject.Country),
+		City:          fieldPtr(c.x509.Subject.Locality),
+		State:         fieldPtr(c.x509.Subject.Province),
+		StreetAddress: fieldPtr(c.x509.Subject.StreetAddress),
+		PostalCode:    fieldPtr(c.x509.Subject.PostalCode),
 	}
 }
 

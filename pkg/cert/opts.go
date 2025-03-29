@@ -103,8 +103,8 @@ func WithAddress(address, postcode string) Opt {
 // Set certificate expiry
 func WithExpiry(expires time.Duration) Opt {
 	return func(o *Cert) error {
-		o.x509.NotBefore = time.Now()
-		o.x509.NotAfter = o.x509.NotBefore.Add(expires)
+		o.x509.NotBefore = time.Now().Truncate(time.Second).UTC()
+		o.x509.NotAfter = o.x509.NotBefore.Add(expires).Truncate(time.Second).UTC()
 		return nil
 	}
 }
