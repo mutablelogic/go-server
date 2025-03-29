@@ -14,6 +14,11 @@ const (
 	SchemaName = "cert"
 )
 
+const (
+	// Maximum number of names to return in a list query
+	NameListLimit = 100
+)
+
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 

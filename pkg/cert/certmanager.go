@@ -2,12 +2,12 @@ package cert
 
 import (
 	"context"
-	"log"
 
 	// Packages
 	pg "github.com/djthorpe/go-pg"
 	schema "github.com/mutablelogic/go-server/pkg/cert/schema"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
+	"github.com/mutablelogic/go-server/pkg/types"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -52,7 +52,7 @@ func NewCertManager(ctx context.Context, conn pg.PoolConn, opt ...Opt) (*CertMan
 		if name, err := self.RegisterName(ctx, self.root.SubjectMeta()); err != nil {
 			return err
 		} else {
-			log.Println(name)
+			self.root.Subject = types.Uint64Ptr(name.Id)
 		}
 		return nil
 	}); err != nil {
@@ -61,6 +61,14 @@ func NewCertManager(ctx context.Context, conn pg.PoolConn, opt ...Opt) (*CertMan
 
 	// Return success
 	return self, nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS
+
+// Return the root certificate
+func (certmanager *CertManager) Root() *Cert {
+	return certmanager.root
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -95,9 +103,21 @@ func (certmanager *CertManager) UpdateName(ctx context.Context, id uint64, meta 
 
 func (certmanager *CertManager) DeleteName(ctx context.Context, id uint64) (*schema.Name, error) {
 	var name schema.Name
-	if err := certmanager.conn.Delete(ctx, &name, schema.NameId(id)); err != nil {
+	// Don't allow the root certificate to be deleted
+	if id == types.PtrUint64(certmanager.root.Subject) {
+		return nil, httpresponse.ErrConflict.With("cannot delete root certificate")
+	} else if err := certmanager.conn.Delete(ctx, &name, schema.NameId(id)); err != nil {
 		return nil, err
 	} else {
 		return &name, nil
+	}
+}
+
+func (certmanager *CertManager) ListNames(ctx context.Context) (*schema.NameList, error) {
+	var list schema.NameList
+	if err := certmanager.conn.List(ctx, &list, schema.NameListRequest{}); err != nil {
+		return nil, err
+	} else {
+		return &list, nil
 	}
 }

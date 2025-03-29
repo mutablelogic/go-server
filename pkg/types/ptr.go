@@ -1,9 +1,21 @@
 package types
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // StringPtr returns a pointer to a string
 func StringPtr(s string) *string {
+	return &s
+}
+
+// TrimStringPtr returns a pointer to a white-space trimmed string, or nil
+// if the string is empty
+func TrimStringPtr(s string) *string {
+	if s = strings.TrimSpace(s); s == "" {
+		return nil
+	}
 	return &s
 }
 
