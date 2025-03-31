@@ -3,7 +3,7 @@ module github.com/mutablelogic/go-server
 go 1.23.5
 
 require (
-	github.com/djthorpe/go-pg v1.0.2
+	github.com/djthorpe/go-pg v1.0.3
 	github.com/stretchr/testify v1.10.0
 )
 

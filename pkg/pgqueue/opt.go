@@ -86,7 +86,7 @@ func OptNamespace(v string) Opt {
 		if v = strings.TrimSpace(v); !types.IsIdentifier(v) {
 			return httpresponse.ErrBadRequest.With("invalid namespacename ")
 		} else {
-			o.namespace = v
+			o.namespace = strings.ToLower(v)
 		}
 		return nil
 	}

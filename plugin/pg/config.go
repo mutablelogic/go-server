@@ -47,7 +47,7 @@ func (c Config) New(ctx context.Context) (server.Task, error) {
 	} else if err := pool.Ping(ctx); err != nil {
 		return nil, err
 	} else {
-		return taskWith(pool), nil
+		return NewTask(pool), nil
 	}
 }
 

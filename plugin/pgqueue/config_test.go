@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	// Packages
-	"github.com/mutablelogic/go-server"
-	"github.com/mutablelogic/go-server/plugin/pg"
+	server "github.com/mutablelogic/go-server"
+	pg "github.com/mutablelogic/go-server/plugin/pg"
 	pgqueue "github.com/mutablelogic/go-server/plugin/pgqueue"
 	assert "github.com/stretchr/testify/assert"
 )

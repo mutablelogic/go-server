@@ -10,24 +10,22 @@ import (
 	// Packages
 	pg "github.com/djthorpe/go-pg"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
+	types "github.com/mutablelogic/go-server/pkg/types"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type TaskId struct {
-	Id *uint64 `json:"id,omitempty"`
-}
+type TaskId uint64
 
 type TaskRetain struct {
-	Queue  string `json:"queue,omitempty"`
 	Worker string `json:"worker,omitempty"`
 }
 
 type TaskRelease struct {
-	TaskId
-	Fail   bool `json:"fail,omitempty"`
-	Result any  `json:"result,omitempty"`
+	Id     uint64 `json:"id,omitempty"`
+	Fail   bool   `json:"fail,omitempty"`
+	Result any    `json:"result,omitempty"`
 }
 
 type TaskMeta struct {
@@ -36,7 +34,7 @@ type TaskMeta struct {
 }
 
 type Task struct {
-	TaskId
+	Id uint64 `json:"id,omitempty"`
 	TaskMeta
 	Worker     *string    `json:"worker,omitempty"`
 	Queue      string     `json:"queue,omitempty"`
@@ -95,7 +93,13 @@ func (t TaskList) String() string {
 // READER
 
 func (t *TaskId) Scan(row pg.Row) error {
-	return row.Scan(&t.Id)
+	var id *uint64
+	if err := row.Scan(&id); err != nil {
+		return err
+	} else {
+		*t = TaskId(types.PtrUint64(id))
+	}
+	return nil
 }
 
 func (t *Task) Scan(row pg.Row) error {
@@ -148,26 +152,34 @@ func (t TaskMeta) Insert(bind *pg.Bind) (string, error) {
 	return taskInsert, nil
 }
 
-func (t TaskMeta) Patch(bind *pg.Bind) error {
-	var patch []string
+func (t TaskMeta) Update(bind *pg.Bind) error {
+	bind.Del("patch")
+
+	// DelayedAt
 	if t.DelayedAt != nil {
 		if t.DelayedAt.Before(time.Now()) {
 			return fmt.Errorf("delayed_at is in the past")
 		}
-		patch = append(patch, `delayed_at = `+bind.Set("delayed_at", t.DelayedAt))
+		bind.Append("patch", `delayed_at = `+bind.Set("delayed_at", t.DelayedAt))
 	}
+
+	// Payload
 	if t.Payload != nil {
 		data, err := json.Marshal(t.Payload)
 		if err != nil {
 			return err
-		} else {
-			patch = append(patch, `payload = `+bind.Set("payload", string(data)))
 		}
+		bind.Append("patch", `payload = `+bind.Set("payload", string(data)))
 	}
-	if len(patch) == 0 {
+
+	// Set patch
+	if patch := bind.Join("patch", ", "); patch == "" {
 		return fmt.Errorf("no fields to update")
+	} else {
+		bind.Set("patch", patch)
 	}
-	bind.Set("patch", strings.Join(patch, ", "))
+
+	// Return success
 	return nil
 }
 
@@ -175,7 +187,7 @@ func (t TaskMeta) Patch(bind *pg.Bind) error {
 // SELECTOR
 
 func (t TaskId) Select(bind *pg.Bind, op pg.Op) (string, error) {
-	bind.Set("id", t.Id)
+	bind.Set("tid", t)
 	switch op {
 	case pg.Get:
 		return taskGet, nil
@@ -206,13 +218,6 @@ func (l TaskListRequest) Select(bind *pg.Bind, op pg.Op) (string, error) {
 }
 
 func (t TaskRetain) Select(bind *pg.Bind, op pg.Op) (string, error) {
-	// Queue is required
-	if queue := strings.TrimSpace(t.Queue); queue == "" {
-		return "", httpresponse.ErrBadRequest.Withf("Missing queue")
-	} else {
-		bind.Set("id", queue)
-	}
-
 	// Worker is required
 	if worker := strings.TrimSpace(t.Worker); worker == "" {
 		return "", httpresponse.ErrBadRequest.Withf("Missing worker")
@@ -230,10 +235,10 @@ func (t TaskRetain) Select(bind *pg.Bind, op pg.Op) (string, error) {
 }
 
 func (t TaskRelease) Select(bind *pg.Bind, op pg.Op) (string, error) {
-	if t.Id == nil || *t.Id == 0 {
+	if t.Id == 0 {
 		return "", httpresponse.ErrBadRequest.Withf("Missing task id")
 	} else {
-		bind.Set("task", *t.Id)
+		bind.Set("tid", t.Id)
 	}
 
 	// Result of the task
@@ -316,7 +321,7 @@ const (
     `
 	taskCreateInsertFunc = `
         -- Insert a new payload into a queue
-        CREATE OR REPLACE FUNCTION ${"schema"}.queue_insert(q TEXT, p JSONB, delayed_at TIMESTAMP) RETURNS BIGINT AS $$
+        CREATE OR REPLACE FUNCTION ${"schema"}.queue_insert(ns TEXT, q TEXT, p JSONB, delayed_at TIMESTAMP) RETURNS BIGINT AS $$
         WITH defaults AS (
             -- Select the retries and ttl from the queue defaults
             SELECT
@@ -328,13 +333,13 @@ const (
             FROM
                 ${"schema"}."queue"
             WHERE
-                queue = q
+                "queue" = q AND "ns" = ns
             LIMIT
                 1
         ) INSERT INTO 
-            ${"schema"}."task" ("queue", "payload", "delayed_at", "retries", "initial_retries", "dies_at")
+            ${"schema"}."task" ("ns", "queue", "payload", "delayed_at", "retries", "initial_retries", "dies_at")
         SELECT
-            q, p, CASE
+            ns, q, p, CASE
                 WHEN "delayed_at" IS NULL THEN NULL
                 WHEN "delayed_at" < TIMEZONE('UTC', NOW()) THEN (NOW() AT TIME ZONE 'UTC')
                 ELSE "delayed_at"
@@ -348,7 +353,7 @@ const (
 	taskCreateNotifyFunc = `
         CREATE OR REPLACE FUNCTION ${"schema"}.queue_notify() RETURNS TRIGGER AS $$
         BEGIN
-            PERFORM pg_notify('queue_insert',LOWER(NEW.queue));
+            PERFORM pg_notify(LOWER(NEW.ns) || '_queue_insert', LOWER(NEW.queue));
             RETURN NEW;
         END;
         $$ LANGUAGE plpgsql
@@ -361,52 +366,52 @@ const (
     `
 	taskInsert = `
         -- Insert a new task into a queue and return the id
-        SELECT ${"schema"}.queue_insert(@queue, @payload, @delayed_at)
+        SELECT ${"schema"}.queue_insert(@ns, @queue, @payload, @delayed_at)
     `
 	taskRetainFunc = `
         -- A specific worker locks a task in a queue for processing
-        CREATE OR REPLACE FUNCTION ${"schema"}.queue_lock(q TEXT, w TEXT) RETURNS BIGINT AS $$
+        CREATE OR REPLACE FUNCTION ${"schema"}.queue_lock(ns TEXT, w TEXT) RETURNS BIGINT AS $$
         UPDATE ${"schema"}."task" SET 
             "started_at" = TIMEZONE('UTC', NOW()), "worker" = w, "result" = 'null'
         WHERE "id" = (
             SELECT 
-                    "id" 
+				"id" 
             FROM
-                    ${"schema"}."task"
+				${"schema"}."task"
             WHERE
-                    "queue" = q
+				"ns" = ns
             AND
-                    ("started_at" IS NULL AND "finished_at" IS NULL AND "dies_at" > TIMEZONE('UTC', NOW()))
+				("started_at" IS NULL AND "finished_at" IS NULL AND "dies_at" > TIMEZONE('UTC', NOW()))
             AND 
-                    ("delayed_at" IS NULL OR "delayed_at" <= TIMEZONE('UTC', NOW()))
+                ("delayed_at" IS NULL OR "delayed_at" <= TIMEZONE('UTC', NOW()))
             AND
-                    ("retries" > 0)
+                ("retries" > 0)
             ORDER BY
-                    "created_at"
+                "created_at"
             FOR UPDATE SKIP LOCKED LIMIT 1
         ) RETURNING
-                "id"
+			"id"
         $$ LANGUAGE SQL
     `
 	taskReleaseFunc = `
         -- Unlock a task in a queue with successful result
-        CREATE OR REPLACE FUNCTION ${"schema"}.queue_unlock(q TEXT, tid BIGINT, r JSONB) RETURNS BIGINT AS $$
+        CREATE OR REPLACE FUNCTION ${"schema"}.queue_unlock(tid BIGINT, r JSONB) RETURNS BIGINT AS $$
             UPDATE ${"schema"}."task" SET 
-                    "finished_at" = TIMEZONE('UTC', NOW()), "dies_at" = NULL, "result" = r
+				"finished_at" = TIMEZONE('UTC', NOW()), "dies_at" = NULL, "result" = r
             WHERE 
-                    ("id" = tid) AND ("queue" = q)
+				("id" = tid)
             AND
-                    ("started_at" IS NOT NULL AND "finished_at" IS NULL AND "dies_at" > TIMEZONE('UTC', NOW()))
+				("started_at" IS NOT NULL AND "finished_at" IS NULL AND "dies_at" > TIMEZONE('UTC', NOW()))
             RETURNING
-                    "id"
+				"id"
         $$ LANGUAGE SQL
     `
 	taskStatusType = `
         -- Create the status type
         DO $$ BEGIN
-                CREATE TYPE ${"schema"}.STATUS AS ENUM('expired', 'new', 'failed', 'retry', 'retained', 'released', 'unknown');
+			CREATE TYPE ${"schema"}.STATUS AS ENUM('expired', 'new', 'failed', 'retry', 'retained', 'released', 'unknown');
         EXCEPTION
-                WHEN duplicate_object THEN null;
+			WHEN duplicate_object THEN null;
         END $$;
     `
 	taskStatusFunc = `
@@ -439,25 +444,25 @@ const (
             JOIN            	
                 ${"schema"}."queue" Q
             ON
-                T.queue = Q.queue
+                T."queue" = Q."queue" AND T."ns" = Q."ns"
             WHERE
                 T."id" = tid
         $$ LANGUAGE SQL
     `
 	taskFailFunc = `
         -- Unlock a task in a queue with fail result
-        CREATE OR REPLACE FUNCTION ${"schema"}.queue_fail(q TEXT, tid BIGINT, r JSONB) RETURNS BIGINT AS $$
+        CREATE OR REPLACE FUNCTION ${"schema"}.queue_fail(tid BIGINT, r JSONB) RETURNS BIGINT AS $$
             UPDATE ${"schema"}."task" SET 
                 "retries" = "retries" - 1, "result" = r, "started_at" = NULL, "finished_at" = NULL, "delayed_at" = ${"schema"}.queue_backoff(tid)
             WHERE 
-                "queue" = q AND "id" = tid AND "retries" > 0 AND ("started_at" IS NOT NULL AND "finished_at" IS NULL)
+                "id" = tid AND "retries" > 0 AND ("started_at" IS NOT NULL AND "finished_at" IS NULL)
             RETURNING
-                "id"
+				"id"
         $$ LANGUAGE SQL 
     `
 	taskCleanFunc = `
 		-- Cleanup tasks in a queue which are in an end state 
-		CREATE OR REPLACE FUNCTION ${"schema"}.queue_clean(q TEXT) RETURNS TABLE (
+		CREATE OR REPLACE FUNCTION ${"schema"}.queue_clean(ns TEXT, q TEXT) RETURNS TABLE (
             "id" BIGINT, "queue" TEXT, "payload" JSONB, "result" JSONB, "worker" TEXT, "created_at" TIMESTAMP, "delayed_at" TIMESTAMP, "started_at" TIMESTAMP, "finished_at" TIMESTAMP, "dies_at" TIMESTAMP, "retries" INTEGER
         ) AS $$
 			DELETE FROM
@@ -470,7 +475,7 @@ const (
                         FROM 
                             ${"schema"}."task" 
                         WHERE
-                            "queue" = q
+                            "ns" = ns AND "queue" = q
                         AND
                             (dies_at IS NULL OR dies_at < TIMEZONE('UTC', NOW()))
                     ) SELECT 
@@ -490,15 +495,15 @@ const (
 	`
 	taskRetain = `
         -- Returns the id of the task which has been retained
-        SELECT ${"schema"}.queue_lock(@id, @worker)
+        SELECT ${"schema"}.queue_lock(@ns, @worker)
     `
 	taskRelease = `
         -- Returns the id of the task which has been released
-        SELECT ${"schema"}.queue_unlock(@id, @task, @result)
+        SELECT ${"schema"}.queue_unlock(@tid, @result)
     `
 	taskFail = `
         -- Returns the id of the task which has been failed
-        SELECT ${"schema"}.queue_fail(@id, @task, @result)
+        SELECT ${"schema"}.queue_fail(@tid, @result)
     `
 	taskSelect = `
         SELECT 
@@ -506,6 +511,6 @@ const (
         FROM
             ${"schema"}."task"
     `
-	taskGet  = taskSelect + `WHERE "id" = @id`
+	taskGet  = taskSelect + `WHERE "id" = @tid`
 	taskList = `WITH q AS (` + taskSelect + `) SELECT * FROM q ${where}`
 )

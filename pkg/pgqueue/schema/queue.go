@@ -207,6 +207,9 @@ func (q Queue) Insert(bind *pg.Bind) (string, error) {
 		bind.Set("queue", queue)
 	}
 
+	// Note: Inserts default values for ttl, retries, retry_delay
+	// A subsequent update is required to set these values
+
 	// Return the insert query
 	return queueInsert, nil
 }

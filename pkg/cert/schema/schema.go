@@ -2,7 +2,6 @@ package schema
 
 import (
 	"context"
-	"time"
 
 	// Packages
 	pg "github.com/djthorpe/go-pg"
@@ -12,36 +11,33 @@ import (
 // GLOBALS
 
 const (
-	SchemaName       = "pgqueue"
-	DefaultNamespace = "default"
-	DefaultPrefix    = "/queue/v1"
-	TopicQueueInsert = "queue_insert"
-	QueueListLimit   = 100
-	TickerListLimit  = 100
-	TaskListLimit    = 100
-	TickerPeriod     = 15 * time.Second
-	TaskPeriod       = 15 * time.Second
+	SchemaName = "cert"
+)
+
+const (
+	// Maximum number of names to return in a list query
+	NameListLimit = 100
 )
 
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
+// Bootstrap creates the schema and tables for the certificate manager
+// and returns an error if it fails. It is expected that this function
+// will be called within a transaction
 func Bootstrap(ctx context.Context, conn pg.Conn) error {
 	// Create the schema
 	if err := pg.SchemaCreate(ctx, conn, SchemaName); err != nil {
 		return err
 	}
-	// Create types, tables, ...
-	if err := bootstrapQueue(ctx, conn); err != nil {
+	// Create the tables
+	if err := bootstrapName(ctx, conn); err != nil {
 		return err
 	}
-	if err := bootstrapTask(ctx, conn); err != nil {
+	if err := bootstrapCert(ctx, conn); err != nil {
 		return err
 	}
-	if err := bootstrapTicker(ctx, conn); err != nil {
-		return err
-	}
+
 	// Commit the transaction
 	return nil
-
 }

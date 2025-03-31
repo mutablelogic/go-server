@@ -3,9 +3,11 @@ package server
 import (
 	"context"
 	"net/http"
+	"time"
 
 	// Packages
-	"github.com/djthorpe/go-pg"
+	pg "github.com/djthorpe/go-pg"
+	schema "github.com/mutablelogic/go-server/pkg/pgqueue/schema"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -81,6 +83,30 @@ type Logger interface {
 // PGPOOL
 
 type PG interface {
-	Task
+	// Return the connection pool
 	Conn() pg.PoolConn
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PGQUEUE
+
+type PGCallback func(context.Context, any) error
+
+type PGQueue interface {
+	Task
+
+	// Return the worker name
+	Worker() string
+
+	// Register a ticker with a callback, and return the registered ticker
+	RegisterTicker(context.Context, schema.TickerMeta, PGCallback) (*schema.Ticker, error)
+
+	// Register a queue with a callback, and return the registered queue
+	RegisterQueue(context.Context, schema.Queue, PGCallback) (*schema.Queue, error)
+
+	// Create a task for a queue with a payload and optional delay, and return it
+	CreateTask(context.Context, string, any, time.Duration) (*schema.Task, error)
+
+	// Delete a ticker by name
+	DeleteTicker(context.Context, string) error
 }

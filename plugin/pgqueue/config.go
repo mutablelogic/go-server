@@ -14,9 +14,10 @@ import (
 // TYPES
 
 type Config struct {
-	Pool   server.PG         `kong:"-"`                             // Connection pool
-	Router server.HTTPRouter `kong:"-"`                             // Which HTTP router to use
-	Worker *string           `default:"${HOST}" help:"Worker name"` // The name of the worker
+	Pool      server.PG         `kong:"-"`           // Connection pool
+	Router    server.HTTPRouter `kong:"-"`           // Which HTTP router to use
+	Namespace *string           `help:"Namespace"`   // Namespace for queues and tickers
+	Worker    *string           `help:"Worker name"` // The name of the worker
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,6 +32,9 @@ func (c Config) New(ctx context.Context) (server.Task, error) {
 	opts := []pgqueue.Opt{}
 	if c.Worker != nil {
 		opts = append(opts, pgqueue.OptWorker(*c.Worker))
+	}
+	if c.Namespace != nil {
+		opts = append(opts, pgqueue.OptNamespace(*c.Namespace))
 	}
 
 	// Create a new client
