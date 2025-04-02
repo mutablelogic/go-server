@@ -10,7 +10,6 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
-	"time"
 
 	// Packages
 	schema "github.com/mutablelogic/go-server/pkg/cert/schema"
@@ -22,10 +21,9 @@ import (
 
 // Certificate
 type Cert struct {
-	Name    string     `json:"name"`                // Common Name
-	Subject *uint64    `json:"subject,omitempty"`   // Subject
-	Signer  *Cert      `json:"signer,omitempty"`    // Signer
-	Ts      *time.Time `json:"timestamp,omitempty"` // Timestamp
+	Name    string  `json:"name"`              // Common Name
+	Subject *uint64 `json:"subject,omitempty"` // Subject
+	Signer  *Cert   `json:"signer,omitempty"`  // Signer
 
 	// The private key and certificate
 	priv any

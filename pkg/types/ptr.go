@@ -12,11 +12,14 @@ func StringPtr(s string) *string {
 
 // TrimStringPtr returns a pointer to a white-space trimmed string, or nil
 // if the string is empty
-func TrimStringPtr(s string) *string {
-	if s = strings.TrimSpace(s); s == "" {
+func TrimStringPtr(s *string) *string {
+	if s == nil {
 		return nil
+	} else if v := strings.TrimSpace(*s); v == "" {
+		return nil
+	} else {
+		return &v
 	}
-	return &s
 }
 
 // PtrString returns a string from a pointer

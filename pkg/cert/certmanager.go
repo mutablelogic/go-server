@@ -50,13 +50,18 @@ func NewCertManager(ctx context.Context, conn pg.PoolConn, opt ...Opt) (*CertMan
 	// Register the root certificate
 	if err := self.conn.Tx(ctx, func(conn pg.Conn) error {
 		// Register the name
-		if name, err := self.RegisterName(ctx, self.root.SubjectMeta()); err != nil {
+		subject, err := self.RegisterName(ctx, self.root.SubjectMeta())
+		if err != nil {
 			return err
 		} else {
-			self.root.Subject = types.Uint64Ptr(name.Id)
+			self.root.Subject = types.Uint64Ptr(subject.Id)
 		}
 
-		// TODO: Get a cert for the root, if no cert exists then register a new one
+		// Get a cert for the root, if no cert exists then register a new one
+		certs, err := self.ListCerts(ctx, schema.CertListRequest{
+			Subject: subject.Id,
+		})
+
 		if cert, err := self.RegisterCert(ctx, self.root); err != nil {
 			return err
 		} else {

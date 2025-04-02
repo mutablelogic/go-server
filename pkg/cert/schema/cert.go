@@ -27,6 +27,15 @@ type CertMeta struct {
 	KeyBits      string    `json:"key_subtype,omitempty"`
 }
 
+type CertList struct {
+	Count uint64     `json:"count"`
+	Body  []CertMeta `json:"body,omitempty"`
+}
+
+type CertListRequest struct {
+	pg.OffsetLimit
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 

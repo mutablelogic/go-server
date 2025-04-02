@@ -2,6 +2,7 @@ package schema
 
 import (
 	"context"
+	"crypto/x509/pkix"
 	"encoding/json"
 	"strings"
 	"time"
@@ -119,7 +120,15 @@ func (n NameMeta) Insert(bind *pg.Bind) (string, error) {
 	} else {
 		bind.Set("commonName", commonName)
 	}
-	// TODO
+
+	// Set other fields - which can be nil
+	bind.Set("organizationName", types.TrimStringPtr(n.Org))
+	bind.Set("organizationalUnit", types.TrimStringPtr(n.Unit))
+	bind.Set("countryName", types.TrimStringPtr(n.Country))
+	bind.Set("localityName", types.TrimStringPtr(n.City))
+	bind.Set("stateOrProvinceName", types.TrimStringPtr(n.State))
+	bind.Set("streetAddress", types.TrimStringPtr(n.StreetAddress))
+	bind.Set("postalCode", types.TrimStringPtr(n.PostalCode))
 
 	// Return insert or replace
 	return nameReplace, nil
@@ -131,25 +140,25 @@ func (n NameMeta) Update(bind *pg.Bind) error {
 		bind.Append("patch", `"commonName" = `+bind.Set("commonName", name))
 	}
 	if n.Org != nil {
-		bind.Append("patch", `"organizationName" = `+bind.Set("organizationName", types.TrimStringPtr(*n.Org)))
+		bind.Append("patch", `"organizationName" = `+bind.Set("organizationName", types.TrimStringPtr(n.Org)))
 	}
 	if n.Unit != nil {
-		bind.Append("patch", `"organizationalUnit" = `+bind.Set("organizationalUnit", types.TrimStringPtr(*n.Unit)))
+		bind.Append("patch", `"organizationalUnit" = `+bind.Set("organizationalUnit", types.TrimStringPtr(n.Unit)))
 	}
 	if n.Country != nil {
-		bind.Append("patch", `"countryName" = `+bind.Set("countryName", types.TrimStringPtr(*n.Country)))
+		bind.Append("patch", `"countryName" = `+bind.Set("countryName", types.TrimStringPtr(n.Country)))
 	}
 	if n.City != nil {
-		bind.Append("patch", `"localityName" = `+bind.Set("localityName", types.TrimStringPtr(*n.City)))
+		bind.Append("patch", `"localityName" = `+bind.Set("localityName", types.TrimStringPtr(n.City)))
 	}
 	if n.State != nil {
-		bind.Append("patch", `"stateOrProvinceName" = `+bind.Set("stateOrProvinceName", types.TrimStringPtr(*n.State)))
+		bind.Append("patch", `"stateOrProvinceName" = `+bind.Set("stateOrProvinceName", types.TrimStringPtr(n.State)))
 	}
 	if n.StreetAddress != nil {
-		bind.Append("patch", `"streetAddress" = `+bind.Set("streetAddress", types.TrimStringPtr(*n.StreetAddress)))
+		bind.Append("patch", `"streetAddress" = `+bind.Set("streetAddress", types.TrimStringPtr(n.StreetAddress)))
 	}
 	if n.PostalCode != nil {
-		bind.Append("patch", `"postalCode" = `+bind.Set("postalCode", types.TrimStringPtr(*n.PostalCode)))
+		bind.Append("patch", `"postalCode" = `+bind.Set("postalCode", types.TrimStringPtr(n.PostalCode)))
 	}
 
 	// Join the patch fields
@@ -167,7 +176,40 @@ func (n NameMeta) Update(bind *pg.Bind) error {
 // READER
 
 func (n *Name) Scan(row pg.Row) error {
-	return row.Scan(&n.Id, &n.CommonName, &n.Org, &n.Unit, &n.Country, &n.City, &n.State, &n.StreetAddress, &n.PostalCode, &n.Ts)
+	var name pkix.Name
+
+	// Scan from row
+	if err := row.Scan(&n.Id, &n.CommonName, &n.Org, &n.Unit, &n.Country, &n.City, &n.State, &n.StreetAddress, &n.PostalCode, &n.Ts); err != nil {
+		return err
+	}
+
+	// Create subject field
+	name.CommonName = n.CommonName
+	if n.Org != nil {
+		name.Organization = []string{types.PtrString(n.Org)}
+	}
+	if n.Unit != nil {
+		name.OrganizationalUnit = []string{types.PtrString(n.Unit)}
+	}
+	if n.Country != nil {
+		name.Country = []string{types.PtrString(n.Country)}
+	}
+	if n.City != nil {
+		name.Locality = []string{types.PtrString(n.City)}
+	}
+	if n.State != nil {
+		name.Province = []string{types.PtrString(n.State)}
+	}
+	if n.StreetAddress != nil {
+		name.StreetAddress = []string{types.PtrString(n.StreetAddress)}
+	}
+	if n.PostalCode != nil {
+		name.PostalCode = []string{types.PtrString(n.PostalCode)}
+	}
+	n.Subject = types.StringPtr(name.String())
+
+	// Return success
+	return nil
 }
 
 func (n *NameList) Scan(row pg.Row) error {
