@@ -72,6 +72,14 @@ func (n NameList) String() string {
 	return string(data)
 }
 
+func (n NameListRequest) String() string {
+	data, err := json.MarshalIndent(n, "", "  ")
+	if err != nil {
+		return err.Error()
+	}
+	return string(data)
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // SELECT
 

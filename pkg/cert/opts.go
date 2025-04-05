@@ -48,10 +48,20 @@ func apply(opts ...Opt) (*Cert, error) {
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
+// Set certificate name
+func withName(name string) Opt {
+	return func(o *Cert) error {
+		if name != "" {
+			o.Name = name
+		}
+		return nil
+	}
+}
+
 // Set common name
 func WithCommonName(name string) Opt {
 	return func(o *Cert) error {
-		if name != "" {
+		if name = strings.TrimSpace(name); name != "" {
 			o.x509.Subject.CommonName = name
 		}
 		return nil
@@ -61,10 +71,10 @@ func WithCommonName(name string) Opt {
 // Set organization
 func WithOrganization(org, unit string) Opt {
 	return func(o *Cert) error {
-		if org != "" {
+		if org = strings.TrimSpace(org); org != "" {
 			o.x509.Subject.Organization = []string{org}
 		}
-		if unit != "" {
+		if unit = strings.TrimSpace(unit); unit != "" {
 			o.x509.Subject.OrganizationalUnit = []string{unit}
 		}
 		return nil
@@ -74,13 +84,13 @@ func WithOrganization(org, unit string) Opt {
 // Set country
 func WithCountry(country, state, city string) Opt {
 	return func(o *Cert) error {
-		if country != "" {
+		if country = strings.TrimSpace(country); country != "" {
 			o.x509.Subject.Country = []string{country}
 		}
-		if state != "" {
+		if state = strings.TrimSpace(state); state != "" {
 			o.x509.Subject.Province = []string{state}
 		}
-		if city != "" {
+		if city = strings.TrimSpace(city); city != "" {
 			o.x509.Subject.Locality = []string{city}
 		}
 		return nil
@@ -90,10 +100,10 @@ func WithCountry(country, state, city string) Opt {
 // Set address
 func WithAddress(address, postcode string) Opt {
 	return func(o *Cert) error {
-		if address != "" {
+		if address = strings.TrimSpace(address); address != "" {
 			o.x509.Subject.StreetAddress = []string{address}
 		}
-		if postcode != "" {
+		if postcode = strings.TrimSpace(postcode); postcode != "" {
 			o.x509.Subject.PostalCode = []string{postcode}
 		}
 		return nil

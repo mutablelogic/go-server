@@ -25,6 +25,9 @@ type Cert struct {
 	Subject *uint64 `json:"subject,omitempty"` // Subject
 	Signer  *Cert   `json:"signer,omitempty"`  // Signer
 
+	// database-id for the certificate
+	id *uint64
+
 	// The private key and certificate
 	priv any
 	x509 x509.Certificate
@@ -62,13 +65,10 @@ func New(opts ...Opt) (*Cert, error) {
 		return nil, fmt.Errorf("missing private or public key")
 	}
 
-	// Set the NotBefore and NotAfter dates based on signer
-	if cert.Signer != nil {
+	// Set the NotBefore based on signer, if not set
+	if cert.Signer != nil && cert.x509.NotBefore.IsZero() {
 		if !cert.Signer.x509.NotBefore.IsZero() && cert.Signer.x509.NotBefore.After(cert.x509.NotBefore) {
 			cert.x509.NotBefore = cert.Signer.x509.NotBefore
-		}
-		if !cert.Signer.x509.NotAfter.IsZero() && cert.Signer.x509.NotAfter.Before(cert.x509.NotAfter) {
-			cert.x509.NotAfter = cert.Signer.x509.NotAfter
 		}
 	}
 
@@ -84,10 +84,12 @@ func New(opts ...Opt) (*Cert, error) {
 		}
 	}
 
-	// Set the name from the common name
-	cert.Name = cert.x509.Subject.CommonName
+	// commonName is required, set the name from the common name
+	if cert.x509.Subject.CommonName == "" {
+		return nil, fmt.Errorf("missing commonName")
+	}
 	if cert.Name == "" {
-		cert.Name = fmt.Sprintf("%x", cert.x509.SerialNumber)
+		cert.Name = cert.x509.Subject.CommonName
 	}
 
 	// Create the certificate
@@ -160,7 +162,7 @@ func Read(r io.Reader) (*Cert, error) {
 // STRINGIFY
 
 func (c Cert) MarshalJSON() ([]byte, error) {
-	return json.Marshal(c.Meta())
+	return json.Marshal(c.CertMeta())
 }
 
 func (c Cert) String() string {
@@ -173,30 +175,6 @@ func (c Cert) String() string {
 
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
-
-// Return metadata from a cert
-func (c Cert) Meta() schema.CertMeta {
-	signerNamePtr := func() *string {
-		if c.Signer != nil {
-			return types.StringPtr(c.Signer.Name)
-		} else {
-			return nil
-		}
-	}
-	return schema.CertMeta{
-		Name:         c.Name,
-		Signer:       signerNamePtr(),
-		SerialNumber: fmt.Sprintf("%x", c.x509.SerialNumber),
-		Subject:      c.x509.Subject.String(),
-		NotBefore:    c.x509.NotBefore,
-		NotAfter:     c.x509.NotAfter,
-		IPs:          c.x509.IPAddresses,
-		Hosts:        c.x509.DNSNames,
-		IsCA:         c.IsCA(),
-		KeyType:      c.keyType(),
-		KeyBits:      c.keySubtype(),
-	}
-}
 
 // Return metadata from a cert
 func (c Cert) SubjectMeta() schema.NameMeta {
@@ -216,6 +194,33 @@ func (c Cert) SubjectMeta() schema.NameMeta {
 		State:         fieldPtr(c.x509.Subject.Province),
 		StreetAddress: fieldPtr(c.x509.Subject.StreetAddress),
 		PostalCode:    fieldPtr(c.x509.Subject.PostalCode),
+	}
+}
+
+// Return metadata from a cert
+func (c Cert) CertMeta() schema.CertMeta {
+	keybytes := func(priv any) []byte {
+		if key, err := x509.MarshalPKCS8PrivateKey(priv); err != nil {
+			return nil
+		} else {
+			return key
+		}
+	}
+	signer := func(signer *Cert) *string {
+		if signer == nil {
+			return nil
+		} else {
+			return types.StringPtr(signer.Name)
+		}
+	}
+	return schema.CertMeta{
+		Signer:    signer(c.Signer),
+		Subject:   c.Subject,
+		IsCA:      c.IsCA(),
+		NotBefore: c.x509.NotBefore,
+		NotAfter:  c.x509.NotAfter,
+		Cert:      c.x509.Raw,
+		Key:       keybytes(c.priv),
 	}
 }
 

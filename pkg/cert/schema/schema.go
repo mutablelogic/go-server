@@ -11,7 +11,7 @@ import (
 // GLOBALS
 
 const (
-	SchemaName = "cert"
+	SchemaName = "certmanager"
 )
 
 const (
