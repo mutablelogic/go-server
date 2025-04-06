@@ -6,18 +6,22 @@ import (
 	// Packages
 	pg "github.com/djthorpe/go-pg"
 	server "github.com/mutablelogic/go-server"
+	pgmanager "github.com/mutablelogic/go-server/pkg/pgmanager"
+	pghandler "github.com/mutablelogic/go-server/pkg/pgmanager/handler"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
 
 type Config struct {
-	Addr     string     `name:"host" env:"PG_HOST" default:"localhost" help:"Server address, <host> or <host>:<port>"`
-	User     string     `env:"PG_USER" default:"${USER}" help:"Database user"`
-	Pass     string     `env:"PG_PASSWORD" help:"User password"`
-	Database string     `env:"PG_DATABASE" help:"Database name, uses username if not set"`
-	SSLMode  string     `default:"default" enum:"default,disable,allow,prefer,require,verify-ca,verify-full" help:"SSL mode"`
-	Trace    pg.TraceFn `json:"-" kong:"-"`
+	Addr     string            `name:"host" env:"PG_HOST" default:"localhost" help:"Server address, <host> or <host>:<port>"`
+	User     string            `env:"PG_USER" default:"${USER}" help:"Database user"`
+	Pass     string            `env:"PG_PASSWORD" help:"User password"`
+	Database string            `env:"PG_DATABASE" help:"Database name, uses username if not set"`
+	SSLMode  string            `default:"default" enum:"default,disable,allow,prefer,require,verify-ca,verify-full" help:"SSL mode"`
+	Trace    pg.TraceFn        `json:"-" kong:"-"`
+	Router   server.HTTPRouter `kong:"-"`                                  // Which HTTP router to use
+	Prefix   string            `default:"${PG_PREFIX}" help:"Path prefix"` // HTTP Path Prefix
 }
 
 var _ server.Plugin = Config{}
@@ -42,13 +46,26 @@ func (c Config) New(ctx context.Context) (server.Task, error) {
 	if c.Trace != nil {
 		opts = append(opts, pg.WithTrace(c.Trace))
 	}
-	if pool, err := pg.NewPool(ctx, opts...); err != nil {
+
+	// Create  a connection pool
+	pool, err := pg.NewPool(ctx, opts...)
+	if err != nil {
 		return nil, err
 	} else if err := pool.Ping(ctx); err != nil {
 		return nil, err
-	} else {
-		return NewTask(pool), nil
 	}
+
+	// Register HTTP handlers
+	if c.Router != nil {
+		if manager, err := pgmanager.New(ctx, pool); err != nil {
+			return nil, err
+		} else {
+			pghandler.RegisterRole(ctx, c.Router, c.Prefix, manager)
+		}
+	}
+
+	// Create a new task with the connection pool
+	return NewTask(pool), nil
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/x509/pkix"
 	"encoding/json"
-	"strings"
 	"time"
 
 	// Packages
@@ -18,10 +17,7 @@ import (
 
 type NameId uint64
 
-type CommonName string
-
 type NameMeta struct {
-	CommonName    string  `json:"commonName,omitempty"`
 	Org           *string `json:"organizationName,omitempty"`
 	Unit          *string `json:"organizationalUnit,omitempty"`
 	Country       *string `json:"countryName,omitempty"`
@@ -106,22 +102,6 @@ func (n NameId) Select(bind *pg.Bind, op pg.Op) (string, error) {
 	}
 }
 
-func (n CommonName) Select(bind *pg.Bind, op pg.Op) (string, error) {
-	if n == "" {
-		return "", httpresponse.ErrBadRequest.With("commonName is missing")
-	} else {
-		bind.Set("commonName", n)
-	}
-
-	// Return query
-	switch op {
-	case pg.Get:
-		return nameGetByName, nil
-	default:
-		return "", httpresponse.ErrInternalError.Withf("unsupported NameId operation %q", op)
-	}
-}
-
 func (n NameListRequest) Select(bind *pg.Bind, op pg.Op) (string, error) {
 	// Set empty where
 	bind.Set("where", "")
@@ -142,13 +122,6 @@ func (n NameListRequest) Select(bind *pg.Bind, op pg.Op) (string, error) {
 // WRITER
 
 func (n NameMeta) Insert(bind *pg.Bind) (string, error) {
-	if commonName := strings.TrimSpace(n.CommonName); commonName == "" {
-		return "", httpresponse.ErrBadRequest.With("commonName is missing")
-	} else {
-		bind.Set("commonName", commonName)
-	}
-
-	// Set other fields - which can be nil
 	bind.Set("organizationName", types.TrimStringPtr(n.Org))
 	bind.Set("organizationalUnit", types.TrimStringPtr(n.Unit))
 	bind.Set("countryName", types.TrimStringPtr(n.Country))
@@ -163,9 +136,6 @@ func (n NameMeta) Insert(bind *pg.Bind) (string, error) {
 
 func (n NameMeta) Update(bind *pg.Bind) error {
 	bind.Del("patch")
-	if name := strings.TrimSpace(n.CommonName); name != "" {
-		bind.Append("patch", `"commonName" = `+bind.Set("commonName", name))
-	}
 	if n.Org != nil {
 		bind.Append("patch", `"organizationName" = `+bind.Set("organizationName", types.TrimStringPtr(n.Org)))
 	}
@@ -206,12 +176,11 @@ func (n *Name) Scan(row pg.Row) error {
 	var name pkix.Name
 
 	// Scan from row
-	if err := row.Scan(&n.Id, &n.CommonName, &n.Org, &n.Unit, &n.Country, &n.City, &n.State, &n.StreetAddress, &n.PostalCode, &n.Ts); err != nil {
+	if err := row.Scan(&n.Id, &n.Org, &n.Unit, &n.Country, &n.City, &n.State, &n.StreetAddress, &n.PostalCode, &n.Ts); err != nil {
 		return err
 	}
 
 	// Create subject field
-	name.CommonName = n.CommonName
 	if n.Org != nil {
 		name.Organization = []string{types.PtrString(n.Org)}
 	}
@@ -273,7 +242,6 @@ const (
 	nameCreateTable = `
 		CREATE TABLE IF NOT EXISTS ${"schema"}."name" (
 			"id" SERIAL PRIMARY KEY,
-			"commonName" TEXT NOT NULL,
 			"organizationName" TEXT,
 			"organizationalUnit" TEXT,
 			"countryName" TEXT,
@@ -281,26 +249,16 @@ const (
 			"stateOrProvinceName" TEXT,
 			"streetAddress" TEXT,
 			"postalCode" TEXT,
-			"ts" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			UNIQUE ("commonName")
+			"ts" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)
 	`
 	nameReplace = `
 		INSERT INTO ${"schema"}."name" (
-			"commonName",  "organizationName", "organizationalUnit", "countryName", "localityName", "stateOrProvinceName", "streetAddress", "postalCode"
+			"organizationName", "organizationalUnit", "countryName", "localityName", "stateOrProvinceName", "streetAddress", "postalCode"
 		) VALUES (
-		 	@commonName, @organizationName, @organizationalUnit, @countryName, @localityName, @stateOrProvinceName, @streetAddress, @postalCode
-		) ON CONFLICT ("commonName") DO UPDATE SET
-			"organizationName" = @organizationName,
-			"organizationalUnit" = @organizationalUnit,
-			"countryName" = @countryName,
-			"localityName" = @localityName,
-			"stateOrProvinceName" = @stateOrProvinceName,
-			"streetAddress" = @streetAddress,
-			"postalCode" = @postalCode,
-			"ts" = CURRENT_TIMESTAMP
-		RETURNING
-			"id", "commonName", "organizationName", "organizationalUnit", "countryName", "localityName", "stateOrProvinceName", "streetAddress", "postalCode", "ts"
+		 	@organizationName, @organizationalUnit, @countryName, @localityName, @stateOrProvinceName, @streetAddress, @postalCode
+		) RETURNING
+			"id", "organizationName", "organizationalUnit", "countryName", "localityName", "stateOrProvinceName", "streetAddress", "postalCode", "ts"
 	`
 	namePatch = `
 		UPDATE ${"schema"}."name" SET
@@ -308,21 +266,20 @@ const (
 		WHERE 
 			"id" = @id
 		RETURNING
-			"id", "commonName", "organizationName", "organizationalUnit", "countryName", "localityName", "stateOrProvinceName", "streetAddress", "postalCode", "ts"
+			"id", "organizationName", "organizationalUnit", "countryName", "localityName", "stateOrProvinceName", "streetAddress", "postalCode", "ts"
 	`
 	nameDelete = `
 		DELETE FROM ${"schema"}."name" WHERE 
 			"id" = @id
 		RETURNING
-			"id", "commonName", "organizationName", "organizationalUnit", "countryName", "localityName", "stateOrProvinceName", "streetAddress", "postalCode", "ts"
+			"id","organizationName", "organizationalUnit", "countryName", "localityName", "stateOrProvinceName", "streetAddress", "postalCode", "ts"
 	`
 	nameSelect = `
 		SELECT
-			"id", "commonName", "organizationName", "organizationalUnit", "countryName", "localityName", "stateOrProvinceName", "streetAddress", "postalCode", "ts"
+			"id", "organizationName", "organizationalUnit", "countryName", "localityName", "stateOrProvinceName", "streetAddress", "postalCode", "ts"
 		FROM
 			${"schema"}."name"
 	`
-	nameGet       = nameSelect + ` WHERE "id" = @id`
-	nameGetByName = nameSelect + ` WHERE "commonName" = @commonName`
-	nameList      = `WITH q AS (` + nameSelect + `) SELECT * FROM q ${where}`
+	nameGet  = nameSelect + ` WHERE "id" = @id`
+	nameList = `WITH q AS (` + nameSelect + `) SELECT * FROM q ${where}`
 )

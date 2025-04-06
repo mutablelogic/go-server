@@ -209,7 +209,6 @@ func (c Cert) SubjectMeta() schema.NameMeta {
 		}
 	}
 	return schema.NameMeta{
-		CommonName:    c.x509.Subject.CommonName,
 		Org:           fieldPtr(c.x509.Subject.Organization),
 		Unit:          fieldPtr(c.x509.Subject.OrganizationalUnit),
 		Country:       fieldPtr(c.x509.Subject.Country),

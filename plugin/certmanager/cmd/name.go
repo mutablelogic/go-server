@@ -36,7 +36,6 @@ type NameMeta struct {
 }
 
 type NameCreateCommand struct {
-	CommonName string `arg:"" name:"commonName" description:"Common name"`
 	NameMeta
 }
 
@@ -50,7 +49,6 @@ type NameDeleteCommand struct {
 
 type NameUpdateCommand struct {
 	NameGetCommand
-	CommonName string `name:"name" description:"Common name"`
 	NameMeta
 }
 
@@ -92,7 +90,6 @@ func (cmd NameListCommand) Run(ctx server.Cmd) error {
 func (cmd NameCreateCommand) Run(ctx server.Cmd) error {
 	return run(ctx, func(ctx context.Context, provider *client.Client) error {
 		name, err := provider.CreateName(ctx, schema.NameMeta{
-			CommonName:    cmd.CommonName,
 			Org:           cmd.Org,
 			Unit:          cmd.Unit,
 			Country:       cmd.Country,
@@ -114,7 +111,6 @@ func (cmd NameCreateCommand) Run(ctx server.Cmd) error {
 func (cmd NameUpdateCommand) Run(ctx server.Cmd) error {
 	return run(ctx, func(ctx context.Context, provider *client.Client) error {
 		name, err := provider.UpdateName(ctx, cmd.Id, schema.NameMeta{
-			CommonName:    cmd.CommonName,
 			Org:           cmd.Org,
 			Unit:          cmd.Unit,
 			Country:       cmd.Country,

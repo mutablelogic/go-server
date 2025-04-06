@@ -8,6 +8,7 @@ import (
 	// Packages
 	kong "github.com/alecthomas/kong"
 	server "github.com/mutablelogic/go-server"
+	pgmanager "github.com/mutablelogic/go-server/pkg/pgmanager/cmd"
 	certmanager "github.com/mutablelogic/go-server/plugin/certmanager/cmd"
 )
 
@@ -17,6 +18,7 @@ import (
 type CLI struct {
 	Globals
 	ServiceCommands
+	pgmanager.RoleCommands
 	certmanager.NameCommands
 	certmanager.CertCommands
 }
@@ -36,6 +38,7 @@ func main() {
 			"HOST":        hostName(),
 			"USER":        userName(),
 			"CERT_PREFIX": "/cert/v1",
+			"PG_PREFIX":   "/pg/v1",
 		},
 	)
 

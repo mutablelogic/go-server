@@ -92,6 +92,13 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 		case "pgpool":
 			config := plugin.(pg.Config)
 
+			// Set the router
+			if router, ok := provider.Provider(ctx).Task(ctx, "httprouter").(server.HTTPRouter); !ok || router == nil {
+				return nil, httpresponse.ErrInternalError.Withf("Invalid router %q", label)
+			} else {
+				config.Router = router
+			}
+
 			// Set trace
 			if app.GetDebug() {
 				config.Trace = func(ctx context.Context, query string, args any, err error) {
