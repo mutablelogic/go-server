@@ -3,7 +3,6 @@ package cert
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	// Packages
 	pg "github.com/djthorpe/go-pg"
@@ -60,10 +59,8 @@ func NewCertManager(ctx context.Context, conn pg.PoolConn, opt ...Opt) (*CertMan
 		}
 
 		// Register the cert
-		if cert, err := self.RegisterCert(ctx, self.root.Name, self.root.CertMeta()); err != nil {
+		if _, err := self.RegisterCert(ctx, self.root.Name, self.root.CertMeta()); err != nil {
 			return err
-		} else {
-			fmt.Println(cert)
 		}
 		// Return success
 		return nil
@@ -97,7 +94,7 @@ func (certmanager *CertManager) CreateCert(ctx context.Context, name string, opt
 	var result *schema.Cert
 	if err := certmanager.conn.Tx(ctx, func(conn pg.Conn) error {
 		// Check if a certificate with that name already exists
-		if _, err := certmanager.GetCert(ctx, name); errors.Is(err, pg.ErrNotFound) {
+		if _, err := certmanager.GetCert(ctx, name); errors.Is(err, httpresponse.ErrNotFound) {
 			// OK
 		} else if err != nil {
 			return err
@@ -132,6 +129,29 @@ func (certmanager *CertManager) CreateCert(ctx context.Context, name string, opt
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
+func (certmanager *CertManager) CreateName(ctx context.Context, meta schema.NameMeta) (*schema.Name, error) {
+	var name schema.Name
+
+	if err := certmanager.conn.Tx(ctx, func(conn pg.Conn) error {
+		// Check if a name with that common name already exists
+		if err := certmanager.conn.Get(ctx, &name, schema.CommonName(meta.CommonName)); err != nil && !errors.Is(err, pg.ErrNotFound) {
+			return httperr(err)
+		} else if err == nil {
+			return httpresponse.ErrConflict.Withf("Name with common name %q already exists", meta.CommonName)
+		}
+		if err := certmanager.conn.Insert(ctx, &name, meta); err != nil {
+			return httperr(err)
+		} else {
+			return nil
+		}
+	}); err != nil {
+		return nil, err
+	}
+
+	// Return success
+	return &name, nil
+}
+
 func (certmanager *CertManager) RegisterName(ctx context.Context, meta schema.NameMeta) (*schema.Name, error) {
 	var name schema.Name
 	if err := certmanager.conn.Insert(ctx, &name, meta); err != nil {
@@ -144,7 +164,7 @@ func (certmanager *CertManager) RegisterName(ctx context.Context, meta schema.Na
 func (certmanager *CertManager) RegisterCert(ctx context.Context, name string, meta schema.CertMeta) (*schema.Cert, error) {
 	var cert schema.Cert
 	if err := certmanager.conn.With("name", name).Insert(ctx, &cert, meta); err != nil {
-		return nil, err
+		return nil, httperr(err)
 	} else {
 		return &cert, nil
 	}
@@ -153,7 +173,7 @@ func (certmanager *CertManager) RegisterCert(ctx context.Context, name string, m
 func (certmanager *CertManager) GetName(ctx context.Context, id uint64) (*schema.Name, error) {
 	var name schema.Name
 	if err := certmanager.conn.Get(ctx, &name, schema.NameId(id)); err != nil {
-		return nil, err
+		return nil, httperr(err)
 	} else {
 		return &name, nil
 	}
@@ -162,7 +182,7 @@ func (certmanager *CertManager) GetName(ctx context.Context, id uint64) (*schema
 func (certmanager *CertManager) GetCert(ctx context.Context, name string) (*schema.Cert, error) {
 	var cert schema.Cert
 	if err := certmanager.conn.Get(ctx, &cert, schema.CertName(name)); err != nil {
-		return nil, err
+		return nil, httperr(err)
 	} else {
 		return &cert, nil
 	}
@@ -178,7 +198,7 @@ func (certmanager *CertManager) UpdateName(ctx context.Context, id uint64, meta 
 		}
 	}
 	if err := certmanager.conn.Update(ctx, &name, schema.NameId(id), meta); err != nil {
-		return nil, err
+		return nil, httperr(err)
 	} else {
 		return &name, nil
 	}
@@ -192,7 +212,7 @@ func (certmanager *CertManager) UpdateCert(ctx context.Context, name string, met
 		return nil, httpresponse.ErrConflict.With("cannot update root certificate")
 	}
 	if err := certmanager.conn.Update(ctx, &cert, schema.CertName(name), meta); err != nil {
-		return nil, err
+		return nil, httperr(err)
 	} else {
 		return &cert, nil
 	}
@@ -205,7 +225,7 @@ func (certmanager *CertManager) DeleteName(ctx context.Context, id uint64) (*sch
 	if id == types.PtrUint64(certmanager.root.Subject) {
 		return nil, httpresponse.ErrConflict.With("cannot delete root name")
 	} else if err := certmanager.conn.Delete(ctx, &name, schema.NameId(id)); err != nil {
-		return nil, err
+		return nil, httperr(err)
 	} else {
 		return &name, nil
 	}
@@ -219,17 +239,27 @@ func (certmanager *CertManager) DeleteCert(ctx context.Context, name string) (*s
 		return nil, httpresponse.ErrConflict.With("cannot delete root certificate")
 	}
 	if err := certmanager.conn.Delete(ctx, &cert, schema.CertName(name)); err != nil {
-		return nil, err
+		return nil, httperr(err)
 	} else {
 		return &cert, nil
 	}
 }
 
-func (certmanager *CertManager) ListNames(ctx context.Context) (*schema.NameList, error) {
+func (certmanager *CertManager) ListNames(ctx context.Context, req schema.NameListRequest) (*schema.NameList, error) {
 	var list schema.NameList
-	if err := certmanager.conn.List(ctx, &list, schema.NameListRequest{}); err != nil {
-		return nil, err
+	if err := certmanager.conn.List(ctx, &list, req); err != nil {
+		return nil, httperr(err)
 	} else {
 		return &list, nil
 	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+func httperr(err error) error {
+	if errors.Is(err, pg.ErrNotFound) {
+		return httpresponse.ErrNotFound.With(err)
+	}
+	return err
 }

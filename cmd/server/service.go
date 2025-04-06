@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"log"
 	"net/http"
 
 	// Packages
@@ -15,6 +14,7 @@ import (
 	certmanager "github.com/mutablelogic/go-server/plugin/certmanager"
 	httprouter "github.com/mutablelogic/go-server/plugin/httprouter"
 	httpserver "github.com/mutablelogic/go-server/plugin/httpserver"
+	"github.com/mutablelogic/go-server/plugin/log"
 	pg "github.com/mutablelogic/go-server/plugin/pg"
 )
 
@@ -38,6 +38,9 @@ type ServiceRunCommand struct {
 	CertManager struct {
 		certmanager.Config `embed:"" prefix:"cert."` // Certificate manager configuration
 	} `embed:""`
+	Log struct {
+		log.Config `embed:"" prefix:"log."` // Logger configuration
+	} `embed:""`
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -51,6 +54,10 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 	// Create a provider and resolve references
 	provider, err := provider.New(func(ctx context.Context, label string, plugin server.Plugin) (server.Plugin, error) {
 		switch label {
+		case "log":
+			config := plugin.(log.Config)
+			config.Debug = app.GetDebug()
+			return config, nil
 		case "certmanager":
 			config := plugin.(certmanager.Config)
 
@@ -87,7 +94,15 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 			// Set trace
 			if app.GetDebug() {
 				config.Trace = func(ctx context.Context, query string, args any, err error) {
-					log.Println("PG", query, args, err)
+					log := provider.Log(ctx)
+					if log == nil {
+						panic("Missing logger")
+					}
+					if err != nil {
+						provider.Log(ctx).With("query", query, "args", args).Print(ctx, err)
+					} else {
+						provider.Log(ctx).With("query", query, "args", args).Debug(ctx, "OK")
+					}
 				}
 			}
 
@@ -97,7 +112,7 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 
 		// No-op
 		return plugin, nil
-	}, cmd.Router.Config, cmd.Server.Config, cmd.PGPool.Config, cmd.CertManager.Config)
+	}, cmd.Log.Config, cmd.Router.Config, cmd.Server.Config, cmd.PGPool.Config, cmd.CertManager.Config)
 	if err != nil {
 		return err
 	}

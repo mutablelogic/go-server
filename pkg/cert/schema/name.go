@@ -18,6 +18,8 @@ import (
 
 type NameId uint64
 
+type CommonName string
+
 type NameMeta struct {
 	CommonName    string  `json:"commonName,omitempty"`
 	Org           *string `json:"organizationName,omitempty"`
@@ -36,13 +38,14 @@ type Name struct {
 	Subject *string   `json:"subject,omitempty"`
 }
 
-type NameList struct {
-	Count uint64 `json:"count"`
-	Body  []Name `json:"body,omitempty"`
-}
-
 type NameListRequest struct {
 	pg.OffsetLimit
+}
+
+type NameList struct {
+	NameListRequest
+	Count uint64 `json:"count"`
+	Body  []Name `json:"body,omitempty"`
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -98,6 +101,22 @@ func (n NameId) Select(bind *pg.Bind, op pg.Op) (string, error) {
 		return namePatch, nil
 	case pg.Delete:
 		return nameDelete, nil
+	default:
+		return "", httpresponse.ErrInternalError.Withf("unsupported NameId operation %q", op)
+	}
+}
+
+func (n CommonName) Select(bind *pg.Bind, op pg.Op) (string, error) {
+	if n == "" {
+		return "", httpresponse.ErrBadRequest.With("commonName is missing")
+	} else {
+		bind.Set("commonName", n)
+	}
+
+	// Return query
+	switch op {
+	case pg.Get:
+		return nameGetByName, nil
 	default:
 		return "", httpresponse.ErrInternalError.Withf("unsupported NameId operation %q", op)
 	}
@@ -303,6 +322,7 @@ const (
 		FROM
 			${"schema"}."name"
 	`
-	nameGet  = nameSelect + ` WHERE "id" = @id`
-	nameList = `WITH q AS (` + nameSelect + `) SELECT * FROM q ${where}`
+	nameGet       = nameSelect + ` WHERE "id" = @id`
+	nameGetByName = nameSelect + ` WHERE "commonName" = @commonName`
+	nameList      = `WITH q AS (` + nameSelect + `) SELECT * FROM q ${where}`
 )

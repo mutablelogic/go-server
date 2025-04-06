@@ -3,6 +3,7 @@ package schema
 import (
 	"context"
 	"encoding/json"
+	"math/big"
 	"strings"
 	"time"
 
@@ -17,12 +18,25 @@ import (
 // Certificate Name
 type CertName string
 
+// Certificate Metadata for creating a new certificate
+type CertCreateMeta struct {
+	Name         string        `json:"name,omitempty"`
+	CommonName   string        `json:"common_name,omitempty"`
+	Signer       string        `json:"signer,omitempty"`
+	Subject      string        `json:"subject,omitempty"`
+	SerialNumber *big.Int      `json:"serial_number,omitempty"`
+	Expiry       time.Duration `json:"expiry,omitempty"`
+	IsCA         bool          `json:"is_ca,omitempty"`
+	KeyType      string        `json:"key_type,omitempty"`
+	Address      []string      `json:"address,omitempty"`
+}
+
 // Certificate Metadata
 type CertMeta struct {
 	Signer    *string   `json:"signer,omitempty"`
 	Subject   *uint64   `json:"subject,omitempty"`
-	NotBefore time.Time `json:"not_before,omitempty"`
-	NotAfter  time.Time `json:"not_after,omitempty"`
+	NotBefore time.Time `json:"not_before,omitzero"`
+	NotAfter  time.Time `json:"not_after,omitzero"`
 	IsCA      bool      `json:"is_ca,omitempty"`
 	Cert      []byte    `json:"cert,omitempty"`
 	Key       []byte    `json:"key,omitempty"`
@@ -95,6 +109,8 @@ func (c CertName) Select(bind *pg.Bind, op pg.Op) (string, error) {
 	switch op {
 	case pg.Get:
 		return certGet, nil
+	case pg.Delete:
+		return certDelete, nil
 	default:
 		return "", httpresponse.ErrBadRequest.Withf("CertName: operation %q is not supported", op)
 	}
@@ -222,6 +238,12 @@ const (
 			not_after = @not_after,
 			is_ca = @is_ca,
 			ts = CURRENT_TIMESTAMP
+		RETURNING
+			name, subject, signer, cert, key, not_before, not_after, is_ca, ts
+	`
+	certDelete = `
+		DELETE FROM ${"schema"}.cert WHERE 
+			name = @name
 		RETURNING
 			name, subject, signer, cert, key, not_before, not_after, is_ca, ts
 	`

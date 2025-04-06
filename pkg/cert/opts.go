@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math/big"
 	"net"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -144,6 +145,32 @@ func WithSerial(serial *big.Int) Opt {
 			o.x509.SerialNumber = serial
 		}
 		return nil
+	}
+}
+
+// Create either an ECDSA or RSA key
+func WithKeyType(t string) Opt {
+	return func(o *Cert) error {
+		t = strings.ToUpper(strings.TrimSpace(t))
+		switch {
+		case t == "RSA":
+			return WithRSAKey(0)(o)
+		case strings.HasPrefix(t, "RSA"):
+			if bits, err := strconv.ParseUint(strings.TrimPrefix(t, "RSA"), 10, 32); err != nil {
+				return err
+			} else {
+				return WithRSAKey(int(bits))(o)
+			}
+		default:
+			return WithEllipticKey(t)(o)
+		}
+	}
+}
+
+// Create with a default key type
+func WithDefaultKeyType() Opt {
+	return func(o *Cert) error {
+		return WithRSAKey(0)(o)
 	}
 }
 

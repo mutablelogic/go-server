@@ -3,11 +3,13 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"sync"
 
 	// Packages
 	server "github.com/mutablelogic/go-server"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
+	logger "github.com/mutablelogic/go-server/pkg/logger"
 	types "github.com/mutablelogic/go-server/pkg/types"
 )
 
@@ -26,7 +28,12 @@ type provider struct {
 
 	// Function to resolve plugin members
 	resolver ResolverFunc
+
+	// Default logger
+	server.Logger
 }
+
+var _ server.Provider = (*provider)(nil)
 
 type state struct {
 	server.Task
@@ -47,6 +54,7 @@ func New(resolver ResolverFunc, plugins ...server.Plugin) (*provider, error) {
 	self.task = make(map[string]*state, len(plugins))
 	self.order = make([]string, 0, len(plugins))
 	self.resolver = resolver
+	self.Logger = logger.New(os.Stderr, logger.Term, false)
 
 	// Add the plugins
 	for _, plugin := range plugins {
@@ -135,6 +143,11 @@ func (provider *provider) Task(ctx context.Context, label string) server.Task {
 	} else if task == nil {
 		provider.Print(ctx, "Error: ", label, ": ", httpresponse.ErrInternalError.With("Task is nil"))
 		return nil
+	}
+
+	// Make this the logger
+	if logger, ok := task.(server.Logger); ok && logger != nil {
+		provider.Logger = logger
 	}
 
 	// Set the task and order

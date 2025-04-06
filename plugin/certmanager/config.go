@@ -6,8 +6,8 @@ import (
 
 	// Packages
 	server "github.com/mutablelogic/go-server"
-	"github.com/mutablelogic/go-server/pkg/cert"
-	"github.com/mutablelogic/go-server/pkg/cert/schema"
+	cert "github.com/mutablelogic/go-server/pkg/cert"
+	schema "github.com/mutablelogic/go-server/pkg/cert/schema"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	certhandler "github.com/mutablelogic/go-server/plugin/certmanager/handler"
 )
@@ -16,8 +16,9 @@ import (
 // TYPES
 
 type Config struct {
-	Pool   server.PG         `kong:"-"` // Connection pool
-	Router server.HTTPRouter `kong:"-"` // Which HTTP router to use
+	Pool   server.PG         `kong:"-"`                                    // Connection pool
+	Router server.HTTPRouter `kong:"-"`                                    // Which HTTP router to use
+	Prefix string            `default:"${CERT_PREFIX}" help:"Path prefix"` // HTTP Path Prefix
 	Root   struct {
 		Organization  string `name:"org" help:"Organization name"`
 		Unit          string `name:"unit" help:"Organization unit"`
@@ -62,7 +63,8 @@ func (c Config) New(ctx context.Context) (server.Task, error) {
 
 	// Register HTTP handlers
 	if c.Router != nil {
-		certhandler.RegisterName(ctx, c.Router, "", certmanager)
+		certhandler.RegisterName(ctx, c.Router, c.Prefix, certmanager)
+		certhandler.RegisterCert(ctx, c.Router, c.Prefix, certmanager)
 	}
 
 	// Return the task

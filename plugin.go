@@ -63,20 +63,20 @@ type HTTPMiddleware interface {
 
 type Logger interface {
 	// Emit a debugging message
-	//Debug(context.Context, ...any)
+	Debug(context.Context, ...any)
 
 	// Emit a debugging message with formatting
-	//Debugf(context.Context, string, ...any)
+	Debugf(context.Context, string, ...any)
 
 	// Emit an informational message
 	Print(context.Context, ...any)
 
 	// Emit an informational message with formatting
-	//Printf(context.Context, string, ...any)
+	Printf(context.Context, string, ...any)
 
 	// Append structured data to the log in key-value pairs
 	// where the key is a string and the value is any type
-	//With(...any) Logger
+	With(...any) Logger
 }
 
 ///////////////////////////////////////////////////////////////////////////////

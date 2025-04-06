@@ -18,6 +18,7 @@ type CLI struct {
 	Globals
 	ServiceCommands
 	certmanager.NameCommands
+	certmanager.CertCommands
 }
 
 ///////////////////////////////////////////////////////////////////////////////

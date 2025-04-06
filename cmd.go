@@ -25,3 +25,11 @@ type Cmd interface {
 	// Return the HTTP client options
 	GetClientOpts() []client.ClientOpt
 }
+
+///////////////////////////////////////////////////////////////////////////////
+// TYPES
+
+type CmdOffsetLimit struct {
+	Offset uint64  `name:"offset" help:"List item offset"`
+	Limit  *uint64 `name:"limit" help:"List item limit"`
+}

@@ -25,9 +25,6 @@ type Cert struct {
 	Subject *uint64 `json:"subject,omitempty"` // Subject
 	Signer  *Cert   `json:"signer,omitempty"`  // Signer
 
-	// database-id for the certificate
-	id *uint64
-
 	// The private key and certificate
 	priv any
 	x509 x509.Certificate
@@ -106,6 +103,32 @@ func New(opts ...Opt) (*Cert, error) {
 	}
 
 	// Return the certificate
+	return cert, nil
+}
+
+// Create a certificate from metadata
+func FromMeta(meta *schema.Cert) (*Cert, error) {
+	if meta == nil {
+		return nil, fmt.Errorf("missing certificate metadata")
+	}
+
+	// Set the certificate information
+	cert := new(Cert)
+	cert.Name = meta.Name
+	cert.Subject = meta.Subject
+
+	if cert_, err := x509.ParseCertificate(meta.Cert); err != nil {
+		return nil, err
+	} else {
+		cert.x509 = *cert_
+	}
+	if key, err := x509.ParsePKCS8PrivateKey(meta.Key); err != nil {
+		return nil, err
+	} else {
+		cert.priv = key
+	}
+
+	// Return success
 	return cert, nil
 }
 
