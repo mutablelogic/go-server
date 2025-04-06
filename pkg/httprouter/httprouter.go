@@ -65,16 +65,9 @@ func (r *router) HandleFunc(ctx context.Context, prefix string, fn http.HandlerF
 	}
 
 	// Apply middleware, set context
-	provider.Log(ctx).Print(ctx, "Register route: ", types.JoinPath(r.prefix, prefix))
+	provider.Log(ctx).Debug(ctx, "Register route: ", types.JoinPath(r.prefix, prefix))
 	r.ServeMux.HandleFunc(types.JoinPath(r.prefix, prefix), func(w http.ResponseWriter, r *http.Request) {
-		fn(w, r)
-		/* TODO fn(w, r.WithContext(
-			provider.WithLog(
-				provider.WithName(
-					r.Context(), provider.Name(ctx),
-				), provider.Log(ctx),
-			),
-		))*/
+		fn(w, r.WithContext(provider.WithLog(ctx, provider.Log(ctx))))
 	})
 }
 

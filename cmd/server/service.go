@@ -98,7 +98,7 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 					if err != nil {
 						provider.Log(ctx).With("sql", query, "args", args).Print(ctx, err)
 					} else {
-						provider.Log(ctx).With("sql", query, "args", args).Debug(ctx, "OK")
+						provider.Log(ctx).With("args", args).Debug(ctx, query)
 					}
 				}
 			}

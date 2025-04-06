@@ -16,6 +16,7 @@ type ctx int
 
 const (
 	ctxProvider ctx = iota
+	ctxLogger
 	ctxPath
 )
 
@@ -39,11 +40,15 @@ func Path(ctx context.Context) []string {
 }
 
 func Log(ctx context.Context) server.Logger {
-	if value := ctx.Value(ctxProvider); value == nil {
+	if value := ctx.Value(ctxLogger); value == nil {
 		return nil
 	} else {
 		return value.(server.Logger)
 	}
+}
+
+func WithLog(ctx context.Context, logger server.Logger) context.Context {
+	return context.WithValue(ctx, ctxLogger, logger)
 }
 
 func DumpContext(w io.Writer, ctx context.Context) error {
@@ -64,7 +69,7 @@ func DumpContext(w io.Writer, ctx context.Context) error {
 
 // Set the provider in the context
 func withProvider(parent context.Context, provider server.Provider) context.Context {
-	return context.WithValue(parent, ctxProvider, provider)
+	return context.WithValue(context.WithValue(parent, ctxProvider, provider), ctxLogger, provider)
 }
 
 // Append a path to the context
