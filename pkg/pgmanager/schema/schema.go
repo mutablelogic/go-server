@@ -10,8 +10,9 @@ const (
 )
 
 const (
-	// Maximum number of roles to return in a list query
-	RoleListLimit = 100
+	// Maximum number of roles/databases to return in a list query
+	RoleListLimit     = 100
+	DatabaseListLimit = 100
 )
 
 const (

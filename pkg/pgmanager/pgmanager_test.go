@@ -30,7 +30,7 @@ func Test_Manager_001(t *testing.T) {
 	conn := conn.Begin(t)
 	defer conn.Close()
 
-	// Create a new certificate manager with a root certificate
+	// Create a new database manager
 	manager, err := pgmanager.New(context.TODO(), conn)
 	if !assert.NoError(err) {
 		t.FailNow()
@@ -140,4 +140,28 @@ func Test_Manager_001(t *testing.T) {
 		assert.Equal(role2.Name, "role4")
 		assert.Equal(types.PtrBool(role2.Superuser), true)
 	})
+}
+
+func Test_Manager_002(t *testing.T) {
+	assert := assert.New(t)
+	conn := conn.Begin(t)
+	defer conn.Close()
+
+	// Create a new database manager
+	manager, err := pgmanager.New(context.TODO(), conn)
+	if !assert.NoError(err) {
+		t.FailNow()
+	}
+	assert.NotNil(manager)
+
+	// List databases
+	t.Run("ListDatabases", func(t *testing.T) {
+		roles, err := manager.ListDatabases(context.TODO(), schema.DatabaseListRequest{})
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+		assert.NotNil(roles)
+		t.Log(roles)
+	})
+
 }

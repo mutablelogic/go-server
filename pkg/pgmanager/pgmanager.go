@@ -42,6 +42,15 @@ func (manager *Manager) ListRoles(ctx context.Context, req schema.RoleListReques
 	}
 }
 
+func (manager *Manager) ListDatabases(ctx context.Context, req schema.DatabaseListRequest) (*schema.DatabaseList, error) {
+	var list schema.DatabaseList
+	if err := manager.conn.List(ctx, &list, req); err != nil {
+		return nil, httperr(err)
+	} else {
+		return &list, nil
+	}
+}
+
 func (manager *Manager) GetRole(ctx context.Context, name string) (*schema.Role, error) {
 	var role schema.Role
 	if err := manager.conn.Get(ctx, &role, schema.RoleName(name)); err != nil {
