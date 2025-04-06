@@ -64,29 +64,22 @@ func (h *TermHandler) Handle(ctx context.Context, r slog.Record) error {
 		level = colorize(lightRed, level)
 	}
 
+	// Gather attributes
 	var data []byte
-	attrs := make(map[string]any, len(h.attrs)+r.NumAttrs())
-	for _, a := range h.attrs {
-		attrs[a.Key] = attrValue(a)
-	}
-	r.Attrs(func(a slog.Attr) bool {
-		attrs[a.Key] = attrValue(a)
-		return true
-	})
-	if data_, err := json.MarshalIndent(attrs, "", "  "); err != nil {
+	if data_, err := attrs(h.attrs, r); err != nil {
 		return err
 	} else {
 		data = data_
 	}
 
 	// Print the message, return any errors
-	_, err := fmt.Fprintln(h.Writer,
+	fmt.Fprintln(h.Writer,
 		colorize(lightGray, r.Time.Format(timeFormat)),
 		level,
 		colorize(white, r.Message),
 		string(data),
 	)
-	return err
+	return nil
 }
 
 func (h *TermHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
@@ -117,10 +110,24 @@ func colorize(colorCode int, v string) string {
 	return fmt.Sprintf("\033[%sm%s%s", strconv.Itoa(colorCode), v, reset)
 }
 
-func attrValue(a slog.Attr) any {
-	a.Value = a.Value.Resolve()
-	if a.Equal(slog.Attr{}) {
-		return nil
+func attrs(attrs []slog.Attr, r slog.Record) ([]byte, error) {
+	if len(attrs) == 0 && r.NumAttrs() == 0 {
+		return nil, nil
 	}
-	return a.Value.Any()
+	kv := make(map[string]any, len(attrs)+r.NumAttrs())
+	for _, a := range attrs {
+		if a.Equal(slog.Attr{}) {
+			continue
+		}
+		kv[a.Key] = a.Value.Any()
+	}
+	r.Attrs(func(a slog.Attr) bool {
+		if a.Equal(slog.Attr{}) {
+			return true
+		}
+		kv[a.Key] = a.Value.Any()
+		return true
+	})
+
+	return json.MarshalIndent(kv, "", "  ")
 }
