@@ -18,6 +18,7 @@ import (
 type CLI struct {
 	Globals
 	ServiceCommands
+	pgmanager.DatabaseCommands
 	pgmanager.RoleCommands
 	certmanager.NameCommands
 	certmanager.CertCommands

@@ -61,6 +61,7 @@ func (c Config) New(ctx context.Context) (server.Task, error) {
 			return nil, err
 		} else {
 			pghandler.RegisterRole(ctx, c.Router, c.Prefix, manager)
+			pghandler.RegisterDatabase(ctx, c.Router, c.Prefix, manager)
 		}
 	}
 
