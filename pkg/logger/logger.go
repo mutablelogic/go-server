@@ -51,10 +51,10 @@ func New(w io.Writer, f Format, debug bool) *Logger {
 			Level: level(),
 		})
 	case Term:
-		handler = slog.NewTextHandler(w, &slog.HandlerOptions{
-			Level: level(),
-		})
-		handler = &TermHandler{handler}
+		handler = &TermHandler{
+			Writer: w,
+			Level:  level(),
+		}
 	}
 	return &Logger{
 		Logger: slog.New(handler),

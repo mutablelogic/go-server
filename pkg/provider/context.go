@@ -2,6 +2,8 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
+	"io"
 
 	// Packages
 	server "github.com/mutablelogic/go-server"
@@ -42,6 +44,19 @@ func Log(ctx context.Context) server.Logger {
 	} else {
 		return value.(server.Logger)
 	}
+}
+
+func DumpContext(w io.Writer, ctx context.Context) error {
+	type j struct {
+		Provider server.Provider `json:"provider,omitempty"`
+		Path     []string        `json:"path,omitempty"`
+	}
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	return enc.Encode(j{
+		Provider: Provider(ctx),
+		Path:     Path(ctx),
+	})
 }
 
 ////////////////////////////////////////////////////////////////////////////////

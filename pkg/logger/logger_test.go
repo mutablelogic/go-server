@@ -15,7 +15,7 @@ import (
 func Test_Logger(t *testing.T) {
 	assert := assert.New(t)
 	buf := strings.Builder{}
-	log := logger.New(&buf, true)
+	log := logger.New(&buf, logger.JSON, true)
 	assert.NotNil(log)
 
 	t.Run("Info", func(t *testing.T) {

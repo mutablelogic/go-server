@@ -53,6 +53,7 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 
 	// Create a provider and resolve references
 	provider, err := provider.New(func(ctx context.Context, label string, plugin server.Plugin) (server.Plugin, error) {
+		provider.Log(ctx).Debugf(ctx, "Resolving %q", label)
 		switch label {
 		case "log":
 			config := plugin.(log.Config)
@@ -94,14 +95,10 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 			// Set trace
 			if app.GetDebug() {
 				config.Trace = func(ctx context.Context, query string, args any, err error) {
-					log := provider.Log(ctx)
-					if log == nil {
-						panic("Missing logger")
-					}
 					if err != nil {
-						provider.Log(ctx).With("query", query, "args", args).Print(ctx, err)
+						provider.Log(ctx).With("sql", query, "args", args).Print(ctx, err)
 					} else {
-						provider.Log(ctx).With("query", query, "args", args).Debug(ctx, "OK")
+						provider.Log(ctx).With("sql", query, "args", args).Debug(ctx, "OK")
 					}
 				}
 			}

@@ -13,14 +13,14 @@ func Test_Provider_001(t *testing.T) {
 	assert := assert.New(t)
 
 	t.Run("1", func(t *testing.T) {
-		provider, err := provider.New()
+		provider, err := provider.New(nil)
 		if assert.NoError(err) {
 			assert.NotNil(provider)
 		}
 	})
 
 	t.Run("2", func(t *testing.T) {
-		provider, err := provider.New(httpserver.Config{})
+		provider, err := provider.New(nil, httpserver.Config{})
 		if assert.NoError(err) {
 			assert.NotNil(provider)
 		}

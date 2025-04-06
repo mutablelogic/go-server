@@ -30,7 +30,7 @@ type provider struct {
 	resolver ResolverFunc
 
 	// Default logger
-	server.Logger
+	server.Logger `json:"-"`
 }
 
 var _ server.Provider = (*provider)(nil)
@@ -81,7 +81,7 @@ func New(resolver ResolverFunc, plugins ...server.Plugin) (*provider, error) {
 ////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
-func (provider *provider) String() string {
+func (provider *provider) MarshalJSON() ([]byte, error) {
 	type jtask struct {
 		Name        string        `json:"name"`
 		Description string        `json:"description,omitempty"`
@@ -100,7 +100,11 @@ func (provider *provider) String() string {
 			Task:        provider.task[label].Task,
 		})
 	}
-	data, err := json.MarshalIndent(result, "", "  ")
+	return json.Marshal(result)
+}
+
+func (provider *provider) String() string {
+	data, err := json.MarshalIndent(provider, "", "  ")
 	if err != nil {
 		return err.Error()
 	}
@@ -145,8 +149,9 @@ func (provider *provider) Task(ctx context.Context, label string) server.Task {
 		return nil
 	}
 
-	// Make this the logger
+	// If it's a logger, replace the current logger
 	if logger, ok := task.(server.Logger); ok && logger != nil {
+		logger.Debugf(ctx, "Replacing logger with %q", label)
 		provider.Logger = logger
 	}
 

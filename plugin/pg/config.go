@@ -17,7 +17,7 @@ type Config struct {
 	Pass     string     `env:"PG_PASSWORD" help:"User password"`
 	Database string     `env:"PG_DATABASE" help:"Database name, uses username if not set"`
 	SSLMode  string     `default:"default" enum:"default,disable,allow,prefer,require,verify-ca,verify-full" help:"SSL mode"`
-	Trace    pg.TraceFn `kong:"-"`
+	Trace    pg.TraceFn `json:"-" kong:"-"`
 }
 
 var _ server.Plugin = Config{}
