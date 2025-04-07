@@ -30,7 +30,9 @@ type DatabaseGetCommand struct {
 }
 
 type DatabaseCreateCommand struct {
-	schema.Database
+	Name  string   `arg:"" name:"name" help:"Database name"`
+	Owner string   `help:"Database owner"`
+	Acl   []string `help:"Access privileges"`
 }
 
 type DatabaseDeleteCommand struct {
@@ -73,7 +75,15 @@ func (cmd DatabaseGetCommand) Run(ctx server.Cmd) error {
 
 func (cmd DatabaseCreateCommand) Run(ctx server.Cmd) error {
 	return run(ctx, func(ctx context.Context, provider *client.Client) error {
-		database, err := provider.CreateDatabase(ctx, cmd.Database)
+		acl, err := schema.ParseACL(cmd.Acl)
+		if err != nil {
+			return err
+		}
+		database, err := provider.CreateDatabase(ctx, schema.Database{
+			Name:  cmd.Name,
+			Owner: cmd.Owner,
+			Acl:   acl,
+		})
 		if err != nil {
 			return err
 		}
@@ -95,8 +105,18 @@ func (cmd DatabaseUpdateCommand) Run(ctx server.Cmd) error {
 		// Swap names
 		cmd.DatabaseCreateCommand.Name, cmd.Name = cmd.Name, cmd.DatabaseCreateCommand.Name
 
+		// Parse ACL's
+		acl, err := schema.ParseACL(cmd.Acl)
+		if err != nil {
+			return err
+		}
+
 		// Perform request
-		database, err := provider.UpdateDatabase(ctx, cmd.Name, cmd.DatabaseCreateCommand.Database)
+		database, err := provider.UpdateDatabase(ctx, cmd.Name, schema.Database{
+			Name:  cmd.DatabaseCreateCommand.Name,
+			Owner: cmd.Owner,
+			Acl:   acl,
+		})
 		if err != nil {
 			return err
 		}

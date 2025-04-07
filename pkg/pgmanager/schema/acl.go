@@ -2,9 +2,11 @@ package schema
 
 import (
 	"encoding/json"
+	"fmt"
 	"regexp"
 
 	// Packages
+	"github.com/alecthomas/kong"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 )
 
@@ -87,6 +89,26 @@ func NewACLItem(v string) (*ACLItem, error) {
 	}, nil
 }
 
+func ParseACL(v []string) ([]*ACLItem, error) {
+	// Return empty list if no ACL items
+	if len(v) == 0 {
+		return []*ACLItem{}, nil
+	}
+	acl := make([]*ACLItem, 0, len(v))
+	for _, item := range v {
+		item, err := ParseACLItem(item)
+		if err != nil {
+			return nil, err
+		}
+		acl = append(acl, item)
+	}
+	return acl, nil
+}
+
+func ParseACLItem(v string) (*ACLItem, error) {
+	return nil, fmt.Errorf("not implemented: ParseACLItem: %q", v)
+}
+
 /////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
@@ -96,6 +118,24 @@ func (a ACLItem) String() string {
 		return err.Error()
 	}
 	return string(data)
+}
+
+/////////////////////////////////////////////////////////////////////////////
+// CLI MAPPING
+
+func (a *ACLItem) Decode(ctx *kong.DecodeContext) error {
+	var input string
+	if err := ctx.Scan.PopValueInto("ACL item", &input); err != nil {
+		return err
+	}
+	if a == nil {
+		return httpresponse.ErrBadRequest.With("ACL item is nil")
+	}
+	fmt.Println("input:", input)
+	a.Role = "test"
+	a.Priv = []string{"test"}
+	fmt.Println(a)
+	return nil
 }
 
 /////////////////////////////////////////////////////////////////////////////
