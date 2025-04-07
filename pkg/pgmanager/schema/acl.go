@@ -6,7 +6,6 @@ import (
 	"regexp"
 
 	// Packages
-	"github.com/alecthomas/kong"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 )
 
@@ -21,10 +20,6 @@ type ACLItem struct {
 
 /////////////////////////////////////////////////////////////////////////////
 // GLOBALS
-
-const (
-	defaultAclRole = "public"
-)
 
 const (
 	privSelect      = "SELECT"
@@ -118,24 +113,6 @@ func (a ACLItem) String() string {
 		return err.Error()
 	}
 	return string(data)
-}
-
-/////////////////////////////////////////////////////////////////////////////
-// CLI MAPPING
-
-func (a *ACLItem) Decode(ctx *kong.DecodeContext) error {
-	var input string
-	if err := ctx.Scan.PopValueInto("ACL item", &input); err != nil {
-		return err
-	}
-	if a == nil {
-		return httpresponse.ErrBadRequest.With("ACL item is nil")
-	}
-	fmt.Println("input:", input)
-	a.Role = "test"
-	a.Priv = []string{"test"}
-	fmt.Println(a)
-	return nil
 }
 
 /////////////////////////////////////////////////////////////////////////////
