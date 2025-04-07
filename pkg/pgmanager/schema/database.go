@@ -6,7 +6,7 @@ import (
 
 	// Packages
 	pg "github.com/djthorpe/go-pg"
-	"github.com/djthorpe/go-pg/pkg/types"
+	types "github.com/djthorpe/go-pg/pkg/types"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 )
 

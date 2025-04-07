@@ -24,7 +24,7 @@ type Manager struct {
 // Create a new database manager
 func New(ctx context.Context, conn pg.PoolConn) (*Manager, error) {
 	self := new(Manager)
-	self.conn = conn.With("schema", schema.SchemaName).(pg.PoolConn)
+	self.conn = conn.With("schema", schema.CatalogSchema).(pg.PoolConn)
 
 	// Return success
 	return self, nil
