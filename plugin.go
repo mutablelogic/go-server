@@ -62,6 +62,8 @@ type HTTPMiddleware interface {
 // LOGGER
 
 type Logger interface {
+	HTTPMiddleware
+
 	// Emit a debugging message
 	Debug(context.Context, ...any)
 

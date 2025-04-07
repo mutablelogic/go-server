@@ -89,6 +89,15 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 
 			// Return the new configuration with the router
 			return config, nil
+
+		case "httprouter":
+			config := plugin.(httprouter.Config)
+
+			// Set the middleware
+			config.Middleware = []string{"log"}
+
+			// Return the new configuration with the router
+			return config, nil
 		case "pgpool":
 			config := plugin.(pg.Config)
 

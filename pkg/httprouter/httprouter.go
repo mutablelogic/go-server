@@ -34,12 +34,15 @@ func New(ctx context.Context, prefix, origin string, middleware ...string) (*rou
 	router.origin = origin
 
 	// Get middleware
-	for _, name := range middleware {
-		middleware, ok := provider.Provider(ctx).Task(ctx, name).(server.HTTPMiddleware)
-		if !ok || middleware == nil {
-			return nil, httpresponse.ErrInternalError.Withf("Invalid middleware %q", name)
+	for _, label := range middleware {
+		middleware := provider.Provider(ctx).Task(ctx, label)
+		if middleware == nil {
+			return nil, httpresponse.ErrInternalError.Withf("%q is nil", label)
+		} else if middleware_, ok := middleware.(server.HTTPMiddleware); !ok {
+			return nil, httpresponse.ErrInternalError.Withf("%q is not HTTPMiddleware", label)
+		} else {
+			router.middleware = append(router.middleware, middleware_)
 		}
-		router.middleware = append(router.middleware, middleware)
 	}
 
 	// Return success

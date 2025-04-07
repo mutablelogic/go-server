@@ -63,6 +63,8 @@ func (provider *provider) Run(parent context.Context) error {
 		}(task)
 	}
 
+	provider.Print(parent, "Press CTRL+C to cancel all tasks")
+
 	// Wait for the context to be cancelled
 	<-ctx.Done()
 

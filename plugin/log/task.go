@@ -18,6 +18,7 @@ type task struct {
 
 var _ server.Task = (*task)(nil)
 var _ server.Logger = (*task)(nil)
+var _ server.HTTPMiddleware = (*task)(nil)
 
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE

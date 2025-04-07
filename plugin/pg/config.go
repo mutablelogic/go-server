@@ -20,7 +20,7 @@ type Config struct {
 	Database string            `env:"PG_DATABASE" help:"Database name, uses username if not set"`
 	SSLMode  string            `default:"default" enum:"default,disable,allow,prefer,require,verify-ca,verify-full" help:"SSL mode"`
 	Trace    pg.TraceFn        `json:"-" kong:"-"`
-	Router   server.HTTPRouter `kong:"-"`                                  // Which HTTP router to use
+	Router   server.HTTPRouter `json:"-" kong:"-"`                         // Which HTTP router to use
 	Prefix   string            `default:"${PG_PREFIX}" help:"Path prefix"` // HTTP Path Prefix
 }
 

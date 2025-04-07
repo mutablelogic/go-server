@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	// Packages
+
 	server "github.com/mutablelogic/go-server"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	logger "github.com/mutablelogic/go-server/pkg/logger"
@@ -116,7 +117,7 @@ func (provider *provider) String() string {
 
 // Return a task from a label
 func (provider *provider) Task(ctx context.Context, label string) server.Task {
-	provider.Print(ctx, "Called Task for ", label)
+	provider.Debugf(ctx, "Called Task for %q", label)
 
 	// If the task is already created, then return it
 	if task, exists := provider.task[label]; exists {
@@ -126,6 +127,7 @@ func (provider *provider) Task(ctx context.Context, label string) server.Task {
 	// If the plugin doesn't exist, return nil
 	plugin, exists := provider.plugin[label]
 	if !exists {
+		provider.Print(ctx, label, ": ", httpresponse.ErrNotFound.Withf("Plugin %q not found", label))
 		return nil
 	}
 
@@ -134,24 +136,24 @@ func (provider *provider) Task(ctx context.Context, label string) server.Task {
 		var err error
 		plugin, err = provider.resolver(withProvider(ctx, provider), label, plugin)
 		if err != nil {
-			provider.Print(ctx, "Error: ", label, ": ", err)
+			provider.Print(ctx, label, ": ", err)
 			return nil
 		}
 	}
 
 	// Create the task
+	provider.Debug(ctx, "creating a new task for label ", label)
 	task, err := plugin.New(withPath(ctx, label))
 	if err != nil {
-		provider.Print(ctx, "Error: ", label, ": ", err)
+		provider.Print(ctx, label, ": ", err)
 		return nil
 	} else if task == nil {
-		provider.Print(ctx, "Error: ", label, ": ", httpresponse.ErrInternalError.With("Task is nil"))
+		provider.Print(ctx, label, ": ", httpresponse.ErrInternalError.With("Task is nil"))
 		return nil
 	}
 
 	// If it's a logger, replace the current logger
 	if logger, ok := task.(server.Logger); ok && logger != nil {
-		logger.Debugf(ctx, "Replacing logger with %q", label)
 		provider.Logger = logger
 	}
 
