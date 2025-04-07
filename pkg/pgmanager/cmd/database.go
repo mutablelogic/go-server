@@ -7,17 +7,39 @@ import (
 	// Packages
 	server "github.com/mutablelogic/go-server"
 	client "github.com/mutablelogic/go-server/pkg/pgmanager/client"
+	"github.com/mutablelogic/go-server/pkg/pgmanager/schema"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
 type DatabaseCommands struct {
-	Databases DatabaseListCommand `cmd:"" group:"DATABASE" help:"List databases"`
+	Databases      DatabaseListCommand   `cmd:"" group:"DATABASE" help:"List databases"`
+	Database       DatabaseGetCommand    `cmd:"get" group:"DATABASE" help:"Get database"`
+	CreateDatabase DatabaseCreateCommand `cmd:"create" group:"DATABASE" help:"Create a new database"`
+	UpdateDatabase DatabaseUpdateCommand `cmd:"update" group:"DATABASE" help:"Update a database"`
+	DeleteDatabase DatabaseDeleteCommand `cmd:"delete" group:"DATABASE" help:"Delete a database"`
 }
 
 type DatabaseListCommand struct {
 	server.CmdOffsetLimit
+}
+
+type DatabaseGetCommand struct {
+	Name string `arg:"" name:"name" help:"Database name"`
+}
+
+type DatabaseCreateCommand struct {
+	schema.Database
+}
+
+type DatabaseDeleteCommand struct {
+	DatabaseGetCommand
+}
+
+type DatabaseUpdateCommand struct {
+	Name string `help:"New database name"`
+	DatabaseCreateCommand
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -32,6 +54,55 @@ func (cmd DatabaseListCommand) Run(ctx server.Cmd) error {
 
 		// Print databases
 		fmt.Println(databases)
+		return nil
+	})
+}
+
+func (cmd DatabaseGetCommand) Run(ctx server.Cmd) error {
+	return run(ctx, func(ctx context.Context, provider *client.Client) error {
+		database, err := provider.GetDatabase(ctx, cmd.Name)
+		if err != nil {
+			return err
+		}
+
+		// Print database
+		fmt.Println(database)
+		return nil
+	})
+}
+
+func (cmd DatabaseCreateCommand) Run(ctx server.Cmd) error {
+	return run(ctx, func(ctx context.Context, provider *client.Client) error {
+		database, err := provider.CreateDatabase(ctx, cmd.Database)
+		if err != nil {
+			return err
+		}
+
+		// Print database
+		fmt.Println(database)
+		return nil
+	})
+}
+
+func (cmd DatabaseDeleteCommand) Run(ctx server.Cmd) error {
+	return run(ctx, func(ctx context.Context, provider *client.Client) error {
+		return provider.DeleteDatabase(ctx, cmd.Name)
+	})
+}
+
+func (cmd DatabaseUpdateCommand) Run(ctx server.Cmd) error {
+	return run(ctx, func(ctx context.Context, provider *client.Client) error {
+		// Swap names
+		cmd.DatabaseCreateCommand.Name, cmd.Name = cmd.Name, cmd.DatabaseCreateCommand.Name
+
+		// Perform request
+		database, err := provider.UpdateDatabase(ctx, cmd.Name, cmd.DatabaseCreateCommand.Database)
+		if err != nil {
+			return err
+		}
+
+		// Print database
+		fmt.Println(database)
 		return nil
 	})
 }

@@ -7,10 +7,10 @@ import (
 
 	// Packages
 	test "github.com/djthorpe/go-pg/pkg/test"
-	"github.com/mutablelogic/go-server/pkg/httpresponse"
+	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	pgmanager "github.com/mutablelogic/go-server/pkg/pgmanager"
-	"github.com/mutablelogic/go-server/pkg/pgmanager/schema"
-	"github.com/mutablelogic/go-server/pkg/types"
+	schema "github.com/mutablelogic/go-server/pkg/pgmanager/schema"
+	types "github.com/mutablelogic/go-server/pkg/types"
 	assert "github.com/stretchr/testify/assert"
 )
 

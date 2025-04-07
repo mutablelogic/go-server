@@ -59,6 +59,14 @@ func (manager *Manager) GetRole(ctx context.Context, name string) (*schema.Role,
 	return &role, nil
 }
 
+func (manager *Manager) GetDatabase(ctx context.Context, name string) (*schema.Database, error) {
+	var database schema.Database
+	if err := manager.conn.Get(ctx, &database, schema.DatabaseName(name)); err != nil {
+		return nil, httperr(err)
+	}
+	return &database, nil
+}
+
 func (manager *Manager) CreateRole(ctx context.Context, meta schema.RoleMeta) (*schema.Role, error) {
 	var role schema.Role
 	if err := manager.conn.Insert(ctx, nil, meta); err != nil {
@@ -69,6 +77,29 @@ func (manager *Manager) CreateRole(ctx context.Context, meta schema.RoleMeta) (*
 	return &role, nil
 }
 
+func (manager *Manager) CreateDatabase(ctx context.Context, meta schema.Database) (*schema.Database, error) {
+	var database schema.Database
+
+	// Create the database - cannot be done in a transaction
+	if err := manager.conn.Insert(ctx, nil, meta); err != nil {
+		return nil, httperr(err)
+	}
+
+	// TODO: Set ACL's - this must be done in a transaction
+	if err := manager.conn.Tx(ctx, func(conn pg.Conn) error {
+		// Return success
+		return nil
+	}); err != nil {
+		return nil, errors.Join(httperr(err), manager.conn.Delete(ctx, nil, schema.DatabaseName(meta.Name)))
+	}
+
+	// Get the database
+	if err := manager.conn.Get(ctx, &database, schema.DatabaseName(meta.Name)); err != nil {
+		return nil, httperr(err)
+	}
+	return &database, nil
+}
+
 func (manager *Manager) DeleteRole(ctx context.Context, name string) (*schema.Role, error) {
 	var role schema.Role
 	if err := manager.conn.Get(ctx, &role, schema.RoleName(name)); err != nil {
@@ -77,6 +108,16 @@ func (manager *Manager) DeleteRole(ctx context.Context, name string) (*schema.Ro
 		return nil, httperr(err)
 	}
 	return &role, nil
+}
+
+func (manager *Manager) DeleteDatabase(ctx context.Context, name string) (*schema.Database, error) {
+	var database schema.Database
+	if err := manager.conn.Get(ctx, &database, schema.DatabaseName(name)); err != nil {
+		return nil, httperr(err)
+	} else if err := manager.conn.Delete(ctx, nil, schema.DatabaseName(name)); err != nil {
+		return nil, httperr(err)
+	}
+	return &database, nil
 }
 
 func (manager *Manager) UpdateRole(ctx context.Context, name string, meta schema.RoleMeta) (*schema.Role, error) {
@@ -102,7 +143,7 @@ func (manager *Manager) UpdateRole(ctx context.Context, name string, meta schema
 			return err
 		}
 
-		// TODO Update the group memberships
+		// Update the group memberships
 		if meta.Groups != nil {
 			// Remove the old roles
 			for _, oldrole := range role.Groups {
@@ -135,6 +176,46 @@ func (manager *Manager) UpdateRole(ctx context.Context, name string, meta schema
 
 	// Return success
 	return &role, nil
+}
+
+func (manager *Manager) UpdateDatabase(ctx context.Context, name string, meta schema.Database) (*schema.Database, error) {
+	var database schema.Database
+
+	if err := manager.conn.Tx(ctx, func(conn pg.Conn) error {
+		// Get the database and ACL's
+		if err := manager.conn.Get(ctx, &database, schema.DatabaseName(name)); err != nil {
+			return err
+		}
+
+		// Update the name if it's different
+		if meta.Name != "" && name != meta.Name {
+			if err := conn.Update(ctx, nil, schema.DatabaseName(meta.Name), schema.DatabaseName(name)); err != nil {
+				return err
+			}
+		} else {
+			meta.Name = name
+		}
+
+		// Update the rest of the metadata
+		if err := conn.Update(ctx, nil, meta, meta); err != nil {
+			return err
+		}
+
+		// TODO Update ACL's
+
+		// Return success
+		return nil
+	}); err != nil {
+		return nil, httperr(err)
+	}
+
+	// Get the database
+	if err := manager.conn.Get(ctx, &database, schema.DatabaseName(meta.Name)); err != nil {
+		return nil, httperr(err)
+	}
+
+	// Return success
+	return &database, nil
 }
 
 ////////////////////////////////////////////////////////////////////////////////

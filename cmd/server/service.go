@@ -103,7 +103,7 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 			if app.GetDebug() {
 				config.Trace = func(ctx context.Context, query string, args any, err error) {
 					if err != nil {
-						provider.Log(ctx).With("sql", query, "args", args).Print(ctx, err)
+						provider.Log(ctx).With("args", args).Print(ctx, err, " ON ", query)
 					} else {
 						provider.Log(ctx).With("args", args).Debug(ctx, query)
 					}

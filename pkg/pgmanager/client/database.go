@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"net/http"
 
 	// Packages
 	client "github.com/mutablelogic/go-client"
@@ -23,6 +24,55 @@ func (c *Client) ListDatabases(ctx context.Context, opts ...Opt) (*schema.Databa
 	// Perform request
 	var response schema.DatabaseList
 	if err := c.DoWithContext(ctx, req, &response, client.OptPath("database"), client.OptQuery(opt.Values)); err != nil {
+		return nil, err
+	}
+
+	// Return the responses
+	return &response, nil
+}
+
+func (c *Client) GetDatabase(ctx context.Context, name string) (*schema.Database, error) {
+	req := client.NewRequest()
+
+	// Perform request
+	var response schema.Database
+	if err := c.DoWithContext(ctx, req, &response, client.OptPath("database", name)); err != nil {
+		return nil, err
+	}
+
+	// Return the responses
+	return &response, nil
+}
+
+func (c *Client) CreateDatabase(ctx context.Context, database schema.Database) (*schema.Database, error) {
+	req, err := client.NewJSONRequest(database)
+	if err != nil {
+		return nil, err
+	}
+
+	// Perform request
+	var response schema.Database
+	if err := c.DoWithContext(ctx, req, &response, client.OptPath("database")); err != nil {
+		return nil, err
+	}
+
+	// Return the responses
+	return &response, nil
+}
+
+func (c *Client) DeleteDatabase(ctx context.Context, name string) error {
+	return c.DoWithContext(ctx, client.MethodDelete, nil, client.OptPath("database", name))
+}
+
+func (c *Client) UpdateDatabase(ctx context.Context, name string, meta schema.Database) (*schema.Database, error) {
+	req, err := client.NewJSONRequestEx(http.MethodPatch, meta, "")
+	if err != nil {
+		return nil, err
+	}
+
+	// Perform request
+	var response schema.Database
+	if err := c.DoWithContext(ctx, req, &response, client.OptPath("database", name)); err != nil {
 		return nil, err
 	}
 

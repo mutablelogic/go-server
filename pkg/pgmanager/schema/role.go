@@ -287,16 +287,16 @@ func (r RoleMeta) with(insert bool) string {
 
 const (
 	roleCreate = `
-		CREATE ROLE ${name} ${with}
+		CREATE ROLE ${"name"} ${with}
 	`
 	roleRename = `
-		ALTER ROLE ${old_name} RENAME TO ${name}
+		ALTER ROLE ${"old_name"} RENAME TO ${"name"}
 	`
 	roleDelete = `
-		DROP ROLE ${name}
+		DROP ROLE ${"name"}
 	`
 	roleUpdate = `
-		ALTER ROLE ${name} ${with}
+		ALTER ROLE ${"name"} ${with}
 	`
 	roleSelect = `
 		WITH roles AS (
