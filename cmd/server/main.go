@@ -9,7 +9,7 @@ import (
 	kong "github.com/alecthomas/kong"
 	server "github.com/mutablelogic/go-server"
 	pgmanager "github.com/mutablelogic/go-server/pkg/pgmanager/cmd"
-	certmanager "github.com/mutablelogic/go-server/plugin/certmanager/cmd"
+	certmanager "github.com/mutablelogic/go-server/pkg/cert/cmd"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
