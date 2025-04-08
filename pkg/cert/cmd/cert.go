@@ -7,8 +7,8 @@ import (
 	"time"
 
 	server "github.com/mutablelogic/go-server"
-	"github.com/mutablelogic/go-server/pkg/cert/schema"
-	client "github.com/mutablelogic/go-server/plugin/certmanager/client"
+	client "github.com/mutablelogic/go-server/pkg/cert/client"
+	schema "github.com/mutablelogic/go-server/pkg/cert/schema"
 )
 
 // Packages

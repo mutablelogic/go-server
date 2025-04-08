@@ -7,9 +7,9 @@ import (
 	// Packages
 	server "github.com/mutablelogic/go-server"
 	cert "github.com/mutablelogic/go-server/pkg/cert"
+	certhandler "github.com/mutablelogic/go-server/pkg/cert/handler"
 	schema "github.com/mutablelogic/go-server/pkg/cert/schema"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
-	certhandler "github.com/mutablelogic/go-server/plugin/certmanager/handler"
 )
 
 ////////////////////////////////////////////////////////////////////////////////

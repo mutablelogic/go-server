@@ -6,8 +6,8 @@ import (
 
 	// Packages
 	server "github.com/mutablelogic/go-server"
+	client "github.com/mutablelogic/go-server/pkg/cert/client"
 	schema "github.com/mutablelogic/go-server/pkg/cert/schema"
-	client "github.com/mutablelogic/go-server/plugin/certmanager/client"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -110,3 +110,16 @@ func PtrDuration(v *time.Duration) time.Duration {
 	}
 	return *v
 }
+
+// Float64Ptr returns a pointer to a float64
+func Float64Ptr(v float64) *float64 {
+	return &v
+}
+
+// PtrFloat64 returns a float64 from a pointer
+func PtrFloat64(v *float64) float64 {
+	if v == nil {
+		return 0
+	}
+	return *v
+}

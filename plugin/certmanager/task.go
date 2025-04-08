@@ -5,7 +5,7 @@ import (
 
 	// Packages
 	server "github.com/mutablelogic/go-server"
-	"github.com/mutablelogic/go-server/pkg/cert"
+	cert "github.com/mutablelogic/go-server/pkg/cert"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
