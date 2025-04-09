@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"unicode"
+	"regexp"
 
 	// Packages
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
@@ -16,18 +16,26 @@ import (
 
 type Sample struct {
 	// Name of the sample
-	Name string `json:"name"`
+	Name string `json:"suffix,omitempty"`
 
 	// Labels are key-value pairs
 	Labels []string `json:"labels,omitempty"`
 
 	// Metric value
-	Float *float64 `json:"value,omitempty"`
-	Int   *int64   `json:"value,omitempty"`
+	Float *float64 `json:"float,omitempty"`
+	Int   *int64   `json:"int,omitempty"`
 
 	// Timestamp in seconds since epoch
 	Timestamp *float64 `json:"timestamp,omitempty"`
 }
+
+/////////////////////////////////////////////////////////////////////
+// GLOBALS
+
+var (
+	reSampleName = regexp.MustCompile("^[a-zA-Z_:][a-zA-Z0-9_:]*$")
+	reLabelName  = regexp.MustCompile("^[a-zA-Z_][a-zA-Z0-9_]*$")
+)
 
 /////////////////////////////////////////////////////////////////////
 // LIFECYCLE
@@ -71,12 +79,7 @@ func NewInfo(labels ...any) (*Sample, error) {
 
 func newSample(name string, fv *float64, iv *int64, labels ...any) (*Sample, error) {
 	if name != "" {
-		if !stringContains(name, func(i int, r rune) bool {
-			if i == 0 {
-			} else {
-				return unicode.IsLower(r)
-			}
-		}) {
+		if !reSampleName.MatchString(name) {
 			return nil, httpresponse.ErrBadRequest.Withf("Invalid name: %q", name)
 		}
 	}
@@ -142,11 +145,9 @@ func labelSet(labels ...any) ([]string, error) {
 	for i := 0; i < len(labels); i += 2 {
 		key, ok := labels[i].(string)
 		if !ok || key == "" {
-			return nil, httpresponse.ErrBadRequest.Withf("Invalid key: %v", labels[i])
-		} else if !types.StringContains(key, func(r rune) bool {
-			return unicode.IsLower(r)
-		}) {
-			return nil, httpresponse.ErrBadRequest.Withf("Invalid key: %q", key)
+			return nil, httpresponse.ErrBadRequest.Withf("Invalid label: %q", labels[i])
+		} else if !reLabelName.MatchString(key) {
+			return nil, httpresponse.ErrBadRequest.Withf("Invalid label: %q", key)
 		}
 		labelset = append(labelset, fmt.Sprintf("%v=%q", key, labels[i+1]))
 	}
