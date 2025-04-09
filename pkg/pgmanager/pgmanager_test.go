@@ -165,3 +165,27 @@ func Test_Manager_002(t *testing.T) {
 	})
 
 }
+
+func Test_Manager_003(t *testing.T) {
+	assert := assert.New(t)
+	conn := conn.Begin(t)
+	defer conn.Close()
+
+	// Create a new database manager
+	manager, err := pgmanager.New(context.TODO(), conn)
+	if !assert.NoError(err) {
+		t.FailNow()
+	}
+	assert.NotNil(manager)
+
+	// List schemas
+	t.Run("ListSchemas", func(t *testing.T) {
+		schemas, err := manager.ListSchemas(context.TODO(), schema.SchemaListRequest{})
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+		assert.NotNil(schemas)
+		t.Log(schemas)
+	})
+
+}

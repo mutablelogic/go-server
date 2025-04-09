@@ -7,7 +7,7 @@ import (
 	// Packages
 	server "github.com/mutablelogic/go-server"
 	client "github.com/mutablelogic/go-server/pkg/pgmanager/client"
-	"github.com/mutablelogic/go-server/pkg/pgmanager/schema"
+	schema "github.com/mutablelogic/go-server/pkg/pgmanager/schema"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

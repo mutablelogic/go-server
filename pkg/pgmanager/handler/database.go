@@ -75,7 +75,7 @@ func databaseList(w http.ResponseWriter, r *http.Request, manager *pgmanager.Man
 		return httpresponse.Error(w, err)
 	}
 
-	// List the roles
+	// List the databases
 	response, err := manager.ListDatabases(r.Context(), req)
 	if err != nil {
 		return httpresponse.Error(w, err)
