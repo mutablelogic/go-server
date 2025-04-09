@@ -6,7 +6,7 @@ import (
 
 	// Packages
 	metrics "github.com/mutablelogic/go-server/pkg/metrics"
-	"github.com/mutablelogic/go-server/pkg/metrics/schema"
+	schema "github.com/mutablelogic/go-server/pkg/metrics/schema"
 	assert "github.com/stretchr/testify/assert"
 )
 

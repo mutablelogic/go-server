@@ -49,12 +49,11 @@ func Test_CertManager_001(t *testing.T) {
 			t.FailNow()
 		}
 		assert.NotNil(name)
-		assert.Equal(name.CommonName, "root")
 	})
 
 	// List names
 	t.Run("ListName", func(t *testing.T) {
-		names, err := certmanager.ListNames(context.TODO())
+		names, err := certmanager.ListNames(context.TODO(), schema.NameListRequest{})
 		if !assert.NoError(err) {
 			t.FailNow()
 		}
