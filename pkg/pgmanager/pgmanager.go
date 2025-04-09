@@ -109,6 +109,31 @@ func (manager *Manager) CreateDatabase(ctx context.Context, meta schema.Database
 	return &database, nil
 }
 
+func (manager *Manager) CreateSchema(ctx context.Context, meta schema.SchemaMeta) (*schema.Schema, error) {
+	var response schema.Schema
+
+	if err := manager.conn.Tx(ctx, func(conn pg.Conn) error {
+		// Create the database - cannot be done in a transaction
+		if err := manager.conn.Insert(ctx, nil, meta); err != nil {
+			return err
+		}
+
+		// TODO: Set ACL's
+
+		// Get the schema
+		if err := manager.conn.Get(ctx, &response, schema.SchemaName(meta.Name)); err != nil {
+			return err
+		}
+
+		// Return success
+		return nil
+	}); err != nil {
+		return nil, httperr(err)
+	}
+
+	return &response, nil
+}
+
 func (manager *Manager) DeleteRole(ctx context.Context, name string) (*schema.Role, error) {
 	var role schema.Role
 	if err := manager.conn.Get(ctx, &role, schema.RoleName(name)); err != nil {

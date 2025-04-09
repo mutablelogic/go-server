@@ -116,6 +116,8 @@ func (r RoleName) Select(bind *pg.Bind, op pg.Op) (string, error) {
 	// Set name
 	if name := strings.TrimSpace(string(r)); name == "" {
 		return "", httpresponse.ErrBadRequest.With("name is missing")
+	} else if strings.HasPrefix(name, reservedPrefix) && (op == pg.Update || op == pg.Delete) {
+		return "", httpresponse.ErrBadRequest.Withf("cannot alter a system role %q", name)
 	} else {
 		bind.Set("name", name)
 	}
@@ -188,8 +190,8 @@ func (n *RoleList) ScanCount(row pg.Row) error {
 
 func (r RoleMeta) Insert(bind *pg.Bind) (string, error) {
 	// Name
-	if name := strings.TrimSpace(r.Name); strings.HasPrefix(name, "pg_") {
-		return "", httpresponse.ErrBadRequest.With("name cannot start with pg_")
+	if name := strings.TrimSpace(r.Name); strings.HasPrefix(name, reservedPrefix) {
+		return "", httpresponse.ErrBadRequest.Withf("name cannot start with %q", reservedPrefix)
 	} else if !types.IsIdentifier(name) {
 		return "", httpresponse.ErrBadRequest.With("name is invalid")
 	} else {
@@ -208,8 +210,8 @@ func (r RoleName) Insert(bind *pg.Bind) (string, error) {
 }
 
 func (r RoleName) Update(bind *pg.Bind) error {
-	if name := strings.TrimSpace(string(r)); strings.HasPrefix(name, "pg_") {
-		return httpresponse.ErrBadRequest.With("name cannot start with pg_")
+	if name := strings.TrimSpace(string(r)); strings.HasPrefix(name, reservedPrefix) {
+		return httpresponse.ErrBadRequest.Withf("name cannot start with %q", reservedPrefix)
 	} else {
 		bind.Set("old_name", name)
 	}

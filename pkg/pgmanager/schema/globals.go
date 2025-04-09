@@ -1,7 +1,5 @@
 package schema
 
-// Packages
-
 ////////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 
@@ -20,4 +18,6 @@ const (
 	pgTimestampFormat    = "2006-01-02 15:04:05"
 	pgObfuscatedPassword = "********"
 	defaultAclRole       = "PUBLIC"
+	schemaSeparator      = "."
+	reservedPrefix       = "pg_"
 )

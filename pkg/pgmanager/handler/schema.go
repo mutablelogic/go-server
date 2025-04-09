@@ -24,6 +24,8 @@ func RegisterSchema(ctx context.Context, router server.HTTPRouter, prefix string
 		switch r.Method {
 		case http.MethodGet:
 			_ = schemaList(w, r, manager)
+		case http.MethodPost:
+			_ = schemaCreate(w, r, manager)
 		default:
 			_ = httpresponse.Error(w, httpresponse.Err(http.StatusMethodNotAllowed), r.Method)
 		}
@@ -42,6 +44,23 @@ func schemaList(w http.ResponseWriter, r *http.Request, manager *pgmanager.Manag
 
 	// List the schemas
 	response, err := manager.ListSchemas(r.Context(), req)
+	if err != nil {
+		return httpresponse.Error(w, err)
+	}
+
+	// Return success
+	return httpresponse.JSON(w, http.StatusOK, httprequest.Indent(r), response)
+}
+
+func schemaCreate(w http.ResponseWriter, r *http.Request, manager *pgmanager.Manager) error {
+	// Parse request
+	var req schema.SchemaMeta
+	if err := httprequest.Query(r.URL.Query(), &req); err != nil {
+		return httpresponse.Error(w, err)
+	}
+
+	// Create the schema
+	response, err := manager.CreateSchema(r.Context(), req)
 	if err != nil {
 		return httpresponse.Error(w, err)
 	}

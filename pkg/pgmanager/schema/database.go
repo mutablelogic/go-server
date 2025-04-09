@@ -80,6 +80,8 @@ func (d DatabaseName) Select(bind *pg.Bind, op pg.Op) (string, error) {
 	// Set name
 	if name := strings.TrimSpace(string(d)); name == "" {
 		return "", httpresponse.ErrBadRequest.With("name is missing")
+	} else if strings.HasPrefix(name, reservedPrefix) && (op == pg.Update || op == pg.Delete) {
+		return "", httpresponse.ErrBadRequest.Withf("cannot alter a system database %q", name)
 	} else {
 		bind.Set("name", name)
 	}
@@ -121,6 +123,8 @@ func (d Database) Insert(bind *pg.Bind) (string, error) {
 	// Set name
 	if name := strings.TrimSpace(d.Name); name == "" {
 		return "", httpresponse.ErrBadRequest.With("name is missing")
+	} else if strings.HasPrefix(name, reservedPrefix) {
+		return "", httpresponse.ErrBadRequest.Withf("cannot create a database prefixed with %q", reservedPrefix)
 	} else {
 		bind.Set("name", name)
 	}

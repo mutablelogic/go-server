@@ -14,11 +14,21 @@ import (
 // TYPES
 
 type SchemaCommands struct {
-	Schemas SchemaListCommand `cmd:"" group:"DATABASE" help:"List schemas"`
+	Schemas      SchemaListCommand   `cmd:"" group:"DATABASE" help:"List schemas"`
+	Schema       SchemaGetCommand    `cmd:"" group:"DATABASE" help:"Get schema"`
+	CreateSchema SchemaCreateCommand `cmd:"" group:"DATABASE" help:"Create a new schema"`
 }
 
 type SchemaListCommand struct {
 	schema.SchemaListRequest
+}
+
+type SchemaGetCommand struct {
+	Name string `arg:"" name:"name" help:"Schema name"`
+}
+
+type SchemaCreateCommand struct {
+	schema.SchemaMeta
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -33,6 +43,32 @@ func (cmd SchemaListCommand) Run(ctx server.Cmd) error {
 
 		// Print databases
 		fmt.Println(databases)
+		return nil
+	})
+}
+
+func (cmd SchemaGetCommand) Run(ctx server.Cmd) error {
+	return run(ctx, func(ctx context.Context, provider *client.Client) error {
+		schema, err := provider.GetSchema(ctx, cmd.Name)
+		if err != nil {
+			return err
+		}
+
+		// Print schema
+		fmt.Println(schema)
+		return nil
+	})
+}
+
+func (cmd SchemaCreateCommand) Run(ctx server.Cmd) error {
+	return run(ctx, func(ctx context.Context, provider *client.Client) error {
+		schema, err := provider.CreateSchema(ctx, cmd.SchemaMeta)
+		if err != nil {
+			return err
+		}
+
+		// Print schema
+		fmt.Println(schema)
 		return nil
 	})
 }

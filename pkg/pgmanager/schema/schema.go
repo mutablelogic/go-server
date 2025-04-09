@@ -2,8 +2,10 @@ package schema
 
 import (
 	"encoding/json"
+	"strings"
 
 	pg "github.com/djthorpe/go-pg"
+	types "github.com/djthorpe/go-pg/pkg/types"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 )
 
@@ -100,13 +102,37 @@ func (d SchemaListRequest) Select(bind *pg.Bind, op pg.Op) (string, error) {
 	}
 }
 
+func (s SchemaName) Select(bind *pg.Bind, op pg.Op) (string, error) {
+	// Set name
+	if name := strings.TrimSpace(string(s)); name == "" {
+		return "", httpresponse.ErrBadRequest.With("name is missing")
+	} else {
+		bind.Set("name", name)
+	}
+
+	// Return query
+	switch op {
+	case pg.Get:
+		return schemaGet, nil
+	case pg.Update:
+		return schemaRename, nil
+	case pg.Delete:
+		return schemaDelete, nil
+	default:
+		return "", httpresponse.ErrInternalError.Withf("unsupported SchemaName operation %q", op)
+	}
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // READER
 
 func (s *Schema) Scan(row pg.Row) error {
 	var priv []string
-	if err := row.Scan(&s.Oid, &s.Database, &s.Name, &s.Owner, &priv); err != nil {
+	var schema string
+	if err := row.Scan(&s.Oid, &s.Database, &schema, &s.Owner, &priv); err != nil {
 		return err
+	} else {
+		s.Name = strings.Join([]string{s.Database, schema}, schemaSeparator)
 	}
 	for _, v := range priv {
 		item, err := NewACLItem(v)
@@ -133,6 +159,69 @@ func (s *SchemaList) ScanCount(row pg.Row) error {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// WRITER
+
+func (s SchemaMeta) Insert(bind *pg.Bind) (string, error) {
+	// Set name
+	if name := strings.TrimSpace(s.Name); name == "" {
+		return "", httpresponse.ErrBadRequest.With("name is missing")
+	} else if strings.HasPrefix(name, reservedPrefix) {
+		return "", httpresponse.ErrBadRequest.Withf("cannot create a schema prefixed with %q", reservedPrefix)
+	} else {
+		bind.Set("name", name)
+	}
+
+	// Set with
+	bind.Set("with", s.with(true))
+
+	// Return success
+	return schemaCreate, nil
+}
+
+func (s SchemaMeta) Update(bind *pg.Bind) error {
+	// With
+	bind.Set("with", s.with(false))
+
+	// Return success
+	return nil
+}
+
+func (d SchemaName) Insert(bind *pg.Bind) (string, error) {
+	return "", httpresponse.ErrNotImplemented.With("SchemaName.Insert")
+}
+
+func (d SchemaName) Update(bind *pg.Bind) error {
+	if name := strings.TrimSpace(string(d)); name == "" {
+		return httpresponse.ErrBadRequest.With("name is missing")
+	} else if strings.HasPrefix(name, reservedPrefix) {
+		return httpresponse.ErrBadRequest.Withf("cannot create a schema prefixed with %q", reservedPrefix)
+	} else {
+		bind.Set("old_name", name)
+	}
+	return nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+func (s SchemaMeta) with(insert bool) string {
+	var with []string
+	if owner := strings.TrimSpace(s.Owner); owner != "" {
+		if insert {
+			with = append(with, "AUTHORIZATION "+types.DoubleQuote(s.Owner))
+		} else {
+			with = append(with, "OWNER TO "+types.DoubleQuote(s.Owner))
+		}
+	}
+
+	// Return the with clause
+	if len(with) > 0 {
+		return strings.Join(with, " ")
+	}
+	return ""
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // SQL
 
 const (
@@ -149,6 +238,10 @@ const (
 			WHERE
 				S.nspname NOT LIKE 'pg_%' AND S.nspname != 'information_schema'
 		) SELECT * FROM db`
-	schemaGet  = schemaSelect + ` WHERE "name" = @name`
-	schemaList = `WITH q AS (` + schemaSelect + `) SELECT * FROM q ${where}`
+	schemaGet    = schemaSelect + ` WHERE "name" = @name`
+	schemaList   = `WITH q AS (` + schemaSelect + `) SELECT * FROM q ${where}`
+	schemaDelete = `DROP SCHEMA ${"name"}`
+	schemaCreate = `CREATE SCHEMA ${"name"} ${with}`
+	schemaRename = `ALTER SCHEMA ${"old_name"} RENAME TO ${"name"}`
+	schemaOwner  = `ALTER SCHEMA ${"name"} OWNER TO ${"role"}`
 )
