@@ -14,7 +14,7 @@ import (
 	certmanager "github.com/mutablelogic/go-server/plugin/certmanager"
 	httprouter "github.com/mutablelogic/go-server/plugin/httprouter"
 	httpserver "github.com/mutablelogic/go-server/plugin/httpserver"
-	"github.com/mutablelogic/go-server/plugin/log"
+	log "github.com/mutablelogic/go-server/plugin/log"
 	pg "github.com/mutablelogic/go-server/plugin/pg"
 )
 
