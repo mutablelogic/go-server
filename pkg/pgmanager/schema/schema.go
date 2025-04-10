@@ -2,6 +2,7 @@ package schema
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	pg "github.com/djthorpe/go-pg"
@@ -106,8 +107,18 @@ func (s SchemaName) Select(bind *pg.Bind, op pg.Op) (string, error) {
 	// Set name
 	if name := strings.TrimSpace(string(s)); name == "" {
 		return "", httpresponse.ErrBadRequest.With("name is missing")
+	} else if database, name := s.split(); database == "" {
+		return "", httpresponse.ErrBadRequest.With("database is missing")
 	} else {
+		bind.Set("database", database)
 		bind.Set("name", name)
+	}
+
+	// Set force
+	if force, ok := bind.Get("force").(bool); ok && force {
+		bind.Set("with", "CASCADE")
+	} else {
+		bind.Set("with", "")
 	}
 
 	// Return query
@@ -165,14 +176,24 @@ func (s SchemaMeta) Insert(bind *pg.Bind) (string, error) {
 	// Set name
 	if name := strings.TrimSpace(s.Name); name == "" {
 		return "", httpresponse.ErrBadRequest.With("name is missing")
-	} else if strings.HasPrefix(name, reservedPrefix) {
+	} else if database, name := s.split(); database == "" {
+		return "", httpresponse.ErrBadRequest.With("database is missing")
+	} else if strings.HasPrefix(name, reservedPrefix) || strings.HasPrefix(database, reservedPrefix) {
 		return "", httpresponse.ErrBadRequest.Withf("cannot create a schema prefixed with %q", reservedPrefix)
 	} else {
+		bind.Set("database", database)
 		bind.Set("name", name)
 	}
 
+	// TODO: Check database is the current one
+	fmt.Printf("TODO: Check database is the current one: %q\n", bind.Get("database"))
+
 	// Set with
-	bind.Set("with", s.with(true))
+	if with, err := s.with(true); err != nil {
+		return "", err
+	} else {
+		bind.Set("with", with)
+	}
 
 	// Return success
 	return schemaCreate, nil
@@ -180,7 +201,11 @@ func (s SchemaMeta) Insert(bind *pg.Bind) (string, error) {
 
 func (s SchemaMeta) Update(bind *pg.Bind) error {
 	// With
-	bind.Set("with", s.with(false))
+	if with, err := s.with(false); err != nil {
+		return err
+	} else {
+		bind.Set("with", with)
+	}
 
 	// Return success
 	return nil
@@ -204,7 +229,21 @@ func (d SchemaName) Update(bind *pg.Bind) error {
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-func (s SchemaMeta) with(insert bool) string {
+// Split name into database and schema
+func (s SchemaMeta) split() (string, string) {
+	return SchemaName(s.Name).split()
+}
+
+// Split name into database and schema
+func (s SchemaName) split() (string, string) {
+	schema := string(s)
+	if i := strings.Index(schema, schemaSeparator); i > 0 {
+		return schema[:i], schema[i+1:]
+	}
+	return "", schema
+}
+
+func (s SchemaMeta) with(insert bool) (string, error) {
 	var with []string
 	if owner := strings.TrimSpace(s.Owner); owner != "" {
 		if insert {
@@ -216,9 +255,10 @@ func (s SchemaMeta) with(insert bool) string {
 
 	// Return the with clause
 	if len(with) > 0 {
-		return strings.Join(with, " ")
+		return strings.Join(with, " "), nil
 	}
-	return ""
+
+	return "", httpresponse.ErrBadRequest.With("missing owner")
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -226,7 +266,7 @@ func (s SchemaMeta) with(insert bool) string {
 
 const (
 	schemaSelect = `
-		WITH db AS (
+		WITH sc AS (
 			SELECT
 				S.oid AS "oid", current_database() AS "database", S.nspname AS "name", R.rolname AS "owner", S.nspacl AS "acl"
 			FROM
@@ -237,10 +277,10 @@ const (
 				S.nspowner = R.oid
 			WHERE
 				S.nspname NOT LIKE 'pg_%' AND S.nspname != 'information_schema'
-		) SELECT * FROM db`
-	schemaGet    = schemaSelect + ` WHERE "name" = @name`
+		) SELECT * FROM sc`
+	schemaGet    = schemaSelect + ` WHERE "name" = @name AND "database" = @database`
 	schemaList   = `WITH q AS (` + schemaSelect + `) SELECT * FROM q ${where}`
-	schemaDelete = `DROP SCHEMA ${"name"}`
+	schemaDelete = `DROP SCHEMA ${"name"} ${with}`
 	schemaCreate = `CREATE SCHEMA ${"name"} ${with}`
 	schemaRename = `ALTER SCHEMA ${"old_name"} RENAME TO ${"name"}`
 	schemaOwner  = `ALTER SCHEMA ${"name"} OWNER TO ${"role"}`

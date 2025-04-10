@@ -58,3 +58,11 @@ func (c *Client) CreateSchema(ctx context.Context, meta schema.SchemaMeta) (*sch
 	// Return the responses
 	return &response, nil
 }
+
+func (c *Client) DeleteSchema(ctx context.Context, name string, opt ...Opt) error {
+	opts, err := applyOpts(opt...)
+	if err != nil {
+		return err
+	}
+	return c.DoWithContext(ctx, client.MethodDelete, nil, client.OptPath("schema", name), client.OptQuery(opts.Values))
+}

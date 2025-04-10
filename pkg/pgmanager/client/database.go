@@ -60,8 +60,12 @@ func (c *Client) CreateDatabase(ctx context.Context, database schema.Database) (
 	return &response, nil
 }
 
-func (c *Client) DeleteDatabase(ctx context.Context, name string) error {
-	return c.DoWithContext(ctx, client.MethodDelete, nil, client.OptPath("database", name))
+func (c *Client) DeleteDatabase(ctx context.Context, name string, opt ...Opt) error {
+	opts, err := applyOpts(opt...)
+	if err != nil {
+		return err
+	}
+	return c.DoWithContext(ctx, client.MethodDelete, nil, client.OptPath("database", name), client.OptQuery(opts.Values))
 }
 
 func (c *Client) UpdateDatabase(ctx context.Context, name string, meta schema.Database) (*schema.Database, error) {

@@ -17,6 +17,7 @@ type SchemaCommands struct {
 	Schemas      SchemaListCommand   `cmd:"" group:"DATABASE" help:"List schemas"`
 	Schema       SchemaGetCommand    `cmd:"" group:"DATABASE" help:"Get schema"`
 	CreateSchema SchemaCreateCommand `cmd:"" group:"DATABASE" help:"Create a new schema"`
+	DeleteSchema SchemaDeleteCommand `cmd:"" group:"DATABASE" help:"Delete a schema"`
 }
 
 type SchemaListCommand struct {
@@ -24,7 +25,12 @@ type SchemaListCommand struct {
 }
 
 type SchemaGetCommand struct {
-	Name string `arg:"" name:"name" help:"Schema name"`
+	Name string `arg:"" name:"name" help:"Schema name ('database/schema')"`
+}
+
+type SchemaDeleteCommand struct {
+	SchemaGetCommand
+	Force bool `help:"Force delete"`
 }
 
 type SchemaCreateCommand struct {
@@ -70,5 +76,11 @@ func (cmd SchemaCreateCommand) Run(ctx server.Cmd) error {
 		// Print schema
 		fmt.Println(schema)
 		return nil
+	})
+}
+
+func (cmd SchemaDeleteCommand) Run(ctx server.Cmd) error {
+	return run(ctx, func(ctx context.Context, provider *client.Client) error {
+		return provider.DeleteSchema(ctx, cmd.Name, client.WithForce(cmd.Force))
 	})
 }

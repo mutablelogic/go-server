@@ -45,6 +45,14 @@ func WithOffsetLimit(offset uint64, limit *uint64) Opt {
 	}
 }
 
+func WithForce(v bool) Opt {
+	if v {
+		return OptSet("force", fmt.Sprint(v))
+	} else {
+		return OptSet("force", "")
+	}
+}
+
 func OptSet(k, v string) Opt {
 	return func(o *opt) error {
 		if v == "" {

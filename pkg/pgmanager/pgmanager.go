@@ -76,6 +76,14 @@ func (manager *Manager) GetDatabase(ctx context.Context, name string) (*schema.D
 	return &database, nil
 }
 
+func (manager *Manager) GetSchema(ctx context.Context, name string) (*schema.Schema, error) {
+	var response schema.Schema
+	if err := manager.conn.Get(ctx, &response, schema.SchemaName(name)); err != nil {
+		return nil, httperr(err)
+	}
+	return &response, nil
+}
+
 func (manager *Manager) CreateRole(ctx context.Context, meta schema.RoleMeta) (*schema.Role, error) {
 	var role schema.Role
 	if err := manager.conn.Insert(ctx, nil, meta); err != nil {
@@ -144,14 +152,31 @@ func (manager *Manager) DeleteRole(ctx context.Context, name string) (*schema.Ro
 	return &role, nil
 }
 
-func (manager *Manager) DeleteDatabase(ctx context.Context, name string) (*schema.Database, error) {
+func (manager *Manager) DeleteDatabase(ctx context.Context, name string, force bool) (*schema.Database, error) {
 	var database schema.Database
 	if err := manager.conn.Get(ctx, &database, schema.DatabaseName(name)); err != nil {
 		return nil, httperr(err)
-	} else if err := manager.conn.Delete(ctx, nil, schema.DatabaseName(name)); err != nil {
+	} else if err := manager.conn.With("force", force).Delete(ctx, nil, schema.DatabaseName(name)); err != nil {
 		return nil, httperr(err)
 	}
 	return &database, nil
+}
+
+func (manager *Manager) DeleteSchema(ctx context.Context, name string, force bool) (*schema.Schema, error) {
+	var response schema.Schema
+
+	if err := manager.conn.Tx(ctx, func(conn pg.Conn) error {
+		if err := manager.conn.Get(ctx, &response, schema.SchemaName(name)); err != nil {
+			return err
+		}
+		if err := manager.conn.With("force", force).Delete(ctx, nil, schema.SchemaName(name)); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		return nil, httperr(err)
+	}
+	return &response, nil
 }
 
 func (manager *Manager) UpdateRole(ctx context.Context, name string, meta schema.RoleMeta) (*schema.Role, error) {

@@ -37,6 +37,7 @@ type DatabaseCreateCommand struct {
 
 type DatabaseDeleteCommand struct {
 	DatabaseGetCommand
+	Force bool `help:"Force delete"`
 }
 
 type DatabaseUpdateCommand struct {
@@ -96,7 +97,7 @@ func (cmd DatabaseCreateCommand) Run(ctx server.Cmd) error {
 
 func (cmd DatabaseDeleteCommand) Run(ctx server.Cmd) error {
 	return run(ctx, func(ctx context.Context, provider *client.Client) error {
-		return provider.DeleteDatabase(ctx, cmd.Name)
+		return provider.DeleteDatabase(ctx, cmd.Name, client.WithForce(cmd.Force))
 	})
 }
 

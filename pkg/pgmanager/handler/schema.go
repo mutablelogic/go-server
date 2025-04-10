@@ -30,6 +30,24 @@ func RegisterSchema(ctx context.Context, router server.HTTPRouter, prefix string
 			_ = httpresponse.Error(w, httpresponse.Err(http.StatusMethodNotAllowed), r.Method)
 		}
 	})
+
+	router.HandleFunc(ctx, types.JoinPath(prefix, "schema/{name...}"), func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
+		httpresponse.Cors(w, r, router.Origin(), http.MethodGet, http.MethodDelete)
+
+		// Parse request argument
+		name := r.PathValue("name")
+
+		// Handle method
+		switch r.Method {
+		case http.MethodGet:
+			_ = schemaGet(w, r, manager, name)
+		case http.MethodDelete:
+			_ = schemaDelete(w, r, manager, name)
+		default:
+			_ = httpresponse.Error(w, httpresponse.Err(http.StatusMethodNotAllowed), r.Method)
+		}
+	})
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -55,7 +73,7 @@ func schemaList(w http.ResponseWriter, r *http.Request, manager *pgmanager.Manag
 func schemaCreate(w http.ResponseWriter, r *http.Request, manager *pgmanager.Manager) error {
 	// Parse request
 	var req schema.SchemaMeta
-	if err := httprequest.Query(r.URL.Query(), &req); err != nil {
+	if err := httprequest.Read(r, &req); err != nil {
 		return httpresponse.Error(w, err)
 	}
 
@@ -67,4 +85,33 @@ func schemaCreate(w http.ResponseWriter, r *http.Request, manager *pgmanager.Man
 
 	// Return success
 	return httpresponse.JSON(w, http.StatusOK, httprequest.Indent(r), response)
+}
+
+func schemaGet(w http.ResponseWriter, r *http.Request, manager *pgmanager.Manager, name string) error {
+	schema, err := manager.GetSchema(r.Context(), name)
+	if err != nil {
+		return httpresponse.Error(w, err)
+	}
+
+	// Return success
+	return httpresponse.JSON(w, http.StatusOK, httprequest.Indent(r), schema)
+}
+
+func schemaDelete(w http.ResponseWriter, r *http.Request, manager *pgmanager.Manager, name string) error {
+	// Parse the query
+	var req struct {
+		Force bool `json:"force,omitempty" help:"Force delete"`
+	}
+	if err := httprequest.Query(r.URL.Query(), &req); err != nil {
+		return httpresponse.Error(w, err)
+	}
+
+	// Delete the schema
+	_, err := manager.DeleteSchema(r.Context(), name, req.Force)
+	if err != nil {
+		return httpresponse.Error(w, err)
+	}
+
+	// Return success
+	return httpresponse.Empty(w, http.StatusOK)
 }

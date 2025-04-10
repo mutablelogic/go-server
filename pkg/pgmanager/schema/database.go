@@ -86,6 +86,13 @@ func (d DatabaseName) Select(bind *pg.Bind, op pg.Op) (string, error) {
 		bind.Set("name", name)
 	}
 
+	// Set force
+	if force, ok := bind.Get("force").(bool); ok && force {
+		bind.Set("with", "WITH FORCE")
+	} else {
+		bind.Set("with", "")
+	}
+
 	// Return query
 	switch op {
 	case pg.Get:
@@ -229,7 +236,7 @@ const (
 	databaseGet    = databaseSelect + ` WHERE "name" = @name`
 	databaseList   = `WITH q AS (` + databaseSelect + `) SELECT * FROM q ${where}`
 	databaseCreate = `CREATE DATABASE ${"name"} ${with}`
-	databaseDelete = `DROP DATABASE ${"name"}`
+	databaseDelete = `DROP DATABASE ${"name"} ${with}`
 	databaseRename = `ALTER DATABASE ${"old_name"} RENAME TO ${"name"}`
 	databaseUpdate = `
 		ALTER DATABASE ${"name"} ${with}

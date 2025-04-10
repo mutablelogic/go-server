@@ -103,7 +103,16 @@ func databaseCreate(w http.ResponseWriter, r *http.Request, manager *pgmanager.M
 }
 
 func databaseDelete(w http.ResponseWriter, r *http.Request, manager *pgmanager.Manager, name string) error {
-	_, err := manager.DeleteDatabase(r.Context(), name)
+	// Parse the query
+	var req struct {
+		Force bool `json:"force,omitempty" help:"Force delete"`
+	}
+	if err := httprequest.Query(r.URL.Query(), &req); err != nil {
+		return httpresponse.Error(w, err)
+	}
+
+	// Delete the database
+	_, err := manager.DeleteDatabase(r.Context(), name, req.Force)
 	if err != nil {
 		return httpresponse.Error(w, err)
 	}
