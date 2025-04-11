@@ -20,6 +20,7 @@ type CLI struct {
 	ServiceCommands
 	pgmanager.DatabaseCommands
 	pgmanager.SchemaCommands
+	pgmanager.ObjectCommands
 	pgmanager.RoleCommands
 	certmanager.NameCommands
 	certmanager.CertCommands

@@ -17,6 +17,7 @@ type SchemaCommands struct {
 	Schemas      SchemaListCommand   `cmd:"" group:"DATABASE" help:"List schemas"`
 	Schema       SchemaGetCommand    `cmd:"" group:"DATABASE" help:"Get schema"`
 	CreateSchema SchemaCreateCommand `cmd:"" group:"DATABASE" help:"Create a new schema"`
+	UpdateSchema SchemaUpdateCommand `cmd:"" group:"DATABASE" help:"Update a schema"`
 	DeleteSchema SchemaDeleteCommand `cmd:"" group:"DATABASE" help:"Delete a schema"`
 }
 
@@ -34,7 +35,14 @@ type SchemaDeleteCommand struct {
 }
 
 type SchemaCreateCommand struct {
-	schema.SchemaMeta
+	Name  string   `arg:"" name:"name" help:"Database name"`
+	Owner string   `help:"Database owner"`
+	Acl   []string `help:"Access privileges"`
+}
+
+type SchemaUpdateCommand struct {
+	Name string `help:"New schema name"`
+	SchemaCreateCommand
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -68,7 +76,18 @@ func (cmd SchemaGetCommand) Run(ctx server.Cmd) error {
 
 func (cmd SchemaCreateCommand) Run(ctx server.Cmd) error {
 	return run(ctx, func(ctx context.Context, provider *client.Client) error {
-		schema, err := provider.CreateSchema(ctx, cmd.SchemaMeta)
+		// Parse ACL's
+		acl, err := schema.ParseACL(cmd.Acl)
+		if err != nil {
+			return err
+		}
+
+		// Perform request
+		schema, err := provider.CreateSchema(ctx, schema.SchemaMeta{
+			Name:  cmd.Name,
+			Owner: cmd.Owner,
+			Acl:   acl,
+		})
 		if err != nil {
 			return err
 		}
@@ -82,5 +101,32 @@ func (cmd SchemaCreateCommand) Run(ctx server.Cmd) error {
 func (cmd SchemaDeleteCommand) Run(ctx server.Cmd) error {
 	return run(ctx, func(ctx context.Context, provider *client.Client) error {
 		return provider.DeleteSchema(ctx, cmd.Name, client.WithForce(cmd.Force))
+	})
+}
+
+func (cmd SchemaUpdateCommand) Run(ctx server.Cmd) error {
+	return run(ctx, func(ctx context.Context, provider *client.Client) error {
+		// Swap names
+		cmd.SchemaCreateCommand.Name, cmd.Name = cmd.Name, cmd.SchemaCreateCommand.Name
+
+		// Parse ACL's
+		acl, err := schema.ParseACL(cmd.Acl)
+		if err != nil {
+			return err
+		}
+
+		// Perform request
+		schema, err := provider.UpdateSchema(ctx, cmd.Name, schema.SchemaMeta{
+			Name:  cmd.SchemaCreateCommand.Name,
+			Owner: cmd.SchemaCreateCommand.Owner,
+			Acl:   acl,
+		})
+		if err != nil {
+			return err
+		}
+
+		// Print schema
+		fmt.Println(schema)
+		return nil
 	})
 }

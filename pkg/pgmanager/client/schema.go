@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"net/http"
 
 	// Packages
 	client "github.com/mutablelogic/go-client"
@@ -65,4 +66,20 @@ func (c *Client) DeleteSchema(ctx context.Context, name string, opt ...Opt) erro
 		return err
 	}
 	return c.DoWithContext(ctx, client.MethodDelete, nil, client.OptPath("schema", name), client.OptQuery(opts.Values))
+}
+
+func (c *Client) UpdateSchema(ctx context.Context, name string, meta schema.SchemaMeta) (*schema.Schema, error) {
+	req, err := client.NewJSONRequestEx(http.MethodPatch, meta, "")
+	if err != nil {
+		return nil, err
+	}
+
+	// Perform request
+	var response schema.Schema
+	if err := c.DoWithContext(ctx, req, &response, client.OptPath("schema", name)); err != nil {
+		return nil, err
+	}
+
+	// Return the responses
+	return &response, nil
 }

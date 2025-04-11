@@ -3,6 +3,7 @@ package client
 import (
 	"fmt"
 	"net/url"
+	"strings"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -50,6 +51,14 @@ func WithForce(v bool) Opt {
 		return OptSet("force", fmt.Sprint(v))
 	} else {
 		return OptSet("force", "")
+	}
+}
+
+func WithSchema(v string) Opt {
+	if v = strings.TrimSpace(v); v != "" {
+		return OptSet("schema", v)
+	} else {
+		return OptSet("schema", "")
 	}
 }
 

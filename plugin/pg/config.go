@@ -63,6 +63,7 @@ func (c Config) New(ctx context.Context) (server.Task, error) {
 			pghandler.RegisterRole(ctx, c.Router, c.Prefix, manager)
 			pghandler.RegisterDatabase(ctx, c.Router, c.Prefix, manager)
 			pghandler.RegisterSchema(ctx, c.Router, c.Prefix, manager)
+			pghandler.RegisterObject(ctx, c.Router, c.Prefix, manager)
 		}
 	}
 

@@ -1,0 +1,38 @@
+package cmd
+
+import (
+	"context"
+	"fmt"
+
+	// Packages
+	server "github.com/mutablelogic/go-server"
+	client "github.com/mutablelogic/go-server/pkg/pgmanager/client"
+	schema "github.com/mutablelogic/go-server/pkg/pgmanager/schema"
+)
+
+///////////////////////////////////////////////////////////////////////////////
+// TYPES
+
+type ObjectCommands struct {
+	Objects ObjectListCommand `cmd:"" group:"DATABASE" help:"List objects"`
+}
+
+type ObjectListCommand struct {
+	schema.ObjectListRequest
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS
+
+func (cmd ObjectListCommand) Run(ctx server.Cmd) error {
+	return run(ctx, func(ctx context.Context, provider *client.Client) error {
+		databases, err := provider.ListObjects(ctx, client.WithSchema(cmd.Schema), client.WithOffsetLimit(cmd.Offset, cmd.Limit))
+		if err != nil {
+			return err
+		}
+
+		// Print databases
+		fmt.Println(databases)
+		return nil
+	})
+}
