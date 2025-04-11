@@ -12,12 +12,13 @@ const (
 	RoleListLimit     = 100
 	DatabaseListLimit = 100
 	SchemaListLimit   = 100
+	ObjectListLimit   = 100
 )
 
 const (
 	pgTimestampFormat    = "2006-01-02 15:04:05"
 	pgObfuscatedPassword = "********"
 	defaultAclRole       = "PUBLIC"
-	schemaSeparator      = "/"
+	schemaSeparator      = '/'
 	reservedPrefix       = "pg_"
 )

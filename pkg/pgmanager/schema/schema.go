@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	// Packages
 	pg "github.com/djthorpe/go-pg"
 	types "github.com/djthorpe/go-pg/pkg/types"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
@@ -105,10 +106,8 @@ func (d SchemaListRequest) Select(bind *pg.Bind, op pg.Op) (string, error) {
 
 func (s SchemaName) Select(bind *pg.Bind, op pg.Op) (string, error) {
 	// Set name
-	if name := strings.TrimSpace(string(s)); name == "" {
-		return "", httpresponse.ErrBadRequest.With("name is missing")
-	} else if database, name := s.split(); database == "" {
-		return "", httpresponse.ErrBadRequest.With("database is missing")
+	if database, name := s.split(); database == "" || name == "" {
+		return "", httpresponse.ErrBadRequest.With("database or schema is missing")
 	} else {
 		bind.Set("database", database)
 		bind.Set("name", name)
@@ -134,6 +133,24 @@ func (s SchemaName) Select(bind *pg.Bind, op pg.Op) (string, error) {
 	}
 }
 
+func (s SchemaMeta) Select(bind *pg.Bind, op pg.Op) (string, error) {
+	// Set name
+	if database, name := s.split(); database == "" || name == "" {
+		return "", httpresponse.ErrBadRequest.With("database or schema is missing")
+	} else {
+		bind.Set("database", database)
+		bind.Set("name", name)
+	}
+
+	// Return query
+	switch op {
+	case pg.Update:
+		return schemaUpdate, nil
+	default:
+		return "", httpresponse.ErrInternalError.Withf("unsupported SchemaMeta operation %q", op)
+	}
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // READER
 
@@ -143,7 +160,7 @@ func (s *Schema) Scan(row pg.Row) error {
 	if err := row.Scan(&s.Oid, &s.Database, &schema, &s.Owner, &priv); err != nil {
 		return err
 	} else {
-		s.Name = strings.Join([]string{s.Database, schema}, schemaSeparator)
+		s.Name = strings.Join([]string{s.Database, schema}, string(schemaSeparator))
 	}
 	for _, v := range priv {
 		item, err := NewACLItem(v)
@@ -237,7 +254,7 @@ func (s SchemaMeta) split() (string, string) {
 // Split name into database and schema
 func (s SchemaName) split() (string, string) {
 	schema := string(s)
-	if i := strings.Index(schema, schemaSeparator); i > 0 {
+	if i := strings.IndexRune(schema, schemaSeparator); i > 0 {
 		return schema[:i], schema[i+1:]
 	}
 	return "", schema
@@ -283,5 +300,5 @@ const (
 	schemaDelete = `DROP SCHEMA ${"name"} ${with}`
 	schemaCreate = `CREATE SCHEMA ${"name"} ${with}`
 	schemaRename = `ALTER SCHEMA ${"old_name"} RENAME TO ${"name"}`
-	schemaOwner  = `ALTER SCHEMA ${"name"} OWNER TO ${"role"}`
+	schemaUpdate = `ALTER SCHEMA ${"name"} ${with}`
 )

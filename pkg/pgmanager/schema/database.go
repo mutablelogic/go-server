@@ -78,10 +78,8 @@ func (d DatabaseListRequest) Select(bind *pg.Bind, op pg.Op) (string, error) {
 
 func (d DatabaseName) Select(bind *pg.Bind, op pg.Op) (string, error) {
 	// Set name
-	if name := strings.TrimSpace(string(d)); name == "" {
-		return "", httpresponse.ErrBadRequest.With("name is missing")
-	} else if strings.HasPrefix(name, reservedPrefix) && (op == pg.Update || op == pg.Delete) {
-		return "", httpresponse.ErrBadRequest.Withf("cannot alter a system database %q", name)
+	if name, err := d.name(); err != nil {
+		return "", err
 	} else {
 		bind.Set("name", name)
 	}
@@ -128,10 +126,8 @@ func (d Database) Select(bind *pg.Bind, op pg.Op) (string, error) {
 
 func (d Database) Insert(bind *pg.Bind) (string, error) {
 	// Set name
-	if name := strings.TrimSpace(d.Name); name == "" {
-		return "", httpresponse.ErrBadRequest.With("name is missing")
-	} else if strings.HasPrefix(name, reservedPrefix) {
-		return "", httpresponse.ErrBadRequest.Withf("cannot create a database prefixed with %q", reservedPrefix)
+	if name, err := d.name(); err != nil {
+		return "", err
 	} else {
 		bind.Set("name", name)
 	}
@@ -156,11 +152,14 @@ func (d DatabaseName) Insert(bind *pg.Bind) (string, error) {
 }
 
 func (d DatabaseName) Update(bind *pg.Bind) error {
-	if name := strings.TrimSpace(string(d)); name == "" {
-		return httpresponse.ErrBadRequest.With("name is missing")
+	// Set name
+	if name, err := d.name(); err != nil {
+		return err
 	} else {
 		bind.Set("old_name", name)
 	}
+
+	// Return success
 	return nil
 }
 
@@ -198,6 +197,22 @@ func (n *DatabaseList) ScanCount(row pg.Row) error {
 
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
+
+func (d Database) name() (string, error) {
+	return DatabaseName(d.Name).name()
+}
+
+func (d DatabaseName) name() (string, error) {
+	if name := strings.TrimSpace(string(d)); name == "" {
+		return "", httpresponse.ErrBadRequest.With("name is missing")
+	} else if strings.HasPrefix(name, reservedPrefix) {
+		return "", httpresponse.ErrBadRequest.Withf("name cannot be prefixed with %q", reservedPrefix)
+	} else if strings.ContainsRune(name, schemaSeparator) {
+		return "", httpresponse.ErrBadRequest.Withf("name cannot contain %q", schemaSeparator)
+	} else {
+		return name, nil
+	}
+}
 
 func (d Database) with(insert bool) string {
 	var with []string

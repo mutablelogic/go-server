@@ -33,7 +33,7 @@ func RegisterSchema(ctx context.Context, router server.HTTPRouter, prefix string
 
 	router.HandleFunc(ctx, types.JoinPath(prefix, "schema/{name...}"), func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
-		httpresponse.Cors(w, r, router.Origin(), http.MethodGet, http.MethodDelete)
+		httpresponse.Cors(w, r, router.Origin(), http.MethodGet, http.MethodDelete, http.MethodPatch)
 
 		// Parse request argument
 		name := r.PathValue("name")
@@ -44,6 +44,8 @@ func RegisterSchema(ctx context.Context, router server.HTTPRouter, prefix string
 			_ = schemaGet(w, r, manager, name)
 		case http.MethodDelete:
 			_ = schemaDelete(w, r, manager, name)
+		case http.MethodPatch:
+			_ = schemaUpdate(w, r, manager, name)
 		default:
 			_ = httpresponse.Error(w, httpresponse.Err(http.StatusMethodNotAllowed), r.Method)
 		}
@@ -114,4 +116,21 @@ func schemaDelete(w http.ResponseWriter, r *http.Request, manager *pgmanager.Man
 
 	// Return success
 	return httpresponse.Empty(w, http.StatusOK)
+}
+
+func schemaUpdate(w http.ResponseWriter, r *http.Request, manager *pgmanager.Manager, name string) error {
+	// Parse request
+	var req schema.SchemaMeta
+	if err := httprequest.Read(r, &req); err != nil {
+		return httpresponse.Error(w, err)
+	}
+
+	// Perform update
+	schema, err := manager.UpdateSchema(r.Context(), name, req)
+	if err != nil {
+		return httpresponse.Error(w, err)
+	}
+
+	// Return success
+	return httpresponse.JSON(w, http.StatusCreated, httprequest.Indent(r), schema)
 }

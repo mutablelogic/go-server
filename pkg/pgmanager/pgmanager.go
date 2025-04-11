@@ -60,6 +60,15 @@ func (manager *Manager) ListSchemas(ctx context.Context, req schema.SchemaListRe
 	}
 }
 
+func (manager *Manager) ListObjects(ctx context.Context, req schema.ObjectListRequest) (*schema.ObjectList, error) {
+	var list schema.ObjectList
+	if err := manager.conn.List(ctx, &list, req); err != nil {
+		return nil, httperr(err)
+	} else {
+		return &list, nil
+	}
+}
+
 func (manager *Manager) GetRole(ctx context.Context, name string) (*schema.Role, error) {
 	var role schema.Role
 	if err := manager.conn.Get(ctx, &role, schema.RoleName(name)); err != nil {
@@ -275,6 +284,46 @@ func (manager *Manager) UpdateDatabase(ctx context.Context, name string, meta sc
 
 	// Return success
 	return &database, nil
+}
+
+func (manager *Manager) UpdateSchema(ctx context.Context, name string, meta schema.SchemaMeta) (*schema.Schema, error) {
+	var response schema.Schema
+
+	if err := manager.conn.Tx(ctx, func(conn pg.Conn) error {
+		// Get the schema and ACL's
+		if err := manager.conn.Get(ctx, &response, schema.DatabaseName(name)); err != nil {
+			return err
+		}
+
+		// Update the name if it's different
+		if meta.Name != "" && name != meta.Name {
+			if err := conn.Update(ctx, nil, schema.SchemaName(meta.Name), schema.SchemaName(name)); err != nil {
+				return err
+			}
+		} else {
+			meta.Name = name
+		}
+
+		// Update the rest of the metadata
+		if err := conn.Update(ctx, nil, meta, meta); err != nil {
+			return err
+		}
+
+		// TODO Update ACL's
+
+		// Return success
+		return nil
+	}); err != nil {
+		return nil, httperr(err)
+	}
+
+	// Get the schema
+	if err := manager.conn.Get(ctx, &response, schema.SchemaName(meta.Name)); err != nil {
+		return nil, httperr(err)
+	}
+
+	// Return success
+	return &response, nil
 }
 
 ////////////////////////////////////////////////////////////////////////////////
