@@ -187,7 +187,7 @@ func Test_Manager_002(t *testing.T) {
 
 	// Create Database
 	t.Run("CreateDatabase", func(t *testing.T) {
-		meta := schema.Database{
+		meta := schema.DatabaseMeta{
 			Name: "database",
 		}
 		database, err := manager.CreateDatabase(context.TODO(), meta)
@@ -205,7 +205,7 @@ func Test_Manager_002(t *testing.T) {
 
 	// Delete Database
 	t.Run("DeleteDatabase", func(t *testing.T) {
-		database, err := manager.CreateDatabase(context.TODO(), schema.Database{
+		database, err := manager.CreateDatabase(context.TODO(), schema.DatabaseMeta{
 			Name: "database2",
 		})
 		if !assert.NoError(err) {
@@ -229,14 +229,14 @@ func Test_Manager_002(t *testing.T) {
 
 	// Rename a database
 	t.Run("UpdateDatabaseRename", func(t *testing.T) {
-		database, err := manager.CreateDatabase(context.TODO(), schema.Database{
+		database, err := manager.CreateDatabase(context.TODO(), schema.DatabaseMeta{
 			Name: "database3",
 		})
 		if !assert.NoError(err) {
 			t.FailNow()
 		}
 
-		database2, err := manager.UpdateDatabase(context.TODO(), database.Name, schema.Database{
+		database2, err := manager.UpdateDatabase(context.TODO(), database.Name, schema.DatabaseMeta{
 			Name: "database4",
 		})
 		if !assert.NoError(err) {
@@ -268,7 +268,7 @@ func Test_Manager_002(t *testing.T) {
 			t.FailNow()
 		}
 
-		database, err := manager.CreateDatabase(context.TODO(), schema.Database{
+		database, err := manager.CreateDatabase(context.TODO(), schema.DatabaseMeta{
 			Name:  "database5",
 			Owner: role1.Name,
 		})
@@ -277,7 +277,7 @@ func Test_Manager_002(t *testing.T) {
 		}
 		assert.Equal(database.Owner, role1.Name)
 
-		database2, err := manager.UpdateDatabase(context.TODO(), database.Name, schema.Database{
+		database2, err := manager.UpdateDatabase(context.TODO(), database.Name, schema.DatabaseMeta{
 			Owner: role2.Name,
 		})
 		if !assert.NoError(err) {

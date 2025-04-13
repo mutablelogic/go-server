@@ -35,9 +35,10 @@ type SchemaDeleteCommand struct {
 }
 
 type SchemaCreateCommand struct {
-	Name  string   `arg:"" name:"name" help:"Database name"`
-	Owner string   `help:"Database owner"`
-	Acl   []string `help:"Access privileges"`
+	schema.SchemaMeta
+	// Name  string   `arg:"" name:"name" help:"Database name"`
+	// Owner string   `help:"Database owner"`
+	// Acl   []string `help:"Access privileges"`
 }
 
 type SchemaUpdateCommand struct {
@@ -76,18 +77,8 @@ func (cmd SchemaGetCommand) Run(ctx server.Cmd) error {
 
 func (cmd SchemaCreateCommand) Run(ctx server.Cmd) error {
 	return run(ctx, func(ctx context.Context, provider *client.Client) error {
-		// Parse ACL's
-		acl, err := schema.ParseACL(cmd.Acl)
-		if err != nil {
-			return err
-		}
-
 		// Perform request
-		schema, err := provider.CreateSchema(ctx, schema.SchemaMeta{
-			Name:  cmd.Name,
-			Owner: cmd.Owner,
-			Acl:   acl,
-		})
+		schema, err := provider.CreateSchema(ctx, cmd.SchemaMeta)
 		if err != nil {
 			return err
 		}
@@ -109,18 +100,8 @@ func (cmd SchemaUpdateCommand) Run(ctx server.Cmd) error {
 		// Swap names
 		cmd.SchemaCreateCommand.Name, cmd.Name = cmd.Name, cmd.SchemaCreateCommand.Name
 
-		// Parse ACL's
-		acl, err := schema.ParseACL(cmd.Acl)
-		if err != nil {
-			return err
-		}
-
 		// Perform request
-		schema, err := provider.UpdateSchema(ctx, cmd.Name, schema.SchemaMeta{
-			Name:  cmd.SchemaCreateCommand.Name,
-			Owner: cmd.SchemaCreateCommand.Owner,
-			Acl:   acl,
-		})
+		schema, err := provider.UpdateSchema(ctx, cmd.Name, cmd.SchemaMeta)
 		if err != nil {
 			return err
 		}

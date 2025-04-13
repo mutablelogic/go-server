@@ -16,9 +16,14 @@ import (
 type DatabaseName string
 
 type Database struct {
-	Name  string     `json:"name,omitempty" arg:"" help:"Name"`
-	Owner string     `json:"owner,omitempty" help:"Owner"`
-	Acl   []*ACLItem `json:"acl,omitempty" help:"Access privileges"`
+	Oid uint32 `json:"oid"`
+	DatabaseMeta
+}
+
+type DatabaseMeta struct {
+	Name  string  `json:"name,omitempty" arg:"" help:"Name"`
+	Owner string  `json:"owner,omitempty" help:"Owner"`
+	Acl   ACLList `json:"acl,omitempty" help:"Access privileges"`
 }
 
 type DatabaseListRequest struct {
@@ -34,6 +39,14 @@ type DatabaseList struct {
 // STRINGIFY
 
 func (d Database) String() string {
+	data, err := json.MarshalIndent(d, "", "  ")
+	if err != nil {
+		return err.Error()
+	}
+	return string(data)
+}
+
+func (d DatabaseMeta) String() string {
 	data, err := json.MarshalIndent(d, "", "  ")
 	if err != nil {
 		return err.Error()
@@ -104,7 +117,7 @@ func (d DatabaseName) Select(bind *pg.Bind, op pg.Op) (string, error) {
 	}
 }
 
-func (d Database) Select(bind *pg.Bind, op pg.Op) (string, error) {
+func (d DatabaseMeta) Select(bind *pg.Bind, op pg.Op) (string, error) {
 	// Set name
 	if name := strings.TrimSpace(d.Name); name == "" {
 		return "", httpresponse.ErrBadRequest.With("name is missing")
@@ -124,7 +137,7 @@ func (d Database) Select(bind *pg.Bind, op pg.Op) (string, error) {
 ////////////////////////////////////////////////////////////////////////////////
 // WRITER
 
-func (d Database) Insert(bind *pg.Bind) (string, error) {
+func (d DatabaseMeta) Insert(bind *pg.Bind) (string, error) {
 	// Set name
 	if name, err := d.name(); err != nil {
 		return "", err
@@ -139,7 +152,7 @@ func (d Database) Insert(bind *pg.Bind) (string, error) {
 	return databaseCreate, nil
 }
 
-func (d Database) Update(bind *pg.Bind) error {
+func (d DatabaseMeta) Update(bind *pg.Bind) error {
 	// With
 	bind.Set("with", d.with(false))
 
@@ -168,7 +181,8 @@ func (d DatabaseName) Update(bind *pg.Bind) error {
 
 func (d *Database) Scan(row pg.Row) error {
 	var priv []string
-	if err := row.Scan(&d.Name, &d.Owner, &priv); err != nil {
+	d.Acl = ACLList{}
+	if err := row.Scan(&d.Oid, &d.Name, &d.Owner, &priv); err != nil {
 		return err
 	}
 	for _, v := range priv {
@@ -176,7 +190,7 @@ func (d *Database) Scan(row pg.Row) error {
 		if err != nil {
 			return err
 		}
-		d.Acl = append(d.Acl, item)
+		d.Acl.Append(item)
 	}
 	return nil
 }
@@ -198,7 +212,7 @@ func (n *DatabaseList) ScanCount(row pg.Row) error {
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-func (d Database) name() (string, error) {
+func (d DatabaseMeta) name() (string, error) {
 	return DatabaseName(d.Name).name()
 }
 
@@ -214,7 +228,7 @@ func (d DatabaseName) name() (string, error) {
 	}
 }
 
-func (d Database) with(insert bool) string {
+func (d DatabaseMeta) with(insert bool) string {
 	var with []string
 	if owner := strings.TrimSpace(d.Owner); owner != "" {
 		if insert {
@@ -238,7 +252,7 @@ const (
 	databaseSelect = `
 		WITH db AS (
 			SELECT
-				D.datname AS "name", R.rolname AS "owner", D.datacl AS "acl"
+				D.oid AS "oid", D.datname AS "name", R.rolname AS "owner", D.datacl AS "acl"
 			FROM
 				${"schema"}."pg_database" D
 			JOIN

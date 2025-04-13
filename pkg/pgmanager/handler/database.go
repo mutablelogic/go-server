@@ -87,7 +87,7 @@ func databaseList(w http.ResponseWriter, r *http.Request, manager *pgmanager.Man
 
 func databaseCreate(w http.ResponseWriter, r *http.Request, manager *pgmanager.Manager) error {
 	// Parse request
-	var req schema.Database
+	var req schema.DatabaseMeta
 	if err := httprequest.Read(r, &req); err != nil {
 		return httpresponse.Error(w, err)
 	}
@@ -123,7 +123,7 @@ func databaseDelete(w http.ResponseWriter, r *http.Request, manager *pgmanager.M
 
 func databaseUpdate(w http.ResponseWriter, r *http.Request, manager *pgmanager.Manager, name string) error {
 	// Parse request
-	var req schema.Database
+	var req schema.DatabaseMeta
 	if err := httprequest.Read(r, &req); err != nil {
 		return httpresponse.Error(w, err)
 	}

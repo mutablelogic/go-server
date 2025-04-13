@@ -44,7 +44,7 @@ func (c *Client) GetDatabase(ctx context.Context, name string) (*schema.Database
 	return &response, nil
 }
 
-func (c *Client) CreateDatabase(ctx context.Context, database schema.Database) (*schema.Database, error) {
+func (c *Client) CreateDatabase(ctx context.Context, database schema.DatabaseMeta) (*schema.Database, error) {
 	req, err := client.NewJSONRequest(database)
 	if err != nil {
 		return nil, err
@@ -68,7 +68,7 @@ func (c *Client) DeleteDatabase(ctx context.Context, name string, opt ...Opt) er
 	return c.DoWithContext(ctx, client.MethodDelete, nil, client.OptPath("database", name), client.OptQuery(opts.Values))
 }
 
-func (c *Client) UpdateDatabase(ctx context.Context, name string, meta schema.Database) (*schema.Database, error) {
+func (c *Client) UpdateDatabase(ctx context.Context, name string, meta schema.DatabaseMeta) (*schema.Database, error) {
 	req, err := client.NewJSONRequestEx(http.MethodPatch, meta, "")
 	if err != nil {
 		return nil, err

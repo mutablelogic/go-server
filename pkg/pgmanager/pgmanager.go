@@ -3,6 +3,7 @@ package pgmanager
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 
 	// Packages
@@ -103,7 +104,7 @@ func (manager *Manager) CreateRole(ctx context.Context, meta schema.RoleMeta) (*
 	return &role, nil
 }
 
-func (manager *Manager) CreateDatabase(ctx context.Context, meta schema.Database) (*schema.Database, error) {
+func (manager *Manager) CreateDatabase(ctx context.Context, meta schema.DatabaseMeta) (*schema.Database, error) {
 	var database schema.Database
 
 	// Create the database - cannot be done in a transaction
@@ -111,9 +112,13 @@ func (manager *Manager) CreateDatabase(ctx context.Context, meta schema.Database
 		return nil, httperr(err)
 	}
 
-	// TODO: Set ACL's - this must be done in a transaction
+	// Set ACL's - this must be done in a transaction
 	if err := manager.conn.Tx(ctx, func(conn pg.Conn) error {
-		// Return success
+		for _, acl := range meta.Acl {
+			if err := acl.GrantDatabase(ctx, conn, meta.Name); err != nil {
+				return err
+			}
+		}
 		return nil
 	}); err != nil {
 		return nil, errors.Join(httperr(err), manager.conn.Delete(ctx, nil, schema.DatabaseName(meta.Name)))
@@ -135,7 +140,12 @@ func (manager *Manager) CreateSchema(ctx context.Context, meta schema.SchemaMeta
 			return err
 		}
 
-		// TODO: Set ACL's
+		// Set ACL's
+		for _, acl := range meta.Acl {
+			if err := acl.GrantSchema(ctx, conn, meta.Name); err != nil {
+				return err
+			}
+		}
 
 		// Get the schema
 		if err := manager.conn.Get(ctx, &response, schema.SchemaName(meta.Name)); err != nil {
@@ -246,7 +256,7 @@ func (manager *Manager) UpdateRole(ctx context.Context, name string, meta schema
 	return &role, nil
 }
 
-func (manager *Manager) UpdateDatabase(ctx context.Context, name string, meta schema.Database) (*schema.Database, error) {
+func (manager *Manager) UpdateDatabase(ctx context.Context, name string, meta schema.DatabaseMeta) (*schema.Database, error) {
 	var database schema.Database
 
 	if err := manager.conn.Tx(ctx, func(conn pg.Conn) error {
@@ -269,7 +279,50 @@ func (manager *Manager) UpdateDatabase(ctx context.Context, name string, meta sc
 			return err
 		}
 
-		// TODO Update ACL's
+		// Update ACL's
+		if meta.Acl != nil {
+			for _, acl := range database.Acl {
+				if role := meta.Acl.Find(acl.Role); role == nil {
+					// Revoke the older privileges
+					if err := acl.RevokeDatabase(ctx, conn, meta.Name); err != nil {
+						return err
+					}
+				} else if slices.Equal(acl.Priv, role.Priv) {
+					// No change
+				} else if role.IsAll() {
+					// Just grant
+					if err := role.GrantDatabase(ctx, conn, meta.Name); err != nil {
+						return err
+					}
+				} else {
+					fmt.Println("acl", acl.Priv, "=>", role.Priv)
+					// Revoke
+					for _, priv := range acl.Priv {
+						if !slices.Contains(role.Priv, priv) {
+							if err := acl.WithPriv(priv).RevokeDatabase(ctx, conn, meta.Name); err != nil {
+								return err
+							}
+						}
+					}
+					// Grant
+					for _, priv := range role.Priv {
+						if !slices.Contains(acl.Priv, priv) {
+							if err := acl.WithPriv(priv).GrantDatabase(ctx, conn, meta.Name); err != nil {
+								return err
+							}
+						}
+					}
+				}
+			}
+			for _, acl := range meta.Acl {
+				if role := database.Acl.Find(acl.Role); role == nil {
+					// Create new privileges
+					if err := acl.GrantDatabase(ctx, conn, meta.Name); err != nil {
+						return err
+					}
+				}
+			}
+		}
 
 		// Return success
 		return nil
