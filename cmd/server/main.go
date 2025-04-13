@@ -22,6 +22,7 @@ type CLI struct {
 	pgmanager.SchemaCommands
 	pgmanager.ObjectCommands
 	pgmanager.RoleCommands
+	pgmanager.ConnectionCommands
 	certmanager.NameCommands
 	certmanager.CertCommands
 }

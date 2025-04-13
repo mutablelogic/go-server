@@ -70,6 +70,15 @@ func (manager *Manager) ListObjects(ctx context.Context, req schema.ObjectListRe
 	}
 }
 
+func (manager *Manager) ListConnections(ctx context.Context, req schema.ConnectionListRequest) (*schema.ConnectionList, error) {
+	var list schema.ConnectionList
+	if err := manager.conn.List(ctx, &list, req); err != nil {
+		return nil, httperr(err)
+	} else {
+		return &list, nil
+	}
+}
+
 func (manager *Manager) GetRole(ctx context.Context, name string) (*schema.Role, error) {
 	var role schema.Role
 	if err := manager.conn.Get(ctx, &role, schema.RoleName(name)); err != nil {
