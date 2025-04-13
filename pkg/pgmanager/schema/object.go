@@ -81,7 +81,7 @@ func (o ObjectListRequest) Select(bind *pg.Bind, op pg.Op) (string, error) {
 
 	// Database
 	if o.Schema != "" {
-		if database, schema := SchemaName(o.Schema).split(); database == "" || schema == "" {
+		if database, schema := SchemaName(o.Schema).Split(); database == "" || schema == "" {
 			return "", httpresponse.ErrBadRequest.Withf("invalid schema name %q", o.Schema)
 		} else {
 			bind.Append("where", `database = `+bind.Set("database", database))

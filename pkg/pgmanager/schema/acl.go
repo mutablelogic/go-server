@@ -70,7 +70,7 @@ var (
 		's': privSet,         // Parameter
 		'A': privAlterSystem, // Parameter
 		'm': privMaintain,    // Table
-		'*': privWithGrant,   // Grant (also used for ALL)
+		'*': privWithGrant,   // Grant
 	}
 	privsIndex = make(map[string]rune, len(privs))
 )

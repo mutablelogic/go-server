@@ -5,11 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	// Packages
 	pg "github.com/djthorpe/go-pg"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	schema "github.com/mutablelogic/go-server/pkg/pgmanager/schema"
+	"github.com/mutablelogic/go-server/pkg/types"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -54,11 +56,91 @@ func (manager *Manager) ListDatabases(ctx context.Context, req schema.DatabaseLi
 
 func (manager *Manager) ListSchemas(ctx context.Context, req schema.SchemaListRequest) (*schema.SchemaList, error) {
 	var list schema.SchemaList
-	if err := manager.conn.List(ctx, &list, req); err != nil {
-		return nil, httperr(err)
-	} else {
-		return &list, nil
+	var limit uint64 = schema.SchemaListLimit
+
+	// Set limit lower if request limit is lower
+	if req.Limit != nil && types.PtrUint64(req.Limit) < limit {
+		limit = types.PtrUint64(req.Limit)
 	}
+
+	// Allocate the body with capacity
+	list.Body = make([]schema.Schema, 0, limit)
+
+	// Iterate through all the databases
+	if err := manager.withDatabases(ctx, func(database *schema.Database) error {
+		// Filter
+		if name := strings.TrimSpace(req.Database); name != "" && name != database.Name {
+			return nil
+		}
+
+		// Iterate through all the schemas
+		if count, err := manager.withSchemas(ctx, database.Name, func(schema *schema.Schema) error {
+			// Only append to body if we have space
+			if uint64(len(list.Body)) < limit {
+				list.Body = append(list.Body, *schema)
+			}
+			return nil
+		}); err != nil {
+			return err
+		} else {
+			list.Count += count
+		}
+		return nil
+	}); err != nil {
+		return nil, httperr(err)
+	}
+
+	return &list, nil
+}
+
+// Iterate through all the databases
+func (manager *Manager) withDatabases(ctx context.Context, fn func(database *schema.Database) error) error {
+	var req schema.DatabaseListRequest
+	req.Limit = types.Uint64Ptr(50)
+
+	for {
+		databases, err := manager.ListDatabases(ctx, req)
+		if err != nil {
+			return err
+		}
+		for _, database := range databases.Body {
+			if err := fn(&database); err != nil {
+				return err
+			}
+		}
+		if req.Offset >= databases.Count {
+			break
+		} else {
+			req.Offset += types.PtrUint64(req.Limit)
+		}
+	}
+	return nil
+}
+
+// Iterate through all the schemas for a database
+func (manager *Manager) withSchemas(ctx context.Context, database string, fn func(schema *schema.Schema) error) (uint64, error) {
+	var req schema.SchemaListRequest
+	var list schema.SchemaList
+	var count uint64
+	req.Limit = types.Uint64Ptr(50)
+
+	for {
+		if err := manager.conn.Remote(database).With("as", schema.SchemaDef).List(ctx, &list, &req); err != nil {
+			return 0, err
+		}
+		for _, schema := range list.Body {
+			if err := fn(&schema); err != nil {
+				return 0, err
+			}
+		}
+		if req.Offset >= list.Count {
+			break
+		} else {
+			count += list.Count
+			req.Offset += types.PtrUint64(req.Limit)
+		}
+	}
+	return count, nil
 }
 
 func (manager *Manager) ListObjects(ctx context.Context, req schema.ObjectListRequest) (*schema.ObjectList, error) {
@@ -97,7 +179,11 @@ func (manager *Manager) GetDatabase(ctx context.Context, name string) (*schema.D
 
 func (manager *Manager) GetSchema(ctx context.Context, name string) (*schema.Schema, error) {
 	var response schema.Schema
-	if err := manager.conn.Get(ctx, &response, schema.SchemaName(name)); err != nil {
+	database, name := schema.SchemaName(name).Split()
+	if name == "" || database == "" {
+		return nil, httpresponse.ErrBadRequest.With("database or schema is missing")
+	}
+	if err := manager.conn.Remote(database).With("as", schema.SchemaDef).Get(ctx, &response, schema.SchemaName(name)); err != nil {
 		return nil, httperr(err)
 	}
 	return &response, nil
@@ -320,7 +406,6 @@ func (manager *Manager) UpdateDatabase(ctx context.Context, name string, meta sc
 						return err
 					}
 				} else {
-					fmt.Println("acl", acl.Priv, "=>", role.Priv)
 					// Revoke
 					for _, priv := range acl.Priv {
 						if !slices.Contains(role.Priv, priv) {
@@ -387,7 +472,50 @@ func (manager *Manager) UpdateSchema(ctx context.Context, name string, meta sche
 			return err
 		}
 
-		// TODO Update ACL's
+		// Update ACL's
+		if meta.Acl != nil {
+			for _, acl := range response.Acl {
+				if role := meta.Acl.Find(acl.Role); role == nil {
+					// Revoke the older privileges
+					if err := acl.RevokeDatabase(ctx, conn, meta.Name); err != nil {
+						return err
+					}
+				} else if slices.Equal(acl.Priv, role.Priv) {
+					// No change
+				} else if role.IsAll() {
+					// Just grant
+					if err := role.GrantDatabase(ctx, conn, meta.Name); err != nil {
+						return err
+					}
+				} else {
+					fmt.Println("acl", acl.Priv, "=>", role.Priv)
+					// Revoke
+					for _, priv := range acl.Priv {
+						if !slices.Contains(role.Priv, priv) {
+							if err := acl.WithPriv(priv).RevokeDatabase(ctx, conn, meta.Name); err != nil {
+								return err
+							}
+						}
+					}
+					// Grant
+					for _, priv := range role.Priv {
+						if !slices.Contains(acl.Priv, priv) {
+							if err := acl.WithPriv(priv).GrantDatabase(ctx, conn, meta.Name); err != nil {
+								return err
+							}
+						}
+					}
+				}
+			}
+			for _, acl := range meta.Acl {
+				if role := response.Acl.Find(acl.Role); role == nil {
+					// Create new privileges
+					if err := acl.GrantDatabase(ctx, conn, meta.Name); err != nil {
+						return err
+					}
+				}
+			}
+		}
 
 		// Return success
 		return nil

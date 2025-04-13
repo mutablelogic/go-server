@@ -200,7 +200,7 @@ func Test_Manager_002(t *testing.T) {
 		meta.Acl = database.Acl
 
 		// Check equality
-		assert.Equal(*database, meta)
+		assert.Equal(database.DatabaseMeta, meta)
 	})
 
 	// Delete Database
@@ -286,6 +286,46 @@ func Test_Manager_002(t *testing.T) {
 		assert.Equal(database2.Owner, role2.Name)
 	})
 
+	// Add ACL
+	t.Run("AddDatabasePublicAcl", func(t *testing.T) {
+		database, err := manager.CreateDatabase(context.TODO(), schema.DatabaseMeta{
+			Name: "database6",
+			Acl: schema.ACLList{&schema.ACLItem{
+				Role: "PUBLIC",
+				Priv: []string{"ALL"},
+			}},
+		})
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+		roles := database.Acl.Find("PUBLIC")
+		if assert.NotNil(roles) {
+			assert.Equal([]string{"CREATE", "TEMPORARY", "CONNECT"}, roles.Priv)
+		}
+	})
+
+	// Update ACL
+	t.Run("UpdateDatabasePublicAcl", func(t *testing.T) {
+		database, err := manager.CreateDatabase(context.TODO(), schema.DatabaseMeta{
+			Name: "database7",
+		})
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+		database2, err := manager.UpdateDatabase(context.TODO(), database.Name, schema.DatabaseMeta{
+			Acl: schema.ACLList{&schema.ACLItem{
+				Role: "PUBLIC",
+				Priv: []string{"ALL"},
+			}},
+		})
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+		roles := database2.Acl.Find("PUBLIC")
+		if assert.NotNil(roles) {
+			assert.Equal([]string{"CREATE", "TEMPORARY", "CONNECT"}, roles.Priv)
+		}
+	})
 }
 
 func Test_Manager_003(t *testing.T) {

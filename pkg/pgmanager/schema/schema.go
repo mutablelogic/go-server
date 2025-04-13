@@ -17,9 +17,9 @@ import (
 type SchemaName string
 
 type SchemaMeta struct {
-	Name  string     `json:"name,omitempty" arg:"" help:"Name"`
-	Owner string     `json:"owner,omitempty" help:"Owner"`
-	Acl   []*ACLItem `json:"acl,omitempty" help:"Access privileges"`
+	Name  string  `json:"name,omitempty" arg:"" help:"Name"`
+	Owner string  `json:"owner,omitempty" help:"Owner"`
+	Acl   ACLList `json:"acl,omitempty" help:"Access privileges"`
 }
 
 type Schema struct {
@@ -77,15 +77,13 @@ func (s SchemaList) String() string {
 // SELECT
 
 func (d SchemaListRequest) Select(bind *pg.Bind, op pg.Op) (string, error) {
-	// Set empty where
-	bind.Del("where")
+	bind.Set("orderby", `ORDER BY name ASC`)
 
-	// Database
+	// Where
+	bind.Del("where")
 	if d.Database != "" {
 		bind.Append("where", `database = `+bind.Set("database", d.Database))
 	}
-
-	// Set where
 	if where := bind.Join("where", " AND "); where != "" {
 		bind.Set("where", `WHERE `+where)
 	} else {
@@ -106,10 +104,9 @@ func (d SchemaListRequest) Select(bind *pg.Bind, op pg.Op) (string, error) {
 
 func (s SchemaName) Select(bind *pg.Bind, op pg.Op) (string, error) {
 	// Set name
-	if database, name := s.split(); database == "" || name == "" {
-		return "", httpresponse.ErrBadRequest.With("database or schema is missing")
+	if name := strings.TrimSpace(string(s)); name == "" {
+		return "", httpresponse.ErrBadRequest.With("schema is missing")
 	} else {
-		bind.Set("database", database)
 		bind.Set("name", name)
 	}
 
@@ -156,18 +153,16 @@ func (s SchemaMeta) Select(bind *pg.Bind, op pg.Op) (string, error) {
 
 func (s *Schema) Scan(row pg.Row) error {
 	var priv []string
-	var schema string
-	if err := row.Scan(&s.Oid, &s.Database, &schema, &s.Owner, &priv); err != nil {
+	s.Acl = ACLList{}
+	if err := row.Scan(&s.Oid, &s.Database, &s.Name, &s.Owner, &priv); err != nil {
 		return err
-	} else {
-		s.Name = strings.Join([]string{s.Database, schema}, string(schemaSeparator))
 	}
 	for _, v := range priv {
 		item, err := NewACLItem(v)
 		if err != nil {
 			return err
 		}
-		s.Acl = append(s.Acl, item)
+		s.Acl.Append(item)
 	}
 	return nil
 }
@@ -248,11 +243,11 @@ func (d SchemaName) Update(bind *pg.Bind) error {
 
 // Split name into database and schema
 func (s SchemaMeta) split() (string, string) {
-	return SchemaName(s.Name).split()
+	return SchemaName(s.Name).Split()
 }
 
 // Split name into database and schema
-func (s SchemaName) split() (string, string) {
+func (s SchemaName) Split() (string, string) {
 	schema := string(s)
 	if i := strings.IndexRune(schema, schemaSeparator); i > 0 {
 		return schema[:i], schema[i+1:]
@@ -282,6 +277,7 @@ func (s SchemaMeta) with(insert bool) (string, error) {
 // SQL
 
 const (
+	SchemaDef    = `schema ("oid" OID, "database" TEXT, "name" TEXT, "owner" TEXT, "acl" TEXT[])`
 	schemaSelect = `
 		WITH sc AS (
 			SELECT
@@ -295,8 +291,8 @@ const (
 			WHERE
 				S.nspname NOT LIKE 'pg_%' AND S.nspname != 'information_schema'
 		) SELECT * FROM sc`
-	schemaGet    = schemaSelect + ` WHERE "name" = @name AND "database" = @database`
-	schemaList   = `WITH q AS (` + schemaSelect + `) SELECT * FROM q ${where}`
+	schemaGet    = schemaSelect + ` WHERE "name" = ${'name'}`
+	schemaList   = `WITH q AS (` + schemaSelect + `) SELECT * FROM q ${where} ${orderby}`
 	schemaDelete = `DROP SCHEMA ${"name"} ${with}`
 	schemaCreate = `CREATE SCHEMA ${"name"} ${with}`
 	schemaRename = `ALTER SCHEMA ${"old_name"} RENAME TO ${"name"}`

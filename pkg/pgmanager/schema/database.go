@@ -76,6 +76,7 @@ func (d DatabaseList) String() string {
 func (d DatabaseListRequest) Select(bind *pg.Bind, op pg.Op) (string, error) {
 	// Set empty where
 	bind.Set("where", "")
+	bind.Set("orderby", "ORDER BY name ASC")
 
 	// Bind offset and limit
 	d.OffsetLimit.Bind(bind, DatabaseListLimit)
@@ -263,7 +264,7 @@ const (
 				D.datistemplate = false
 		) SELECT * FROM db`
 	databaseGet    = databaseSelect + ` WHERE "name" = @name`
-	databaseList   = `WITH q AS (` + databaseSelect + `) SELECT * FROM q ${where}`
+	databaseList   = `WITH q AS (` + databaseSelect + `) SELECT * FROM q ${where} ${orderby}`
 	databaseCreate = `CREATE DATABASE ${"name"} ${with}`
 	databaseDelete = `DROP DATABASE ${"name"} ${with}`
 	databaseRename = `ALTER DATABASE ${"old_name"} RENAME TO ${"name"}`

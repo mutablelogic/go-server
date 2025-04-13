@@ -4,7 +4,7 @@ go 1.23.5
 
 require (
 	github.com/alecthomas/kong v1.10.0
-	github.com/djthorpe/go-pg v1.0.3
+	github.com/djthorpe/go-pg v1.0.4
 	github.com/mutablelogic/go-client v1.0.12
 	github.com/stretchr/testify v1.10.0
 )

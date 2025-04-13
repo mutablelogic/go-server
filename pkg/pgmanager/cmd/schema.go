@@ -8,6 +8,7 @@ import (
 	server "github.com/mutablelogic/go-server"
 	client "github.com/mutablelogic/go-server/pkg/pgmanager/client"
 	schema "github.com/mutablelogic/go-server/pkg/pgmanager/schema"
+	types "github.com/mutablelogic/go-server/pkg/types"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -51,7 +52,7 @@ type SchemaUpdateCommand struct {
 
 func (cmd SchemaListCommand) Run(ctx server.Cmd) error {
 	return run(ctx, func(ctx context.Context, provider *client.Client) error {
-		databases, err := provider.ListSchemas(ctx, client.WithOffsetLimit(cmd.Offset, cmd.Limit))
+		databases, err := provider.ListSchemas(ctx, client.WithOffsetLimit(cmd.Offset, cmd.Limit), client.WithDatabase(types.StringPtr(cmd.Database)))
 		if err != nil {
 			return err
 		}
