@@ -111,10 +111,7 @@ const (
 				C.pid AS "pid", 
 				C.datname AS "database",
 				C.usename AS "role",
-				CASE 
-					WHEN C.application_name = '' THEN NULL
-					ELSE C.application_name
-				END AS "application",
+				NULLIF(C.application_name, '') AS "application",
 				COALESCE(C.client_hostname,C.client_addr::TEXT) AS "client_addr",
 				C.client_port AS "client_port",
 				C.backend_start AS "conn_start",
