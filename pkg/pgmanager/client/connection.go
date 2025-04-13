@@ -29,3 +29,20 @@ func (c *Client) ListConnections(ctx context.Context, opts ...Opt) (*schema.Conn
 	// Return the responses
 	return &response, nil
 }
+
+func (c *Client) GetConnection(ctx context.Context, pid uint64) (*schema.Connection, error) {
+	req := client.NewRequest()
+
+	// Perform request
+	var response schema.Connection
+	if err := c.DoWithContext(ctx, req, &response, client.OptPath("connection", pid)); err != nil {
+		return nil, err
+	}
+
+	// Return the responses
+	return &response, nil
+}
+
+func (c *Client) DeleteConnection(ctx context.Context, pid uint64) error {
+	return c.DoWithContext(ctx, client.MethodDelete, nil, client.OptPath("connection", pid))
+}

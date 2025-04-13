@@ -2,6 +2,7 @@ package schema
 
 import (
 	"encoding/json"
+	"strings"
 	"time"
 
 	// Packages
@@ -11,6 +12,8 @@ import (
 
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
+
+type ConnectionPid uint64
 
 type Connection struct {
 	Pid         uint32    `json:"pid" help:"Process ID"`
@@ -27,6 +30,9 @@ type Connection struct {
 
 type ConnectionListRequest struct {
 	pg.OffsetLimit
+	Database *string `json:"database,omitempty" help:"Database"`
+	Role     *string `json:"role,omitempty" help:"Role"`
+	State    *string `json:"state,omitempty" help:"State"`
 }
 
 type ConnectionList struct {
@@ -65,10 +71,24 @@ func (c ConnectionList) String() string {
 // SELECT
 
 func (c ConnectionListRequest) Select(bind *pg.Bind, op pg.Op) (string, error) {
-	// Set empty where
-	bind.Set("where", "")
+	// Where
+	bind.Del("where")
+	if c.Database != nil {
+		bind.Append("where", `"database" = `+bind.Set("database", strings.TrimSpace(*c.Database)))
+	}
+	if c.Role != nil {
+		bind.Append("where", `"role" = `+bind.Set("role", strings.TrimSpace(*c.Role)))
+	}
+	if c.State != nil {
+		bind.Append("where", `"state" = `+bind.Set("state", strings.TrimSpace(*c.State)))
+	}
+	if where := bind.Join("where", " AND "); where != "" {
+		bind.Set("where", `WHERE `+where)
+	} else {
+		bind.Set("where", "")
+	}
 
-	// Bind offset and limit
+	// Offset and limit
 	c.OffsetLimit.Bind(bind, ConnectionListLimit)
 
 	// Return query
@@ -80,11 +100,30 @@ func (c ConnectionListRequest) Select(bind *pg.Bind, op pg.Op) (string, error) {
 	}
 }
 
+func (c ConnectionPid) Select(bind *pg.Bind, op pg.Op) (string, error) {
+	if c == 0 {
+		return "", httpresponse.ErrBadRequest.With("missing pid")
+	} else {
+		bind.Set("pid", c)
+	}
+
+	// Return query
+	switch op {
+	case pg.Get:
+		return connectionGet, nil
+	case pg.Delete:
+		return connectionDelete, nil
+	default:
+		return "", httpresponse.ErrInternalError.Withf("unsupported ConnectionListRequest operation %q", op)
+	}
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // READER
 
 func (c *Connection) Scan(row pg.Row) error {
-	return row.Scan(&c.Pid, &c.Database, &c.Role, &c.Application, &c.ClientAddr, &c.ClientPort, &c.ConnStart, &c.QueryStart, &c.Query, &c.State)
+	var result bool
+	return row.Scan(&c.Pid, &c.Database, &c.Role, &c.Application, &c.ClientAddr, &c.ClientPort, &c.ConnStart, &c.QueryStart, &c.Query, &c.State, &result)
 }
 
 func (c *ConnectionList) Scan(row pg.Row) error {
@@ -112,7 +151,7 @@ const (
 				C.datname AS "database",
 				C.usename AS "role",
 				NULLIF(C.application_name, '') AS "application",
-				COALESCE(C.client_hostname,C.client_addr::TEXT) AS "client_addr",
+				COALESCE(C.client_hostname, abbrev(C.client_addr)) AS "client_addr",
 				C.client_port AS "client_port",
 				C.backend_start AS "conn_start",
 				C.query_start AS "query_start",
@@ -125,6 +164,7 @@ const (
 			AND
 				C.state IS NOT NULL
 		) SELECT * FROM conn`
-	connectionGet  = connectionSelect + ` WHERE "pid" = @pid`
-	connectionList = `WITH q AS (` + connectionSelect + `) SELECT * FROM q ${where}`
+	connectionGet    = `WITH q AS (` + connectionSelect + `) SELECT *, false FROM q WHERE "pid" = @pid`
+	connectionList   = `WITH q AS (` + connectionSelect + `) SELECT *, false FROM q ${where}`
+	connectionDelete = `WITH q AS (` + connectionSelect + `) SELECT *, pg_terminate_backend(${pid}) FROM q WHERE pid <> pg_backend_pid()`
 )

@@ -103,6 +103,14 @@ func (manager *Manager) GetSchema(ctx context.Context, name string) (*schema.Sch
 	return &response, nil
 }
 
+func (manager *Manager) GetConnection(ctx context.Context, pid uint64) (*schema.Connection, error) {
+	var response schema.Connection
+	if err := manager.conn.Get(ctx, &response, schema.ConnectionPid(pid)); err != nil {
+		return nil, httperr(err)
+	}
+	return &response, nil
+}
+
 func (manager *Manager) CreateRole(ctx context.Context, meta schema.RoleMeta) (*schema.Role, error) {
 	var role schema.Role
 	if err := manager.conn.Insert(ctx, nil, meta); err != nil {
@@ -205,6 +213,14 @@ func (manager *Manager) DeleteSchema(ctx context.Context, name string, force boo
 		return nil, httperr(err)
 	}
 	return &response, nil
+}
+
+func (manager *Manager) DeleteConnection(ctx context.Context, pid uint64) (*schema.Connection, error) {
+	var connection schema.Connection
+	if err := manager.conn.Delete(ctx, &connection, schema.ConnectionPid(pid)); err != nil {
+		return nil, httperr(err)
+	}
+	return &connection, nil
 }
 
 func (manager *Manager) UpdateRole(ctx context.Context, name string, meta schema.RoleMeta) (*schema.Role, error) {

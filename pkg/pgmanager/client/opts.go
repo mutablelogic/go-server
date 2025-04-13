@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+
+	// Packages
+	types "github.com/mutablelogic/go-server/pkg/types"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -52,6 +55,18 @@ func WithForce(v bool) Opt {
 	} else {
 		return OptSet("force", "")
 	}
+}
+
+func WithDatabase(v *string) Opt {
+	return OptSet("database", types.PtrString(v))
+}
+
+func WithRole(v *string) Opt {
+	return OptSet("role", types.PtrString(v))
+}
+
+func WithState(v *string) Opt {
+	return OptSet("state", types.PtrString(v))
 }
 
 func WithSchema(v string) Opt {
