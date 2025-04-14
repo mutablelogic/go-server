@@ -12,10 +12,9 @@ import (
 	"text/scanner"
 
 	// Packages
-
 	pg "github.com/djthorpe/go-pg"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
-	"github.com/mutablelogic/go-server/pkg/types"
+	types "github.com/mutablelogic/go-server/pkg/types"
 )
 
 /////////////////////////////////////////////////////////////////////////////
