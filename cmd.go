@@ -17,7 +17,7 @@ type Cmd interface {
 	Context() context.Context
 
 	// Return the debug mode
-	GetDebug() bool
+	GetDebug() DebugLevel
 
 	// Return the endpoint
 	GetEndpoint(paths ...string) *url.URL
@@ -29,7 +29,18 @@ type Cmd interface {
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
+type DebugLevel uint
+
 type CmdOffsetLimit struct {
 	Offset uint64  `name:"offset" help:"List item offset"`
 	Limit  *uint64 `name:"limit" help:"List item limit"`
 }
+
+///////////////////////////////////////////////////////////////////////////////
+// GLOBALS
+
+const (
+	None DebugLevel = iota
+	Debug
+	Trace
+)

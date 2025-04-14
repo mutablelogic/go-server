@@ -59,8 +59,14 @@ func (app *Globals) Context() context.Context {
 	return app.ctx
 }
 
-func (app *Globals) GetDebug() bool {
-	return app.Debug || app.Trace
+func (app *Globals) GetDebug() server.DebugLevel {
+	if app.Debug {
+		return server.Debug
+	}
+	if app.Trace {
+		return server.Trace
+	}
+	return server.None
 }
 
 func (app *Globals) GetEndpoint(paths ...string) *url.URL {

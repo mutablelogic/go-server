@@ -57,7 +57,7 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 		switch label {
 		case "log":
 			config := plugin.(log.Config)
-			config.Debug = app.GetDebug()
+			config.Debug = app.GetDebug() >= server.Debug
 			return config, nil
 		case "certmanager":
 			config := plugin.(certmanager.Config)
@@ -109,7 +109,7 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 			}
 
 			// Set trace
-			if app.GetDebug() {
+			if app.GetDebug() == server.Trace {
 				config.Trace = func(ctx context.Context, query string, args any, err error) {
 					if err != nil {
 						provider.Log(ctx).With("args", args).Print(ctx, err, " ON ", query)

@@ -56,9 +56,10 @@ func (manager *Manager) ListDatabases(ctx context.Context, req schema.DatabaseLi
 
 func (manager *Manager) ListSchemas(ctx context.Context, req schema.SchemaListRequest) (*schema.SchemaList, error) {
 	var list schema.SchemaList
-	var limit uint64 = schema.SchemaListLimit
+	var offset, limit uint64
 
 	// Set limit lower if request limit is lower
+	limit = schema.SchemaListLimit
 	if req.Limit != nil && types.PtrUint64(req.Limit) < limit {
 		limit = types.PtrUint64(req.Limit)
 	}
@@ -67,80 +68,34 @@ func (manager *Manager) ListSchemas(ctx context.Context, req schema.SchemaListRe
 	list.Body = make([]schema.Schema, 0, limit)
 
 	// Iterate through all the databases
-	if err := manager.withDatabases(ctx, func(database *schema.Database) error {
-		// Filter
+	if _, err := manager.withDatabases(ctx, func(database *schema.Database) error {
+		// Filter by database
 		if name := strings.TrimSpace(req.Database); name != "" && name != database.Name {
 			return nil
 		}
 
 		// Iterate through all the schemas
-		if count, err := manager.withSchemas(ctx, database.Name, func(schema *schema.Schema) error {
-			// Only append to body if we have space
-			if uint64(len(list.Body)) < limit {
+		count, err := manager.withSchemas(ctx, database.Name, func(schema *schema.Schema) error {
+			if offset >= req.Offset && uint64(len(list.Body)) < limit {
 				list.Body = append(list.Body, *schema)
 			}
+			offset++
 			return nil
-		}); err != nil {
+		})
+		if err != nil {
 			return err
-		} else {
-			list.Count += count
 		}
+
+		// Increment the count
+		list.Count += count
+
+		// Return success
 		return nil
 	}); err != nil {
 		return nil, httperr(err)
 	}
 
 	return &list, nil
-}
-
-// Iterate through all the databases
-func (manager *Manager) withDatabases(ctx context.Context, fn func(database *schema.Database) error) error {
-	var req schema.DatabaseListRequest
-	req.Limit = types.Uint64Ptr(50)
-
-	for {
-		databases, err := manager.ListDatabases(ctx, req)
-		if err != nil {
-			return err
-		}
-		for _, database := range databases.Body {
-			if err := fn(&database); err != nil {
-				return err
-			}
-		}
-		if req.Offset >= databases.Count {
-			break
-		} else {
-			req.Offset += types.PtrUint64(req.Limit)
-		}
-	}
-	return nil
-}
-
-// Iterate through all the schemas for a database
-func (manager *Manager) withSchemas(ctx context.Context, database string, fn func(schema *schema.Schema) error) (uint64, error) {
-	var req schema.SchemaListRequest
-	var list schema.SchemaList
-	var count uint64
-	req.Limit = types.Uint64Ptr(50)
-
-	for {
-		if err := manager.conn.Remote(database).With("as", schema.SchemaDef).List(ctx, &list, &req); err != nil {
-			return 0, err
-		}
-		for _, schema := range list.Body {
-			if err := fn(&schema); err != nil {
-				return 0, err
-			}
-		}
-		if req.Offset >= list.Count {
-			break
-		} else {
-			count += list.Count
-			req.Offset += types.PtrUint64(req.Limit)
-		}
-	}
-	return count, nil
 }
 
 func (manager *Manager) ListObjects(ctx context.Context, req schema.ObjectListRequest) (*schema.ObjectList, error) {
@@ -215,7 +170,7 @@ func (manager *Manager) CreateDatabase(ctx context.Context, meta schema.Database
 		return nil, httperr(err)
 	}
 
-	// Set ACL's - this must be done in a transaction
+	// Set ACL's - this can be done in a transaction
 	if err := manager.conn.Tx(ctx, func(conn pg.Conn) error {
 		for _, acl := range meta.Acl {
 			if err := acl.GrantDatabase(ctx, conn, meta.Name); err != nil {
@@ -224,6 +179,7 @@ func (manager *Manager) CreateDatabase(ctx context.Context, meta schema.Database
 		}
 		return nil
 	}); err != nil {
+		// Delete the database if there is an issue with ACL's
 		return nil, errors.Join(httperr(err), manager.conn.Delete(ctx, nil, schema.DatabaseName(meta.Name)))
 	}
 
@@ -231,6 +187,8 @@ func (manager *Manager) CreateDatabase(ctx context.Context, meta schema.Database
 	if err := manager.conn.Get(ctx, &database, schema.DatabaseName(meta.Name)); err != nil {
 		return nil, httperr(err)
 	}
+
+	// Return success
 	return &database, nil
 }
 
@@ -540,4 +498,59 @@ func httperr(err error) error {
 		return httpresponse.ErrNotFound.With(err)
 	}
 	return err
+}
+
+// Iterate through all the databases
+func (manager *Manager) withDatabases(ctx context.Context, fn func(database *schema.Database) error) (uint64, error) {
+	var req schema.DatabaseListRequest
+	req.Offset = 0
+	req.Limit = types.Uint64Ptr(schema.DatabaseListLimit)
+
+	for {
+		list, err := manager.ListDatabases(ctx, req)
+		if err != nil {
+			return 0, err
+		}
+		for _, database := range list.Body {
+			if err := fn(&database); err != nil {
+				return 0, err
+			}
+		}
+
+		// Determine if the next page is over the count
+		next := req.Offset + types.PtrUint64(req.Limit)
+		if next >= list.Count {
+			return list.Count, nil
+		} else {
+			req.Offset = next
+		}
+	}
+}
+
+// Iterate through all the schemas for a database
+func (manager *Manager) withSchemas(ctx context.Context, database string, fn func(schema *schema.Schema) error) (uint64, error) {
+	var req schema.SchemaListRequest
+	req.Offset = 0
+	req.Limit = types.Uint64Ptr(schema.SchemaListLimit)
+
+	for {
+		var list schema.SchemaList
+		if err := manager.conn.Remote(database).With("as", schema.SchemaDef).List(ctx, &list, &req); err != nil {
+			return 0, err
+		}
+
+		for _, schema := range list.Body {
+			if err := fn(&schema); err != nil {
+				return 0, err
+			}
+		}
+
+		// Determine if the next page is over the count
+		next := req.Offset + types.PtrUint64(req.Limit)
+		if next >= list.Count {
+			return list.Count, nil
+		} else {
+			req.Offset = next
+		}
+	}
 }
