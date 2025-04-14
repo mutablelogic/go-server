@@ -3,7 +3,6 @@ package pgmanager
 import (
 	"context"
 	"errors"
-	"fmt"
 	"slices"
 	"strings"
 
@@ -95,16 +94,53 @@ func (manager *Manager) ListSchemas(ctx context.Context, req schema.SchemaListRe
 		return nil, httperr(err)
 	}
 
+	// Return success
 	return &list, nil
 }
 
 func (manager *Manager) ListObjects(ctx context.Context, req schema.ObjectListRequest) (*schema.ObjectList, error) {
 	var list schema.ObjectList
-	if err := manager.conn.List(ctx, &list, req); err != nil {
-		return nil, httperr(err)
-	} else {
-		return &list, nil
+	var offset, limit uint64
+
+	// Set limit lower if request limit is lower
+	limit = schema.ObjectListLimit
+	if req.Limit != nil && types.PtrUint64(req.Limit) < limit {
+		limit = types.PtrUint64(req.Limit)
 	}
+
+	// Allocate the body with capacity
+	list.Body = make([]schema.Object, 0, limit)
+
+	// Iterate through all the databases
+	if _, err := manager.withDatabases(ctx, func(database *schema.Database) error {
+		// Filter by database
+		if name := strings.TrimSpace(types.PtrString(req.Database)); name != "" && name != database.Name {
+			return nil
+		}
+
+		// Iterate through all the objects
+		count, err := manager.withObjects(ctx, database.Name, func(object *schema.Object) error {
+			if offset >= req.Offset && uint64(len(list.Body)) < limit {
+				list.Body = append(list.Body, *object)
+			}
+			offset++
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+
+		// Increment the count
+		list.Count += count
+
+		// Return success
+		return nil
+	}); err != nil {
+		return nil, httperr(err)
+	}
+
+	// Return success
+	return &list, nil
 }
 
 func (manager *Manager) ListConnections(ctx context.Context, req schema.ConnectionListRequest) (*schema.ConnectionList, error) {
@@ -416,79 +452,82 @@ func (manager *Manager) UpdateDatabase(ctx context.Context, name string, meta sc
 func (manager *Manager) UpdateSchema(ctx context.Context, name string, meta schema.SchemaMeta) (*schema.Schema, error) {
 	var response schema.Schema
 
-	if err := manager.conn.Tx(ctx, func(conn pg.Conn) error {
-		// Get the schema and ACL's
-		if err := manager.conn.Get(ctx, &response, schema.DatabaseName(name)); err != nil {
-			return err
-		}
-
-		// Update the name if it's different
-		if meta.Name != "" && name != meta.Name {
-			if err := conn.Update(ctx, nil, schema.SchemaName(meta.Name), schema.SchemaName(name)); err != nil {
-				return err
-			}
-		} else {
-			meta.Name = name
-		}
-
-		// Update the rest of the metadata
-		if err := conn.Update(ctx, nil, meta, meta); err != nil {
-			return err
-		}
-
-		// Update ACL's
-		if meta.Acl != nil {
-			for _, acl := range response.Acl {
-				if role := meta.Acl.Find(acl.Role); role == nil {
-					// Revoke the older privileges
-					if err := acl.RevokeDatabase(ctx, conn, meta.Name); err != nil {
-						return err
-					}
-				} else if slices.Equal(acl.Priv, role.Priv) {
-					// No change
-				} else if role.IsAll() {
-					// Just grant
-					if err := role.GrantDatabase(ctx, conn, meta.Name); err != nil {
-						return err
-					}
-				} else {
-					fmt.Println("acl", acl.Priv, "=>", role.Priv)
-					// Revoke
-					for _, priv := range acl.Priv {
-						if !slices.Contains(role.Priv, priv) {
-							if err := acl.WithPriv(priv).RevokeDatabase(ctx, conn, meta.Name); err != nil {
-								return err
-							}
-						}
-					}
-					// Grant
-					for _, priv := range role.Priv {
-						if !slices.Contains(acl.Priv, priv) {
-							if err := acl.WithPriv(priv).GrantDatabase(ctx, conn, meta.Name); err != nil {
-								return err
-							}
-						}
-					}
-				}
-			}
-			for _, acl := range meta.Acl {
-				if role := response.Acl.Find(acl.Role); role == nil {
-					// Create new privileges
-					if err := acl.GrantDatabase(ctx, conn, meta.Name); err != nil {
-						return err
-					}
-				}
-			}
-		}
-
-		// Return success
-		return nil
-	}); err != nil {
-		return nil, httperr(err)
+	// Split the name between the database and the schema
+	database, name := schema.SchemaName(name).Split()
+	if name == "" || database == "" {
+		return nil, httpresponse.ErrBadRequest.With("database or schema is missing")
 	}
 
 	// Get the schema
-	if err := manager.conn.Get(ctx, &response, schema.SchemaName(meta.Name)); err != nil {
+	if err := manager.conn.Remote(database).With("as", schema.SchemaDef).Get(ctx, &response, schema.SchemaName(name)); err != nil {
+		return nil, httperr(err)
+	}
+
+	// Update the name if it's different
+	if rename := strings.TrimSpace(meta.Name); rename != "" && name != rename {
+		if err := manager.conn.Remote(database).Update(ctx, nil, schema.SchemaName(rename), schema.SchemaName(name)); err != nil {
+			return nil, httperr(err)
+		} else {
+			meta.Name = rename
+		}
+	} else {
+		meta.Name = name
+	}
+
+	// Update the owner
+	if owner := strings.TrimSpace(meta.Owner); owner != "" && response.Owner != owner {
+		if err := manager.conn.Remote(database).Update(ctx, nil, meta, meta); err != nil {
+			return nil, httperr(err)
+		}
+	}
+
+	// Update ACL's
+	if meta.Acl != nil {
+		for _, acl := range response.Acl {
+			if role := meta.Acl.Find(acl.Role); role == nil {
+				// Revoke the older privileges
+				if err := acl.RevokeSchema(ctx, manager.conn.Remote(database), meta.Name); err != nil {
+					return nil, httperr(err)
+				}
+			} else if slices.Equal(acl.Priv, role.Priv) {
+				// No change
+			} else if role.IsAll() {
+				// Just grant
+				if err := role.GrantSchema(ctx, manager.conn.Remote(database), meta.Name); err != nil {
+					return nil, httperr(err)
+				}
+			} else {
+				// Revoke
+				for _, priv := range acl.Priv {
+					if !slices.Contains(role.Priv, priv) {
+						if err := acl.WithPriv(priv).RevokeSchema(ctx, manager.conn.Remote(database), meta.Name); err != nil {
+							return nil, httperr(err)
+						}
+					}
+				}
+				// Grant
+				for _, priv := range role.Priv {
+					if !slices.Contains(acl.Priv, priv) {
+						if err := acl.WithPriv(priv).GrantSchema(ctx, manager.conn.Remote(database), meta.Name); err != nil {
+							return nil, httperr(err)
+						}
+					}
+				}
+			}
+		}
+
+		// Create new privileges
+		for _, acl := range meta.Acl {
+			if role := response.Acl.Find(acl.Role); role == nil {
+				if err := acl.GrantSchema(ctx, manager.conn.Remote(database), meta.Name); err != nil {
+					return nil, httperr(err)
+				}
+			}
+		}
+	}
+
+	// Get the schema
+	if err := manager.conn.Remote(database).With("as", schema.SchemaDef).Get(ctx, &response, schema.SchemaName(meta.Name)); err != nil {
 		return nil, httperr(err)
 	}
 
@@ -547,6 +586,35 @@ func (manager *Manager) withSchemas(ctx context.Context, database string, fn fun
 
 		for _, schema := range list.Body {
 			if err := fn(&schema); err != nil {
+				return 0, err
+			}
+		}
+
+		// Determine if the next page is over the count
+		next := req.Offset + types.PtrUint64(req.Limit)
+		if next >= list.Count {
+			return list.Count, nil
+		} else {
+			req.Offset = next
+		}
+	}
+}
+
+// Iterate through all the objects for a database
+func (manager *Manager) withObjects(ctx context.Context, database string, fn func(schema *schema.Object) error) (uint64, error) {
+	var req schema.ObjectListRequest
+	req.Database = types.StringPtr(database)
+	req.Offset = 0
+	req.Limit = types.Uint64Ptr(schema.ObjectListLimit)
+
+	for {
+		var list schema.ObjectList
+		if err := manager.conn.Remote(database).With("as", schema.ObjectDef).List(ctx, &list, &req); err != nil {
+			return 0, err
+		}
+
+		for _, object := range list.Body {
+			if err := fn(&object); err != nil {
 				return 0, err
 			}
 		}

@@ -6,6 +6,7 @@ import (
 
 	pg "github.com/djthorpe/go-pg"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
+	"github.com/mutablelogic/go-server/pkg/types"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -28,7 +29,8 @@ type Object struct {
 }
 
 type ObjectListRequest struct {
-	Schema string `json:"schema,omitempty" help:"Schema"`
+	Database *string `json:"database,omitempty" help:"Database"`
+	Schema   *string `json:"schema,omitempty" help:"Schema"`
 	pg.OffsetLimit
 }
 
@@ -76,20 +78,14 @@ func (o ObjectList) String() string {
 // SELECT
 
 func (o ObjectListRequest) Select(bind *pg.Bind, op pg.Op) (string, error) {
-	// Set empty where
+	// Order
+	bind.Set("orderby", `ORDER BY schema ASC, name ASC`)
+
+	// Where
 	bind.Del("where")
-
-	// Database
-	if o.Schema != "" {
-		if database, schema := SchemaName(o.Schema).Split(); database == "" || schema == "" {
-			return "", httpresponse.ErrBadRequest.Withf("invalid schema name %q", o.Schema)
-		} else {
-			bind.Append("where", `database = `+bind.Set("database", database))
-			bind.Append("where", `schema = `+bind.Set("schema", schema))
-		}
+	if schema := strings.TrimSpace(types.PtrString(o.Schema)); schema != "" {
+		bind.Append("where", `schema = `+bind.Set("schema", schema))
 	}
-
-	// Set where
 	if where := bind.Join("where", " AND "); where != "" {
 		bind.Set("where", `WHERE `+where)
 	} else {
@@ -113,13 +109,8 @@ func (o ObjectListRequest) Select(bind *pg.Bind, op pg.Op) (string, error) {
 
 func (o *Object) Scan(row pg.Row) error {
 	var priv []string
-	var database, schema, name string
-	if err := row.Scan(&o.Oid, &database, &schema, &name, &o.Type, &o.Owner, &priv); err != nil {
+	if err := row.Scan(&o.Oid, &o.Database, &o.Schema, &o.Name, &o.Type, &o.Owner, &priv); err != nil {
 		return err
-	} else {
-		o.Database = database
-		o.Schema = schema
-		o.Name = strings.Join([]string{database, schema, name}, string(schemaSeparator))
 	}
 	for _, v := range priv {
 		item, err := NewACLItem(v)
@@ -149,6 +140,7 @@ func (o *ObjectList) ScanCount(row pg.Row) error {
 // SQL
 
 const (
+	ObjectDef    = `object ("oid" OID, "database" TEXT, "schema" TEXT, "object" TEXT, "kind" TEXT, "owner" TEXT, "acl" TEXT[])`
 	objectSelect = `
 		WITH objects AS (
 			SELECT
@@ -179,6 +171,6 @@ const (
 				N.nspname NOT LIKE 'pg_%' AND N.nspname != 'information_schema'
 		) SELECT * FROM objects
 	`
-	objectGet  = objectSelect + `WHERE name = @name AND database = @database AND schema = @schema`
-	objectList = `WITH q AS (` + objectSelect + `) SELECT * FROM q ${where}`
+	objectGet  = objectSelect + `WHERE name = ${'name'} AND schema = ${'schema'}`
+	objectList = `WITH q AS (` + objectSelect + `) SELECT * FROM q ${where} ${orderby}`
 )

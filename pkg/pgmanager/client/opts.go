@@ -3,7 +3,6 @@ package client
 import (
 	"fmt"
 	"net/url"
-	"strings"
 
 	// Packages
 	types "github.com/mutablelogic/go-server/pkg/types"
@@ -69,12 +68,8 @@ func WithState(v *string) Opt {
 	return OptSet("state", types.PtrString(v))
 }
 
-func WithSchema(v string) Opt {
-	if v = strings.TrimSpace(v); v != "" {
-		return OptSet("schema", v)
-	} else {
-		return OptSet("schema", "")
-	}
+func WithSchema(v *string) Opt {
+	return OptSet("schema", types.PtrString(v))
 }
 
 func OptSet(k, v string) Opt {

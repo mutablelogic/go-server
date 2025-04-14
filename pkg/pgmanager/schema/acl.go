@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"regexp"
 	"slices"
 	"strconv"
@@ -303,6 +304,11 @@ func (acl *ACLList) Append(item *ACLItem) {
 	if acl == nil {
 		panic("nil ACLList")
 	}
+
+	if acl.Find(item.Role) != nil {
+		fmt.Println("TODO: Merge two ACLItems for", item.Role)
+	}
+
 	*acl = append(*acl, item)
 }
 

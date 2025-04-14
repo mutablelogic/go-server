@@ -76,6 +76,7 @@ func (s SchemaList) String() string {
 // SELECT
 
 func (d SchemaListRequest) Select(bind *pg.Bind, op pg.Op) (string, error) {
+	// Order
 	bind.Set("orderby", `ORDER BY name ASC`)
 
 	// Where
@@ -131,10 +132,9 @@ func (s SchemaName) Select(bind *pg.Bind, op pg.Op) (string, error) {
 
 func (s SchemaMeta) Select(bind *pg.Bind, op pg.Op) (string, error) {
 	// Set name
-	if database, name := s.split(); database == "" || name == "" {
-		return "", httpresponse.ErrBadRequest.With("database or schema is missing")
+	if name := strings.TrimSpace(s.Name); name == "" {
+		return "", httpresponse.ErrBadRequest.With("schema is missing")
 	} else {
-		bind.Set("database", database)
 		bind.Set("name", name)
 	}
 
@@ -187,12 +187,9 @@ func (s SchemaMeta) Insert(bind *pg.Bind) (string, error) {
 	// Set name
 	if name := strings.TrimSpace(s.Name); name == "" {
 		return "", httpresponse.ErrBadRequest.With("name is missing")
-	} else if database, name := s.split(); database == "" {
-		return "", httpresponse.ErrBadRequest.With("database is missing")
-	} else if strings.HasPrefix(name, reservedPrefix) || strings.HasPrefix(database, reservedPrefix) {
+	} else if strings.HasPrefix(name, reservedPrefix) {
 		return "", httpresponse.ErrBadRequest.Withf("cannot create a schema prefixed with %q", reservedPrefix)
 	} else {
-		bind.Set("database", database)
 		bind.Set("name", name)
 	}
 
@@ -228,6 +225,8 @@ func (d SchemaName) Update(bind *pg.Bind) error {
 		return httpresponse.ErrBadRequest.With("name is missing")
 	} else if strings.HasPrefix(name, reservedPrefix) {
 		return httpresponse.ErrBadRequest.Withf("cannot create a schema prefixed with %q", reservedPrefix)
+	} else if strings.ToLower(name) == defaultSchema {
+		return httpresponse.ErrBadRequest.Withf("cannot rename schema %q", name)
 	} else {
 		bind.Set("old_name", name)
 	}
@@ -236,11 +235,6 @@ func (d SchemaName) Update(bind *pg.Bind) error {
 
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
-
-// Split name into database and schema
-func (s SchemaMeta) split() (string, string) {
-	return SchemaName(s.Name).Split()
-}
 
 // Split name into database and schema
 func (s SchemaName) Split() (string, string) {
@@ -266,7 +260,11 @@ func (s SchemaMeta) with(insert bool) (string, error) {
 		return strings.Join(with, " "), nil
 	}
 
-	return "", httpresponse.ErrBadRequest.With("missing owner")
+	if insert {
+		return "", httpresponse.ErrBadRequest.With("missing owner")
+	} else {
+		return "", nil
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
