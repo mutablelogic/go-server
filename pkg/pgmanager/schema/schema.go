@@ -2,7 +2,6 @@ package schema
 
 import (
 	"encoding/json"
-	"fmt"
 	"strings"
 
 	// Packages
@@ -196,9 +195,6 @@ func (s SchemaMeta) Insert(bind *pg.Bind) (string, error) {
 		bind.Set("database", database)
 		bind.Set("name", name)
 	}
-
-	// TODO: Check database is the current one
-	fmt.Printf("TODO: Check database is the current one: %q\n", bind.Get("database"))
 
 	// Set with
 	if with, err := s.with(true); err != nil {

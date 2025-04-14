@@ -195,30 +195,30 @@ func (manager *Manager) CreateDatabase(ctx context.Context, meta schema.Database
 func (manager *Manager) CreateSchema(ctx context.Context, meta schema.SchemaMeta) (*schema.Schema, error) {
 	var response schema.Schema
 
-	if err := manager.conn.Tx(ctx, func(conn pg.Conn) error {
-		// Create the database - cannot be done in a transaction
-		if err := manager.conn.Insert(ctx, nil, meta); err != nil {
-			return err
-		}
+	// Split the name between the database and the schema
+	database, name := schema.SchemaName(meta.Name).Split()
+	if name == "" || database == "" {
+		return nil, httpresponse.ErrBadRequest.With("database or schema is missing")
+	}
 
-		// Set ACL's
-		for _, acl := range meta.Acl {
-			if err := acl.GrantSchema(ctx, conn, meta.Name); err != nil {
-				return err
-			}
-		}
-
-		// Get the schema
-		if err := manager.conn.Get(ctx, &response, schema.SchemaName(meta.Name)); err != nil {
-			return err
-		}
-
-		// Return success
-		return nil
-	}); err != nil {
+	// Create the schema
+	if err := manager.conn.Remote(database).Insert(ctx, nil, meta); err != nil {
 		return nil, httperr(err)
 	}
 
+	// Set ACL's
+	for _, acl := range meta.Acl {
+		if err := acl.GrantSchema(ctx, manager.conn.Remote(database), name); err != nil {
+			return nil, errors.Join(httperr(err), httperr(manager.conn.Remote(database).With("force", true).Delete(ctx, nil, schema.SchemaName(name))))
+		}
+	}
+
+	// Get the schema
+	if err := manager.conn.Remote(database).With("as", schema.SchemaDef).Get(ctx, &response, schema.SchemaName(name)); err != nil {
+		return nil, errors.Join(httperr(err), httperr(manager.conn.Remote(database).With("force", true).Delete(ctx, nil, schema.SchemaName(name))))
+	}
+
+	// Return success
 	return &response, nil
 }
 
@@ -245,17 +245,23 @@ func (manager *Manager) DeleteDatabase(ctx context.Context, name string, force b
 func (manager *Manager) DeleteSchema(ctx context.Context, name string, force bool) (*schema.Schema, error) {
 	var response schema.Schema
 
-	if err := manager.conn.Tx(ctx, func(conn pg.Conn) error {
-		if err := manager.conn.Get(ctx, &response, schema.SchemaName(name)); err != nil {
-			return err
-		}
-		if err := manager.conn.With("force", force).Delete(ctx, nil, schema.SchemaName(name)); err != nil {
-			return err
-		}
-		return nil
-	}); err != nil {
+	// Split the name between the database and the schema
+	database, name := schema.SchemaName(name).Split()
+	if name == "" || database == "" {
+		return nil, httpresponse.ErrBadRequest.With("database or schema is missing")
+	}
+
+	// Get the schema
+	if err := manager.conn.Remote(database).With("as", schema.SchemaDef).Get(ctx, &response, schema.SchemaName(name)); err != nil {
 		return nil, httperr(err)
 	}
+
+	// Delete the schema
+	if err := manager.conn.Remote(database).With("force", force).Delete(ctx, nil, schema.SchemaName(name)); err != nil {
+		return nil, httperr(err)
+	}
+
+	// Return success
 	return &response, nil
 }
 
