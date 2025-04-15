@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	// Packages
-	"github.com/djthorpe/go-pg"
+	pg "github.com/djthorpe/go-pg"
 	server "github.com/mutablelogic/go-server"
 	httprequest "github.com/mutablelogic/go-server/pkg/httprequest"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"

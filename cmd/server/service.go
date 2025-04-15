@@ -11,6 +11,7 @@ import (
 	types "github.com/mutablelogic/go-server/pkg/types"
 
 	// Plugins
+	auth "github.com/mutablelogic/go-server/plugin/auth"
 	certmanager "github.com/mutablelogic/go-server/plugin/certmanager"
 	httprouter "github.com/mutablelogic/go-server/plugin/httprouter"
 	httpserver "github.com/mutablelogic/go-server/plugin/httpserver"
@@ -31,6 +32,9 @@ type ServiceRunCommand struct {
 	} `embed:""`
 	Server struct {
 		httpserver.Config `embed:"" prefix:"server."` // Server configuration
+	} `embed:""`
+	Auth struct {
+		auth.Config `embed:"" prefix:"auth."` // Auth configuration
 	} `embed:""`
 	PGPool struct {
 		pg.Config `embed:"" prefix:"pg."` // Postgresql configuration
@@ -77,6 +81,7 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 			}
 
 			return config, nil
+
 		case "httpserver":
 			config := plugin.(httpserver.Config)
 
@@ -98,6 +103,27 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 
 			// Return the new configuration with the router
 			return config, nil
+
+		case "auth":
+			config := plugin.(auth.Config)
+
+			// Set the router
+			if router, ok := provider.Provider(ctx).Task(ctx, "httprouter").(server.HTTPRouter); !ok || router == nil {
+				return nil, httpresponse.ErrInternalError.Withf("Invalid router %q", label)
+			} else {
+				config.Router = router
+			}
+
+			// Set the connection pool
+			if pool, ok := provider.Provider(ctx).Task(ctx, "pgpool").(server.PG); !ok || pool == nil {
+				return nil, httpresponse.ErrInternalError.Withf("Invalid connection pool %q", label)
+			} else {
+				config.Pool = pool
+			}
+
+			// Return the new configuration
+			return config, nil
+
 		case "pgpool":
 			config := plugin.(pg.Config)
 
@@ -125,7 +151,7 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 
 		// No-op
 		return plugin, nil
-	}, cmd.Log.Config, cmd.Router.Config, cmd.Server.Config, cmd.PGPool.Config, cmd.CertManager.Config)
+	}, cmd.Log.Config, cmd.Router.Config, cmd.Server.Config, cmd.Auth.Config, cmd.PGPool.Config, cmd.CertManager.Config)
 	if err != nil {
 		return err
 	}

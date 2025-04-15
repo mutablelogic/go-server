@@ -43,6 +43,7 @@ func main() {
 			"USER":        userName(),
 			"CERT_PREFIX": "/cert/v1",
 			"PG_PREFIX":   "/pg/v1",
+			"AUTH_PREFIX": "/auth/v1",
 		},
 	)
 
