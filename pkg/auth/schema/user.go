@@ -110,16 +110,27 @@ func (user UserName) Select(bind *pg.Bind, op pg.Op) (string, error) {
 	}
 }
 
-func (list UserListRequest) Select(bind *pg.Bind, op pg.Op) (string, error) {
-
+func (list *UserListRequest) Select(bind *pg.Bind, op pg.Op) (string, error) {
 	// Where
 	bind.Del("where")
-	if status := types.PtrString(list.Status); status != "" {
-		bind.Append("where", `status = `+bind.Set("status", status))
+
+	// Status
+	if status := types.TrimStringPtr(list.Status); status == nil {
+		list.Status = types.StringPtr(string(UserStatusLive))
+	} else {
+		list.Status = status
 	}
-	if scope := types.PtrString(list.Scope); scope != "" {
-		bind.Append("where", `scope @> `+bind.Set("scope", []string{scope}))
+	if list.Status != nil {
+		bind.Append("where", `status = `+bind.Set("status", list.Status))
 	}
+
+	// Scope
+	list.Scope = types.TrimStringPtr(list.Scope)
+	if list.Scope != nil {
+		bind.Append("where", `scope @> `+bind.Set("scope", []string{types.PtrString(list.Scope)}))
+	}
+
+	// Where AND
 	if where := bind.Join("where", " AND "); where != "" {
 		bind.Set("where", `WHERE `+where)
 	} else {

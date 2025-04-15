@@ -180,7 +180,7 @@ func (manager *Manager) UnarchiveUser(ctx context.Context, name string) (*schema
 // List users
 func (manager *Manager) ListUsers(ctx context.Context, req schema.UserListRequest) (*schema.UserListResponse, error) {
 	var response schema.UserListResponse
-	if err := manager.conn.List(ctx, &response, req); err != nil {
+	if err := manager.conn.List(ctx, &response, &req); err != nil {
 		return nil, httperr(err)
 	} else {
 		response.UserListRequest = req

@@ -164,7 +164,7 @@ func Test_Auth_001(t *testing.T) {
 	})
 
 	// Archive a user
-	t.Run("DeleteUser4", func(t *testing.T) {
+	t.Run("ArchiveUser1", func(t *testing.T) {
 		meta := schema.UserMeta{
 			Name:  types.StringPtr("test4"),
 			Scope: []string{},
@@ -182,6 +182,34 @@ func Test_Auth_001(t *testing.T) {
 		}
 		assert.Equal("archived", user2.Status)
 		assert.Equal(meta, user2.UserMeta)
+	})
+
+	// Unarchive a user
+	t.Run("ArchiveUser2", func(t *testing.T) {
+		meta := schema.UserMeta{
+			Name:  types.StringPtr("test8"),
+			Scope: []string{},
+			Meta:  map[string]any{},
+		}
+		user, err := manager.CreateUser(context.TODO(), meta)
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+		assert.Equal(meta, user.UserMeta)
+
+		user2, err := manager.DeleteUser(context.TODO(), types.PtrString(meta.Name), false)
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+		assert.Equal("archived", user2.Status)
+		assert.Equal(meta, user2.UserMeta)
+
+		user3, err := manager.UnarchiveUser(context.TODO(), types.PtrString(meta.Name))
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+		assert.Equal("live", user3.Status)
+		assert.Equal(meta, user3.UserMeta)
 	})
 
 	// Update a user
