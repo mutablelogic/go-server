@@ -37,12 +37,16 @@ func (user UserName) Select(bind *pg.Bind, op pg.Op) (string, error) {
 	if name := strings.TrimSpace(string(user)); name == "" {
 		return "", httpresponse.ErrBadRequest.With("name is missing")
 	} else {
-		bind.Set("name", name)
+		bind.Set("id", name)
 	}
 
 	switch op {
 	case pg.Get:
 		return userGet, nil
+	case pg.Delete:
+		return userDelete, nil
+	case pg.Update:
+		return userUpdate, nil
 	default:
 		return "", httpresponse.ErrBadRequest.Withf("UserName: operation %q is not supported", op)
 	}
@@ -68,18 +72,28 @@ func (user UserMeta) Insert(bind *pg.Bind) (string, error) {
 }
 
 func (user UserMeta) Update(bind *pg.Bind) error {
-	bind.Set("name", types.TrimStringPtr(user.Name))
-	bind.Set("desc", types.TrimStringPtr(user.Desc))
-	if scope := user.Scope; scope == nil {
-		bind.Set("scope", "{}")
-	} else {
-		bind.Set("scope", scope)
+	bind.Del("patch")
+	if user.Name != nil {
+		bind.Append("patch", `"name" = `+bind.Set("name", types.TrimStringPtr(user.Name)))
 	}
-	if meta := user.Meta; meta == nil {
-		bind.Set("meta", "{}")
-	} else {
-		bind.Set("meta", user.Meta)
+	if user.Desc != nil {
+		bind.Append("patch", `"desc" = `+bind.Set("desc", types.TrimStringPtr(user.Desc)))
 	}
+	if user.Scope != nil {
+		bind.Append("patch", `"scope" = `+bind.Set("scope", user.Scope))
+	}
+	if user.Meta != nil {
+		bind.Append("patch", `"meta" = `+bind.Set("meta", user.Meta))
+	}
+
+	// Set patch
+	if patch := bind.Join("patch", ", "); patch != "" {
+		bind.Set("patch", patch)
+	} else {
+		return httpresponse.ErrBadRequest.With("no fields to update")
+	}
+
+	// Return success
 	return nil
 }
 
@@ -144,5 +158,23 @@ const (
 		FROM
 			${"schema"}."user"
 	`
-	userGet = userSelect + ` WHERE name = @name`
+	userGet    = userSelect + ` WHERE name = @id`
+	userDelete = `
+		DELETE FROM
+			${"schema"}."user"
+		WHERE 
+			name = @id
+		RETURNING
+			"name", "ts", "status", "desc", "scope", "meta"
+	`
+	userUpdate = `
+		UPDATE
+			${"schema"}."user"
+		SET
+			${patch}, "ts" = CURRENT_TIMESTAMP
+		WHERE
+			name = @id
+		RETURNING
+			"name", "ts", "status", "desc", "scope", "meta"
+	`
 )

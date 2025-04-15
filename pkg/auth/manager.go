@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"strings"
 
 	// Packages
 	pg "github.com/djthorpe/go-pg"
@@ -31,8 +32,6 @@ func New(ctx context.Context, conn pg.PoolConn, opt ...Opt) (*Manager, error) {
 		return nil, err
 	}
 
-	// TODO: Process options
-
 	// If the schema does not exist, then bootstrap it
 	if err := self.conn.Tx(ctx, func(conn pg.Conn) error {
 		if exists, err := pg.SchemaExists(ctx, conn, schema.SchemaName); err != nil {
@@ -41,6 +40,18 @@ func New(ctx context.Context, conn pg.PoolConn, opt ...Opt) (*Manager, error) {
 			return schema.Bootstrap(ctx, conn)
 		}
 		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	// Create and/or update the root user
+	if _, err := replaceUser(ctx, self.conn, schema.UserMeta{
+		Name: types.StringPtr(schema.RootUserName),
+		Desc: types.StringPtr("Root user"),
+		Scope: []string{
+			schema.RootUserScope,
+		},
+		Meta: map[string]any{},
 	}); err != nil {
 		return nil, err
 	}
@@ -77,18 +88,10 @@ func (manager *Manager) CreateUser(ctx context.Context, meta schema.UserMeta) (*
 
 // Create a new user, or update if the name already exists
 func (manager *Manager) ReplaceUser(ctx context.Context, meta schema.UserMeta) (*schema.User, error) {
-	var user schema.User
-	if err := manager.conn.Tx(ctx, func(conn pg.Conn) error {
-		if err := conn.Insert(ctx, &user, meta); err != nil {
-			return err
-		}
-		// Return success
-		return nil
-	}); err != nil {
-		return nil, httperr(err)
+	if err := isRootUser(types.PtrString(meta.Name), "replace"); err != nil {
+		return nil, err
 	}
-	// Return success
-	return &user, nil
+	return replaceUser(ctx, manager.conn, meta)
 }
 
 // Get a user
@@ -101,12 +104,53 @@ func (manager *Manager) GetUser(ctx context.Context, name string) (*schema.User,
 	return &user, nil
 }
 
+// Delete a user
+func (manager *Manager) DeleteUser(ctx context.Context, name string) (*schema.User, error) {
+	var user schema.User
+	if err := isRootUser(name, "delete"); err != nil {
+		return nil, err
+	}
+	if err := manager.conn.Delete(ctx, &user, schema.UserName(name)); err != nil {
+		return nil, httperr(err)
+	}
+	// Return success
+	return &user, nil
+}
+
+// Update a user
+func (manager *Manager) UpdateUser(ctx context.Context, name string, meta schema.UserMeta) (*schema.User, error) {
+	var user schema.User
+	if err := isRootUser(name, "update"); err != nil {
+		return nil, err
+	}
+	if err := manager.conn.Update(ctx, &user, schema.UserName(name), meta); err != nil {
+		return nil, httperr(err)
+	}
+	// Return success
+	return &user, nil
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
+
+func isRootUser(name, op string) error {
+	if name := strings.TrimSpace(name); name == schema.RootUserName {
+		return httpresponse.ErrConflict.Withf("cannot %s root user", op)
+	}
+	return nil
+}
 
 func httperr(err error) error {
 	if errors.Is(err, pg.ErrNotFound) {
 		return httpresponse.ErrNotFound.With(err)
 	}
 	return err
+}
+
+func replaceUser(ctx context.Context, conn pg.Conn, meta schema.UserMeta) (*schema.User, error) {
+	var user schema.User
+	if err := conn.Insert(ctx, &user, meta); err != nil {
+		return nil, httperr(err)
+	}
+	return &user, nil
 }

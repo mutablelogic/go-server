@@ -11,7 +11,9 @@ import (
 // GLOBALS
 
 const (
-	SchemaName = "auth"
+	SchemaName    = "auth"
+	RootUserName  = "root"
+	RootUserScope = "root"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
