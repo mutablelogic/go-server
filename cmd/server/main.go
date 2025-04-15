@@ -8,6 +8,7 @@ import (
 	// Packages
 	kong "github.com/alecthomas/kong"
 	server "github.com/mutablelogic/go-server"
+	auth "github.com/mutablelogic/go-server/pkg/auth/cmd"
 	certmanager "github.com/mutablelogic/go-server/pkg/cert/cmd"
 	pgmanager "github.com/mutablelogic/go-server/pkg/pgmanager/cmd"
 )
@@ -25,6 +26,7 @@ type CLI struct {
 	pgmanager.ConnectionCommands
 	certmanager.NameCommands
 	certmanager.CertCommands
+	auth.UserCommands
 }
 
 ///////////////////////////////////////////////////////////////////////////////
