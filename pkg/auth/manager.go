@@ -181,7 +181,7 @@ func (manager *Manager) ListUsers(ctx context.Context, req schema.UserListReques
 // PRIVATE METHODS
 
 func isRootUser(name, op string) error {
-	if name := strings.TrimSpace(name); name == schema.RootUserName {
+	if name := strings.ToLower(strings.TrimSpace(name)); name == schema.RootUserName {
 		return httpresponse.ErrConflict.Withf("cannot %s root user", op)
 	}
 	return nil
