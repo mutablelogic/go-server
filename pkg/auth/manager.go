@@ -104,13 +104,20 @@ func (manager *Manager) GetUser(ctx context.Context, name string) (*schema.User,
 	return &user, nil
 }
 
-// Delete a user
-func (manager *Manager) DeleteUser(ctx context.Context, name string) (*schema.User, error) {
+// Archive or delete a user
+func (manager *Manager) DeleteUser(ctx context.Context, name string, force bool) (*schema.User, error) {
 	var user schema.User
 	if err := isRootUser(name, "delete"); err != nil {
 		return nil, err
 	}
-	if err := manager.conn.Delete(ctx, &user, schema.UserName(name)); err != nil {
+
+	// TODO
+
+	if !force {
+		if err := manager.conn.Update(ctx, &user, schema.UserName(name), schema.UserStatusArchived); err != nil {
+			return nil, httperr(err)
+		}
+	} else if err := manager.conn.Delete(ctx, &user, schema.UserName(name)); err != nil {
 		return nil, httperr(err)
 	}
 	// Return success
@@ -128,6 +135,18 @@ func (manager *Manager) UpdateUser(ctx context.Context, name string, meta schema
 	}
 	// Return success
 	return &user, nil
+}
+
+// List users
+func (manager *Manager) ListUsers(ctx context.Context, req schema.UserListRequest) (*schema.UserListResponse, error) {
+	var response schema.UserListResponse
+	if err := manager.conn.List(ctx, &response, req); err != nil {
+		return nil, httperr(err)
+	} else {
+		response.UserListRequest = req
+	}
+	// Return success
+	return &response, nil
 }
 
 ////////////////////////////////////////////////////////////////////////////////

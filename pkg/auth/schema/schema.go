@@ -14,6 +14,7 @@ const (
 	SchemaName    = "auth"
 	RootUserName  = "root"
 	RootUserScope = "root"
+	UserListLimit = 50
 )
 
 ////////////////////////////////////////////////////////////////////////////////

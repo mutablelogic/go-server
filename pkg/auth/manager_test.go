@@ -191,4 +191,49 @@ func Test_Auth_001(t *testing.T) {
 		}
 		assert.Equal(meta2, user2.UserMeta)
 	})
+
+	// Update a user
+	t.Run("UpdateUser2", func(t *testing.T) {
+		_, err := manager.UpdateUser(context.TODO(), "root", schema.UserMeta{})
+		assert.ErrorIs(err, httpresponse.ErrConflict)
+	})
+
+	// Update a user
+	t.Run("UpdateUser3", func(t *testing.T) {
+		meta := schema.UserMeta{
+			Name:  types.StringPtr("test7"),
+			Scope: []string{},
+			Meta:  map[string]any{},
+		}
+		user, err := manager.CreateUser(context.TODO(), meta)
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+		assert.Equal(meta, user.UserMeta)
+
+		_, err = manager.UpdateUser(context.TODO(), types.PtrString(user.Name), schema.UserMeta{})
+		assert.ErrorIs(err, httpresponse.ErrBadRequest)
+	})
+
+	// List users
+	t.Run("ListUsers1", func(t *testing.T) {
+		response, err := manager.ListUsers(context.TODO(), schema.UserListRequest{})
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+		t.Log(response)
+	})
+
+	// List users
+	t.Run("ListUsers2", func(t *testing.T) {
+		response, err := manager.ListUsers(context.TODO(), schema.UserListRequest{
+			Scope:  types.StringPtr("root"),
+			Status: types.StringPtr("live"),
+		})
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+		t.Log(response)
+	})
+
 }

@@ -2,6 +2,7 @@ package schema
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"time"
 
@@ -29,6 +30,53 @@ type User struct {
 	Ts     time.Time `json:"ts,omitempty" help:"Timestamp"`
 }
 
+type UserListRequest struct {
+	Status *string `json:"status,omitempty" help:"Status"`
+	Scope  *string `json:"scope,omitempty" help:"Scope"`
+	pg.OffsetLimit
+}
+
+type UserListResponse struct {
+	UserListRequest
+	Count uint64 `json:"count"`
+	Body  []User `json:"body,omitempty"`
+}
+
+///////////////////////////////////////////////////////////////////////////////////
+// STRINGIFY
+
+func (user UserMeta) String() string {
+	data, err := json.MarshalIndent(user, "", "  ")
+	if err != nil {
+		return err.Error()
+	}
+	return string(data)
+}
+
+func (user User) String() string {
+	data, err := json.MarshalIndent(user, "", "  ")
+	if err != nil {
+		return err.Error()
+	}
+	return string(data)
+}
+
+func (user UserListRequest) String() string {
+	data, err := json.MarshalIndent(user, "", "  ")
+	if err != nil {
+		return err.Error()
+	}
+	return string(data)
+}
+
+func (user UserListResponse) String() string {
+	data, err := json.MarshalIndent(user, "", "  ")
+	if err != nil {
+		return err.Error()
+	}
+	return string(data)
+}
+
 ///////////////////////////////////////////////////////////////////////////////////
 // SELECTOR
 
@@ -49,6 +97,33 @@ func (user UserName) Select(bind *pg.Bind, op pg.Op) (string, error) {
 		return userUpdate, nil
 	default:
 		return "", httpresponse.ErrBadRequest.Withf("UserName: operation %q is not supported", op)
+	}
+}
+
+func (list UserListRequest) Select(bind *pg.Bind, op pg.Op) (string, error) {
+
+	// Where
+	bind.Del("where")
+	if status := types.PtrString(list.Status); status != "" {
+		bind.Append("where", `status = `+bind.Set("status", status))
+	}
+	if scope := types.PtrString(list.Scope); scope != "" {
+		bind.Append("where", `scope @> `+bind.Set("scope", []string{scope}))
+	}
+	if where := bind.Join("where", " AND "); where != "" {
+		bind.Set("where", `WHERE `+where)
+	} else {
+		bind.Set("where", "")
+	}
+
+	// Offset and limit
+	list.OffsetLimit.Bind(bind, UserListLimit)
+
+	switch op {
+	case pg.List:
+		return userList, nil
+	default:
+		return "", httpresponse.ErrBadRequest.Withf("UserListRequest: operation %q is not supported", op)
 	}
 }
 
@@ -102,6 +177,20 @@ func (user UserMeta) Update(bind *pg.Bind) error {
 
 func (user *User) Scan(row pg.Row) error {
 	return row.Scan(&user.Name, &user.Ts, &user.Status, &user.Desc, &user.Scope, &user.Meta)
+}
+
+func (list *UserListResponse) ScanCount(row pg.Row) error {
+	list.Body = []User{}
+	return row.Scan(&list.Count)
+}
+
+func (list *UserListResponse) Scan(row pg.Row) error {
+	var user User
+	if err := user.Scan(row); err != nil {
+		return err
+	}
+	list.Body = append(list.Body, user)
+	return nil
 }
 
 ///////////////////////////////////////////////////////////////////////////////////
@@ -159,6 +248,7 @@ const (
 			${"schema"}."user"
 	`
 	userGet    = userSelect + ` WHERE name = @id`
+	userList   = `WITH q AS (` + userSelect + `) SELECT * FROM q ${where}`
 	userDelete = `
 		DELETE FROM
 			${"schema"}."user"
