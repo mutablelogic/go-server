@@ -120,30 +120,18 @@ func (manager *Manager) DeleteUser(ctx context.Context, name string, force bool)
 		switch schema.UserStatus(user.Status) {
 		case schema.UserStatusArchived:
 			if force {
-				if err := manager.conn.Delete(ctx, &user, schema.UserName(name)); err != nil {
-					return httperr(err)
-				} else {
-					return nil
-				}
+				return conn.Delete(ctx, &user, schema.UserName(name))
 			}
 		case schema.UserStatusLive:
 			if force {
-				if err := manager.conn.Delete(ctx, &user, schema.UserName(name)); err != nil {
-					return httperr(err)
-				} else {
-					return nil
-				}
+				return conn.Delete(ctx, &user, schema.UserName(name))
 			} else {
-				if err := manager.conn.Update(ctx, &user, schema.UserName(name), schema.UserStatusArchived); err != nil {
-					return httperr(err)
-				} else {
-					return nil
-				}
+				return conn.Update(ctx, &user, schema.UserName(name), schema.UserStatusArchived)
 			}
 		}
 
 		// If we get here, there was a conflict
-		return httpresponse.ErrConflict.Withf("user cannot be archived or deleted")
+		return httpresponse.ErrConflict.With("user cannot be archived or deleted")
 	}); err != nil {
 		return nil, httperr(err)
 	}
@@ -161,6 +149,30 @@ func (manager *Manager) UpdateUser(ctx context.Context, name string, meta schema
 	if err := manager.conn.Update(ctx, &user, schema.UserName(name), meta); err != nil {
 		return nil, httperr(err)
 	}
+	// Return success
+	return &user, nil
+}
+
+// Unarchive a user
+func (manager *Manager) UnarchiveUser(ctx context.Context, name string) (*schema.User, error) {
+	var user schema.User
+	if err := isRootUser(name, "unarchive"); err != nil {
+		return nil, err
+	}
+	if err := manager.conn.Tx(ctx, func(conn pg.Conn) error {
+		// Get the user to check current status
+		if err := conn.Get(ctx, &user, schema.UserName(name)); err != nil {
+			return httperr(err)
+		} else if schema.UserStatus(user.Status) != schema.UserStatusArchived {
+			return httpresponse.ErrConflict.With("user is not archived")
+		}
+
+		// Unarchive the user
+		return conn.Update(ctx, &user, schema.UserName(name), schema.UserStatusLive)
+	}); err != nil {
+		return nil, httperr(err)
+	}
+
 	// Return success
 	return &user, nil
 }

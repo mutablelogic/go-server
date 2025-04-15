@@ -180,6 +180,7 @@ func Test_Auth_001(t *testing.T) {
 		if !assert.NoError(err) {
 			t.FailNow()
 		}
+		assert.Equal("archived", user2.Status)
 		assert.Equal(meta, user2.UserMeta)
 	})
 
