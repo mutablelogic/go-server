@@ -29,3 +29,20 @@ func (c *Client) ListUsers(ctx context.Context, opts ...Opt) (*schema.UserListRe
 	// Return the responses
 	return &response, nil
 }
+
+func (c *Client) CreateUser(ctx context.Context, meta schema.UserMeta) (*schema.User, error) {
+	// Make request
+	req, err := client.NewJSONRequest(meta)
+	if err != nil {
+		return nil, err
+	}
+
+	// Perform request
+	var response schema.User
+	if err := c.DoWithContext(ctx, req, &response, client.OptPath("user")); err != nil {
+		return nil, err
+	}
+
+	// Return the responses
+	return &response, nil
+}
