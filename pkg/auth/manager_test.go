@@ -130,13 +130,13 @@ func Test_Auth_001(t *testing.T) {
 
 	// Delete a user
 	t.Run("DeleteUser1", func(t *testing.T) {
-		_, err := manager.DeleteUser(context.TODO(), "non_existent")
+		_, err := manager.DeleteUser(context.TODO(), "non_existent", true)
 		assert.ErrorIs(err, httpresponse.ErrNotFound)
 	})
 
 	// Delete a user
 	t.Run("DeleteUser2", func(t *testing.T) {
-		_, err := manager.DeleteUser(context.TODO(), "root")
+		_, err := manager.DeleteUser(context.TODO(), "root", true)
 		assert.ErrorIs(err, httpresponse.ErrConflict)
 	})
 
@@ -153,7 +153,7 @@ func Test_Auth_001(t *testing.T) {
 		}
 		assert.Equal(meta, user.UserMeta)
 
-		user2, err := manager.DeleteUser(context.TODO(), types.PtrString(meta.Name))
+		user2, err := manager.DeleteUser(context.TODO(), types.PtrString(meta.Name), true)
 		if !assert.NoError(err) {
 			t.FailNow()
 		}
@@ -161,6 +161,26 @@ func Test_Auth_001(t *testing.T) {
 
 		_, err = manager.GetUser(context.TODO(), types.PtrString(meta.Name))
 		assert.ErrorIs(err, httpresponse.ErrNotFound)
+	})
+
+	// Archive a user
+	t.Run("DeleteUser4", func(t *testing.T) {
+		meta := schema.UserMeta{
+			Name:  types.StringPtr("test4"),
+			Scope: []string{},
+			Meta:  map[string]any{},
+		}
+		user, err := manager.CreateUser(context.TODO(), meta)
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+		assert.Equal(meta, user.UserMeta)
+
+		user2, err := manager.DeleteUser(context.TODO(), types.PtrString(meta.Name), false)
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+		assert.Equal(meta, user2.UserMeta)
 	})
 
 	// Update a user

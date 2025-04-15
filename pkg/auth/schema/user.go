@@ -187,7 +187,14 @@ func (status UserStatus) Insert(bind *pg.Bind) (string, error) {
 }
 
 func (status UserStatus) Update(bind *pg.Bind) error {
-	return httpresponse.ErrNotImplemented.With("UserStatus.Update")
+	if status == UserStatusLive || status == UserStatusArchived {
+		bind.Set("patch", `status = `+bind.Set("status", status))
+	} else {
+		return httpresponse.ErrBadRequest.Withf("invalid status %q", status)
+	}
+
+	// Return success
+	return nil
 }
 
 ///////////////////////////////////////////////////////////////////////////////////
