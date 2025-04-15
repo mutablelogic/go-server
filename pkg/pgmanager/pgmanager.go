@@ -28,6 +28,11 @@ func New(ctx context.Context, conn pg.PoolConn) (*Manager, error) {
 	self := new(Manager)
 	self.conn = conn.With("schema", schema.CatalogSchema).(pg.PoolConn)
 
+	// Bootstrap dblink
+	if err := schema.Bootstrap(ctx, self.conn); err != nil {
+		return nil, err
+	}
+
 	// Return success
 	return self, nil
 }
@@ -69,7 +74,7 @@ func (manager *Manager) ListSchemas(ctx context.Context, req schema.SchemaListRe
 	// Iterate through all the databases
 	if _, err := manager.withDatabases(ctx, func(database *schema.Database) error {
 		// Filter by database
-		if name := strings.TrimSpace(req.Database); name != "" && name != database.Name {
+		if name := strings.TrimSpace(types.PtrString(req.Database)); name != "" && name != database.Name {
 			return nil
 		}
 
@@ -119,7 +124,7 @@ func (manager *Manager) ListObjects(ctx context.Context, req schema.ObjectListRe
 		}
 
 		// Iterate through all the objects
-		count, err := manager.withObjects(ctx, database.Name, func(object *schema.Object) error {
+		count, err := manager.withObjects(ctx, database.Name, req.Schema, func(object *schema.Object) error {
 			if offset >= req.Offset && uint64(len(list.Body)) < limit {
 				list.Body = append(list.Body, *object)
 			}
@@ -168,13 +173,12 @@ func (manager *Manager) GetDatabase(ctx context.Context, name string) (*schema.D
 	return &database, nil
 }
 
-func (manager *Manager) GetSchema(ctx context.Context, name string) (*schema.Schema, error) {
+func (manager *Manager) GetSchema(ctx context.Context, database, namespace string) (*schema.Schema, error) {
 	var response schema.Schema
-	database, name := schema.SchemaName(name).Split()
-	if name == "" || database == "" {
+	if database == "" || namespace == "" {
 		return nil, httpresponse.ErrBadRequest.With("database or schema is missing")
 	}
-	if err := manager.conn.Remote(database).With("as", schema.SchemaDef).Get(ctx, &response, schema.SchemaName(name)); err != nil {
+	if err := manager.conn.Remote(database).With("as", schema.SchemaDef).Get(ctx, &response, schema.SchemaName(namespace)); err != nil {
 		return nil, httperr(err)
 	}
 	return &response, nil
@@ -228,14 +232,8 @@ func (manager *Manager) CreateDatabase(ctx context.Context, meta schema.Database
 	return &database, nil
 }
 
-func (manager *Manager) CreateSchema(ctx context.Context, meta schema.SchemaMeta) (*schema.Schema, error) {
+func (manager *Manager) CreateSchema(ctx context.Context, database string, meta schema.SchemaMeta) (*schema.Schema, error) {
 	var response schema.Schema
-
-	// Split the name between the database and the schema
-	database, name := schema.SchemaName(meta.Name).Split()
-	if name == "" || database == "" {
-		return nil, httpresponse.ErrBadRequest.With("database or schema is missing")
-	}
 
 	// Create the schema
 	if err := manager.conn.Remote(database).Insert(ctx, nil, meta); err != nil {
@@ -244,14 +242,14 @@ func (manager *Manager) CreateSchema(ctx context.Context, meta schema.SchemaMeta
 
 	// Set ACL's
 	for _, acl := range meta.Acl {
-		if err := acl.GrantSchema(ctx, manager.conn.Remote(database), name); err != nil {
-			return nil, errors.Join(httperr(err), httperr(manager.conn.Remote(database).With("force", true).Delete(ctx, nil, schema.SchemaName(name))))
+		if err := acl.GrantSchema(ctx, manager.conn.Remote(database), meta.Name); err != nil {
+			return nil, errors.Join(httperr(err), httperr(manager.conn.Remote(database).With("force", true).Delete(ctx, nil, schema.SchemaName(meta.Name))))
 		}
 	}
 
 	// Get the schema
-	if err := manager.conn.Remote(database).With("as", schema.SchemaDef).Get(ctx, &response, schema.SchemaName(name)); err != nil {
-		return nil, errors.Join(httperr(err), httperr(manager.conn.Remote(database).With("force", true).Delete(ctx, nil, schema.SchemaName(name))))
+	if err := manager.conn.Remote(database).With("as", schema.SchemaDef).Get(ctx, &response, schema.SchemaName(meta.Name)); err != nil {
+		return nil, errors.Join(httperr(err), httperr(manager.conn.Remote(database).With("force", true).Delete(ctx, nil, schema.SchemaName(meta.Name))))
 	}
 
 	// Return success
@@ -278,22 +276,19 @@ func (manager *Manager) DeleteDatabase(ctx context.Context, name string, force b
 	return &database, nil
 }
 
-func (manager *Manager) DeleteSchema(ctx context.Context, name string, force bool) (*schema.Schema, error) {
+func (manager *Manager) DeleteSchema(ctx context.Context, database, namespace string, force bool) (*schema.Schema, error) {
 	var response schema.Schema
-
-	// Split the name between the database and the schema
-	database, name := schema.SchemaName(name).Split()
-	if name == "" || database == "" {
+	if database == "" || namespace == "" {
 		return nil, httpresponse.ErrBadRequest.With("database or schema is missing")
 	}
 
 	// Get the schema
-	if err := manager.conn.Remote(database).With("as", schema.SchemaDef).Get(ctx, &response, schema.SchemaName(name)); err != nil {
+	if err := manager.conn.Remote(database).With("as", schema.SchemaDef).Get(ctx, &response, schema.SchemaName(namespace)); err != nil {
 		return nil, httperr(err)
 	}
 
 	// Delete the schema
-	if err := manager.conn.Remote(database).With("force", force).Delete(ctx, nil, schema.SchemaName(name)); err != nil {
+	if err := manager.conn.Remote(database).With("force", force).Delete(ctx, nil, schema.SchemaName(namespace)); err != nil {
 		return nil, httperr(err)
 	}
 
@@ -449,29 +444,26 @@ func (manager *Manager) UpdateDatabase(ctx context.Context, name string, meta sc
 	return &database, nil
 }
 
-func (manager *Manager) UpdateSchema(ctx context.Context, name string, meta schema.SchemaMeta) (*schema.Schema, error) {
+func (manager *Manager) UpdateSchema(ctx context.Context, database, namespace string, meta schema.SchemaMeta) (*schema.Schema, error) {
 	var response schema.Schema
-
-	// Split the name between the database and the schema
-	database, name := schema.SchemaName(name).Split()
-	if name == "" || database == "" {
+	if namespace == "" || database == "" {
 		return nil, httpresponse.ErrBadRequest.With("database or schema is missing")
 	}
 
 	// Get the schema
-	if err := manager.conn.Remote(database).With("as", schema.SchemaDef).Get(ctx, &response, schema.SchemaName(name)); err != nil {
+	if err := manager.conn.Remote(database).With("as", schema.SchemaDef).Get(ctx, &response, schema.SchemaName(namespace)); err != nil {
 		return nil, httperr(err)
 	}
 
 	// Update the name if it's different
-	if rename := strings.TrimSpace(meta.Name); rename != "" && name != rename {
-		if err := manager.conn.Remote(database).Update(ctx, nil, schema.SchemaName(rename), schema.SchemaName(name)); err != nil {
+	if rename := strings.TrimSpace(meta.Name); rename != "" && namespace != rename {
+		if err := manager.conn.Remote(database).Update(ctx, nil, schema.SchemaName(rename), schema.SchemaName(namespace)); err != nil {
 			return nil, httperr(err)
 		} else {
 			meta.Name = rename
 		}
 	} else {
-		meta.Name = name
+		meta.Name = namespace
 	}
 
 	// Update the owner
@@ -601,9 +593,9 @@ func (manager *Manager) withSchemas(ctx context.Context, database string, fn fun
 }
 
 // Iterate through all the objects for a database
-func (manager *Manager) withObjects(ctx context.Context, database string, fn func(schema *schema.Object) error) (uint64, error) {
+func (manager *Manager) withObjects(ctx context.Context, database string, namespace *string, fn func(schema *schema.Object) error) (uint64, error) {
 	var req schema.ObjectListRequest
-	req.Database = types.StringPtr(database)
+	req.Schema = namespace
 	req.Offset = 0
 	req.Limit = types.Uint64Ptr(schema.ObjectListLimit)
 

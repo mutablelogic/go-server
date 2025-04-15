@@ -1,5 +1,11 @@
 package schema
 
+import (
+	"context"
+
+	pg "github.com/djthorpe/go-pg"
+)
+
 ////////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 
@@ -21,6 +27,16 @@ const (
 	pgObfuscatedPassword = "********"
 	defaultAclRole       = "PUBLIC"
 	defaultSchema        = "public"
-	schemaSeparator      = '/'
 	reservedPrefix       = "pg_"
+)
+
+////////////////////////////////////////////////////////////////////////////////
+// SQL
+
+func Bootstrap(ctx context.Context, conn pg.PoolConn) error {
+	return conn.Exec(ctx, dblinkCreateExtension)
+}
+
+const (
+	dblinkCreateExtension = `CREATE EXTENSION IF NOT EXISTS dblink WITH SCHEMA ` + defaultSchema
 )

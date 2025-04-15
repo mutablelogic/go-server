@@ -6,8 +6,8 @@ import (
 
 	// Packages
 	pg "github.com/djthorpe/go-pg"
-	types "github.com/djthorpe/go-pg/pkg/types"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
+	types "github.com/mutablelogic/go-server/pkg/types"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -28,7 +28,7 @@ type Schema struct {
 }
 
 type SchemaListRequest struct {
-	Database string `json:"database,omitempty" help:"Database"`
+	Database *string `json:"database,omitempty" help:"Database"`
 	pg.OffsetLimit
 }
 
@@ -81,8 +81,8 @@ func (d SchemaListRequest) Select(bind *pg.Bind, op pg.Op) (string, error) {
 
 	// Where
 	bind.Del("where")
-	if d.Database != "" {
-		bind.Append("where", `database = `+bind.Set("database", d.Database))
+	if database := types.PtrString(d.Database); database != "" {
+		bind.Append("where", `database = `+types.Quote(database))
 	}
 	if where := bind.Join("where", " AND "); where != "" {
 		bind.Set("where", `WHERE `+where)
@@ -235,15 +235,6 @@ func (d SchemaName) Update(bind *pg.Bind) error {
 
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
-
-// Split name into database and schema
-func (s SchemaName) Split() (string, string) {
-	schema := string(s)
-	if i := strings.IndexRune(schema, schemaSeparator); i > 0 {
-		return schema[:i], schema[i+1:]
-	}
-	return "", schema
-}
 
 func (s SchemaMeta) with(insert bool) (string, error) {
 	var with []string

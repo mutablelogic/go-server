@@ -222,8 +222,6 @@ func (d DatabaseName) name() (string, error) {
 		return "", httpresponse.ErrBadRequest.With("name is missing")
 	} else if strings.HasPrefix(name, reservedPrefix) {
 		return "", httpresponse.ErrBadRequest.Withf("name cannot be prefixed with %q", reservedPrefix)
-	} else if strings.ContainsRune(name, schemaSeparator) {
-		return "", httpresponse.ErrBadRequest.Withf("name cannot contain %q", schemaSeparator)
 	} else {
 		return name, nil
 	}

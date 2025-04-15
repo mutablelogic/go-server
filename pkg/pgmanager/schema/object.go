@@ -6,7 +6,7 @@ import (
 
 	pg "github.com/djthorpe/go-pg"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
-	"github.com/mutablelogic/go-server/pkg/types"
+	types "github.com/mutablelogic/go-server/pkg/types"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -26,6 +26,7 @@ type Object struct {
 	Schema   string `json:"schema,omitempty" help:"Schema"`
 	Type     string `json:"type,omitempty" help:"Type"`
 	ObjectMeta
+	Size uint64 `json:"bytes,omitempty" help:"Size of object in bytes"`
 }
 
 type ObjectListRequest struct {
@@ -84,7 +85,7 @@ func (o ObjectListRequest) Select(bind *pg.Bind, op pg.Op) (string, error) {
 	// Where
 	bind.Del("where")
 	if schema := strings.TrimSpace(types.PtrString(o.Schema)); schema != "" {
-		bind.Append("where", `schema = `+bind.Set("schema", schema))
+		bind.Append("where", `schema = `+types.Quote(schema))
 	}
 	if where := bind.Join("where", " AND "); where != "" {
 		bind.Set("where", `WHERE `+where)

@@ -357,7 +357,7 @@ func Test_Manager_003(t *testing.T) {
 			t.FailNow()
 		}
 		for _, schema := range schemas.Body {
-			schema2, err := manager.GetSchema(context.TODO(), schema.Name)
+			schema2, err := manager.GetSchema(context.TODO(), schema.Database, schema.Name)
 			if !assert.NoError(err) {
 				t.FailNow()
 			}
@@ -368,7 +368,7 @@ func Test_Manager_003(t *testing.T) {
 
 	// Not Found Schema
 	t.Run("GetNonExistentSchema", func(t *testing.T) {
-		_, err := manager.GetSchema(context.TODO(), "postgres/non_existing_schema")
+		_, err := manager.GetSchema(context.TODO(), "postgres", "non_existing_schema")
 		assert.ErrorIs(err, httpresponse.ErrNotFound)
 	})
 
@@ -381,18 +381,18 @@ func Test_Manager_003(t *testing.T) {
 			t.FailNow()
 		}
 		meta := schema.SchemaMeta{
-			Name:  "postgres/schema",
+			Name:  "schema",
 			Owner: role.Name,
+			Acl:   schema.ACLList{},
 		}
-		schema, err := manager.CreateSchema(context.TODO(), meta)
+		schema, err := manager.CreateSchema(context.TODO(), "postgres", meta)
 		if !assert.NoError(err) {
 			t.FailNow()
 		}
 
 		// Check equality
-		assert.Equal(*schema, meta)
+		assert.Equal(schema.SchemaMeta, meta)
 	})
-
 }
 
 func Test_Manager_004(t *testing.T) {

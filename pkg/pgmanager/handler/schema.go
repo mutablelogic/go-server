@@ -3,8 +3,10 @@ package handler
 import (
 	"context"
 	"net/http"
+	"strings"
 
 	// Packages
+	"github.com/djthorpe/go-pg"
 	server "github.com/mutablelogic/go-server"
 	httprequest "github.com/mutablelogic/go-server/pkg/httprequest"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
@@ -23,29 +25,55 @@ func RegisterSchema(ctx context.Context, router server.HTTPRouter, prefix string
 
 		switch r.Method {
 		case http.MethodGet:
-			_ = schemaList(w, r, manager)
-		case http.MethodPost:
-			_ = schemaCreate(w, r, manager)
+			_ = schemaList(w, r, manager, nil)
 		default:
 			_ = httpresponse.Error(w, httpresponse.Err(http.StatusMethodNotAllowed), r.Method)
 		}
 	})
 
-	router.HandleFunc(ctx, types.JoinPath(prefix, "schema/{name...}"), func(w http.ResponseWriter, r *http.Request) {
+	router.HandleFunc(ctx, types.JoinPath(prefix, "schema/{database}"), func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
 		httpresponse.Cors(w, r, router.Origin(), http.MethodGet, http.MethodDelete, http.MethodPatch)
 
-		// Parse request argument
-		name := r.PathValue("name")
+		// Parse path argument
+		database := strings.TrimSpace(r.PathValue("database"))
+		if database == "" {
+			_ = httpresponse.Error(w, httpresponse.ErrBadRequest.With("database is required"))
+		}
 
 		// Handle method
 		switch r.Method {
 		case http.MethodGet:
-			_ = schemaGet(w, r, manager, name)
+			_ = schemaList(w, r, manager, types.StringPtr(database))
+		case http.MethodPost:
+			_ = schemaCreate(w, r, manager, database)
+		default:
+			_ = httpresponse.Error(w, httpresponse.Err(http.StatusMethodNotAllowed), r.Method)
+		}
+	})
+
+	router.HandleFunc(ctx, types.JoinPath(prefix, "schema/{database}/{schema}"), func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
+		httpresponse.Cors(w, r, router.Origin(), http.MethodGet, http.MethodDelete, http.MethodPatch)
+
+		// Parse path arguments
+		database := strings.TrimSpace(r.PathValue("database"))
+		if database == "" {
+			_ = httpresponse.Error(w, httpresponse.ErrBadRequest.With("database is required"))
+		}
+		namespace := strings.TrimSpace(r.PathValue("schema"))
+		if namespace == "" {
+			_ = httpresponse.Error(w, httpresponse.ErrBadRequest.With("schema is required"))
+		}
+
+		// Handle method
+		switch r.Method {
+		case http.MethodGet:
+			_ = schemaGet(w, r, manager, database, namespace)
 		case http.MethodDelete:
-			_ = schemaDelete(w, r, manager, name)
+			_ = schemaDelete(w, r, manager, database, namespace)
 		case http.MethodPatch:
-			_ = schemaUpdate(w, r, manager, name)
+			_ = schemaUpdate(w, r, manager, database, namespace)
 		default:
 			_ = httpresponse.Error(w, httpresponse.Err(http.StatusMethodNotAllowed), r.Method)
 		}
@@ -55,15 +83,19 @@ func RegisterSchema(ctx context.Context, router server.HTTPRouter, prefix string
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-func schemaList(w http.ResponseWriter, r *http.Request, manager *pgmanager.Manager) error {
+// List all schemas in all databases
+func schemaList(w http.ResponseWriter, r *http.Request, manager *pgmanager.Manager, database *string) error {
 	// Parse request
-	var req schema.SchemaListRequest
+	var req pg.OffsetLimit
 	if err := httprequest.Query(r.URL.Query(), &req); err != nil {
 		return httpresponse.Error(w, err)
 	}
 
 	// List the schemas
-	response, err := manager.ListSchemas(r.Context(), req)
+	response, err := manager.ListSchemas(r.Context(), schema.SchemaListRequest{
+		Database:    database,
+		OffsetLimit: req,
+	})
 	if err != nil {
 		return httpresponse.Error(w, err)
 	}
@@ -72,7 +104,7 @@ func schemaList(w http.ResponseWriter, r *http.Request, manager *pgmanager.Manag
 	return httpresponse.JSON(w, http.StatusOK, httprequest.Indent(r), response)
 }
 
-func schemaCreate(w http.ResponseWriter, r *http.Request, manager *pgmanager.Manager) error {
+func schemaCreate(w http.ResponseWriter, r *http.Request, manager *pgmanager.Manager, database string) error {
 	// Parse request
 	var req schema.SchemaMeta
 	if err := httprequest.Read(r, &req); err != nil {
@@ -80,7 +112,7 @@ func schemaCreate(w http.ResponseWriter, r *http.Request, manager *pgmanager.Man
 	}
 
 	// Create the schema
-	response, err := manager.CreateSchema(r.Context(), req)
+	response, err := manager.CreateSchema(r.Context(), database, req)
 	if err != nil {
 		return httpresponse.Error(w, err)
 	}
@@ -89,8 +121,8 @@ func schemaCreate(w http.ResponseWriter, r *http.Request, manager *pgmanager.Man
 	return httpresponse.JSON(w, http.StatusOK, httprequest.Indent(r), response)
 }
 
-func schemaGet(w http.ResponseWriter, r *http.Request, manager *pgmanager.Manager, name string) error {
-	schema, err := manager.GetSchema(r.Context(), name)
+func schemaGet(w http.ResponseWriter, r *http.Request, manager *pgmanager.Manager, database, namespace string) error {
+	schema, err := manager.GetSchema(r.Context(), database, namespace)
 	if err != nil {
 		return httpresponse.Error(w, err)
 	}
@@ -99,7 +131,7 @@ func schemaGet(w http.ResponseWriter, r *http.Request, manager *pgmanager.Manage
 	return httpresponse.JSON(w, http.StatusOK, httprequest.Indent(r), schema)
 }
 
-func schemaDelete(w http.ResponseWriter, r *http.Request, manager *pgmanager.Manager, name string) error {
+func schemaDelete(w http.ResponseWriter, r *http.Request, manager *pgmanager.Manager, database, namespace string) error {
 	// Parse the query
 	var req struct {
 		Force bool `json:"force,omitempty" help:"Force delete"`
@@ -109,7 +141,7 @@ func schemaDelete(w http.ResponseWriter, r *http.Request, manager *pgmanager.Man
 	}
 
 	// Delete the schema
-	_, err := manager.DeleteSchema(r.Context(), name, req.Force)
+	_, err := manager.DeleteSchema(r.Context(), database, namespace, req.Force)
 	if err != nil {
 		return httpresponse.Error(w, err)
 	}
@@ -118,7 +150,7 @@ func schemaDelete(w http.ResponseWriter, r *http.Request, manager *pgmanager.Man
 	return httpresponse.Empty(w, http.StatusOK)
 }
 
-func schemaUpdate(w http.ResponseWriter, r *http.Request, manager *pgmanager.Manager, name string) error {
+func schemaUpdate(w http.ResponseWriter, r *http.Request, manager *pgmanager.Manager, database, namespace string) error {
 	// Parse request
 	var req schema.SchemaMeta
 	if err := httprequest.Read(r, &req); err != nil {
@@ -126,7 +158,7 @@ func schemaUpdate(w http.ResponseWriter, r *http.Request, manager *pgmanager.Man
 	}
 
 	// Perform update
-	schema, err := manager.UpdateSchema(r.Context(), name, req)
+	schema, err := manager.UpdateSchema(r.Context(), database, namespace, req)
 	if err != nil {
 		return httpresponse.Error(w, err)
 	}
