@@ -110,16 +110,44 @@ func (manager *Manager) DeleteUser(ctx context.Context, name string, force bool)
 	if err := isRootUser(name, "delete"); err != nil {
 		return nil, err
 	}
-
-	// TODO
-
-	if !force {
-		if err := manager.conn.Update(ctx, &user, schema.UserName(name), schema.UserStatusArchived); err != nil {
-			return nil, httperr(err)
+	if err := manager.conn.Tx(ctx, func(conn pg.Conn) error {
+		// Get the user to check current status
+		if err := conn.Get(ctx, &user, schema.UserName(name)); err != nil {
+			return httperr(err)
 		}
-	} else if err := manager.conn.Delete(ctx, &user, schema.UserName(name)); err != nil {
+
+		// Archive or delete the user
+		switch schema.UserStatus(user.Status) {
+		case schema.UserStatusArchived:
+			if force {
+				if err := manager.conn.Delete(ctx, &user, schema.UserName(name)); err != nil {
+					return httperr(err)
+				} else {
+					return nil
+				}
+			}
+		case schema.UserStatusLive:
+			if force {
+				if err := manager.conn.Delete(ctx, &user, schema.UserName(name)); err != nil {
+					return httperr(err)
+				} else {
+					return nil
+				}
+			} else {
+				if err := manager.conn.Update(ctx, &user, schema.UserName(name), schema.UserStatusArchived); err != nil {
+					return httperr(err)
+				} else {
+					return nil
+				}
+			}
+		}
+
+		// If we get here, there was a conflict
+		return httpresponse.ErrConflict.Withf("user cannot be archived or deleted")
+	}); err != nil {
 		return nil, httperr(err)
 	}
+
 	// Return success
 	return &user, nil
 }

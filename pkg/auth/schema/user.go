@@ -17,6 +17,8 @@ import (
 
 type UserName string
 
+type UserStatus string
+
 type UserMeta struct {
 	Name  *string        `json:"name,omitempty" arg:"" help:"Name"`
 	Desc  *string        `json:"desc,omitempty" help:"Description"`
@@ -41,6 +43,14 @@ type UserListResponse struct {
 	Count uint64 `json:"count"`
 	Body  []User `json:"body,omitempty"`
 }
+
+///////////////////////////////////////////////////////////////////////////////////
+// TYPES
+
+const (
+	UserStatusLive     = UserStatus("live")
+	UserStatusArchived = UserStatus("archived")
+)
 
 ///////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
@@ -170,6 +180,14 @@ func (user UserMeta) Update(bind *pg.Bind) error {
 
 	// Return success
 	return nil
+}
+
+func (status UserStatus) Insert(bind *pg.Bind) (string, error) {
+	return "", httpresponse.ErrNotImplemented.With("UserStatus.Insert")
+}
+
+func (status UserStatus) Update(bind *pg.Bind) error {
+	return httpresponse.ErrNotImplemented.With("UserStatus.Update")
 }
 
 ///////////////////////////////////////////////////////////////////////////////////
