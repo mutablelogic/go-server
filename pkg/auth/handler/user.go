@@ -32,7 +32,7 @@ func RegisterUser(ctx context.Context, router server.HTTPRouter, prefix string, 
 		}
 	})
 
-	router.HandleFunc(ctx, types.JoinPath(prefix, "user/{name}"), func(w http.ResponseWriter, r *http.Request) {
+	router.HandleFunc(ctx, types.JoinPath(prefix, "user/{name...}"), func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
 		httpresponse.Cors(w, r, router.Origin(), http.MethodGet, http.MethodDelete, http.MethodPatch)
 
@@ -93,7 +93,7 @@ func userCreate(w http.ResponseWriter, r *http.Request, manager *auth.Manager) e
 	}
 
 	// Return success
-	return httpresponse.JSON(w, http.StatusOK, httprequest.Indent(r), response)
+	return httpresponse.JSON(w, http.StatusCreated, httprequest.Indent(r), response)
 }
 
 // Get a user

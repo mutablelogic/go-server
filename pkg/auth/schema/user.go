@@ -3,6 +3,7 @@ package schema
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"strings"
 	"time"
 
@@ -18,6 +19,8 @@ import (
 type UserName string
 
 type UserStatus string
+
+type UserTokenHash string
 
 type UserMeta struct {
 	Name  *string        `json:"name,omitempty" arg:"" help:"Name"`
@@ -110,6 +113,17 @@ func (user UserName) Select(bind *pg.Bind, op pg.Op) (string, error) {
 	}
 }
 
+func (hash UserTokenHash) Select(bind *pg.Bind, op pg.Op) (string, error) {
+	bind.Set("hash", hash)
+
+	switch op {
+	case pg.Get:
+		return userFromTokenHash, nil
+	default:
+		return "", httpresponse.ErrBadRequest.Withf("UserName: operation %q is not supported", op)
+	}
+}
+
 func (list *UserListRequest) Select(bind *pg.Bind, op pg.Op) (string, error) {
 	// Order
 	bind.Set("orderby", `ORDER BY ts DESC`)
@@ -155,25 +169,42 @@ func (list *UserListRequest) Select(bind *pg.Bind, op pg.Op) (string, error) {
 // WRITER
 
 func (user UserMeta) Insert(bind *pg.Bind) (string, error) {
-	bind.Set("name", types.TrimStringPtr(user.Name))
+	// Name cannot include path characters
+	if name, err := UserName(types.PtrString(user.Name)).validate(); err != nil {
+		return "", err
+	} else {
+		bind.Set("name", name)
+	}
+
+	// Set description
 	bind.Set("desc", types.TrimStringPtr(user.Desc))
+
+	// Set scope
 	if scope := user.Scope; scope == nil {
 		bind.Set("scope", "{}")
 	} else {
 		bind.Set("scope", scope)
 	}
+
+	// Set meta
 	if meta := user.Meta; meta == nil {
 		bind.Set("meta", "{}")
 	} else {
 		bind.Set("meta", user.Meta)
 	}
+
+	// Return success
 	return userUpsert, nil
 }
 
 func (user UserMeta) Update(bind *pg.Bind) error {
 	bind.Del("patch")
 	if user.Name != nil {
-		bind.Append("patch", `"name" = `+bind.Set("name", types.TrimStringPtr(user.Name)))
+		if name, err := UserName(types.PtrString(user.Name)).validate(); err != nil {
+			return err
+		} else {
+			bind.Append("patch", `"name" = `+bind.Set("name", name))
+		}
 	}
 	if user.Desc != nil {
 		bind.Append("patch", `"desc" = `+bind.Set("desc", types.TrimStringPtr(user.Desc)))
@@ -230,6 +261,19 @@ func (list *UserList) Scan(row pg.Row) error {
 	}
 	list.Body = append(list.Body, user)
 	return nil
+}
+
+///////////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+func (user UserName) validate() (string, error) {
+	if name := strings.TrimSpace(string(user)); name == "" {
+		return "", httpresponse.ErrBadRequest.With("name is missing")
+	} else if strings.ContainsRune(name, os.PathSeparator) {
+		return "", httpresponse.ErrBadRequest.With("name cannot contain path separator")
+	} else {
+		return name, nil
+	}
 }
 
 ///////////////////////////////////////////////////////////////////////////////////
@@ -305,5 +349,17 @@ const (
 			name = @id
 		RETURNING
 			"name", "ts", "status", "desc", "scope", "meta"
+	`
+	userFromTokenHash = `
+		SELECT
+			U."name", U."ts", U."status", U."desc", U."scope", U."meta" || jsonb_build_object('token_id', T."id") AS "meta"
+		FROM
+			${"schema"}."user" U
+		JOIN
+			${"schema"}."token" T ON U."name" = T."user"
+		WHERE
+			T."hash" = @hash
+		AND
+			T."status" = 'live'	
 	`
 )

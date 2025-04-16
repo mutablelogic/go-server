@@ -34,6 +34,7 @@ func (c Config) New(ctx context.Context) (server.Task, error) {
 	// Register HTTP handlers
 	if c.Router != nil {
 		handler.RegisterUser(ctx, c.Router, c.Prefix, manager)
+		handler.RegisterToken(ctx, c.Router, c.Prefix, manager)
 	}
 
 	// Create a new task with the connection pool

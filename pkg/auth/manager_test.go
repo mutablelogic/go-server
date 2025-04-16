@@ -483,3 +483,64 @@ func Test_Auth_002(t *testing.T) {
 		assert.Equal("live", types.PtrString(list.Status))
 	})
 }
+
+func Test_Auth_003(t *testing.T) {
+	assert := assert.New(t)
+	conn := conn.Begin(t)
+	defer conn.Close()
+
+	// Create a new database manager
+	manager, err := auth.New(context.TODO(), conn)
+	if !assert.NoError(err) {
+		t.FailNow()
+	}
+	assert.NotNil(manager)
+
+	// Create a new user
+	user, err := manager.CreateUser(context.TODO(), schema.UserMeta{
+		Name:  types.StringPtr("test"),
+		Desc:  types.StringPtr("test user"),
+		Scope: []string{},
+		Meta:  map[string]any{},
+	})
+	if !assert.NoError(err) {
+		t.FailNow()
+	}
+
+	t.Run("GetUserForToken1", func(t *testing.T) {
+		// Create a new token
+		token, err := manager.CreateToken(context.TODO(), *user.Name, schema.TokenMeta{})
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+		assert.NotEmpty(types.PtrString(token.Value))
+
+		// Get the user for the token
+		user2, err := manager.GetUserForToken(context.TODO(), types.PtrString(token.Value))
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+		assert.Equal(user.Name, user2.Name)
+		assert.Equal(float64(token.Id), user2.Meta["token_id"])
+	})
+
+	t.Run("GetUserForToken2", func(t *testing.T) {
+		// Create a new token
+		token, err := manager.CreateToken(context.TODO(), *user.Name, schema.TokenMeta{})
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+		assert.NotEmpty(types.PtrString(token.Value))
+
+		// Archive it
+		_, err = manager.DeleteToken(context.TODO(), token.User, token.Id, false)
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+
+		// User "not found" due to invalid token
+		_, err = manager.GetUserForToken(context.TODO(), types.PtrString(token.Value))
+		assert.ErrorIs(err, httpresponse.ErrNotFound)
+	})
+
+}

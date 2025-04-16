@@ -2,6 +2,8 @@ package auth
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"strings"
 
@@ -288,13 +290,41 @@ func (manager *Manager) ListUsers(ctx context.Context, req schema.UserListReques
 // List tokens for a user
 func (manager *Manager) ListTokens(ctx context.Context, name string, req schema.TokenListRequest) (*schema.TokenList, error) {
 	var response schema.TokenList
+
+	// Get the user, return 404 if not found
+	var user schema.User
+	if err := manager.conn.Get(ctx, &user, schema.UserName(name)); err != nil {
+		return nil, httperr(err)
+	}
+
+	// List tokens for user
 	if err := manager.conn.With("user", name).List(ctx, &response, &req); err != nil {
 		return nil, httperr(err)
 	} else {
 		response.TokenListRequest = req
 	}
+
 	// Return success
 	return &response, nil
+}
+
+// Return a user for a token value
+func (manager *Manager) GetUserForToken(ctx context.Context, token string) (*schema.User, error) {
+	var user schema.User
+
+	algorithm := schema.AuthHashAlgorithm
+	switch algorithm {
+	case "sha256":
+		hash := sha256.Sum256([]byte(token))
+		if err := manager.conn.Get(ctx, &user, schema.UserTokenHash(hex.EncodeToString(hash[:]))); err != nil {
+			return nil, httperr(err)
+		}
+	default:
+		return nil, httpresponse.ErrBadRequest.Withf("unsupported hash algorithm %q", algorithm)
+	}
+
+	// Return success
+	return &user, nil
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -18,8 +18,8 @@ import (
 type TokenStatus string
 
 type TokenId struct {
-	User string `json:"user"`
-	Id   uint64 `json:"id"`
+	User string `json:"user" arg:"" help:"User name"`
+	Id   uint64 `json:"id" arg:"" help:"Token ID"`
 }
 
 type TokenMeta struct {
@@ -146,6 +146,13 @@ func (list *TokenListRequest) Select(bind *pg.Bind, op pg.Op) (string, error) {
 	// Where
 	bind.Del("where")
 
+	// User
+	if !bind.Has("user") {
+		return "", httpresponse.ErrBadRequest.With("user is missing")
+	} else {
+		bind.Append("where", `"user" = @user`)
+	}
+
 	// Status
 	if status := types.TrimStringPtr(list.Status); status == nil {
 		list.Status = types.StringPtr(string(TokenStatusLive))
@@ -153,7 +160,7 @@ func (list *TokenListRequest) Select(bind *pg.Bind, op pg.Op) (string, error) {
 		list.Status = status
 	}
 	if list.Status != nil {
-		bind.Append("where", `status = `+bind.Set("status", list.Status))
+		bind.Append("where", `"status" = `+bind.Set("status", list.Status))
 	}
 
 	// Where AND
@@ -338,9 +345,9 @@ const (
 			END AS "status",
 			COALESCE(T."desc", U."desc") AS "desc"
 		FROM
-			${"schema"}.token T
+			${"schema"}."token" T
 		JOIN
-			${"schema"}.user U ON T."user" = U."name"
+			${"schema"}."user" U ON T."user" = U."name"
 	`
 	tokenGet  = tokenSelect + ` WHERE T."user" = @user AND T."id" = @id`
 	tokenList = `WITH tq AS (` + tokenSelect + `) SELECT * FROM tq ${where} ${orderby}`
