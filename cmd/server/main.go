@@ -28,6 +28,7 @@ type CLI struct {
 	certmanager.CertCommands
 	auth.UserCommands
 	auth.TokenCommands
+	auth.AuthCommands
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -13,9 +13,14 @@ import (
 const (
 	SchemaName        = "auth"
 	RootUserName      = "root"
-	RootUserScope     = "root"
 	UserListLimit     = 50
 	AuthHashAlgorithm = "sha256"
+)
+
+const (
+	ScopeRoot      = "root"
+	ScopeUserRead  = "mutablelogic/go-server/pkg/auth/user_read"
+	ScopeUserWrite = "mutablelogic/go-server/pkg/auth/user_write"
 )
 
 ////////////////////////////////////////////////////////////////////////////////

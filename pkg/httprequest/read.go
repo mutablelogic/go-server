@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	// Packages
+	"github.com/mutablelogic/go-server/pkg/httpresponse"
 	types "github.com/mutablelogic/go-server/pkg/types"
 )
 
@@ -25,6 +26,8 @@ func Read(r *http.Request, v interface{}) error {
 	switch contentType {
 	case types.ContentTypeJSON:
 		return readJson(r, v)
+	case types.ContentTypeTextPlain:
+		return readString(r, v)
 	}
 
 	// Cannot handle this content type
@@ -34,11 +37,32 @@ func Read(r *http.Request, v interface{}) error {
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-func readJson(r *http.Request, v interface{}) error {
+func readJson(r *http.Request, v any) error {
 	if err := json.NewDecoder(r.Body).Decode(v); errors.Is(err, io.EOF) {
 		return errBadRequest.With("Missing request body")
 	} else if err != nil {
 		return errBadRequest.With(err.Error())
 	}
 	return nil
+}
+
+func readString(r *http.Request, v any) error {
+	switch v := v.(type) {
+	case []byte:
+		data, err := io.ReadAll(r.Body)
+		if err != nil {
+			return httpresponse.ErrBadRequest.With(err.Error())
+		}
+		copy(v, data)
+		return nil
+	case *string:
+		data, err := io.ReadAll(r.Body)
+		if err != nil {
+			return httpresponse.ErrBadRequest.With(err.Error())
+		}
+		*v = string(data)
+		return nil
+	default:
+		return httpresponse.ErrInternalError.Withf("cannot read %T as string", v)
+	}
 }

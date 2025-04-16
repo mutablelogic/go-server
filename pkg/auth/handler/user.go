@@ -24,9 +24,13 @@ func RegisterUser(ctx context.Context, router server.HTTPRouter, prefix string, 
 		// Handle method
 		switch r.Method {
 		case http.MethodGet:
-			_ = userList(w, r, manager)
+			_ = auth.RequireScope(w, r, func(w http.ResponseWriter, r *http.Request) error {
+				return userList(w, r, manager)
+			}, schema.ScopeUserRead)
 		case http.MethodPost:
-			_ = userCreate(w, r, manager)
+			_ = auth.RequireScope(w, r, func(w http.ResponseWriter, r *http.Request) error {
+				return userCreate(w, r, manager)
+			}, schema.ScopeUserWrite)
 		default:
 			_ = httpresponse.Error(w, httpresponse.Err(http.StatusMethodNotAllowed), r.Method)
 		}

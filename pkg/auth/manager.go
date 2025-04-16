@@ -57,7 +57,7 @@ func New(ctx context.Context, conn pg.PoolConn, opt ...Opt) (*Manager, error) {
 		Name: types.StringPtr(schema.RootUserName),
 		Desc: types.StringPtr("Root user"),
 		Scope: []string{
-			schema.RootUserScope,
+			schema.ScopeRoot,
 		},
 		Meta: map[string]any{},
 	}); err != nil {

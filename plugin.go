@@ -7,6 +7,7 @@ import (
 
 	// Packages
 	pg "github.com/djthorpe/go-pg"
+	authschema "github.com/mutablelogic/go-server/pkg/auth/schema"
 	pgschema "github.com/mutablelogic/go-server/pkg/pgqueue/schema"
 )
 
@@ -111,4 +112,15 @@ type PGQueue interface {
 
 	// Delete a ticker by name
 	DeleteTicker(context.Context, string) error
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// AUTHENTICATION AND AUTHORIZATION
+
+type Auth interface {
+	// Return the user for a HTTP request
+	Authenticate(*http.Request) (*authschema.User, error)
+
+	// Authorize the user against scopes
+	Authorize(context.Context, *authschema.User, ...string) error
 }
