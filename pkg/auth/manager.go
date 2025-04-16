@@ -25,26 +25,32 @@ type Manager struct {
 // Create a new auth manager, with a root user
 func New(ctx context.Context, conn pg.PoolConn, opt ...Opt) (*Manager, error) {
 	self := new(Manager)
-	self.conn = conn.With("schema", schema.SchemaName).(pg.PoolConn)
+	self.conn = conn.With(
+		"schema", schema.SchemaName,
+		"algorithm", schema.AuthHashAlgorithm,
+	).(pg.PoolConn)
 
 	_, err := apply(opt...)
 	if err != nil {
 		return nil, err
 	}
 
-	// If the schema does not exist, then bootstrap it
+	// Bootstrap
 	if err := self.conn.Tx(ctx, func(conn pg.Conn) error {
 		if exists, err := pg.SchemaExists(ctx, conn, schema.SchemaName); err != nil {
 			return err
 		} else if !exists {
-			return schema.Bootstrap(ctx, conn)
+			if err := pg.SchemaCreate(ctx, conn, schema.SchemaName); err != nil {
+				return err
+			}
 		}
-		return nil
+		return schema.Bootstrap(ctx, conn)
 	}); err != nil {
 		return nil, err
 	}
 
 	// Create and/or update the root user
+	// TODO: Create token and return it if that doesn't exist
 	if _, err := replaceUser(ctx, self.conn, schema.UserMeta{
 		Name: types.StringPtr(schema.RootUserName),
 		Desc: types.StringPtr("Root user"),
@@ -86,6 +92,44 @@ func (manager *Manager) CreateUser(ctx context.Context, meta schema.UserMeta) (*
 	return &user, nil
 }
 
+// Create a new token for a user
+func (manager *Manager) CreateToken(ctx context.Context, name string, meta schema.TokenMeta) (*schema.Token, error) {
+	var token schema.Token
+	if err := manager.conn.Tx(ctx, func(conn pg.Conn) error {
+		var user schema.User
+		var value schema.TokenNew
+
+		// Check for user and that user is live
+		if err := conn.Get(ctx, &user, schema.UserName(name)); err != nil {
+			return err
+		} else if schema.UserStatus(user.Status) != schema.UserStatusLive {
+			return httpresponse.ErrConflict.With("user is archived")
+		}
+
+		// Generate a new token
+		if err := conn.Get(ctx, &value, value); err != nil {
+			return err
+		} else {
+			value.User = types.PtrString(user.Name)
+			value.TokenMeta = meta
+		}
+
+		// Insert the token, set the token value
+		if err := conn.Insert(ctx, &token, value); err != nil {
+			return err
+		} else {
+			token.Value = types.StringPtr(value.Value)
+		}
+
+		// Return success
+		return nil
+	}); err != nil {
+		return nil, httperr(err)
+	}
+	// Return success
+	return &token, nil
+}
+
 // Create a new user, or update if the name already exists
 func (manager *Manager) ReplaceUser(ctx context.Context, meta schema.UserMeta) (*schema.User, error) {
 	if err := isRootUser(types.PtrString(meta.Name), "replace"); err != nil {
@@ -102,6 +146,16 @@ func (manager *Manager) GetUser(ctx context.Context, name string) (*schema.User,
 	}
 	// Return success
 	return &user, nil
+}
+
+// Get a token for a user
+func (manager *Manager) GetToken(ctx context.Context, name string, id uint64) (*schema.Token, error) {
+	var token schema.Token
+	if err := manager.conn.Get(ctx, &token, schema.TokenId{User: name, Id: id}); err != nil {
+		return nil, httperr(err)
+	}
+	// Return success
+	return &token, nil
 }
 
 // Archive or delete a user
@@ -140,6 +194,30 @@ func (manager *Manager) DeleteUser(ctx context.Context, name string, force bool)
 	return &user, nil
 }
 
+// Delete or archive token for a user
+func (manager *Manager) DeleteToken(ctx context.Context, name string, id uint64, force bool) (*schema.Token, error) {
+	var token schema.Token
+	if err := isRootUser(name, "delete token for"); err != nil {
+		return nil, err
+	}
+	if err := manager.conn.Tx(ctx, func(conn pg.Conn) error {
+		// Archive or delete the token
+		if force {
+			return conn.Delete(ctx, &token, schema.TokenId{User: name, Id: id})
+		} else if err := conn.Update(ctx, &token, schema.TokenId{User: name, Id: id}, schema.TokenStatusArchived); err != nil {
+			return err
+		}
+
+		// Re-read the token (status and desc fields may come from the user, not the token)
+		return conn.Get(ctx, &token, schema.TokenId{User: name, Id: id})
+	}); err != nil {
+		return nil, httperr(err)
+	}
+
+	// Return success
+	return &token, nil
+}
+
 // Update a user
 func (manager *Manager) UpdateUser(ctx context.Context, name string, meta schema.UserMeta) (*schema.User, error) {
 	var user schema.User
@@ -151,6 +229,24 @@ func (manager *Manager) UpdateUser(ctx context.Context, name string, meta schema
 	}
 	// Return success
 	return &user, nil
+}
+
+// Update a token
+func (manager *Manager) UpdateToken(ctx context.Context, name string, id uint64, meta schema.TokenMeta) (*schema.Token, error) {
+	var token schema.Token
+	if err := manager.conn.Tx(ctx, func(conn pg.Conn) error {
+		if err := manager.conn.Update(ctx, &token, schema.TokenId{User: name, Id: id}, meta); err != nil {
+			return err
+		}
+
+		// Re-read the token (status and desc fields may come from the user, not the token)
+		return conn.Get(ctx, &token, schema.TokenId{User: token.User, Id: token.Id})
+	}); err != nil {
+		return nil, httperr(err)
+	}
+
+	// Return success
+	return &token, nil
 }
 
 // Unarchive a user
@@ -178,12 +274,24 @@ func (manager *Manager) UnarchiveUser(ctx context.Context, name string) (*schema
 }
 
 // List users
-func (manager *Manager) ListUsers(ctx context.Context, req schema.UserListRequest) (*schema.UserListResponse, error) {
-	var response schema.UserListResponse
+func (manager *Manager) ListUsers(ctx context.Context, req schema.UserListRequest) (*schema.UserList, error) {
+	var response schema.UserList
 	if err := manager.conn.List(ctx, &response, &req); err != nil {
 		return nil, httperr(err)
 	} else {
 		response.UserListRequest = req
+	}
+	// Return success
+	return &response, nil
+}
+
+// List tokens for a user
+func (manager *Manager) ListTokens(ctx context.Context, name string, req schema.TokenListRequest) (*schema.TokenList, error) {
+	var response schema.TokenList
+	if err := manager.conn.With("user", name).List(ctx, &response, &req); err != nil {
+		return nil, httperr(err)
+	} else {
+		response.TokenListRequest = req
 	}
 	// Return success
 	return &response, nil

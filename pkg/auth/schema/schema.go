@@ -11,10 +11,11 @@ import (
 // GLOBALS
 
 const (
-	SchemaName    = "auth"
-	RootUserName  = "root"
-	RootUserScope = "root"
-	UserListLimit = 50
+	SchemaName        = "auth"
+	RootUserName      = "root"
+	RootUserScope     = "root"
+	UserListLimit     = 50
+	AuthHashAlgorithm = "sha256"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -24,12 +25,11 @@ const (
 // and returns an error if it fails. It is expected that this function
 // will be called within a transaction
 func Bootstrap(ctx context.Context, conn pg.Conn) error {
-	// Create the schema
-	if err := pg.SchemaCreate(ctx, conn, SchemaName); err != nil {
-		return err
-	}
 	// Create the tables
 	if err := bootstrapUser(ctx, conn); err != nil {
+		return err
+	}
+	if err := bootstrapToken(ctx, conn); err != nil {
 		return err
 	}
 

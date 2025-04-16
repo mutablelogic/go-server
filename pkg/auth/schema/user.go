@@ -38,7 +38,7 @@ type UserListRequest struct {
 	pg.OffsetLimit
 }
 
-type UserListResponse struct {
+type UserList struct {
 	UserListRequest
 	Count uint64 `json:"count"`
 	Body  []User `json:"body,omitempty"`
@@ -79,7 +79,7 @@ func (user UserListRequest) String() string {
 	return string(data)
 }
 
-func (user UserListResponse) String() string {
+func (user UserList) String() string {
 	data, err := json.MarshalIndent(user, "", "  ")
 	if err != nil {
 		return err.Error()
@@ -111,6 +111,9 @@ func (user UserName) Select(bind *pg.Bind, op pg.Op) (string, error) {
 }
 
 func (list *UserListRequest) Select(bind *pg.Bind, op pg.Op) (string, error) {
+	// Order
+	bind.Set("orderby", `ORDER BY ts DESC`)
+
 	// Where
 	bind.Del("where")
 
@@ -215,12 +218,12 @@ func (user *User) Scan(row pg.Row) error {
 	return row.Scan(&user.Name, &user.Ts, &user.Status, &user.Desc, &user.Scope, &user.Meta)
 }
 
-func (list *UserListResponse) ScanCount(row pg.Row) error {
+func (list *UserList) ScanCount(row pg.Row) error {
 	list.Body = []User{}
 	return row.Scan(&list.Count)
 }
 
-func (list *UserListResponse) Scan(row pg.Row) error {
+func (list *UserList) Scan(row pg.Row) error {
 	var user User
 	if err := user.Scan(row); err != nil {
 		return err
@@ -284,14 +287,14 @@ const (
 			${"schema"}."user"
 	`
 	userGet    = userSelect + ` WHERE name = @id`
-	userList   = `WITH q AS (` + userSelect + `) SELECT * FROM q ${where}`
+	userList   = `WITH q AS (` + userSelect + `) SELECT * FROM q ${where} ${orderby}`
 	userDelete = `
 		DELETE FROM
 			${"schema"}."user"
 		WHERE 
 			name = @id
 		RETURNING
-			"name", "ts", "status", "desc", "scope", "meta"
+			"name", "ts", 'deleted' AS "status", "desc", "scope", "meta"
 	`
 	userUpdate = `
 		UPDATE

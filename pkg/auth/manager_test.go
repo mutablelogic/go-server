@@ -286,3 +286,200 @@ func Test_Auth_001(t *testing.T) {
 	})
 
 }
+
+func Test_Auth_002(t *testing.T) {
+	assert := assert.New(t)
+	conn := conn.Begin(t)
+	defer conn.Close()
+
+	// Create a new database manager
+	manager, err := auth.New(context.TODO(), conn)
+	if !assert.NoError(err) {
+		t.FailNow()
+	}
+	assert.NotNil(manager)
+
+	// Create a new user
+	user, err := manager.CreateUser(context.TODO(), schema.UserMeta{
+		Name:  types.StringPtr("test"),
+		Desc:  types.StringPtr("test user"),
+		Scope: []string{},
+		Meta:  map[string]any{},
+	})
+	if !assert.NoError(err) {
+		t.FailNow()
+	}
+
+	// Create a new user and archive
+	archived, err := manager.CreateUser(context.TODO(), schema.UserMeta{
+		Name:  types.StringPtr("test2"),
+		Desc:  types.StringPtr("test user"),
+		Scope: []string{},
+		Meta:  map[string]any{},
+	})
+	if !assert.NoError(err) {
+		t.FailNow()
+	}
+	_, err = manager.DeleteUser(context.TODO(), types.PtrString(archived.Name), false)
+	if !assert.NoError(err) {
+		t.FailNow()
+	}
+
+	// Create a new token
+	t.Run("CreateToken1", func(t *testing.T) {
+		token, err := manager.CreateToken(context.TODO(), *user.Name, schema.TokenMeta{})
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+		assert.NotEmpty(token.Id)
+		assert.Equal(types.PtrString(user.Name), token.User)
+		assert.Equal("live", token.Status)
+		assert.NotEmpty(types.PtrString(token.Value))
+	})
+
+	// Create a token for an archived user
+	t.Run("CreateToken2", func(t *testing.T) {
+		_, err := manager.CreateToken(context.TODO(), *archived.Name, schema.TokenMeta{})
+		assert.ErrorIs(err, httpresponse.ErrConflict)
+	})
+
+	// Create a token then get it
+	t.Run("GetToken1", func(t *testing.T) {
+		token, err := manager.CreateToken(context.TODO(), *user.Name, schema.TokenMeta{
+			Desc: types.StringPtr("test description"),
+		})
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+
+		// Empty the value field
+		token.Value = nil
+
+		token2, err := manager.GetToken(context.TODO(), token.User, token.Id)
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+		assert.Equal(token, token2)
+	})
+
+	// Get non-existent token
+	t.Run("GetToken2", func(t *testing.T) {
+		_, err := manager.GetToken(context.TODO(), "no name", 42)
+		assert.ErrorIs(err, httpresponse.ErrNotFound)
+	})
+
+	// Create token, archive user, then get token which should be archived
+	t.Run("GetToken3", func(t *testing.T) {
+		// Create a new user
+		user, err := manager.CreateUser(context.TODO(), schema.UserMeta{
+			Name:  types.StringPtr("test3"),
+			Desc:  types.StringPtr("test user"),
+			Scope: []string{},
+			Meta:  map[string]any{},
+		})
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+
+		// Create token
+		token, err := manager.CreateToken(context.TODO(), *user.Name, schema.TokenMeta{
+			Desc: types.StringPtr("test description"),
+		})
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+
+		// Archive user
+		archived, err = manager.DeleteUser(context.TODO(), types.PtrString(user.Name), false)
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+		assert.Equal("archived", archived.Status)
+
+		// Get token - should report as archived
+		token2, err := manager.GetToken(context.TODO(), token.User, token.Id)
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+		assert.Equal("archived", token2.Status)
+	})
+
+	// Delete non-existent token
+	t.Run("DeleteToken1", func(t *testing.T) {
+		_, err := manager.DeleteToken(context.TODO(), "no name", 42, false)
+		assert.ErrorIs(err, httpresponse.ErrNotFound)
+	})
+
+	// Create a token then archive it
+	t.Run("DeleteToken2", func(t *testing.T) {
+		// Create token
+		token, err := manager.CreateToken(context.TODO(), *user.Name, schema.TokenMeta{
+			Desc: types.StringPtr("test description"),
+		})
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+
+		// Archive the token
+		token2, err := manager.DeleteToken(context.TODO(), token.User, token.Id, false)
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+		assert.Equal(token.Id, token2.Id)
+		assert.Equal(token.User, token2.User)
+		assert.Equal("archived", token2.Status)
+	})
+
+	// Create a token then delete it
+	t.Run("DeleteToken3", func(t *testing.T) {
+		// Create token
+		token, err := manager.CreateToken(context.TODO(), *user.Name, schema.TokenMeta{
+			Desc: types.StringPtr("test description"),
+		})
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+
+		// Delete the token
+		token2, err := manager.DeleteToken(context.TODO(), token.User, token.Id, true)
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+		assert.Equal(token.Id, token2.Id)
+		assert.Equal(token.User, token2.User)
+		assert.Equal("deleted", token2.Status)
+	})
+
+	// Update a token
+	t.Run("UpdateToken", func(t *testing.T) {
+		// Create token
+		token, err := manager.CreateToken(context.TODO(), *user.Name, schema.TokenMeta{})
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+		assert.NotEmpty(token.Id)
+		assert.Nil(token.Desc)
+
+		// Update token
+		token2, err := manager.UpdateToken(context.TODO(), token.User, token.Id, schema.TokenMeta{
+			Desc: types.StringPtr("new test description"),
+		})
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+		assert.Equal(token.Id, token2.Id)
+		assert.Equal(token.User, token2.User)
+		assert.Equal("new test description", types.PtrString(token2.Desc))
+	})
+
+	// List tokens for user
+	t.Run("ListTokens", func(t *testing.T) {
+		// List tokens
+		list, err := manager.ListTokens(context.TODO(), *user.Name, schema.TokenListRequest{})
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+		// Default live state
+		assert.Equal("live", types.PtrString(list.Status))
+	})
+}
