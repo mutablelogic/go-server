@@ -44,7 +44,7 @@ all: clean build
 
 # Build the commands in the cmd directory
 .PHONY: build
-build: tidy $(CMD_DIR) $(PLUGIN_DIR)
+build: tidy $(CMD_DIR)
 
 $(CMD_DIR): go-dep mkdir
 	@echo Build command $(notdir $@) GOOS=${OS} GOARCH=${ARCH}
