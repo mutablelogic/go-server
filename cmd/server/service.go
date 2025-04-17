@@ -8,6 +8,7 @@ import (
 	server "github.com/mutablelogic/go-server"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	provider "github.com/mutablelogic/go-server/pkg/provider"
+	ref "github.com/mutablelogic/go-server/pkg/ref"
 	types "github.com/mutablelogic/go-server/pkg/types"
 
 	// Plugins
@@ -57,25 +58,26 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 
 	// Create a provider and resolve references
 	provider, err := provider.New(func(ctx context.Context, label string, plugin server.Plugin) (server.Plugin, error) {
-		provider.Log(ctx).Debugf(ctx, "Resolving %q", label)
+		ref.Log(ctx).Debugf(ctx, "Resolving %q", label)
 		switch label {
 		case "log":
 			config := plugin.(log.Config)
 			config.Debug = app.GetDebug() >= server.Debug
 			return config, nil
+
 		case "certmanager":
 			config := plugin.(certmanager.Config)
 
 			// Set the router
-			if router, ok := provider.Provider(ctx).Task(ctx, "httprouter").(server.HTTPRouter); !ok || router == nil {
-				return nil, httpresponse.ErrInternalError.Withf("Invalid router %q", label)
+			if router, ok := ref.Provider(ctx).Task(ctx, "httprouter").(server.HTTPRouter); !ok || router == nil {
+				return nil, httpresponse.ErrInternalError.Withf("Invalid router %q", "httprouter")
 			} else {
 				config.Router = router
 			}
 
 			// Set the connection pool
-			if pool, ok := provider.Provider(ctx).Task(ctx, "pgpool").(server.PG); !ok || pool == nil {
-				return nil, httpresponse.ErrInternalError.Withf("Invalid connection pool %q", label)
+			if pool, ok := ref.Provider(ctx).Task(ctx, "pgpool").(server.PG); !ok || pool == nil {
+				return nil, httpresponse.ErrInternalError.Withf("Invalid connection pool %q", "pgpool")
 			} else {
 				config.Pool = pool
 			}
@@ -86,8 +88,8 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 			config := plugin.(httpserver.Config)
 
 			// Set the router
-			if router, ok := provider.Provider(ctx).Task(ctx, "httprouter").(http.Handler); !ok || router == nil {
-				return nil, httpresponse.ErrInternalError.Withf("Invalid router %q", label)
+			if router, ok := ref.Provider(ctx).Task(ctx, "httprouter").(http.Handler); !ok || router == nil {
+				return nil, httpresponse.ErrInternalError.Withf("Invalid router %q", "httprouter")
 			} else {
 				config.Router = router
 			}
@@ -99,7 +101,7 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 			config := plugin.(httprouter.Config)
 
 			// Set the middleware
-			config.Middleware = []string{"log"}
+			config.Middleware = []string{"auth", "log"}
 
 			// Return the new configuration with the router
 			return config, nil
@@ -108,15 +110,15 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 			config := plugin.(auth.Config)
 
 			// Set the router
-			if router, ok := provider.Provider(ctx).Task(ctx, "httprouter").(server.HTTPRouter); !ok || router == nil {
-				return nil, httpresponse.ErrInternalError.Withf("Invalid router %q", label)
+			if router, ok := ref.Provider(ctx).Task(ctx, "httprouter").(server.HTTPRouter); !ok || router == nil {
+				return nil, httpresponse.ErrInternalError.Withf("Invalid router %q", "httprouter")
 			} else {
 				config.Router = router
 			}
 
 			// Set the connection pool
-			if pool, ok := provider.Provider(ctx).Task(ctx, "pgpool").(server.PG); !ok || pool == nil {
-				return nil, httpresponse.ErrInternalError.Withf("Invalid connection pool %q", label)
+			if pool, ok := ref.Provider(ctx).Task(ctx, "pgpool").(server.PG); !ok || pool == nil {
+				return nil, httpresponse.ErrInternalError.Withf("Invalid connection pool %q", "pgpool")
 			} else {
 				config.Pool = pool
 			}
@@ -128,8 +130,8 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 			config := plugin.(pg.Config)
 
 			// Set the router
-			if router, ok := provider.Provider(ctx).Task(ctx, "httprouter").(server.HTTPRouter); !ok || router == nil {
-				return nil, httpresponse.ErrInternalError.Withf("Invalid router %q", label)
+			if router, ok := ref.Provider(ctx).Task(ctx, "httprouter").(server.HTTPRouter); !ok || router == nil {
+				return nil, httpresponse.ErrInternalError.Withf("Invalid router %q", "httprouter")
 			} else {
 				config.Router = router
 			}
@@ -138,9 +140,9 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 			if app.GetDebug() == server.Trace {
 				config.Trace = func(ctx context.Context, query string, args any, err error) {
 					if err != nil {
-						provider.Log(ctx).With("args", args).Print(ctx, err, " ON ", query)
+						ref.Log(ctx).With("args", args).Print(ctx, err, " ON ", query)
 					} else {
-						provider.Log(ctx).With("args", args).Debug(ctx, query)
+						ref.Log(ctx).With("args", args).Debug(ctx, query)
 					}
 				}
 			}

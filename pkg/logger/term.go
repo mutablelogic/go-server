@@ -7,6 +7,9 @@ import (
 	"io"
 	"log/slog"
 	"strconv"
+
+	// Packages
+	ref "github.com/mutablelogic/go-server/pkg/ref"
 )
 
 /////////////////////////////////////////////////////////////////////////////////
@@ -52,7 +55,7 @@ const (
 
 func (h *TermHandler) Handle(ctx context.Context, r slog.Record) error {
 	level := r.Level.String() + ":"
-
+	label := ref.Label(ctx) + ":"
 	switch r.Level {
 	case slog.LevelDebug:
 		level = colorize(darkGray, level)
@@ -76,6 +79,7 @@ func (h *TermHandler) Handle(ctx context.Context, r slog.Record) error {
 	fmt.Fprintln(h.Writer,
 		colorize(lightGray, r.Time.Format(timeFormat)),
 		level,
+		label,
 		colorize(white, r.Message),
 		string(data),
 	)

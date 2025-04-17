@@ -8,13 +8,14 @@ import (
 
 	// Packages
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
+	ref "github.com/mutablelogic/go-server/pkg/ref"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 
 const (
-	providerLabel = "root"
+	providerLabel = "provider"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -25,15 +26,12 @@ func (provider *provider) Run(parent context.Context) error {
 	var result error
 
 	// Append the provider to the context
-	parent = withProvider(parent, provider)
+	parent = ref.WithPath(ref.WithProvider(parent, provider), providerLabel)
 
 	// Create a child context which will allow us to cancel all the tasks
 	// prematurely if any of them fail
 	ctx, prematureCancel := context.WithCancel(parent)
 	defer prematureCancel()
-
-	// Put the provider at the top of the path
-	ctx = withPath(ctx, providerLabel)
 
 	// Create all the tasks
 	if err := provider.constructor(parent); err != nil {
@@ -49,7 +47,7 @@ func (provider *provider) Run(parent context.Context) error {
 
 		// Create a context for each task
 		ctx, cancel := context.WithCancel(context.Background())
-		task.Context = withProvider(ctx, provider)
+		task.Context = ref.WithProvider(ctx, provider)
 		task.CancelFunc = cancel
 		task.WaitGroup.Add(1)
 		go func(task *state) {

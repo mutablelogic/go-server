@@ -11,7 +11,7 @@ import (
 	"time"
 
 	// Packages
-	"github.com/mutablelogic/go-server/pkg/provider"
+	ref "github.com/mutablelogic/go-server/pkg/ref"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -89,7 +89,7 @@ func (server *server) Run(parent context.Context) error {
 
 		// Stop server, terminate connections after 30 seconds
 		if err := server.shutdown(); err != nil {
-			provider.Log(parent).Print(parent, err)
+			ref.Log(parent).Print(parent, err)
 		}
 	}(ctx)
 
@@ -111,7 +111,7 @@ func (server *server) Run(parent context.Context) error {
 	if errors.Is(result, http.ErrServerClosed) {
 		return nil
 	} else {
-		provider.Log(parent).Print(parent, result)
+		ref.Log(parent).Print(parent, result)
 		return result
 	}
 }

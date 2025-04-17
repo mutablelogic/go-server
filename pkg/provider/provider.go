@@ -4,13 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"slices"
+	"strings"
 	"sync"
 
 	// Packages
-
 	server "github.com/mutablelogic/go-server"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	logger "github.com/mutablelogic/go-server/pkg/logger"
+	ref "github.com/mutablelogic/go-server/pkg/ref"
 	types "github.com/mutablelogic/go-server/pkg/types"
 )
 
@@ -18,6 +20,9 @@ import (
 // TYPES
 
 type provider struct {
+	// Order of the plugins
+	porder []string
+
 	// Map labels to plugins
 	plugin map[string]server.Plugin
 
@@ -70,7 +75,10 @@ func New(resolver ResolverFunc, plugins ...server.Plugin) (*provider, error) {
 		label := plugin.Name()
 		if _, exists := self.plugin[label]; exists {
 			return nil, httpresponse.ErrInternalError.Withf("Plugin %q already exists", plugin.Name())
+		} else if label == providerLabel {
+			return nil, httpresponse.ErrInternalError.Withf("Label %q is reserved", providerLabel)
 		} else {
+			self.porder = append(self.porder, label)
 			self.plugin[label] = plugin
 		}
 	}
@@ -131,10 +139,19 @@ func (provider *provider) Task(ctx context.Context, label string) server.Task {
 		return nil
 	}
 
+	// Check for circular dependency
+	if path := ref.Path(ctx); slices.Contains(path, label) {
+		provider.Print(ctx, httpresponse.ErrInternalError.Withf("circular dependency for %s -> %s", strings.Join(path, " -> "), label))
+		return nil
+	}
+
+	// modify ctx to append path
+	ctx = ref.WithPath(ctx, label)
+
 	// Resolve the plugin
 	if provider.resolver != nil {
 		var err error
-		plugin, err = provider.resolver(withProvider(ctx, provider), label, plugin)
+		plugin, err = provider.resolver(ctx, label, plugin)
 		if err != nil {
 			provider.Print(ctx, label, ": ", err)
 			return nil
@@ -143,7 +160,7 @@ func (provider *provider) Task(ctx context.Context, label string) server.Task {
 
 	// Create the task
 	provider.Debug(ctx, "creating a new task for label ", label)
-	task, err := plugin.New(withPath(ctx, label))
+	task, err := plugin.New(ctx)
 	if err != nil {
 		provider.Print(ctx, label, ": ", err)
 		return nil
@@ -170,7 +187,7 @@ func (provider *provider) Task(ctx context.Context, label string) server.Task {
 
 // Make all tasks
 func (provider *provider) constructor(ctx context.Context) error {
-	for label := range provider.plugin {
+	for _, label := range provider.porder {
 		if task := provider.Task(ctx, label); task == nil {
 			return httpresponse.ErrConflict.Withf("Failed to create task %q", label)
 		}

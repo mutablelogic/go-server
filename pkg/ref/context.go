@@ -1,4 +1,4 @@
-package provider
+package ref
 
 import (
 	"context"
@@ -42,6 +42,14 @@ func Path(ctx context.Context) []string {
 	}
 }
 
+func Label(ctx context.Context) string {
+	if value, ok := ctx.Value(ctxPath).([]string); !ok || len(value) == 0 {
+		return ""
+	} else {
+		return value[len(value)-1]
+	}
+}
+
 func Log(ctx context.Context) server.Logger {
 	if value := ctx.Value(ctxLogger); value == nil {
 		return nil
@@ -78,6 +86,16 @@ func WithUser(ctx context.Context, user *authschema.User) context.Context {
 	return context.WithValue(ctx, ctxUser, user)
 }
 
+// Set the provider in the context
+func WithProvider(parent context.Context, provider server.Provider) context.Context {
+	return context.WithValue(context.WithValue(parent, ctxProvider, provider), ctxLogger, provider)
+}
+
+// Append a path to the context
+func WithPath(parent context.Context, path ...string) context.Context {
+	return context.WithValue(parent, ctxPath, append(Path(parent), path...))
+}
+
 func DumpContext(w io.Writer, ctx context.Context) error {
 	type j struct {
 		Path     []string         `json:"path,omitempty"`
@@ -93,17 +111,4 @@ func DumpContext(w io.Writer, ctx context.Context) error {
 		Auth:     Auth(ctx),
 		User:     User(ctx),
 	})
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// PRIVATE METHODS
-
-// Set the provider in the context
-func withProvider(parent context.Context, provider server.Provider) context.Context {
-	return context.WithValue(context.WithValue(parent, ctxProvider, provider), ctxLogger, provider)
-}
-
-// Append a path to the context
-func withPath(parent context.Context, path ...string) context.Context {
-	return context.WithValue(parent, ctxPath, append(Path(parent), path...))
 }

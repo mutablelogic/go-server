@@ -7,10 +7,9 @@ import (
 	"strings"
 
 	// Packages
-
 	schema "github.com/mutablelogic/go-server/pkg/auth/schema"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
-	provider "github.com/mutablelogic/go-server/pkg/provider"
+	ref "github.com/mutablelogic/go-server/pkg/ref"
 )
 
 /////////////////////////////////////////////////////////////////////////////////
@@ -28,7 +27,7 @@ const (
 // and then the api-key query parameter (not recommended)
 func RequireScope(w http.ResponseWriter, r *http.Request, fn func(w http.ResponseWriter, r *http.Request) error, scopes ...string) error {
 	// Get the authorization method from the context
-	auth := provider.Auth(r.Context())
+	auth := ref.Auth(r.Context())
 	if auth == nil {
 		// No auth provider, proceed without authentication
 		return fn(w, r)
@@ -46,7 +45,7 @@ func RequireScope(w http.ResponseWriter, r *http.Request, fn func(w http.Respons
 	}
 
 	// Add the authenticated user to the request context
-	ctx := provider.WithUser(r.Context(), user)
+	ctx := ref.WithUser(r.Context(), user)
 
 	// Call the function with the user
 	return fn(w, r.WithContext(ctx))

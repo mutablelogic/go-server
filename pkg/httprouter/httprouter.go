@@ -7,7 +7,7 @@ import (
 	// Packages
 	server "github.com/mutablelogic/go-server"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
-	provider "github.com/mutablelogic/go-server/pkg/provider"
+	ref "github.com/mutablelogic/go-server/pkg/ref"
 	types "github.com/mutablelogic/go-server/pkg/types"
 )
 
@@ -35,7 +35,7 @@ func New(ctx context.Context, prefix, origin string, middleware ...string) (*rou
 
 	// Get middleware
 	for _, label := range middleware {
-		middleware := provider.Provider(ctx).Task(ctx, label)
+		middleware := ref.Provider(ctx).Task(ctx, label)
 		if middleware == nil {
 			return nil, httpresponse.ErrInternalError.Withf("%q is nil", label)
 		} else if middleware_, ok := middleware.(server.HTTPMiddleware); !ok {
@@ -68,9 +68,9 @@ func (r *router) HandleFunc(ctx context.Context, prefix string, fn http.HandlerF
 	}
 
 	// Apply middleware, set context
-	provider.Log(ctx).Debug(ctx, "Register route: ", types.JoinPath(r.prefix, prefix))
+	ref.Log(ctx).Debug(ctx, "Register route: ", types.JoinPath(r.prefix, prefix))
 	r.ServeMux.HandleFunc(types.JoinPath(r.prefix, prefix), func(w http.ResponseWriter, r *http.Request) {
-		fn(w, r.WithContext(provider.WithLog(ctx, provider.Log(ctx))))
+		fn(w, r.WithContext(ref.WithLog(ctx, ref.Log(ctx))))
 	})
 }
 
