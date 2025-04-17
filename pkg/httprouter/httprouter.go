@@ -34,6 +34,7 @@ func New(ctx context.Context, prefix, origin string, middleware ...string) (*rou
 	router.origin = origin
 
 	// Get middleware
+	// TODO: Only store references to middleware here not the middleware itself
 	for _, label := range middleware {
 		middleware := ref.Provider(ctx).Task(ctx, label)
 		if middleware == nil {

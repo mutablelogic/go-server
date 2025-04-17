@@ -62,65 +62,79 @@ type HTTPMiddleware interface {
 ///////////////////////////////////////////////////////////////////////////////
 // LOGGER
 
+// Logger defines methods for logging messages and structured data.
+// It can also act as HTTP middleware for request logging.
 type Logger interface {
 	HTTPMiddleware
 
-	// Emit a debugging message
+	// Debug logs a debugging message.
 	Debug(context.Context, ...any)
 
-	// Emit a debugging message with formatting
+	// Debugf logs a formatted debugging message.
 	Debugf(context.Context, string, ...any)
 
-	// Emit an informational message
+	// Print logs an informational message.
 	Print(context.Context, ...any)
 
-	// Emit an informational message with formatting
+	// Printf logs a formatted informational message.
 	Printf(context.Context, string, ...any)
 
-	// Append structured data to the log in key-value pairs
-	// where the key is a string and the value is any type
+	// With returns a new Logger that includes the given key-value pairs
+	// in its structured log output.
 	With(...any) Logger
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // PGPOOL
 
+// PG provides access to a PostgreSQL connection pool.
 type PG interface {
-	// Return the connection pool
+	// Conn returns the underlying connection pool object.
 	Conn() pg.PoolConn
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // PGQUEUE
 
+// PGCallback defines the function signature for handling tasks dequeued
+// from a PostgreSQL-backed queue.
 type PGCallback func(context.Context, any) error
 
+// PGQueue defines methods for interacting with a PostgreSQL-backed task queue.
+// It also embeds the Task interface, implying it runs as a background service.
 type PGQueue interface {
 	Task
 
-	// Return the worker name
+	// Worker returns the unique name of the queue worker.
 	Worker() string
 
-	// Register a ticker with a callback, and return the registered ticker
+	// RegisterTicker registers a periodic task (ticker) with a callback function.
+	// It returns the metadata of the registered ticker.
 	RegisterTicker(context.Context, pgschema.TickerMeta, PGCallback) (*pgschema.Ticker, error)
 
-	// Register a queue with a callback, and return the registered queue
+	// RegisterQueue registers a task queue with a callback function.
+	// It returns the metadata of the registered queue.
 	RegisterQueue(context.Context, pgschema.Queue, PGCallback) (*pgschema.Queue, error)
 
-	// Create a task for a queue with a payload and optional delay, and return it
+	// CreateTask adds a new task to a specified queue with a payload and optional delay.
+	// It returns the metadata of the created task.
 	CreateTask(context.Context, string, any, time.Duration) (*pgschema.Task, error)
 
-	// Delete a ticker by name
+	// DeleteTicker removes a registered ticker by its name.
 	DeleteTicker(context.Context, string) error
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // AUTHENTICATION AND AUTHORIZATION
 
+// Auth defines methods for authenticating users based on HTTP requests
+// and authorizing them based on required scopes.
 type Auth interface {
-	// Return the user for a HTTP request
+	// Authenticate attempts to identify and return the user associated with
+	// an incoming HTTP request, typically by inspecting headers or tokens.
 	Authenticate(*http.Request) (*authschema.User, error)
 
-	// Authorize the user against scopes
+	// Authorize checks if a given user has the necessary permissions (scopes)
+	// to perform an action.
 	Authorize(context.Context, *authschema.User, ...string) error
 }
