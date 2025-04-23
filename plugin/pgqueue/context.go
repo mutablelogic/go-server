@@ -1,4 +1,4 @@
-package pgqueue
+package main
 
 import (
 	"context"

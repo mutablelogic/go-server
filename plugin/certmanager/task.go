@@ -1,4 +1,4 @@
-package certmanager
+package main
 
 import (
 	"context"

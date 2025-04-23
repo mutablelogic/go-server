@@ -1,4 +1,4 @@
-package pg
+package main
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	auth "github.com/mutablelogic/go-server/pkg/auth"
 	handler "github.com/mutablelogic/go-server/pkg/auth/handler"
 	schema "github.com/mutablelogic/go-server/pkg/auth/schema"
+	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -25,6 +26,11 @@ var _ server.Plugin = Config{}
 // LIFECYCLE
 
 func (c Config) New(ctx context.Context) (server.Task, error) {
+	// Check for connection pool
+	if c.Pool == nil {
+		return nil, httpresponse.ErrInternalError.With("missing connection pool")
+	}
+
 	// Create  an auth manager
 	manager, err := auth.New(ctx, c.Pool.Conn(), []auth.Opt{}...)
 	if err != nil {
@@ -44,6 +50,10 @@ func (c Config) New(ctx context.Context) (server.Task, error) {
 
 ////////////////////////////////////////////////////////////////////////////////
 // MODULE
+
+func Plugin() server.Plugin {
+	return Config{}
+}
 
 func (c Config) Name() string {
 	return schema.SchemaName

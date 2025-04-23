@@ -1,4 +1,4 @@
-package pgqueue_test
+package main_test
 
 import (
 	"context"
