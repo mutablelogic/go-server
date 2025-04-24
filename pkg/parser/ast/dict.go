@@ -5,19 +5,19 @@ import "fmt"
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type block struct {
+type dict struct {
 	parent   Node
 	children []Node
 }
 
-var _ Node = (*block)(nil)
+var _ Node = (*dict)(nil)
 
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-// Create a new block
-func NewBlock(parent Node) Node {
-	node := &block{parent: parent}
+// Create a new map[string]Node dictionary
+func NewDict(parent Node) Node {
+	node := &dict{parent: parent}
 	if parent != nil {
 		parent.AppendChild(node)
 	}
@@ -27,7 +27,7 @@ func NewBlock(parent Node) Node {
 ///////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
-func (node block) String() string {
+func (node dict) String() string {
 	str := "<" + fmt.Sprint(node.Type())
 	for _, child := range node.children {
 		str += " " + fmt.Sprint(child)
@@ -38,22 +38,22 @@ func (node block) String() string {
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func (node block) Type() Type {
-	return Block
+func (node dict) Type() Type {
+	return Dict
 }
 
-func (node block) Parent() Node {
+func (node dict) Parent() Node {
 	return node.parent
 }
 
-func (node block) Children() []Node {
+func (node dict) Children() []Node {
 	return node.children
 }
 
-func (node block) Value() any {
+func (node dict) Value() any {
 	return nil
 }
 
-func (node *block) AppendChild(child Node) {
+func (node *dict) AppendChild(child Node) {
 	node.children = append(node.children, child)
 }

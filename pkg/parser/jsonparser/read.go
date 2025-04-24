@@ -10,13 +10,12 @@ import (
 )
 
 func Read(r io.Reader) (ast.Node, error) {
+	var root, cur ast.Node
+
 	parser := json.NewDecoder(r)
 	parser.UseNumber() // Use Number to preserve number types
 
-	// Root element is a block, which will contain other blocks
-	root := ast.NewBlock(nil)
-	cur := root
-
+	// Iterate over the tokens until EOF
 	for {
 		token, err := parser.Token()
 		if errors.Is(err, io.EOF) {
@@ -26,76 +25,127 @@ func Read(r io.Reader) (ast.Node, error) {
 		}
 		switch token := token.(type) {
 		case string:
-			switch cur.Type() {
-			case ast.Block:
-				cur = ast.NewIdent(cur, token)
-			case ast.Ident:
-				ast.NewString(cur, string(token))
-				cur = cur.Parent()
-			default:
-				return nil, fmt.Errorf("unexpected string token: %q", token)
+			cur, err = parseString(cur, token)
+			if err != nil {
+				return nil, err
 			}
 		case nil:
-			switch cur.Type() {
-			case ast.Ident:
-				ast.NewNull(cur)
-				cur = cur.Parent()
-			default:
-				return nil, fmt.Errorf("unexpected null token: %q", token)
+			cur, err = parseNull(cur)
+			if err != nil {
+				return nil, err
 			}
 		case bool:
-			switch cur.Type() {
-			case ast.Ident:
-				ast.NewBool(cur, token)
-				cur = cur.Parent()
-			default:
-				return nil, fmt.Errorf("unexpected bool token: %v", token)
+			cur, err = parseBool(cur, token)
+			if err != nil {
+				return nil, err
 			}
 		case json.Number:
-			switch cur.Type() {
-			case ast.Ident:
-				ast.NewNumber(cur, string(token))
-				cur = cur.Parent()
-			case ast.Array:
-				ast.NewNumber(cur, string(token))
-			default:
-				return nil, fmt.Errorf("unexpected number token: %q", token)
+			cur, err = parseNumber(cur, string(token))
+			if err != nil {
+				return nil, err
 			}
 		case json.Delim:
-			switch token {
-			case '{':
-				cur = ast.NewBlock(cur)
-			case '}':
-				switch cur.Type() {
-				case ast.Block:
-					cur = cur.Parent()
-				default:
-					return nil, fmt.Errorf("unexpected block close token: %q", token)
-				}
-			case '[':
-				switch cur.Type() {
-				case ast.Ident:
-					cur = ast.NewArray(cur)
-				default:
-					return nil, fmt.Errorf("unexpected array token: %q", token)
-				}
-			case ']':
-				switch cur.Type() {
-				case ast.Array:
-					cur = cur.Parent()
-				default:
-					return nil, fmt.Errorf("unexpected array close token: %q", token)
-				}
-			default:
-				return nil, fmt.Errorf("unexpected delimiter: %q", token)
+			cur, err = parseDelim(cur, rune(token))
+			if err != nil {
+				return nil, err
 			}
 		default:
 			return nil, fmt.Errorf("unexpected token type: %T", token)
 		}
+		// Set root to the first node
+		if root == nil {
+			root = cur
+		}
 	}
 
-	if cur != root {
-		return nil, fmt.Errorf("unmatched block: %v", cur)
-	}
+	// Return the root node
 	return root, nil
+}
+
+func parseString(parent ast.Node, token string) (ast.Node, error) {
+	if parent == nil {
+		return ast.NewString(nil, token), nil
+	}
+	switch parent.Type() {
+	case ast.Dict:
+		return ast.NewIdent(parent, token), nil
+	case ast.Array:
+		return ast.NewString(parent, token), nil
+	case ast.Ident:
+		ast.NewString(parent, string(token))
+		return parent.Parent(), nil
+	default:
+		return nil, fmt.Errorf("unexpected string: %q", token)
+	}
+}
+
+func parseNull(parent ast.Node) (ast.Node, error) {
+	if parent == nil {
+		return ast.NewNull(nil), nil
+	}
+	switch parent.Type() {
+	case ast.Array:
+		ast.NewNull(parent)
+		return parent, nil
+	case ast.Ident:
+		ast.NewNull(parent)
+		return parent.Parent(), nil
+	default:
+		return nil, fmt.Errorf("unexpected null")
+	}
+}
+
+func parseBool(parent ast.Node, token bool) (ast.Node, error) {
+	if parent == nil {
+		return ast.NewBool(nil, token), nil
+	}
+	switch parent.Type() {
+	case ast.Array:
+		ast.NewBool(parent, token)
+		return parent, nil
+	case ast.Ident:
+		ast.NewBool(parent, token)
+		return parent.Parent(), nil
+	default:
+		return nil, fmt.Errorf("unexpected bool: %v", token)
+	}
+}
+
+func parseNumber(parent ast.Node, token string) (ast.Node, error) {
+	if parent == nil {
+		return ast.NewNumber(nil, token), nil
+	}
+	switch parent.Type() {
+	case ast.Array:
+		ast.NewNumber(parent, token)
+		return parent, nil
+	case ast.Ident:
+		ast.NewNumber(parent, token)
+		return parent.Parent(), nil
+	default:
+		return nil, fmt.Errorf("unexpected number: %v", token)
+	}
+}
+
+func parseDelim(parent ast.Node, token rune) (ast.Node, error) {
+	switch token {
+	case '{':
+		return ast.NewDict(parent), nil
+	case '}':
+		switch parent.Type() {
+		case ast.Dict:
+			return parent.Parent(), nil
+		}
+	case '[':
+		switch parent.Type() {
+		case ast.Ident:
+			return ast.NewArray(parent), nil
+		}
+	case ']':
+		switch parent.Type() {
+		case ast.Array:
+			return parent.Parent(), nil
+		}
+	}
+	return nil, fmt.Errorf("unexpected token: %q", token)
 }

@@ -33,10 +33,7 @@ const (
 	Number             // Number literal
 	Bool               // Boolean literal
 	Array              // Array of values
-	Map                // Map of values
-
-	// Struct
-	Block // Block of assignments
+	Dict               // Dict of values
 )
 
 func (t Type) String() string {
@@ -53,10 +50,8 @@ func (t Type) String() string {
 		return "Bool"
 	case Array:
 		return "Array"
-	case Map:
-		return "Map"
-	case Block:
-		return "Block"
+	case Dict:
+		return "Dict"
 	default:
 		return "Unknown"
 	}
