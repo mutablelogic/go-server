@@ -5,19 +5,19 @@ import "fmt"
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type block struct {
+type array struct {
 	parent   Node
 	children []Node
 }
 
-var _ Node = (*block)(nil)
+var _ Node = (*array)(nil)
 
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
 // Create a new block
-func NewBlock(parent Node) Node {
-	node := &block{parent: parent}
+func NewArray(parent Node) Node {
+	node := &array{parent: parent}
 	if parent != nil {
 		parent.AppendChild(node)
 	}
@@ -27,7 +27,7 @@ func NewBlock(parent Node) Node {
 ///////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
-func (node block) String() string {
+func (node array) String() string {
 	str := "<" + fmt.Sprint(node.Type())
 	for _, child := range node.children {
 		str += " " + fmt.Sprint(child)
@@ -38,22 +38,22 @@ func (node block) String() string {
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func (node block) Type() Type {
-	return Block
+func (node array) Type() Type {
+	return Array
 }
 
-func (node block) Parent() Node {
+func (node array) Parent() Node {
 	return node.parent
 }
 
-func (node block) Children() []Node {
+func (node array) Children() []Node {
 	return node.children
 }
 
-func (node block) Value() any {
+func (node array) Value() any {
 	return nil
 }
 
-func (node *block) AppendChild(child Node) {
+func (node *array) AppendChild(child Node) {
 	node.children = append(node.children, child)
 }

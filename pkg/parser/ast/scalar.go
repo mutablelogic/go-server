@@ -9,9 +9,11 @@ import (
 // TYPES
 
 type value struct {
+	p Node
 	t Type
-	v string
+	s string
 	b bool
+	c []Node
 }
 
 var _ Node = (*value)(nil)
@@ -19,20 +21,44 @@ var _ Node = (*value)(nil)
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func NewString(v string) Node {
-	return &value{t: String, v: v}
+func NewString(parent Node, v string) Node {
+	node := &value{p: parent, t: String, s: v}
+	if parent != nil {
+		parent.AppendChild(node)
+	}
+	return node
 }
 
-func NewBool(v bool) Node {
-	return &value{t: Bool, b: v}
+func NewIdent(parent Node, v string) Node {
+	node := &value{p: parent, t: Ident, s: v}
+	if parent != nil {
+		parent.AppendChild(node)
+	}
+	return node
 }
 
-func NewNumber(v string) Node {
-	return &value{t: Number, v: v}
+func NewBool(parent Node, v bool) Node {
+	node := &value{p: parent, t: Bool, b: v}
+	if parent != nil {
+		parent.AppendChild(node)
+	}
+	return node
 }
 
-func NewNull() Node {
-	return &value{t: Null}
+func NewNumber(parent Node, v string) Node {
+	node := &value{p: parent, t: Number, s: v}
+	if parent != nil {
+		parent.AppendChild(node)
+	}
+	return node
+}
+
+func NewNull(parent Node) Node {
+	node := &value{p: parent, t: Null}
+	if parent != nil {
+		parent.AppendChild(node)
+	}
+	return node
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -41,12 +67,17 @@ func NewNull() Node {
 func (node value) String() string {
 	str := "<" + fmt.Sprint(node.Type())
 	switch node.t {
+	case Ident:
+		str += " " + fmt.Sprintf("%q", node.s)
 	case String:
-		str += " " + fmt.Sprintf("%q", node.v)
+		str += " " + fmt.Sprintf("%q", node.s)
 	case Number:
-		str += " " + fmt.Sprint(node.v)
+		str += " " + fmt.Sprint(node.s)
 	case Bool:
 		str += " " + fmt.Sprint(node.b)
+	}
+	for _, child := range node.c {
+		str += " " + fmt.Sprint(child)
 	}
 	return str + ">"
 }
@@ -58,18 +89,22 @@ func (node value) Type() Type {
 	return node.t
 }
 
-func (value) Children() []Node {
-	return nil
+func (node value) Parent() Node {
+	return node.p
+}
+
+func (node value) Children() []Node {
+	return node.c
 }
 
 func (node value) Value() any {
 	switch node.t {
 	case String:
-		return node.v
+		return node.s
 	case Bool:
 		return node.b
 	case Number:
-		if f, err := strconv.ParseFloat(node.v, 64); err != nil {
+		if f, err := strconv.ParseFloat(node.s, 64); err != nil {
 			return nil
 		} else {
 			return f
@@ -78,6 +113,6 @@ func (node value) Value() any {
 	return nil
 }
 
-func (value) AppendChild(Node) {
-	// Does nothing
+func (node *value) AppendChild(child Node) {
+	node.c = append(node.c, child)
 }

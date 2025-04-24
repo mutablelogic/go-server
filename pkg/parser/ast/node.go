@@ -9,6 +9,9 @@ type Node interface {
 	// Return the type of node
 	Type() Type
 
+	// Parent node
+	Parent() Node
+
 	// Return children of the node
 	Children() []Node
 
@@ -25,6 +28,7 @@ type Node interface {
 const (
 	// Value types
 	Null   Type = iota // Null value
+	Ident              // Identifier
 	String             // String literal
 	Number             // Number literal
 	Bool               // Boolean literal
@@ -39,6 +43,8 @@ func (t Type) String() string {
 	switch t {
 	case Null:
 		return "Null"
+	case Ident:
+		return "Ident"
 	case String:
 		return "String"
 	case Number:
