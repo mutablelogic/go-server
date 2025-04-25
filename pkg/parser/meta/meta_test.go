@@ -1,10 +1,11 @@
-package provider_test
+package meta_test
 
 import (
 	"testing"
 
 	// Packages
-	provider "github.com/mutablelogic/go-server/pkg/provider"
+
+	"github.com/mutablelogic/go-server/pkg/parser/meta"
 	assert "github.com/stretchr/testify/assert"
 )
 
@@ -16,21 +17,21 @@ func Test_Meta_001(t *testing.T) {
 	assert := assert.New(t)
 
 	t.Run("1", func(t *testing.T) {
-		_, err := provider.NewMeta(nil, "")
+		_, err := meta.New(nil, "")
 		assert.Error(err)
 	})
 	t.Run("2", func(t *testing.T) {
-		_, err := provider.NewMeta("hello, world", "")
+		_, err := meta.New("hello, world", "")
 		assert.Error(err)
 	})
 
 	t.Run("3", func(t *testing.T) {
-		_, err := provider.NewMeta(Test1{}, "")
+		_, err := meta.New(Test1{}, "")
 		assert.NoError(err)
 	})
 
 	t.Run("4", func(t *testing.T) {
-		_, err := provider.NewMeta(&Test1{}, "")
+		_, err := meta.New(&Test1{}, "")
 		assert.NoError(err)
 	})
 
@@ -40,7 +41,7 @@ func Test_Meta_002(t *testing.T) {
 	assert := assert.New(t)
 
 	t.Run("1", func(t *testing.T) {
-		meta, err := provider.NewMeta(Test1{}, "")
+		meta, err := meta.New(Test1{}, "")
 		assert.NoError(err)
 		assert.NotNil(meta)
 	})

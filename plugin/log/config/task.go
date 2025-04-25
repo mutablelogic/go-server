@@ -1,4 +1,4 @@
-package main
+package log
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 
 	// Packages
 	server "github.com/mutablelogic/go-server"
-	"github.com/mutablelogic/go-server/pkg/logger"
+	logger "github.com/mutablelogic/go-server/pkg/logger"
 )
 
 ////////////////////////////////////////////////////////////////////////////////

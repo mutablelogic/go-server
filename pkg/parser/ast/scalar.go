@@ -101,6 +101,8 @@ func (node value) Value() any {
 	switch node.t {
 	case String:
 		return node.s
+	case Ident:
+		return node.s
 	case Bool:
 		return node.b
 	case Number:

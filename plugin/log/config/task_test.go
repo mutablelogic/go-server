@@ -1,4 +1,4 @@
-package main_test
+package log_test
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 
 	// Packages
 	server "github.com/mutablelogic/go-server"
-	log "github.com/mutablelogic/go-server/plugin/log"
+	log "github.com/mutablelogic/go-server/plugin/log/config"
 	assert "github.com/stretchr/testify/assert"
 )
 

@@ -1,11 +1,12 @@
-package provider
+package meta
 
 import (
 	"bytes"
 	"io"
 	"reflect"
 
-	"github.com/mutablelogic/go-server/pkg/httpresponse"
+	// Packages
+	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -20,18 +21,18 @@ type Meta struct {
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-// NewMeta creates a new metadata provider from a structure
-func NewMeta(v any, name string) (*Meta, error) {
+// New creates a new metadata object from a structure
+func New(v any, name string) (*Meta, error) {
 	meta := new(Meta)
 	if v == nil {
-		return nil, httpresponse.ErrInternalError.Withf("NewMeta: nil value")
+		return nil, httpresponse.ErrInternalError.Withf("nil value")
 	}
 	rt := reflect.TypeOf(v)
 	if rt.Kind() == reflect.Ptr {
 		rt = rt.Elem()
 	}
 	if rt.Kind() != reflect.Struct {
-		return nil, httpresponse.ErrInternalError.Withf("NewMeta: expected struct, got %T", v)
+		return nil, httpresponse.ErrInternalError.Withf("expected struct, got %T", v)
 	} else {
 		meta.Name = name
 		meta.Type = rt
@@ -42,7 +43,7 @@ func NewMeta(v any, name string) (*Meta, error) {
 	meta.Fields = make([]*Meta, 0, len(fields))
 	for _, field := range fields {
 		if field, err := newMetaField(field); err != nil {
-			return nil, httpresponse.ErrInternalError.Withf("NewMeta: %v", err)
+			return nil, httpresponse.ErrInternalError.With(err.Error())
 		} else {
 			meta.Fields = append(meta.Fields, field)
 		}
