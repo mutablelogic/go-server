@@ -1,6 +1,8 @@
 package ast
 
-import "fmt"
+import (
+	"encoding/json"
+)
 
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
@@ -17,7 +19,7 @@ var _ Node = (*array)(nil)
 
 // Create a new block
 func NewArray(parent Node) Node {
-	node := &array{parent: parent}
+	node := &array{parent: parent, children: make([]Node, 0, 10)}
 	if parent != nil {
 		parent.AppendChild(node)
 	}
@@ -28,11 +30,15 @@ func NewArray(parent Node) Node {
 // STRINGIFY
 
 func (node array) String() string {
-	str := "<" + fmt.Sprint(node.Type())
-	for _, child := range node.children {
-		str += " " + fmt.Sprint(child)
+	data, err := json.Marshal(node)
+	if err != nil {
+		return err.Error()
 	}
-	return str + ">"
+	return string(data)
+}
+
+func (node array) MarshalJSON() ([]byte, error) {
+	return json.Marshal(node.children)
 }
 
 ///////////////////////////////////////////////////////////////////////////////

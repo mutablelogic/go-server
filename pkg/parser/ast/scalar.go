@@ -1,7 +1,7 @@
 package ast
 
 import (
-	"fmt"
+	"encoding/json"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -64,21 +64,20 @@ func NewNull(parent Node) Node {
 // STRINGIFY
 
 func (node value) String() string {
-	str := "<" + fmt.Sprint(node.Type())
+	data, err := json.Marshal(node)
+	if err != nil {
+		return err.Error()
+	}
+	return string(data)
+}
+
+func (node value) MarshalJSON() ([]byte, error) {
 	switch node.t {
-	case Ident:
-		str += " " + fmt.Sprintf("%q", node.s)
-	case String:
-		str += " " + fmt.Sprintf("%q", node.s)
 	case Number:
-		str += " " + fmt.Sprint(node.s)
-	case Bool:
-		str += " " + fmt.Sprint(node.b)
+		return []byte(node.s), nil
+	default:
+		return json.Marshal(node.Value())
 	}
-	for _, child := range node.c {
-		str += " " + fmt.Sprint(child)
-	}
-	return str + ">"
 }
 
 ///////////////////////////////////////////////////////////////////////////////

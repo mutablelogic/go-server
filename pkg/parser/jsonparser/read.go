@@ -136,6 +136,9 @@ func parseDelim(parent ast.Node, token rune) (ast.Node, error) {
 	case '}':
 		switch parent.Type() {
 		case ast.Dict:
+			if parent.Parent() != nil && parent.Parent().Type() == ast.Ident {
+				return parent.Parent().Parent(), nil
+			}
 			return parent.Parent(), nil
 		case ast.Ident:
 			return parent.Parent().Parent(), nil
@@ -145,6 +148,9 @@ func parseDelim(parent ast.Node, token rune) (ast.Node, error) {
 	case ']':
 		switch parent.Type() {
 		case ast.Array:
+			if parent.Parent() != nil && parent.Parent().Type() == ast.Ident {
+				return parent.Parent().Parent(), nil
+			}
 			return parent.Parent(), nil
 		}
 	}

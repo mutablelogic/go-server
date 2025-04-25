@@ -1,6 +1,10 @@
 package ast
 
-import "fmt"
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+)
 
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
@@ -28,11 +32,36 @@ func NewDict(parent Node) Node {
 // STRINGIFY
 
 func (node dict) String() string {
-	str := "<" + fmt.Sprint(node.Type())
-	for _, child := range node.children {
-		str += " " + fmt.Sprint(child)
+	data, err := json.Marshal(node)
+	if err != nil {
+		return err.Error()
 	}
-	return str + ">"
+	return string(data)
+}
+
+func (node dict) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	// Write the JSON in the same order that the children were added
+	buf.WriteRune('{')
+	enc := json.NewEncoder(&buf)
+	for i, child := range node.children {
+		if child.Type() != Ident || len(child.Children()) != 1 {
+			return nil, errors.New("invalid child type")
+		}
+
+		key, ok := child.Value().(string)
+		if !ok {
+			return nil, errors.New("invalid child type")
+		}
+		if i > 0 {
+			buf.WriteRune(',')
+		}
+		enc.Encode(key)
+		buf.WriteRune(':')
+		enc.Encode(child.Children()[0])
+	}
+	buf.WriteRune('}')
+	return buf.Bytes(), nil
 }
 
 ///////////////////////////////////////////////////////////////////////////////
