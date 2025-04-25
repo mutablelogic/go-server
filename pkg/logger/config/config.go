@@ -1,42 +1,43 @@
-package main
+package config
 
 import (
 	"context"
 
 	// Packages
-	"github.com/mutablelogic/go-server"
-	"github.com/mutablelogic/go-server/pkg/httprouter"
+	server "github.com/mutablelogic/go-server"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
 
 type Config struct {
-	Prefix     string   `kong:"-"`
-	Origin     string   `default:"*" help:"CORS origin"`
-	Middleware []string `default:"" help:"Middleware to apply to all routes"`
+	Debug bool `kong:"-"`
 }
 
-var _ server.Plugin = Config{}
+var _ server.Plugin = (*Config)(nil)
+
+////////////////////////////////////////////////////////////////////////////////
+// GLOABALS
+
+const (
+	defaultPluginName = "log"
+)
 
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
 func (c Config) New(ctx context.Context) (server.Task, error) {
-	return httprouter.New(ctx, c.Prefix, c.Origin, c.Middleware...)
+	// Return the task
+	return newTaskWith(c), nil
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // MODULE
 
-func Plugin() server.Plugin {
-	return Config{}
-}
-
 func (c Config) Name() string {
-	return "httprouter"
+	return defaultPluginName
 }
 
 func (c Config) Description() string {
-	return "HTTP request router"
+	return "Structured logger"
 }

@@ -86,7 +86,7 @@ func (cmd *ServiceConfigCommand) Run() error {
 
 	// Print plugins
 	for _, plugin := range plugins {
-		meta, err := provider.NewMeta(plugin, plugin.Name())
+		meta, err := provider.New(plugin, plugin.Name())
 		if err != nil {
 			return err
 		}
