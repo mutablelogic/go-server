@@ -117,6 +117,23 @@ func (t TablespaceName) Select(bind *pg.Bind, op pg.Op) (string, error) {
 	}
 }
 
+func (t TablespaceMeta) Select(bind *pg.Bind, op pg.Op) (string, error) {
+	// Set name
+	if name := strings.TrimSpace(types.PtrString(t.Name)); name == "" {
+		return "", httpresponse.ErrBadRequest.With("tablespace name is missing")
+	} else {
+		bind.Set("name", name)
+	}
+
+	// Return query
+	switch op {
+	case pg.Update:
+		return tablespaceUpdate, nil
+	default:
+		return "", httpresponse.ErrInternalError.Withf("unsupported TablespaceMeta operation %q", op)
+	}
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // READER
 
@@ -175,7 +192,7 @@ func (t TablespaceMeta) Insert(bind *pg.Bind) (string, error) {
 	}
 
 	// Set with
-	if with, err := t.with(); err != nil {
+	if with, err := t.with(true); err != nil {
 		return "", err
 	} else {
 		bind.Set("with", with)
@@ -186,7 +203,15 @@ func (t TablespaceMeta) Insert(bind *pg.Bind) (string, error) {
 }
 
 func (t TablespaceMeta) Update(bind *pg.Bind) error {
-	return httpresponse.ErrNotImplemented.With("TablespaceMeta.Update")
+	// With
+	if with, err := t.with(false); err != nil {
+		return err
+	} else {
+		bind.Set("with", with)
+	}
+
+	// Return success
+	return nil
 }
 
 func (t TablespaceName) Insert(bind *pg.Bind) (string, error) {
@@ -209,12 +234,16 @@ func (t TablespaceName) Update(bind *pg.Bind) error {
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-func (t TablespaceMeta) with() (string, error) {
+func (t TablespaceMeta) with(insert bool) (string, error) {
 	var with []string
 
 	// Owner
 	if owner := strings.TrimSpace(types.PtrString(t.Owner)); owner != "" {
-		with = append(with, `OWNER `+types.DoubleQuote(owner))
+		if insert {
+			with = append(with, `OWNER `+types.DoubleQuote(owner))
+		} else {
+			with = append(with, `OWNER TO `+types.DoubleQuote(owner))
+		}
 	}
 
 	if len(with) > 0 {
@@ -246,5 +275,6 @@ const (
 	tablespaceList   = `WITH q AS (` + tablespaceSelect + `) SELECT * FROM q ${where} ${orderby}`
 	tablespaceCreate = `CREATE TABLESPACE ${"name"} ${with} LOCATION ${'location'}`
 	tablespaceRename = `ALTER TABLESPACE ${"old_name"} RENAME TO ${"name"}`
+	tablespaceUpdate = `ALTER TABLESPACE ${"name"} ${with}`
 	tablespaceDelete = `DROP TABLESPACE ${"name"}`
 )

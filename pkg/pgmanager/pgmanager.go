@@ -605,6 +605,12 @@ func (manager *Manager) UpdateSchema(ctx context.Context, database, namespace st
 func (manager *Manager) UpdateTablespace(ctx context.Context, name string, meta schema.TablespaceMeta) (*schema.Tablespace, error) {
 	var response schema.Tablespace
 
+	// Get the tablespace
+	if err := manager.conn.Get(ctx, &response, schema.TablespaceName(name)); err != nil {
+		return nil, httperr(err)
+	}
+
+	// Update in a transaction
 	if err := manager.conn.Tx(ctx, func(conn pg.Conn) error {
 		// Update the name if it's different
 		if rename := strings.TrimSpace(types.PtrString(meta.Name)); rename != "" && name != rename {
@@ -617,9 +623,57 @@ func (manager *Manager) UpdateTablespace(ctx context.Context, name string, meta 
 			meta.Name = types.StringPtr(name)
 		}
 
-		// TODO: Owner
+		// Update the rest of the metadata
+		if owner := strings.TrimSpace(types.PtrString(meta.Owner)); owner != "" && types.PtrString(response.Owner) != owner {
+			if err := conn.Update(ctx, nil, meta, meta); err != nil {
+				return err
+			}
+		}
 
-		// TODO: ACL's
+		// Update ACL's
+		if meta.Acl != nil {
+			for _, acl := range response.Acl {
+				if role := meta.Acl.Find(acl.Role); role == nil {
+					// Revoke the older privileges
+					if err := acl.RevokeTablespace(ctx, conn, types.PtrString(meta.Name)); err != nil {
+						return err
+					}
+				} else if slices.Equal(acl.Priv, role.Priv) {
+					// No change
+				} else if role.IsAll() {
+					// Just grant
+					if err := role.GrantTablespace(ctx, conn, types.PtrString(meta.Name)); err != nil {
+						return err
+					}
+				} else {
+					// Revoke
+					for _, priv := range acl.Priv {
+						if !slices.Contains(role.Priv, priv) {
+							if err := acl.WithPriv(priv).RevokeTablespace(ctx, conn, types.PtrString(meta.Name)); err != nil {
+								return err
+							}
+						}
+					}
+					// Grant
+					for _, priv := range role.Priv {
+						if !slices.Contains(acl.Priv, priv) {
+							if err := acl.WithPriv(priv).GrantTablespace(ctx, conn, types.PtrString(meta.Name)); err != nil {
+								return err
+							}
+						}
+					}
+				}
+			}
+
+			// Create new privileges
+			for _, acl := range meta.Acl {
+				if role := response.Acl.Find(acl.Role); role == nil {
+					if err := acl.GrantTablespace(ctx, conn, types.PtrString(meta.Name)); err != nil {
+						return err
+					}
+				}
+			}
+		}
 
 		// Return success
 		return nil

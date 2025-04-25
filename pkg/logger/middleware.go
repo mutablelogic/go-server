@@ -31,7 +31,7 @@ func (t *Logger) HandleFunc(next http.HandlerFunc) http.HandlerFunc {
 		// Print the response
 		result := fmt.Sprintf("%v %v -> [%v]", r.Method, r.URL, nw.Status())
 		t.With(
-			"delta_ms", time.Since(now).Microseconds(),
+			"delta_ms", time.Since(now).Milliseconds(),
 			"method", r.Method,
 			"status", nw.Status(),
 			"remote_ip", remoteAddr(r),
