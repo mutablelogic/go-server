@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -84,18 +83,15 @@ func (p *parser) jsonParse(root ast.Node) error {
 
 	// tree should contain <dict plugin:<dict values> plugin:<dict values> ...>
 	for _, plugins := range root.Children() {
-		if plugins.Type() != ast.Ident {
-			return httpresponse.ErrBadRequest.Withf("expected plugin, got %s", plugins.Type())
-		}
-		name := plugins.Value().(string)
-		if plugin, exists := p.meta[name]; !exists {
-			return httpresponse.ErrNotFound.Withf("unregistered plugin: %q", name)
+		plugin := plugins.Value().(string)
+		if plugin, exists := p.meta[plugin]; !exists {
+			return httpresponse.ErrNotFound.Withf("plugin not found: %q", plugin)
 		} else if children := plugins.Children(); len(children) != 1 {
 			return httpresponse.ErrBadRequest.Withf("expected one child, got %d", len(children))
 		} else if dict := children[0]; dict.Type() != ast.Dict {
 			return httpresponse.ErrBadRequest.Withf("expected object, got %s", dict.Type())
-		} else {
-			fmt.Println(plugin, "=>", dict.Value())
+		} else if err := plugin.Validate(dict.Value()); err != nil {
+			return err
 		}
 	}
 

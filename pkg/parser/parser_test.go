@@ -4,9 +4,9 @@ import (
 	"testing"
 
 	// Packages
+	httpserver "github.com/mutablelogic/go-server/pkg/httpserver/config"
+	log "github.com/mutablelogic/go-server/pkg/logger/config"
 	parser "github.com/mutablelogic/go-server/pkg/parser"
-	httpserver "github.com/mutablelogic/go-server/plugin/httpserver/config"
-	log "github.com/mutablelogic/go-server/plugin/log/config"
 	assert "github.com/stretchr/testify/assert"
 )
 

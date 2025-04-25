@@ -71,7 +71,8 @@ func parseString(parent ast.Node, token string) (ast.Node, error) {
 	case ast.Dict:
 		return ast.NewIdent(parent, token), nil
 	case ast.Array:
-		return ast.NewString(parent, token), nil
+		ast.NewString(parent, token)
+		return parent, nil
 	case ast.Ident:
 		ast.NewString(parent, string(token))
 		return parent.Parent(), nil
@@ -137,9 +138,7 @@ func parseDelim(parent ast.Node, token rune) (ast.Node, error) {
 		case ast.Dict:
 			return parent.Parent(), nil
 		case ast.Ident:
-			return parent.Parent(), nil
-		default:
-			return nil, fmt.Errorf("unexpected token: %q for %s", token, parent.Type())
+			return parent.Parent().Parent(), nil
 		}
 	case '[':
 		return ast.NewArray(parent), nil
