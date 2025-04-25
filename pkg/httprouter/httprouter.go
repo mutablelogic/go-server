@@ -2,6 +2,7 @@ package httprouter
 
 import (
 	"context"
+	"io/fs"
 	"net/http"
 
 	// Packages
@@ -78,4 +79,25 @@ func (r *router) HandleFunc(ctx context.Context, prefix string, fn http.HandlerF
 // Return the origin for CORS
 func (r *router) Origin() string {
 	return r.origin
+}
+
+// Register serving of static files from a filesystem
+func (r *router) HandleFS(ctx context.Context, prefix string, fs fs.FS) {
+	// Create the file server
+	fn := http.StripPrefix(types.JoinPath(r.prefix, prefix), http.FileServer(http.FS(fs))).ServeHTTP
+
+	// Wrap the function with middleware
+	for _, middleware := range r.middleware {
+		fn = middleware.HandleFunc(fn)
+	}
+
+	// Apply middleware
+	ref.Log(ctx).Debug(ctx, "Register route: ", types.JoinPath(r.prefix, prefix))
+	r.ServeMux.HandleFunc(types.JoinPath(r.prefix, prefix), func(w http.ResponseWriter, req *http.Request) {
+		// Set CORS headers
+		httpresponse.Cors(w, req, r.origin, http.MethodGet)
+
+		// Call the file server
+		fn(w, req.WithContext(ref.WithLog(ctx, ref.Log(ctx))))
+	})
 }

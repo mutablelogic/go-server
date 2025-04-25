@@ -1,11 +1,13 @@
 # Executables
 GO ?= $(shell which go 2>/dev/null)
 DOCKER ?= $(shell which docker 2>/dev/null)
+NPM ?= $(shell which npm 2>/dev/null)
 
 # Locations
 BUILD_DIR ?= build
 CMD_DIR := $(wildcard cmd/*)
 PLUGIN_DIR := $(wildcard plugin/*)
+NPM_DIR := $(wildcard npm/*)
 
 # VERBOSE=1
 ifneq ($(VERBOSE),)
@@ -44,7 +46,7 @@ all: clean build
 
 # Build the commands in the cmd directory
 .PHONY: build
-build: tidy $(CMD_DIR)
+build: tidy $(NPM_DIR) $(PLUGIN_DIR) $(CMD_DIR)
 
 $(CMD_DIR): go-dep mkdir
 	@echo Build command $(notdir $@) GOOS=${OS} GOARCH=${ARCH}
@@ -54,6 +56,10 @@ $(CMD_DIR): go-dep mkdir
 $(PLUGIN_DIR): go-dep mkdir
 	@echo Build plugin $(notdir $@) GOOS=${OS} GOARCH=${ARCH}
 	@GOOS=${OS} GOARCH=${ARCH} ${GO} build -buildmode=plugin ${BUILD_FLAGS} -o ${BUILD_DIR}/$(notdir $@).plugin ./$@
+
+$(NPM_DIR): npm-dep
+	@echo Build npm $(notdir $@)
+	@cd $@ && npm run prod	
 
 # Build the docker image
 .PHONY: docker
@@ -122,3 +128,7 @@ go-dep:
 .PHONY: docker-dep
 docker-dep:
 	@test -f "${DOCKER}" && test -x "${DOCKER}"  || (echo "Missing docker binary" && exit 1)
+
+.PHONY: npm-dep
+npm-dep:
+	@test -f "${NPM}" && test -x "${NPM}"  || (echo "Missing npm binary" && exit 1)

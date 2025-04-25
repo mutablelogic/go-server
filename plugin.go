@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"io/fs"
 	"net/http"
 	"time"
 
@@ -49,6 +50,9 @@ type HTTPRouter interface {
 
 	// Register a function to handle a URL path
 	HandleFunc(context.Context, string, http.HandlerFunc)
+
+	// Register serving of static files from a filesystem
+	HandleFS(context.Context, string, fs.FS)
 }
 
 ///////////////////////////////////////////////////////////////////////////////

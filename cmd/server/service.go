@@ -18,6 +18,9 @@ import (
 	httpserver "github.com/mutablelogic/go-server/pkg/httpserver/config"
 	logger "github.com/mutablelogic/go-server/pkg/logger/config"
 	pg "github.com/mutablelogic/go-server/pkg/pgmanager/config"
+
+	// Static content
+	helloworld "github.com/mutablelogic/go-server/npm/helloworld"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -45,6 +48,9 @@ type ServiceRunCommand struct {
 	} `embed:""`
 	Log struct {
 		logger.Config `embed:"" prefix:"log."` // Logger configuration
+	} `embed:""`
+	HelloWorld struct {
+		helloworld.Config `embed:"" prefix:"helloworld."` // HelloWorld configuration
 	} `embed:""`
 }
 
@@ -106,6 +112,19 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 			// Return the new configuration with the router
 			return config, nil
 
+		case "helloworld":
+			config := plugin.(helloworld.Config)
+
+			// Set the router
+			if router, ok := ref.Provider(ctx).Task(ctx, "httprouter").(server.HTTPRouter); !ok || router == nil {
+				return nil, httpresponse.ErrInternalError.Withf("Invalid router %q", "httprouter")
+			} else {
+				config.Router = router
+			}
+
+			// Return the new configuration with the router
+			return config, nil
+
 		case "auth":
 			config := plugin.(auth.Config)
 
@@ -153,7 +172,7 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 
 		// No-op
 		return plugin, nil
-	}, cmd.Log.Config, cmd.Router.Config, cmd.Server.Config, cmd.Auth.Config, cmd.PGPool.Config, cmd.CertManager.Config)
+	}, cmd.Log.Config, cmd.Router.Config, cmd.Server.Config, cmd.HelloWorld.Config, cmd.Auth.Config, cmd.PGPool.Config, cmd.CertManager.Config)
 	if err != nil {
 		return err
 	}
