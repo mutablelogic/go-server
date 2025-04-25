@@ -594,13 +594,12 @@ func (manager *Manager) withSchemas(ctx context.Context, database string, fn fun
 
 // Iterate through all the objects for a database
 func (manager *Manager) withObjects(ctx context.Context, database string, req schema.ObjectListRequest, fn func(schema *schema.Object) error) (uint64, error) {
-	req2 := req
-	req2.Offset = 0
-	req2.Limit = types.Uint64Ptr(schema.ObjectListLimit)
+	req.Offset = 0
+	req.Limit = types.Uint64Ptr(schema.ObjectListLimit)
 
 	for {
 		var list schema.ObjectList
-		if err := manager.conn.Remote(database).With("as", schema.ObjectDef).List(ctx, &list, &req2); err != nil {
+		if err := manager.conn.Remote(database).With("as", schema.ObjectDef).List(ctx, &list, &req); err != nil {
 			return 0, err
 		}
 
@@ -611,11 +610,11 @@ func (manager *Manager) withObjects(ctx context.Context, database string, req sc
 		}
 
 		// Determine if the next page is over the count
-		next := req2.Offset + types.PtrUint64(req2.Limit)
+		next := req.Offset + types.PtrUint64(req.Limit)
 		if next >= list.Count {
 			return list.Count, nil
 		} else {
-			req2.Offset = next
+			req.Offset = next
 		}
 	}
 }
