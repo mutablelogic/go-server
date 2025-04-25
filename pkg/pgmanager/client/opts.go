@@ -72,6 +72,10 @@ func WithSchema(v *string) Opt {
 	return OptSet("schema", types.PtrString(v))
 }
 
+func WithType(v *string) Opt {
+	return OptSet("type", types.PtrString(v))
+}
+
 func OptSet(k, v string) Opt {
 	return func(o *opt) error {
 		if v == "" {

@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"context"
@@ -11,27 +11,27 @@ import (
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type pgpool struct {
+type authtask struct {
 	conn pg.PoolConn
 }
 
-var _ server.Task = (*pgpool)(nil)
+var _ server.Task = (*authtask)(nil)
 
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func NewTask(conn pg.PoolConn) *pgpool {
-	return &pgpool{conn}
+func NewTask(conn pg.PoolConn) *authtask {
+	return &authtask{conn}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func (pg *pgpool) Conn() pg.PoolConn {
+func (pg *authtask) Conn() pg.PoolConn {
 	return pg.conn
 }
 
-func (*pgpool) Run(ctx context.Context) error {
+func (*authtask) Run(ctx context.Context) error {
 	<-ctx.Done()
 	return nil
 }

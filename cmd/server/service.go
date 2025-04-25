@@ -12,12 +12,12 @@ import (
 	types "github.com/mutablelogic/go-server/pkg/types"
 
 	// Plugins
-	auth "github.com/mutablelogic/go-server/plugin/auth"
-	certmanager "github.com/mutablelogic/go-server/plugin/certmanager"
-	httprouter "github.com/mutablelogic/go-server/plugin/httprouter"
-	httpserver "github.com/mutablelogic/go-server/plugin/httpserver"
-	log "github.com/mutablelogic/go-server/plugin/log"
-	pg "github.com/mutablelogic/go-server/plugin/pg"
+	auth "github.com/mutablelogic/go-server/pkg/auth/config"
+	cert "github.com/mutablelogic/go-server/pkg/cert/config"
+	httprouter "github.com/mutablelogic/go-server/pkg/httprouter/config"
+	httpserver "github.com/mutablelogic/go-server/pkg/httpserver/config"
+	logger "github.com/mutablelogic/go-server/pkg/logger/config"
+	pg "github.com/mutablelogic/go-server/pkg/pgmanager/config"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -41,10 +41,10 @@ type ServiceRunCommand struct {
 		pg.Config `embed:"" prefix:"pg."` // Postgresql configuration
 	} `embed:""`
 	CertManager struct {
-		certmanager.Config `embed:"" prefix:"cert."` // Certificate manager configuration
+		cert.Config `embed:"" prefix:"cert."` // Certificate manager configuration
 	} `embed:""`
 	Log struct {
-		log.Config `embed:"" prefix:"log."` // Logger configuration
+		logger.Config `embed:"" prefix:"log."` // Logger configuration
 	} `embed:""`
 }
 
@@ -61,12 +61,12 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 		ref.Log(ctx).Debugf(ctx, "Resolving %q", label)
 		switch label {
 		case "log":
-			config := plugin.(log.Config)
+			config := plugin.(logger.Config)
 			config.Debug = app.GetDebug() >= server.Debug
 			return config, nil
 
 		case "certmanager":
-			config := plugin.(certmanager.Config)
+			config := plugin.(cert.Config)
 
 			// Set the router
 			if router, ok := ref.Provider(ctx).Task(ctx, "httprouter").(server.HTTPRouter); !ok || router == nil {
@@ -101,7 +101,7 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 			config := plugin.(httprouter.Config)
 
 			// Set the middleware
-			config.Middleware = []string{"auth", "log"}
+			config.Middleware = []string{"log"}
 
 			// Return the new configuration with the router
 			return config, nil

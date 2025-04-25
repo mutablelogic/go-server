@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"context"
@@ -50,10 +50,6 @@ func (c Config) New(ctx context.Context) (server.Task, error) {
 
 ////////////////////////////////////////////////////////////////////////////////
 // MODULE
-
-func Plugin() server.Plugin {
-	return Config{}
-}
 
 func (c Config) Name() string {
 	return schema.SchemaName

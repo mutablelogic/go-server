@@ -18,6 +18,7 @@ type DatabaseName string
 type Database struct {
 	Oid uint32 `json:"oid"`
 	DatabaseMeta
+	Size uint64 `json:"bytes,omitempty" help:"Size of database in bytes"`
 }
 
 type DatabaseMeta struct {
@@ -183,7 +184,7 @@ func (d DatabaseName) Update(bind *pg.Bind) error {
 func (d *Database) Scan(row pg.Row) error {
 	var priv []string
 	d.Acl = ACLList{}
-	if err := row.Scan(&d.Oid, &d.Name, &d.Owner, &priv); err != nil {
+	if err := row.Scan(&d.Oid, &d.Name, &d.Owner, &priv, &d.Size); err != nil {
 		return err
 	}
 	for _, v := range priv {
@@ -249,18 +250,15 @@ func (d DatabaseMeta) with(insert bool) string {
 
 const (
 	databaseSelect = `
-		WITH db AS (
-			SELECT
-				D.oid AS "oid", D.datname AS "name", R.rolname AS "owner", D.datacl AS "acl"
-			FROM
-				${"schema"}."pg_database" D
-			JOIN
-				${"schema"}."pg_roles" R
-			ON 
-				D.datdba = R.oid
-			WHERE
-				D.datistemplate = false
-		) SELECT * FROM db`
+		WITH s AS (SELECT
+			D.oid AS "oid", D.datname AS "name", R.rolname AS "owner", D.datacl AS "acl", pg_database_size(D.oid) AS "size"
+		FROM
+			${"schema"}."pg_database" D
+		JOIN
+			${"schema"}."pg_roles" R ON D.datdba = R.oid
+		WHERE
+			D.datistemplate = false) SELECT * FROM s
+	`
 	databaseGet    = databaseSelect + ` WHERE "name" = @name`
 	databaseList   = `WITH q AS (` + databaseSelect + `) SELECT * FROM q ${where} ${orderby}`
 	databaseCreate = `CREATE DATABASE ${"name"} ${with}`

@@ -32,6 +32,7 @@ type Object struct {
 type ObjectListRequest struct {
 	Database *string `json:"database,omitempty" help:"Database"`
 	Schema   *string `json:"schema,omitempty" help:"Schema"`
+	Type     *string `json:"type,omitempty" help:"Object Type"`
 	pg.OffsetLimit
 }
 
@@ -87,6 +88,12 @@ func (o ObjectListRequest) Select(bind *pg.Bind, op pg.Op) (string, error) {
 	if schema := strings.TrimSpace(types.PtrString(o.Schema)); schema != "" {
 		bind.Append("where", `schema = `+types.Quote(schema))
 	}
+	if database := strings.TrimSpace(types.PtrString(o.Database)); database != "" {
+		bind.Append("where", `database = `+types.Quote(database))
+	}
+	if objectType := strings.TrimSpace(types.PtrString(o.Type)); objectType != "" {
+		bind.Append("where", `type = `+types.Quote(objectType))
+	}
 	if where := bind.Join("where", " AND "); where != "" {
 		bind.Set("where", `WHERE `+where)
 	} else {
@@ -110,7 +117,7 @@ func (o ObjectListRequest) Select(bind *pg.Bind, op pg.Op) (string, error) {
 
 func (o *Object) Scan(row pg.Row) error {
 	var priv []string
-	if err := row.Scan(&o.Oid, &o.Database, &o.Schema, &o.Name, &o.Type, &o.Owner, &priv); err != nil {
+	if err := row.Scan(&o.Oid, &o.Database, &o.Schema, &o.Name, &o.Type, &o.Owner, &priv, &o.Size); err != nil {
 		return err
 	}
 	for _, v := range priv {
@@ -141,7 +148,7 @@ func (o *ObjectList) ScanCount(row pg.Row) error {
 // SQL
 
 const (
-	ObjectDef    = `object ("oid" OID, "database" TEXT, "schema" TEXT, "object" TEXT, "kind" TEXT, "owner" TEXT, "acl" TEXT[])`
+	ObjectDef    = `object ("oid" OID, "database" TEXT, "schema" TEXT, "object" TEXT, "kind" TEXT, "owner" TEXT, "acl" TEXT[], "size" BIGINT)`
 	objectSelect = `
 		WITH objects AS (
 			SELECT
@@ -158,10 +165,16 @@ const (
 					WHEN 'c' THEN 'COMPOSITE TYPE'
 					WHEN 't' THEN 'TOAST TABLE'
 					WHEN 'f' THEN 'FOREIGN TABLE'
+					WHEN 'p' THEN 'PARTITIONED TABLE'
+					WHEN 'I' THEN 'PARTITIONED INDEX'
 					ELSE C.relkind::TEXT
 				END AS type,
 				R.rolname AS owner,
-				C.relacl AS acl
+				C.relacl AS acl,
+				CASE C.relkind
+					WHEN 'r' THEN pg_table_size(C.oid)
+					ELSE pg_relation_size(C.oid)
+				END AS size
 			FROM
 				pg_class C
 			JOIN
@@ -169,7 +182,7 @@ const (
 			JOIN
 				pg_roles R ON R.oid = C.relowner
 			WHERE
-				N.nspname NOT LIKE 'pg_%' AND N.nspname != 'information_schema'
+				N.nspname NOT LIKE 'pg_%' AND N.nspname != 'information_schema' AND C.relkind != 't'
 		) SELECT * FROM objects
 	`
 	objectGet  = objectSelect + `WHERE name = ${'name'} AND schema = ${'schema'}`

@@ -1,11 +1,11 @@
-package main_test
+package config_test
 
 import (
 	"context"
 	"testing"
 
 	// Packages
-	pg "github.com/mutablelogic/go-server/plugin/pg"
+	pg "github.com/mutablelogic/go-server/pkg/pgmanager/config"
 	assert "github.com/stretchr/testify/assert"
 )
 

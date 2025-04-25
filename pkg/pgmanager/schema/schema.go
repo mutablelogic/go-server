@@ -25,6 +25,7 @@ type Schema struct {
 	Oid      uint32 `json:"oid"`
 	Database string `json:"database,omitempty" help:"Database"`
 	SchemaMeta
+	Size uint64 `json:"bytes,omitempty" help:"Size of schema in bytes"`
 }
 
 type SchemaListRequest struct {
@@ -153,7 +154,7 @@ func (s SchemaMeta) Select(bind *pg.Bind, op pg.Op) (string, error) {
 func (s *Schema) Scan(row pg.Row) error {
 	var priv []string
 	s.Acl = ACLList{}
-	if err := row.Scan(&s.Oid, &s.Database, &s.Name, &s.Owner, &priv); err != nil {
+	if err := row.Scan(&s.Oid, &s.Database, &s.Name, &s.Owner, &priv, &s.Size); err != nil {
 		return err
 	}
 	for _, v := range priv {
@@ -262,19 +263,21 @@ func (s SchemaMeta) with(insert bool) (string, error) {
 // SQL
 
 const (
-	SchemaDef    = `schema ("oid" OID, "database" TEXT, "name" TEXT, "owner" TEXT, "acl" TEXT[])`
+	SchemaDef    = `schema ("oid" OID, "database" TEXT, "name" TEXT, "owner" TEXT, "acl" TEXT[], "size" BIGINT)`
 	schemaSelect = `
 		WITH sc AS (
 			SELECT
-				S.oid AS "oid", current_database() AS "database", S.nspname AS "name", R.rolname AS "owner", S.nspacl AS "acl"
+				S.oid AS "oid", current_database() AS "database", S.nspname AS "name", R.rolname AS "owner", S.nspacl AS "acl", SUM(pg_relation_size(C.oid)) AS "size"
 			FROM
-				${"schema"}."pg_namespace" S
+				"pg_catalog"."pg_namespace" S
 			JOIN
-				${"schema"}."pg_roles" R
-			ON 
-				S.nspowner = R.oid
+				"pg_catalog"."pg_roles" R ON S.nspowner = R.oid
+			JOIN
+				"pg_catalog"."pg_class" C ON C.relnamespace = S.oid
 			WHERE
 				S.nspname NOT LIKE 'pg_%' AND S.nspname != 'information_schema'
+			GROUP BY
+				1, 2, 3, 4, 5				
 		) SELECT * FROM sc`
 	schemaGet    = schemaSelect + ` WHERE "name" = ${'name'}`
 	schemaList   = `WITH q AS (` + schemaSelect + `) SELECT * FROM q ${where} ${orderby}`
