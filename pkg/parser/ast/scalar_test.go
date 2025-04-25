@@ -68,7 +68,7 @@ func Test_Null(t *testing.T) {
 	assert.Equal(nil, node.Value())
 }
 
-func Test_Number_001(t *testing.T) {
+func Test_Number(t *testing.T) {
 	assert := assert.New(t)
 
 	// Create a new dict node
@@ -77,17 +77,5 @@ func Test_Number_001(t *testing.T) {
 	assert.Equal(ast.Number, node.Type())
 	assert.Equal(nil, node.Parent())
 	assert.Len(node.Children(), 0)
-	assert.Equal(float64(123), node.Value())
-}
-
-func Test_Number_002(t *testing.T) {
-	assert := assert.New(t)
-
-	// Create a new dict node
-	node := ast.NewNumber(nil, "ABC")
-	assert.NotNil(node)
-	assert.Equal(ast.Number, node.Type())
-	assert.Equal(nil, node.Parent())
-	assert.Len(node.Children(), 0)
-	assert.Equal(nil, node.Value())
+	assert.Equal("123", node.Value())
 }

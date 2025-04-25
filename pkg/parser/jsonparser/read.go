@@ -136,12 +136,13 @@ func parseDelim(parent ast.Node, token rune) (ast.Node, error) {
 		switch parent.Type() {
 		case ast.Dict:
 			return parent.Parent(), nil
+		case ast.Ident:
+			return parent.Parent(), nil
+		default:
+			return nil, fmt.Errorf("unexpected token: %q for %s", token, parent.Type())
 		}
 	case '[':
-		switch parent.Type() {
-		case ast.Ident:
-			return ast.NewArray(parent), nil
-		}
+		return ast.NewArray(parent), nil
 	case ']':
 		switch parent.Type() {
 		case ast.Array:

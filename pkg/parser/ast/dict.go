@@ -51,7 +51,17 @@ func (node dict) Children() []Node {
 }
 
 func (node dict) Value() any {
-	return nil
+	value := make(map[string]Node, len(node.children))
+	for _, child := range node.children {
+		if child.Type() != Ident || len(child.Children()) != 1 {
+			return nil
+		} else if key, ok := child.Value().(string); !ok {
+			return nil
+		} else {
+			value[key] = child.Children()[0]
+		}
+	}
+	return value
 }
 
 func (node *dict) AppendChild(child Node) {

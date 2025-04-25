@@ -2,7 +2,6 @@ package ast
 
 import (
 	"fmt"
-	"strconv"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -106,11 +105,7 @@ func (node value) Value() any {
 	case Bool:
 		return node.b
 	case Number:
-		if f, err := strconv.ParseFloat(node.s, 64); err != nil {
-			return nil
-		} else {
-			return f
-		}
+		return node.s
 	}
 	return nil
 }

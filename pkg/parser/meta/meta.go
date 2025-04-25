@@ -73,6 +73,8 @@ func (m *Meta) Write(w io.Writer) error {
 	for _, field := range m.Fields {
 		buf.WriteString("  ")
 		buf.WriteString(field.Name)
+		buf.WriteString(" ")
+		buf.WriteString(typeName(field.Type))
 		buf.WriteString("\n")
 	}
 
@@ -87,5 +89,37 @@ func (m *Meta) Write(w io.Writer) error {
 func newMetaField(rf reflect.StructField) (*Meta, error) {
 	meta := new(Meta)
 	meta.Name = rf.Name
+	if t := typeName(rf.Type); t == "" {
+		return nil, httpresponse.ErrInternalError.Withf("unsupported type: %s", rf.Type)
+	} else {
+		meta.Type = rf.Type
+	}
 	return meta, nil
+}
+
+func typeName(rt reflect.Type) string {
+	if rt.Kind() == reflect.Ptr {
+		rt = rt.Elem()
+	}
+	switch rt.Kind() {
+	case reflect.Bool:
+		return "bool"
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return "int"
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return "uint"
+	case reflect.Float32, reflect.Float64:
+		return "float"
+	case reflect.String:
+		return "string"
+	case reflect.Slice:
+		if subtype := typeName(rt.Elem()); subtype != "" {
+			return "list(" + subtype + ")"
+		}
+	case reflect.Map:
+		if subtype := typeName(rt.Elem()); subtype != "" && rt.Key().Kind() == reflect.String {
+			return "map(" + subtype + ")"
+		}
+	}
+	return ""
 }
