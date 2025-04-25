@@ -15,10 +15,16 @@ import (
 
 type ObjectCommands struct {
 	Objects ObjectListCommand `cmd:"" group:"DATABASE" help:"List objects"`
+	Object  ObjectGetCommand  `cmd:"" group:"DATABASE" help:"Get object"`
 }
 
 type ObjectListCommand struct {
 	schema.ObjectListRequest
+}
+
+type ObjectGetCommand struct {
+	Database string
+	schema.ObjectName
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -33,6 +39,19 @@ func (cmd ObjectListCommand) Run(ctx server.Cmd) error {
 
 		// Print databases
 		fmt.Println(databases)
+		return nil
+	})
+}
+
+func (cmd ObjectGetCommand) Run(ctx server.Cmd) error {
+	return run(ctx, func(ctx context.Context, provider *client.Client) error {
+		object, err := provider.GetObject(ctx, cmd.Database, cmd.Schema, cmd.Name)
+		if err != nil {
+			return err
+		}
+
+		// Print databases
+		fmt.Println(object)
 		return nil
 	})
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 
+	// Packages
 	pg "github.com/djthorpe/go-pg"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	types "github.com/mutablelogic/go-server/pkg/types"
@@ -12,7 +13,10 @@ import (
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type ObjectName string
+type ObjectName struct {
+	Schema string `json:"schema,omitempty" help:"Schema"`
+	Name   string `json:"name,omitempty" arg:"" help:"Name"`
+}
 
 type ObjectMeta struct {
 	Name  string     `json:"name,omitempty" arg:"" help:"Name"`
@@ -76,8 +80,37 @@ func (o ObjectList) String() string {
 	return string(data)
 }
 
+func (o ObjectName) String() string {
+	data, err := json.MarshalIndent(o, "", "  ")
+	if err != nil {
+		return err.Error()
+	}
+	return string(data)
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // SELECT
+
+func (o ObjectName) Select(bind *pg.Bind, op pg.Op) (string, error) {
+	if schema := strings.TrimSpace(o.Schema); schema == "" {
+		return "", httpresponse.ErrBadRequest.Withf("schema is required")
+	} else {
+		bind.Set("schema", schema)
+	}
+	if name := strings.TrimSpace(o.Name); name == "" {
+		return "", httpresponse.ErrBadRequest.Withf("name is required")
+	} else {
+		bind.Set("name", name)
+	}
+
+	// Return query
+	switch op {
+	case pg.Get:
+		return objectGet, nil
+	default:
+		return "", httpresponse.ErrInternalError.Withf("unsupported ObjectName operation %q", op)
+	}
+}
 
 func (o ObjectListRequest) Select(bind *pg.Bind, op pg.Op) (string, error) {
 	// Order

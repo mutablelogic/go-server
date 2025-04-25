@@ -28,6 +28,23 @@ func RegisterObject(ctx context.Context, router server.HTTPRouter, prefix string
 			_ = httpresponse.Error(w, httpresponse.Err(http.StatusMethodNotAllowed), r.Method)
 		}
 	})
+
+	router.HandleFunc(ctx, types.JoinPath(prefix, "object/{database}/{schema}/{name}"), func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
+		httpresponse.Cors(w, r, router.Origin(), http.MethodGet)
+
+		// Parse request argument
+		database := r.PathValue("database")
+		namespace := r.PathValue("schema")
+		name := r.PathValue("name")
+
+		switch r.Method {
+		case http.MethodGet:
+			_ = objectGet(w, r, manager, database, namespace, name)
+		default:
+			_ = httpresponse.Error(w, httpresponse.Err(http.StatusMethodNotAllowed), r.Method)
+		}
+	})
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -42,6 +59,17 @@ func objectList(w http.ResponseWriter, r *http.Request, manager *pgmanager.Manag
 
 	// List the objects
 	response, err := manager.ListObjects(r.Context(), req)
+	if err != nil {
+		return httpresponse.Error(w, err)
+	}
+
+	// Return success
+	return httpresponse.JSON(w, http.StatusOK, httprequest.Indent(r), response)
+}
+
+func objectGet(w http.ResponseWriter, r *http.Request, manager *pgmanager.Manager, database, namespace, name string) error {
+	// Get the object
+	response, err := manager.GetObject(r.Context(), database, namespace, name)
 	if err != nil {
 		return httpresponse.Error(w, err)
 	}

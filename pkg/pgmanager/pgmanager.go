@@ -184,6 +184,17 @@ func (manager *Manager) GetSchema(ctx context.Context, database, namespace strin
 	return &response, nil
 }
 
+func (manager *Manager) GetObject(ctx context.Context, database, namespace, name string) (*schema.Object, error) {
+	var response schema.Object
+	if database == "" || namespace == "" || name == "" {
+		return nil, httpresponse.ErrBadRequest.With("database, schema or name is missing")
+	}
+	if err := manager.conn.Remote(database).With("as", schema.ObjectDef).Get(ctx, &response, schema.ObjectName{Schema: namespace, Name: name}); err != nil {
+		return nil, httperr(err)
+	}
+	return &response, nil
+}
+
 func (manager *Manager) GetConnection(ctx context.Context, pid uint64) (*schema.Connection, error) {
 	var response schema.Connection
 	if err := manager.conn.Get(ctx, &response, schema.ConnectionPid(pid)); err != nil {
