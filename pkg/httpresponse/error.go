@@ -28,6 +28,8 @@ const (
 	ErrConflict       = Err(http.StatusConflict)
 	ErrNotImplemented = Err(http.StatusNotImplemented)
 	ErrInternalError  = Err(http.StatusInternalServerError)
+	ErrNotAuthorized  = Err(http.StatusUnauthorized)
+	ErrForbidden      = Err(http.StatusForbidden)
 )
 
 ///////////////////////////////////////////////////////////////////////////////
