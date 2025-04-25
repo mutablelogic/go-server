@@ -418,3 +418,27 @@ func Test_Manager_004(t *testing.T) {
 		t.Log(objects)
 	})
 }
+
+func Test_Manager_005(t *testing.T) {
+	assert := assert.New(t)
+	conn := conn.Begin(t)
+	defer conn.Close()
+
+	// Create a new database manager
+	manager, err := pgmanager.New(context.TODO(), conn)
+	if !assert.NoError(err) {
+		t.FailNow()
+	}
+	assert.NotNil(manager)
+
+	// List tablespaces
+	t.Run("ListTablespaces", func(t *testing.T) {
+		objects, err := manager.ListTablespaces(context.TODO(), schema.TablespaceListRequest{})
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+		assert.NotNil(objects)
+		assert.Equal(len(objects.Body), int(objects.Count))
+		t.Log(objects)
+	})
+}

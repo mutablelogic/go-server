@@ -55,9 +55,9 @@ var (
 	// Map of privilege names to their string values
 	// https://www.postgresql.org/docs/current/ddl-priv.html
 	privs = map[rune]string{
-		'r': privSelect,      // Large Object, Sequenct, Table, Column
+		'r': privSelect,      // Large Object, Sequence, Table, Column
 		'a': privInsert,      // Table or Column
-		'w': privUpdate,      // Large Object, Sequenct, Table, Column
+		'w': privUpdate,      // Large Object, Sequence, Table, Column
 		'd': privDelete,      // Table
 		'D': privTruncate,    // Table
 		'x': privReferences,  // Table or Column
@@ -146,6 +146,16 @@ func (acl ACLItem) GrantSchema(ctx context.Context, conn pg.Conn, name string) e
 // Revoke access privileges to a schema
 func (acl ACLItem) RevokeSchema(ctx context.Context, conn pg.Conn, name string) error {
 	return acl.exec(ctx, conn.With("type", "SCHEMA", "name", name, "granted_by", ""), acl.Role, aclRevoke)
+}
+
+// Grant access privileges to a tablespace
+func (acl ACLItem) GrantTablespace(ctx context.Context, conn pg.Conn, name string) error {
+	return acl.exec(ctx, conn.With("type", "TABLESPACE", "name", name, "granted_by", ""), acl.Role, aclGrant)
+}
+
+// Revoke access privileges to a tablespace
+func (acl ACLItem) RevokeTablespace(ctx context.Context, conn pg.Conn, name string) error {
+	return acl.exec(ctx, conn.With("type", "TABLESPACE", "name", name, "granted_by", ""), acl.Role, aclRevoke)
 }
 
 func (acl ACLItem) exec(ctx context.Context, conn pg.Conn, role, sql string) error {

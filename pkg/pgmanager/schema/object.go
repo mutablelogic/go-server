@@ -30,7 +30,8 @@ type Object struct {
 	Schema   string `json:"schema,omitempty" help:"Schema"`
 	Type     string `json:"type,omitempty" help:"Type"`
 	ObjectMeta
-	Size uint64 `json:"bytes,omitempty" help:"Size of object in bytes"`
+	Tablespace *string `json:"tablespace,omitempty" help:"Tablespace"`
+	Size       uint64  `json:"bytes,omitempty" help:"Size of object in bytes"`
 }
 
 type ObjectListRequest struct {
@@ -150,7 +151,7 @@ func (o ObjectListRequest) Select(bind *pg.Bind, op pg.Op) (string, error) {
 
 func (o *Object) Scan(row pg.Row) error {
 	var priv []string
-	if err := row.Scan(&o.Oid, &o.Database, &o.Schema, &o.Name, &o.Type, &o.Owner, &priv, &o.Size); err != nil {
+	if err := row.Scan(&o.Oid, &o.Database, &o.Schema, &o.Name, &o.Type, &o.Owner, &priv, &o.Tablespace, &o.Size); err != nil {
 		return err
 	}
 	for _, v := range priv {
@@ -181,7 +182,7 @@ func (o *ObjectList) ScanCount(row pg.Row) error {
 // SQL
 
 const (
-	ObjectDef    = `object ("oid" OID, "database" TEXT, "schema" TEXT, "object" TEXT, "kind" TEXT, "owner" TEXT, "acl" TEXT[], "size" BIGINT)`
+	ObjectDef    = `object ("oid" OID, "database" TEXT, "schema" TEXT, "object" TEXT, "kind" TEXT, "owner" TEXT, "acl" TEXT[], "tablespace" TEXT, "size" BIGINT)`
 	objectSelect = `
 		WITH objects AS (
 			SELECT
@@ -204,6 +205,7 @@ const (
 				END AS type,
 				R.rolname AS owner,
 				C.relacl AS acl,
+				T.spcname AS tablespace,
 				CASE C.relkind
 					WHEN 'r' THEN pg_table_size(C.oid)
 					ELSE pg_relation_size(C.oid)
@@ -214,6 +216,8 @@ const (
 				pg_namespace N ON N.oid = C.relnamespace
 			JOIN
 				pg_roles R ON R.oid = C.relowner
+			LEFT JOIN
+				pg_tablespace T ON T.oid = C.reltablespace
 			WHERE
 				N.nspname NOT LIKE 'pg_%' AND N.nspname != 'information_schema' AND C.relkind != 't'
 		) SELECT * FROM objects

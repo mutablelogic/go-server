@@ -14,12 +14,13 @@ const (
 )
 
 const (
-	// Maximum number of roles/databases/schemas/objects/connections to return in a list query
+	// Maximum number of items to return in a list query, for each type
 	RoleListLimit       = 100
 	DatabaseListLimit   = 100
 	SchemaListLimit     = 100
 	ObjectListLimit     = 100
 	ConnectionListLimit = 100
+	TablespaceListLimit = 100
 )
 
 const (

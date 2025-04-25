@@ -24,6 +24,7 @@ type CLI struct {
 	pgmanager.ObjectCommands
 	pgmanager.RoleCommands
 	pgmanager.ConnectionCommands
+	pgmanager.TablespaceCommands
 	certmanager.NameCommands
 	certmanager.CertCommands
 	auth.UserCommands

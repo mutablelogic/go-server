@@ -65,6 +65,7 @@ func (c Config) New(ctx context.Context) (server.Task, error) {
 			pghandler.RegisterSchema(ctx, c.Router, c.Prefix, manager)
 			pghandler.RegisterObject(ctx, c.Router, c.Prefix, manager)
 			pghandler.RegisterConnection(ctx, c.Router, c.Prefix, manager)
+			pghandler.RegisterTablespace(ctx, c.Router, c.Prefix, manager)
 		}
 	}
 

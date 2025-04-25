@@ -10,7 +10,7 @@ import (
 	pg "github.com/djthorpe/go-pg"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	schema "github.com/mutablelogic/go-server/pkg/pgmanager/schema"
-	"github.com/mutablelogic/go-server/pkg/types"
+	types "github.com/mutablelogic/go-server/pkg/types"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -157,6 +157,15 @@ func (manager *Manager) ListConnections(ctx context.Context, req schema.Connecti
 	}
 }
 
+func (manager *Manager) ListTablespaces(ctx context.Context, req schema.TablespaceListRequest) (*schema.TablespaceList, error) {
+	var list schema.TablespaceList
+	if err := manager.conn.List(ctx, &list, req); err != nil {
+		return nil, httperr(err)
+	} else {
+		return &list, nil
+	}
+}
+
 func (manager *Manager) GetRole(ctx context.Context, name string) (*schema.Role, error) {
 	var role schema.Role
 	if err := manager.conn.Get(ctx, &role, schema.RoleName(name)); err != nil {
@@ -198,6 +207,14 @@ func (manager *Manager) GetObject(ctx context.Context, database, namespace, name
 func (manager *Manager) GetConnection(ctx context.Context, pid uint64) (*schema.Connection, error) {
 	var response schema.Connection
 	if err := manager.conn.Get(ctx, &response, schema.ConnectionPid(pid)); err != nil {
+		return nil, httperr(err)
+	}
+	return &response, nil
+}
+
+func (manager *Manager) GetTablespace(ctx context.Context, name string) (*schema.Tablespace, error) {
+	var response schema.Tablespace
+	if err := manager.conn.Get(ctx, &response, schema.TablespaceName(name)); err != nil {
 		return nil, httperr(err)
 	}
 	return &response, nil
@@ -267,6 +284,36 @@ func (manager *Manager) CreateSchema(ctx context.Context, database string, meta 
 	return &response, nil
 }
 
+func (manager *Manager) CreateTablespace(ctx context.Context, meta schema.TablespaceMeta, location string) (*schema.Tablespace, error) {
+	var response schema.Tablespace
+
+	// Create the tablespace (outside a transaction)
+	if err := manager.conn.With("location", location).Insert(ctx, nil, meta); err != nil {
+		return nil, httperr(err)
+	}
+
+	// Set ACL's
+	if err := manager.conn.Tx(ctx, func(conn pg.Conn) error {
+		for _, acl := range meta.Acl {
+			if err := acl.GrantTablespace(ctx, conn, types.PtrString(meta.Name)); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		// Delete the tablespace
+		return nil, errors.Join(httperr(err), httperr(manager.conn.Delete(ctx, nil, schema.TablespaceName(types.PtrString(meta.Name)))))
+	}
+
+	// Get the tablespace
+	if err := manager.conn.Get(ctx, &response, schema.TablespaceName(types.PtrString(meta.Name))); err != nil {
+		return nil, httperr(err)
+	}
+
+	// Return success
+	return &response, nil
+}
+
 func (manager *Manager) DeleteRole(ctx context.Context, name string) (*schema.Role, error) {
 	var role schema.Role
 	if err := manager.conn.Get(ctx, &role, schema.RoleName(name)); err != nil {
@@ -313,6 +360,23 @@ func (manager *Manager) DeleteConnection(ctx context.Context, pid uint64) (*sche
 		return nil, httperr(err)
 	}
 	return &connection, nil
+}
+
+func (manager *Manager) DeleteTablespace(ctx context.Context, name string) (*schema.Tablespace, error) {
+	var response schema.Tablespace
+
+	// Get the tablespace
+	if err := manager.conn.Get(ctx, &response, schema.TablespaceName(name)); err != nil {
+		return nil, httperr(err)
+	}
+
+	// Delete the tablespace
+	if err := manager.conn.Delete(ctx, nil, schema.TablespaceName(name)); err != nil {
+		return nil, httperr(err)
+	}
+
+	// Return success
+	return &response, nil
 }
 
 func (manager *Manager) UpdateRole(ctx context.Context, name string, meta schema.RoleMeta) (*schema.Role, error) {
@@ -531,6 +595,40 @@ func (manager *Manager) UpdateSchema(ctx context.Context, database, namespace st
 
 	// Get the schema
 	if err := manager.conn.Remote(database).With("as", schema.SchemaDef).Get(ctx, &response, schema.SchemaName(meta.Name)); err != nil {
+		return nil, httperr(err)
+	}
+
+	// Return success
+	return &response, nil
+}
+
+func (manager *Manager) UpdateTablespace(ctx context.Context, name string, meta schema.TablespaceMeta) (*schema.Tablespace, error) {
+	var response schema.Tablespace
+
+	if err := manager.conn.Tx(ctx, func(conn pg.Conn) error {
+		// Update the name if it's different
+		if rename := strings.TrimSpace(types.PtrString(meta.Name)); rename != "" && name != rename {
+			if err := conn.Update(ctx, nil, schema.TablespaceName(rename), schema.TablespaceName(name)); err != nil {
+				return err
+			} else {
+				meta.Name = types.StringPtr(rename)
+			}
+		} else {
+			meta.Name = types.StringPtr(name)
+		}
+
+		// TODO: Owner
+
+		// TODO: ACL's
+
+		// Return success
+		return nil
+	}); err != nil {
+		return nil, httperr(err)
+	}
+
+	// Get the tablespace
+	if err := manager.conn.Get(ctx, &response, schema.TablespaceName(types.PtrString(meta.Name))); err != nil {
 		return nil, httperr(err)
 	}
 
