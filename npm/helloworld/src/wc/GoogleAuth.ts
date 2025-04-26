@@ -1,4 +1,4 @@
-import { html, LitElement } from 'lit';
+import { html, LitElement, PropertyValues } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { Cookies } from "./Cookies";
 
@@ -20,7 +20,8 @@ export class GoogleAuth extends LitElement {
   @property({ type: Object })
   opts: GoogleAuthOptions = { ClientId: '' };
 
-  firstUpdated() {
+  protected firstUpdated(_changedProperties: PropertyValues): void {
+    super.firstUpdated(_changedProperties);
     this.load(() => {
       // Load the Google Identity Services library
       window.google?.accounts.id.initialize({
@@ -56,7 +57,7 @@ export class GoogleAuth extends LitElement {
 
   private credentialResponse(response: any) {
     // Store JWT token in cookies
-    this.cookies.set('jwt', response.credential,{
+    this.cookies.set('jwt', response.credential, {
       sameSite: 'Strict',
     })
   }

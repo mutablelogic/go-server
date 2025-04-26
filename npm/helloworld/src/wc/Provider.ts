@@ -119,30 +119,39 @@ export class Provider extends LitElement {
   private fetchdata(data: any) {
     // Handle the fetched data
     if (typeof data === 'string') {
-      this.fetchtext(data);
+      this.dispatchEvent(ProviderTextEvent(data));
     } else if (Array.isArray(data)) {
       data.forEach((item) => {
-        this.fetchobject(item);
+        this.dispatchEvent(ProviderObjectEvent(item));
       });
     } else if (data instanceof Object) {
-      this.fetchobject(data);
+      this.dispatchEvent(ProviderObjectEvent(data));
     } else {
-      this.fetchblob(data);
+      this.dispatchEvent(ProviderDataEvent(data));
     }
   }
+}
 
-  private fetchtext(data: string) {
-    this.debug = `Text: ${data}`;
-    console.log('Text:', data);
-  }
+function ProviderTextEvent(data: string): CustomEvent {
+  return new CustomEvent('text', {
+    detail: data,
+    bubbles: true,
+    composed: true,
+  });
+}
 
-  private fetchobject(data: any) {
-    this.debug = `Object: ${JSON.stringify(data)}`;
-    console.log('Object:', data);
-  }
+function ProviderObjectEvent(data: object): CustomEvent {
+  return new CustomEvent('object', {
+    detail: data,
+    bubbles: true,
+    composed: true,
+  });
+}
 
-  private fetchblob(data: Blob) {
-    this.debug = `Blob: ${data}`;
-    console.log('Blob:', data);
-  }
+function ProviderDataEvent(data: any): CustomEvent {
+  return new CustomEvent('data', {
+    detail: data,
+    bubbles: true,
+    composed: true,
+  });
 }
