@@ -13,6 +13,7 @@ import (
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
+// Parser is a JWT parser that can decode JWT tokens using public keys
 type Parser struct {
 	client *client.Client
 	keys   map[string]key
@@ -53,6 +54,8 @@ func New(ctx context.Context, opt ...Opt) (*Parser, error) {
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
+// Decode decodes a JWT token using the public key associated with the key ID
+// in the token header.
 func (parser *Parser) Decode(value string) (*jwt.Token, error) {
 	return jwt.Parse(value, func(token *jwt.Token) (any, error) {
 		key, err := parser.keyForId(token.Header["kid"])

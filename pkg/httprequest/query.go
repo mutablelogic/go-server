@@ -27,7 +27,7 @@ var (
 // PUBLIC METHODS
 
 // Read the request query parameters into a structure
-func Query(q url.Values, v interface{}) error {
+func Query(q url.Values, v any) error {
 	rv := reflect.ValueOf(v)
 	if rv.Kind() != reflect.Ptr {
 		return errBadRequest.With("v must be a pointer")

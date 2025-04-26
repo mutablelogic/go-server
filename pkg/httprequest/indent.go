@@ -13,5 +13,7 @@ const (
 // PUBLIC METHODS
 
 func Indent(r *http.Request) int {
+	// TODO: Later we can determine whether to "pretty-print" based on the request
+	// criteria
 	return defaultIndent
 }
