@@ -65,7 +65,7 @@ func (cmd QueueGetCommand) Run(ctx server.Cmd) error {
 			return err
 		}
 
-		// Print ticker
+		// Print queue
 		fmt.Println(queue)
 		return nil
 	})
@@ -78,7 +78,30 @@ func (cmd QueueCreateCommand) Run(ctx server.Cmd) error {
 			return err
 		}
 
-		// Print ticker
+		// Print queue
+		fmt.Println(queue)
+		return nil
+	})
+}
+
+func (cmd QueueDeleteCommand) Run(ctx server.Cmd) error {
+	return run(ctx, func(ctx context.Context, provider *client.Client) error {
+		return provider.DeleteQueue(ctx, cmd.Queue)
+	})
+}
+
+func (cmd QueueUpdateCommand) Run(ctx server.Cmd) error {
+	return run(ctx, func(ctx context.Context, provider *client.Client) error {
+		// Swap queue names
+		cmd.Name, cmd.Queue.Queue = cmd.Queue.Queue, cmd.Name
+
+		// Update the queue
+		queue, err := provider.UpdateQueue(ctx, cmd.Name, cmd.Queue)
+		if err != nil {
+			return err
+		}
+
+		// Print queue
 		fmt.Println(queue)
 		return nil
 	})

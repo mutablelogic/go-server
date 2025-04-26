@@ -3,6 +3,8 @@ package pgqueue
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
 	"time"
 
 	// Packages
@@ -16,7 +18,8 @@ import (
 // TYPES
 
 type Manager struct {
-	conn pg.PoolConn
+	conn   pg.PoolConn
+	worker string
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -27,6 +30,15 @@ func NewManager(ctx context.Context, conn pg.PoolConn, opt ...Opt) (*Manager, er
 	opts, err := applyOpts(opt...)
 	if err != nil {
 		return nil, err
+	}
+
+	// Set worker name
+	if worker, err := defaultWorker(); err != nil {
+		return nil, err
+	} else if opts.worker == "" {
+		self.worker = worker
+	} else {
+		self.worker = opts.worker
 	}
 
 	// Set the connection
@@ -220,6 +232,89 @@ func (manager *Manager) GetQueue(ctx context.Context, name string) (*schema.Queu
 	return &queue, nil
 }
 
+// DeleteQueue deletes an existing queue, and returns it
+func (manager *Manager) DeleteQueue(ctx context.Context, name string) (*schema.Queue, error) {
+	var queue schema.Queue
+	if err := manager.conn.Tx(ctx, func(conn pg.Conn) error {
+		return conn.Delete(ctx, &queue, schema.QueueName(name))
+	}); err != nil {
+		return nil, httperr(err)
+	}
+	return &queue, nil
+}
+
+// UpdateQueue updates an existing queue, and returns it.
+func (manager *Manager) UpdateQueue(ctx context.Context, name string, meta schema.Queue) (*schema.Queue, error) {
+	var queue schema.Queue
+	if err := manager.conn.Update(ctx, &queue, schema.QueueName(name), meta); err != nil {
+		return nil, httperr(err)
+	}
+	return &queue, nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS - TASK
+
+// CreateTask creates a new task, and returns it.
+func (manager *Manager) CreateTask(ctx context.Context, queue string, meta schema.TaskMeta) (*schema.Task, error) {
+	var taskId schema.TaskId
+	var task schema.TaskWithStatus
+
+	// Insert the task, and return it
+	if err := manager.conn.Tx(ctx, func(conn pg.Conn) error {
+		if err := conn.With("id", queue).Insert(ctx, &taskId, meta); err != nil {
+			return err
+		}
+		return conn.Get(ctx, &task, taskId)
+	}); err != nil {
+		return nil, httperr(err)
+	}
+
+	// Return the task
+	return &task.Task, nil
+}
+
+// NextTask retains a task, and returns it. Returns nil if there is no task to retain
+func (manager *Manager) NextTask(ctx context.Context, opt ...Opt) (*schema.Task, error) {
+	var taskId schema.TaskId
+	var task schema.TaskWithStatus
+
+	// Get worker name
+	opts, err := applyOpts(opt...)
+	if err != nil {
+		return nil, err
+	}
+	if opts.worker == "" {
+		opts.worker = manager.worker
+	}
+
+	// Insert the task, and return it
+	if err := manager.conn.Tx(ctx, func(conn pg.Conn) error {
+		if err := conn.Get(ctx, &taskId, schema.TaskRetain{
+			Worker: opts.worker,
+		}); err != nil {
+			return err
+		}
+
+		// No task to retain
+		if taskId == 0 {
+			return nil
+		}
+
+		// Return the task
+		return conn.Get(ctx, &task, taskId)
+	}); err != nil {
+		return nil, httperr(err)
+	}
+
+	// Return task
+	if taskId == 0 {
+		return nil, nil
+	} else {
+		return &task.Task, nil
+	}
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
@@ -228,4 +323,12 @@ func httperr(err error) error {
 		return httpresponse.ErrNotFound.With(err)
 	}
 	return err
+}
+
+func defaultWorker() (string, error) {
+	if hostname, err := os.Hostname(); err != nil {
+		return "", httpresponse.ErrInternalError.With(err)
+	} else {
+		return fmt.Sprint(hostname, ".", os.Getpid()), nil
+	}
 }

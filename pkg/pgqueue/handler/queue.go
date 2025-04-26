@@ -36,13 +36,17 @@ func registerQueue(ctx context.Context, router server.HTTPRouter, prefix string,
 
 	router.HandleFunc(ctx, types.JoinPath(prefix, "queue/{name}"), func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
-		httpresponse.Cors(w, r, router.Origin(), http.MethodGet)
+		httpresponse.Cors(w, r, router.Origin(), http.MethodGet, http.MethodDelete, http.MethodPatch)
 
 		switch r.Method {
 		case http.MethodOptions:
 			_ = httpresponse.Empty(w, http.StatusOK)
 		case http.MethodGet:
 			_ = queueGet(w, r, manager, r.PathValue("name"))
+		case http.MethodDelete:
+			_ = queueDelete(w, r, manager, r.PathValue("name"))
+		case http.MethodPatch:
+			_ = queueUpdate(w, r, manager, r.PathValue("name"))
 		default:
 			_ = httpresponse.Error(w, httpresponse.Err(http.StatusMethodNotAllowed), r.Method)
 		}
@@ -95,6 +99,33 @@ func queueCreate(w http.ResponseWriter, r *http.Request, manager *pgqueue.Manage
 
 func queueGet(w http.ResponseWriter, r *http.Request, manager *pgqueue.Manager, name string) error {
 	queue, err := manager.GetQueue(r.Context(), name)
+	if err != nil {
+		return httpresponse.Error(w, err)
+	}
+
+	// Return success
+	return httpresponse.JSON(w, http.StatusOK, httprequest.Indent(r), queue)
+}
+
+func queueDelete(w http.ResponseWriter, r *http.Request, manager *pgqueue.Manager, name string) error {
+	queue, err := manager.DeleteQueue(r.Context(), name)
+	if err != nil {
+		return httpresponse.Error(w, err)
+	}
+
+	// Return success
+	return httpresponse.JSON(w, http.StatusOK, httprequest.Indent(r), queue)
+}
+
+func queueUpdate(w http.ResponseWriter, r *http.Request, manager *pgqueue.Manager, name string) error {
+	// Parse request
+	var meta schema.Queue
+	if err := httprequest.Read(r, &meta); err != nil {
+		return httpresponse.Error(w, err)
+	}
+
+	// Perform update
+	queue, err := manager.UpdateQueue(r.Context(), name, meta)
 	if err != nil {
 		return httpresponse.Error(w, err)
 	}
