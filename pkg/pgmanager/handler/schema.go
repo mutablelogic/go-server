@@ -24,6 +24,8 @@ func RegisterSchema(ctx context.Context, router server.HTTPRouter, prefix string
 		httpresponse.Cors(w, r, router.Origin(), http.MethodGet, http.MethodPost)
 
 		switch r.Method {
+		case http.MethodOptions:
+			_ = httpresponse.Empty(w, http.StatusOK)
 		case http.MethodGet:
 			_ = schemaList(w, r, manager, nil)
 		default:
@@ -43,6 +45,8 @@ func RegisterSchema(ctx context.Context, router server.HTTPRouter, prefix string
 
 		// Handle method
 		switch r.Method {
+		case http.MethodOptions:
+			_ = httpresponse.Empty(w, http.StatusOK)
 		case http.MethodGet:
 			_ = schemaList(w, r, manager, types.StringPtr(database))
 		case http.MethodPost:
@@ -68,6 +72,8 @@ func RegisterSchema(ctx context.Context, router server.HTTPRouter, prefix string
 
 		// Handle method
 		switch r.Method {
+		case http.MethodOptions:
+			_ = httpresponse.Empty(w, http.StatusOK)
 		case http.MethodGet:
 			_ = schemaGet(w, r, manager, database, namespace)
 		case http.MethodDelete:

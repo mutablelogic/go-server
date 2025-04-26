@@ -22,6 +22,8 @@ func RegisterDatabase(ctx context.Context, router server.HTTPRouter, prefix stri
 		httpresponse.Cors(w, r, router.Origin(), http.MethodGet, http.MethodPost)
 
 		switch r.Method {
+		case http.MethodOptions:
+			_ = httpresponse.Empty(w, http.StatusOK)
 		case http.MethodGet:
 			_ = databaseList(w, r, manager)
 		case http.MethodPost:
@@ -43,6 +45,8 @@ func RegisterDatabase(ctx context.Context, router server.HTTPRouter, prefix stri
 		}
 
 		switch r.Method {
+		case http.MethodOptions:
+			_ = httpresponse.Empty(w, http.StatusOK)
 		case http.MethodGet:
 			_ = databaseGet(w, r, manager, name)
 		case http.MethodPatch:

@@ -22,6 +22,8 @@ func RegisterRole(ctx context.Context, router server.HTTPRouter, prefix string, 
 		httpresponse.Cors(w, r, router.Origin(), http.MethodGet, http.MethodPost)
 
 		switch r.Method {
+		case http.MethodOptions:
+			_ = httpresponse.Empty(w, http.StatusOK)
 		case http.MethodGet:
 			_ = roleList(w, r, manager)
 		case http.MethodPost:
@@ -43,6 +45,8 @@ func RegisterRole(ctx context.Context, router server.HTTPRouter, prefix string, 
 		}
 
 		switch r.Method {
+		case http.MethodOptions:
+			_ = httpresponse.Empty(w, http.StatusOK)
 		case http.MethodGet:
 			_ = roleGet(w, r, manager, name)
 		case http.MethodDelete:

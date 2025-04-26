@@ -19,7 +19,7 @@ func Cors(w http.ResponseWriter, r *http.Request, origin string, methods ...stri
 	// Preflight request
 	if r.Method == http.MethodOptions {
 		w.Header().Set("Access-Control-Allow-Methods", corsMethods(methods...))
-		w.Header().Set("Access-Control-Allow-Headers", corsHeaders(methods...))
+		w.Header().Set("Access-Control-Allow-Headers", corsHeaders())
 	}
 }
 

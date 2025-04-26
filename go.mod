@@ -5,6 +5,7 @@ go 1.23.5
 require (
 	github.com/alecthomas/kong v1.10.0
 	github.com/djthorpe/go-pg v1.0.4
+	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/mutablelogic/go-client v1.0.12
 	github.com/stretchr/testify v1.10.0
 )
@@ -29,7 +30,6 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/golang-jwt/jwt/v5 v5.2.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect

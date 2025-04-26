@@ -22,6 +22,8 @@ func RegisterObject(ctx context.Context, router server.HTTPRouter, prefix string
 		httpresponse.Cors(w, r, router.Origin(), http.MethodGet)
 
 		switch r.Method {
+		case http.MethodOptions:
+			_ = httpresponse.Empty(w, http.StatusOK)
 		case http.MethodGet:
 			_ = objectList(w, r, manager)
 		default:
@@ -39,6 +41,8 @@ func RegisterObject(ctx context.Context, router server.HTTPRouter, prefix string
 		name := r.PathValue("name")
 
 		switch r.Method {
+		case http.MethodOptions:
+			_ = httpresponse.Empty(w, http.StatusOK)
 		case http.MethodGet:
 			_ = objectGet(w, r, manager, database, namespace, name)
 		default:

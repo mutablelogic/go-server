@@ -22,6 +22,8 @@ func RegisterTablespace(ctx context.Context, router server.HTTPRouter, prefix st
 		httpresponse.Cors(w, r, router.Origin(), http.MethodGet, http.MethodPost)
 
 		switch r.Method {
+		case http.MethodOptions:
+			_ = httpresponse.Empty(w, http.StatusOK)
 		case http.MethodGet:
 			_ = tablespaceList(w, r, manager)
 		case http.MethodPost:
@@ -36,6 +38,8 @@ func RegisterTablespace(ctx context.Context, router server.HTTPRouter, prefix st
 		httpresponse.Cors(w, r, router.Origin(), http.MethodGet, http.MethodDelete, http.MethodPatch)
 
 		switch r.Method {
+		case http.MethodOptions:
+			_ = httpresponse.Empty(w, http.StatusOK)
 		case http.MethodGet:
 			_ = tablespaceGet(w, r, manager, r.PathValue("name"))
 		case http.MethodDelete:

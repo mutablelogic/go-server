@@ -23,6 +23,8 @@ func RegisterConnection(ctx context.Context, router server.HTTPRouter, prefix st
 		httpresponse.Cors(w, r, router.Origin(), http.MethodGet)
 
 		switch r.Method {
+		case http.MethodOptions:
+			_ = httpresponse.Empty(w, http.StatusOK)
 		case http.MethodGet:
 			_ = connectionList(w, r, manager)
 		default:
@@ -42,6 +44,8 @@ func RegisterConnection(ctx context.Context, router server.HTTPRouter, prefix st
 		}
 
 		switch r.Method {
+		case http.MethodOptions:
+			_ = httpresponse.Empty(w, http.StatusOK)
 		case http.MethodGet:
 			_ = connectionGet(w, r, manager, pid)
 		case http.MethodDelete:
