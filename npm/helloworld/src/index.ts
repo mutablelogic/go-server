@@ -1,16 +1,11 @@
 
 // Import web components
-import './wc/App.ts'
-import './wc/GoogleAuth.js'
-import './wc/Provider.js'
+import './wc/GoogleAuth'
+import './wc/Provider'
+import './wc/Array'
 
 // Import classes
-import { GoogleAuth } from './wc/GoogleAuth.js';
-
-// Live reload for esbuild
-document.addEventListener("DOMContentLoaded", () => {
-    new EventSource('/esbuild').addEventListener('change', () => location.reload())
-});
+import { GoogleAuth } from './wc/GoogleAuth';
 
 // Initialize the app
 document.addEventListener("DOMContentLoaded", () => {
@@ -18,22 +13,6 @@ document.addEventListener("DOMContentLoaded", () => {
     googleAuth.opts = {
         ClientId: '121760808688-hbiibnih1trt2vrokhrta17jgeuagp4k.apps.googleusercontent.com',
         Theme: 'outline',
-        Size: 'large'
+        Size: 'small'
     };
-});
-
-// Import web components
-import './wc/App.ts'
-import { GoogleAuth} from './wc/GoogleAuth.js'
-
-// Live reload for esbuild
-document.addEventListener("DOMContentLoaded", () => {
-    new EventSource('/esbuild').addEventListener('change', () => location.reload())
-});
-
-// Initialize the app
-document.addEventListener("DOMContentLoaded", () => {
-    const auth = new GoogleAuth('121760808688-hbiibnih1trt2vrokhrta17jgeuagp4k.apps.googleusercontent.com');
-
-    auth.render(document.getElementById('login') as HTMLElement);
 });

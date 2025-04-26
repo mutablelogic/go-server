@@ -3,25 +3,27 @@ import { customElement, property } from 'lit/decorators.js';
 
 @customElement('wc-provider')
 export class Provider extends LitElement {
-  private timer: number | null = null;
+  private _timer: number | null = null;
+  private _debug: string = '';
 
-  @property({ type: String, attribute: false })
-  debug: string = '';
+  @property({ type: String }) set debug(value: string) {
+    this._debug = value;
+    this.requestUpdate();
+  } get debug() {
+    return this._debug;
+  }
 
-  @property({ type: String, reflect: true })
-  origin?: string;
+  @property({ type: String, reflect: true }) origin?: string;
 
-  @property({ type: String, reflect: true })
-  path?: string;
+  @property({ type: String, reflect: true }) path?: string;
 
-  @property({ type: Number, reflect: true })
-  interval?: number;
+  @property({ type: Number, reflect: true }) interval?: number;
 
   render() {
     return html`<span>[${this.debug}]</span>`;
   }
 
-  /** On first update, fetch if path is not NULL */
+  /** On first update, set the origin and fetch if the path is not empty */
   firstUpdated() {
     if (!this.origin) {
       this.origin = window.location.origin;
@@ -56,20 +58,19 @@ export class Provider extends LitElement {
 
     // Set the interval for the next fetch
     if (interval) {
-      this.timer = setInterval(() => {
+      this._timer = setInterval(() => {
         this.dofetch(url, request);
       }, interval * 1000);
     }
   }
 
-
   /**
    * Cancel any existing request interval timer.
    */
   cancel() {
-    if (this.timer) {
-      clearTimeout(this.timer);
-      this.timer = null;
+    if (this._timer) {
+      clearTimeout(this._timer);
+      this._timer = null;
     }
   }
 
@@ -90,15 +91,58 @@ export class Provider extends LitElement {
       ...request,
     }).then((response) => {
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        throw new Error(`${response.status}`);
       }
-      return response.json();
+      const contentType = response.headers ? response.headers.get('Content-Type') || '' : '';
+      return this.fetchresponse(contentType.split(';')[0], response);
     }).then((data) => {
-      console.log('Data fetched:', data);
-      this.debug = JSON.stringify(data);
+      this.fetchdata(data);
     }).catch((error) => {
       console.log('Error:', error);
       this.debug = `${error}`;
     });
+  }
+
+  private fetchresponse(contentType: string, response: Response) {
+    switch (contentType.split(';')[0]) {
+      case 'application/json':
+      case 'text/json':
+        return response.json();
+      case 'text/plain':
+      case 'text/html':
+        return response.text();
+      default:
+        return response.blob();
+    }
+  }
+
+  private fetchdata(data: any) {
+    // Handle the fetched data
+    if (typeof data === 'string') {
+      this.fetchtext(data);
+    } else if (Array.isArray(data)) {
+      data.forEach((item) => {
+        this.fetchobject(item);
+      });
+    } else if (data instanceof Object) {
+      this.fetchobject(data);
+    } else {
+      this.fetchblob(data);
+    }
+  }
+
+  private fetchtext(data: string) {
+    this.debug = `Text: ${data}`;
+    console.log('Text:', data);
+  }
+
+  private fetchobject(data: any) {
+    this.debug = `Object: ${JSON.stringify(data)}`;
+    console.log('Object:', data);
+  }
+
+  private fetchblob(data: Blob) {
+    this.debug = `Blob: ${data}`;
+    console.log('Blob:', data);
   }
 }
