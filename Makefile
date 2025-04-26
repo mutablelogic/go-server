@@ -51,15 +51,14 @@ build: tidy $(NPM_DIR) $(PLUGIN_DIR) $(CMD_DIR)
 $(CMD_DIR): go-dep mkdir
 	@echo Build command $(notdir $@) GOOS=${OS} GOARCH=${ARCH}
 	@GOOS=${OS} GOARCH=${ARCH} ${GO} build ${BUILD_FLAGS} -o ${BUILD_DIR}/$(notdir $@) ./$@
-
-
+`
 $(PLUGIN_DIR): go-dep mkdir
 	@echo Build plugin $(notdir $@) GOOS=${OS} GOARCH=${ARCH}
 	@GOOS=${OS} GOARCH=${ARCH} ${GO} build -buildmode=plugin ${BUILD_FLAGS} -o ${BUILD_DIR}/$(notdir $@).plugin ./$@
 
 $(NPM_DIR): npm-dep
 	@echo Build npm $(notdir $@)
-	@cd $@ && npm run prod	
+	@cd $@ && npm install && npm run prod	
 
 # Build the docker image
 .PHONY: docker
