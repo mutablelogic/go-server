@@ -168,3 +168,90 @@ func Test_Manager_001(t *testing.T) {
 		}
 	})
 }
+
+func Test_Manager_002(t *testing.T) {
+	assert := assert.New(t)
+	conn := conn.Begin(t)
+	defer conn.Close()
+
+	// Create a new queue manager
+	manager, err := pgqueue.NewManager(context.TODO(), conn)
+	if !assert.NoError(err) {
+		t.FailNow()
+	}
+	assert.NotNil(manager)
+
+	// Register a queue
+	t.Run("RegisterQueue1", func(t *testing.T) {
+		queue, err := manager.RegisterQueue(context.TODO(), schema.Queue{
+			Queue: "queue1",
+		})
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+		assert.NotNil(queue)
+		assert.Equal("queue1", queue.Queue)
+		assert.Equal(time.Hour, *queue.TTL)
+		assert.Equal(uint64(3), *queue.Retries)
+		assert.Equal(2*time.Minute, *queue.RetryDelay)
+	})
+
+	// Re-register a queue with different parameters
+	t.Run("RegisterTicker2", func(t *testing.T) {
+		queue1, err := manager.RegisterQueue(context.TODO(), schema.Queue{
+			Queue: "queue2",
+		})
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+		queue2, err := manager.RegisterQueue(context.TODO(), schema.Queue{
+			Queue:      "queue2",
+			TTL:        types.DurationPtr(2 * time.Hour),
+			Retries:    types.Uint64Ptr(5),
+			RetryDelay: types.DurationPtr(10 * time.Minute),
+		})
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+
+		assert.Equal("queue2", queue1.Queue)
+		assert.Equal("queue2", queue2.Queue)
+		assert.Equal(2*time.Hour, *queue2.TTL)
+		assert.Equal(uint64(5), *queue2.Retries)
+		assert.Equal(10*time.Minute, *queue2.RetryDelay)
+	})
+
+	// Get non-existent queue
+	t.Run("GetQueue1", func(t *testing.T) {
+		queue, err := manager.GetQueue(context.TODO(), "nonexistent")
+		assert.ErrorIs(err, httpresponse.ErrNotFound)
+		assert.Nil(queue)
+	})
+
+	// Get queue
+	t.Run("GetQueue2", func(t *testing.T) {
+		queue1, err := manager.RegisterQueue(context.TODO(), schema.Queue{
+			Queue: "queue3",
+		})
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+
+		queue2, err := manager.GetQueue(context.TODO(), "queue3")
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+		assert.Equal(queue1, queue2)
+	})
+
+	// List queues
+	t.Run("ListQueues", func(t *testing.T) {
+		list, err := manager.ListQueues(context.TODO(), schema.QueueListRequest{})
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+		assert.NotNil(list)
+		assert.NotZero(list.Count)
+		assert.NotNil(list.Body)
+	})
+}

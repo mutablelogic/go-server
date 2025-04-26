@@ -13,4 +13,5 @@ import (
 
 func Register(ctx context.Context, router server.HTTPRouter, prefix string, manager *pgqueue.Manager) {
 	registerTicker(ctx, router, prefix, manager)
+	registerQueue(ctx, router, prefix, manager)
 }

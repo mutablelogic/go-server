@@ -11,6 +11,7 @@ import (
 	"time"
 
 	// Packages
+	"github.com/mutablelogic/go-server/pkg/httpresponse"
 	ref "github.com/mutablelogic/go-server/pkg/ref"
 )
 
@@ -122,5 +123,9 @@ func (server *server) Run(parent context.Context) error {
 func (server *server) shutdown() error {
 	shutdownContext, cancel := context.WithTimeout(context.Background(), defaultShutdownTimeout)
 	defer cancel()
-	return server.http.Shutdown(shutdownContext)
+	if err := server.http.Shutdown(shutdownContext); errors.Is(err, context.DeadlineExceeded) {
+		return httpresponse.ErrInternalError.With("shutdown timeout, forced connections to close")
+	} else {
+		return err
+	}
 }

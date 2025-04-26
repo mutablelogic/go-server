@@ -18,8 +18,8 @@ import (
 type TickerName string
 
 type TickerMeta struct {
-	Ticker   string         `json:"ticker"`
-	Interval *time.Duration `json:"interval,omitempty"`
+	Ticker   string         `json:"ticker" arg:"" help:"Ticker name"`
+	Interval *time.Duration `json:"interval,omitempty" help:"Interval (default 1 minute)"`
 }
 
 type Ticker struct {
@@ -227,13 +227,13 @@ const (
             "ticker" TEXT, "interval" INTERVAL, "ts" TIMESTAMP
         ) AS $$
 			WITH 
-				next_ticker AS (` + tickerSelect + `WHERE "ns" = ns AND ("ts" IS NULL OR "ts" + "interval" < TIMEZONE('UTC', NOW())))
+				next_ticker AS (` + tickerSelect + `WHERE "ns" = ns AND ("ts" IS NULL OR "ts" + "interval" < NOW()) ORDER BY "ts" NULLS FIRST)
 			UPDATE
 				${"schema"}.ticker
 			SET
 				"ts" = TIMEZONE('UTC', NOW())
 			WHERE
-				"ns" = ns AND "ticker" = (SELECT "ticker" FROM next_ticker ORDER BY "ts" LIMIT 1 FOR UPDATE SKIP LOCKED)
+				"ns" = ns AND "ticker" = (SELECT "ticker" FROM next_ticker LIMIT 1 FOR UPDATE SKIP LOCKED)
 			RETURNING		
 				"ticker", "interval", "ts"
         $$ LANGUAGE SQL

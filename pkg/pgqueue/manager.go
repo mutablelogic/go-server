@@ -56,12 +56,12 @@ func NewManager(ctx context.Context, conn pg.PoolConn, opt ...Opt) (*Manager, er
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// PUBLIC METHODS
+// PUBLIC METHODS - TICKER
 
 // RegisterTicker creates a new ticker, or updates an existing ticker, and returns it.
-func (client *Manager) RegisterTicker(ctx context.Context, meta schema.TickerMeta) (*schema.Ticker, error) {
+func (manager *Manager) RegisterTicker(ctx context.Context, meta schema.TickerMeta) (*schema.Ticker, error) {
 	var ticker schema.Ticker
-	if err := client.conn.Tx(ctx, func(conn pg.Conn) error {
+	if err := manager.conn.Tx(ctx, func(conn pg.Conn) error {
 		// Get a ticker
 		if err := conn.Get(ctx, &ticker, schema.TickerName(meta.Ticker)); err != nil && !errors.Is(err, pg.ErrNotFound) {
 			return err
@@ -80,19 +80,28 @@ func (client *Manager) RegisterTicker(ctx context.Context, meta schema.TickerMet
 	return &ticker, nil
 }
 
-// GetTicker returns a ticker by name
-func (client *Manager) GetTicker(ctx context.Context, name string) (*schema.Ticker, error) {
+// UpdateTicker updates an existing ticker, and returns it.
+func (manager *Manager) UpdateTicker(ctx context.Context, name string, meta schema.TickerMeta) (*schema.Ticker, error) {
 	var ticker schema.Ticker
-	if err := client.conn.Get(ctx, &ticker, schema.TickerName(name)); err != nil {
+	if err := manager.conn.Update(ctx, &ticker, schema.TickerName(name), meta); err != nil {
+		return nil, httperr(err)
+	}
+	return &ticker, nil
+}
+
+// GetTicker returns a ticker by name
+func (manager *Manager) GetTicker(ctx context.Context, name string) (*schema.Ticker, error) {
+	var ticker schema.Ticker
+	if err := manager.conn.Get(ctx, &ticker, schema.TickerName(name)); err != nil {
 		return nil, httperr(err)
 	}
 	return &ticker, nil
 }
 
 // DeleteTicker deletes an existing ticker, and returns the deleted ticker.
-func (client *Manager) DeleteTicker(ctx context.Context, name string) (*schema.Ticker, error) {
+func (manager *Manager) DeleteTicker(ctx context.Context, name string) (*schema.Ticker, error) {
 	var ticker schema.Ticker
-	if err := client.conn.Tx(ctx, func(conn pg.Conn) error {
+	if err := manager.conn.Tx(ctx, func(conn pg.Conn) error {
 		return conn.Delete(ctx, &ticker, schema.TickerName(name))
 	}); err != nil {
 		return nil, httperr(err)
@@ -101,18 +110,18 @@ func (client *Manager) DeleteTicker(ctx context.Context, name string) (*schema.T
 }
 
 // ListTickers returns all tickers in a namespace as a list
-func (client *Manager) ListTickers(ctx context.Context, req schema.TickerListRequest) (*schema.TickerList, error) {
+func (manager *Manager) ListTickers(ctx context.Context, req schema.TickerListRequest) (*schema.TickerList, error) {
 	var list schema.TickerList
-	if err := client.conn.List(ctx, &list, req); err != nil {
+	if err := manager.conn.List(ctx, &list, req); err != nil {
 		return nil, err
 	}
 	return &list, nil
 }
 
 // NextTicker returns the next matured ticker, or nil
-func (client *Manager) NextTicker(ctx context.Context) (*schema.Ticker, error) {
+func (manager *Manager) NextTicker(ctx context.Context) (*schema.Ticker, error) {
 	var ticker schema.Ticker
-	if err := client.conn.Get(ctx, &ticker, schema.TickerNext{}); errors.Is(err, pg.ErrNotFound) {
+	if err := manager.conn.Get(ctx, &ticker, schema.TickerNext{}); errors.Is(err, pg.ErrNotFound) {
 		// No matured ticker
 		return nil, nil
 	} else if err != nil {
@@ -124,10 +133,12 @@ func (client *Manager) NextTicker(ctx context.Context) (*schema.Ticker, error) {
 }
 
 // RunTickerLoop runs a loop to process matured tickers, until the context is cancelled.
-func (client *Manager) RunTickerLoop(ctx context.Context, ch chan<- *schema.Ticker) error {
+func (manager *Manager) RunTickerLoop(ctx context.Context, ch chan<- *schema.Ticker) error {
 	delta := schema.TickerPeriod
 	timer := time.NewTimer(100 * time.Millisecond)
 	defer timer.Stop()
+
+	prev := time.Now()
 
 	// Loop until context is cancelled
 	for {
@@ -136,7 +147,7 @@ func (client *Manager) RunTickerLoop(ctx context.Context, ch chan<- *schema.Tick
 			return nil
 		case <-timer.C:
 			// Check for matured tickers
-			ticker, err := client.NextTicker(ctx)
+			ticker, err := manager.NextTicker(ctx)
 			if err != nil {
 				return err
 			}
@@ -148,12 +159,65 @@ func (client *Manager) RunTickerLoop(ctx context.Context, ch chan<- *schema.Tick
 				if dur := types.PtrDuration(ticker.Interval); dur >= time.Second && dur < delta {
 					delta = dur
 				}
+				// Adjust based on time since last ticker
+				if since := time.Since(prev); since > delta {
+					delta += (since - delta) / 2
+				} else if since < delta {
+					delta -= (delta - since) / 2
+				}
+
+				// Reset the timer
+				prev = time.Now()
 			}
 
 			// Next loop
 			timer.Reset(delta)
 		}
 	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS - QUEUE
+
+// RegisterQueue creates a new queue, or updates an existing queue, and returns it.
+func (manager *Manager) RegisterQueue(ctx context.Context, meta schema.Queue) (*schema.Queue, error) {
+	var queue schema.Queue
+	if err := manager.conn.Tx(ctx, func(conn pg.Conn) error {
+		// Get a queue
+		if err := conn.Get(ctx, &queue, schema.QueueName(meta.Queue)); err != nil && !errors.Is(err, pg.ErrNotFound) {
+			return err
+		} else if errors.Is(err, pg.ErrNotFound) {
+			// If the queue does not exist, then create it
+			if err := conn.Insert(ctx, &queue, meta); err != nil {
+				return err
+			}
+		}
+
+		// Update the queue
+		return conn.Update(ctx, &queue, schema.QueueName(meta.Queue), meta)
+	}); err != nil {
+		return nil, httperr(err)
+	}
+
+	return &queue, nil
+}
+
+// ListQueues returns all queues in a namespace as a list
+func (manager *Manager) ListQueues(ctx context.Context, req schema.QueueListRequest) (*schema.QueueList, error) {
+	var list schema.QueueList
+	if err := manager.conn.List(ctx, &list, req); err != nil {
+		return nil, httperr(err)
+	}
+	return &list, nil
+}
+
+// GetQueue returns a queue by name
+func (manager *Manager) GetQueue(ctx context.Context, name string) (*schema.Queue, error) {
+	var queue schema.Queue
+	if err := manager.conn.Get(ctx, &queue, schema.QueueName(name)); err != nil {
+		return nil, httperr(err)
+	}
+	return &queue, nil
 }
 
 ////////////////////////////////////////////////////////////////////////////////

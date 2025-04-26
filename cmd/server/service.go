@@ -111,7 +111,7 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 			config := plugin.(httprouter.Config)
 
 			// Set the middleware
-			config.Middleware = []string{"log"}
+			config.Middleware = []string{}
 
 			// Return the new configuration with the router
 			return config, nil

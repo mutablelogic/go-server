@@ -18,10 +18,10 @@ import (
 type QueueName string
 
 type Queue struct {
-	Queue      string         `json:"queue,omitempty"`
-	TTL        *time.Duration `json:"ttl,omitempty"`
-	Retries    *uint64        `json:"retries"`
-	RetryDelay *time.Duration `json:"retry_delay"`
+	Queue      string         `json:"queue,omitempty" arg:"" help:"Queue name"`
+	TTL        *time.Duration `json:"ttl,omitempty" help:"Time-to-live for queue messages"`
+	Retries    *uint64        `json:"retries" help:"Number of retries before failing"`
+	RetryDelay *time.Duration `json:"retry_delay" help:"Backoff delay"`
 }
 
 type QueueListRequest struct {

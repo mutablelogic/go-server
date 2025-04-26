@@ -2,11 +2,13 @@ package client
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	// Packages
 	client "github.com/mutablelogic/go-client"
 	schema "github.com/mutablelogic/go-server/pkg/pgqueue/schema"
+	"github.com/mutablelogic/go-server/pkg/types"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -44,8 +46,8 @@ func (c *Client) GetTicker(ctx context.Context, name string) (*schema.Ticker, er
 	return &response, nil
 }
 
-func (c *Client) CreateTicker(ctx context.Context, database schema.TickerMeta) (*schema.Ticker, error) {
-	req, err := client.NewJSONRequest(database)
+func (c *Client) CreateTicker(ctx context.Context, meta schema.TickerMeta) (*schema.Ticker, error) {
+	req, err := client.NewJSONRequest(meta)
 	if err != nil {
 		return nil, err
 	}
@@ -78,4 +80,23 @@ func (c *Client) UpdateTicker(ctx context.Context, name string, meta schema.Tick
 
 	// Return the response
 	return &response, nil
+}
+
+func (c *Client) NextTicker(ctx context.Context) error {
+	req, err := client.NewJSONRequestEx(http.MethodGet, nil, types.ContentTypeTextStream)
+	if err != nil {
+		return err
+	}
+
+	// Perform request
+	var response schema.Ticker
+	if err := c.DoWithContext(ctx, req, &response, client.OptPath("ticker"), client.OptNoTimeout(), client.OptTextStreamCallback(func(event client.TextStreamEvent) error {
+		fmt.Println("event", event)
+		return nil
+	})); err != nil {
+		return err
+	}
+
+	// Return the response
+	return nil
 }
