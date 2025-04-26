@@ -43,6 +43,11 @@ export class Array extends LitElement {
     this._body = data.body.map((data: any) => {
       return new Database(data);
     });
+
+    this._body.forEach((item: Database) => {
+      console.log(`${item}`);
+    });
+
     this.requestUpdate();
   }
 }

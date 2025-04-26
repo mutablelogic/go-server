@@ -1,11 +1,8 @@
-import { AclItem } from './AclItem';
-import { Model, property } from './Model';
+import { property } from './Model';
+import { DatabaseMeta } from './DatabaseMeta';
 
-export class Database extends Model {
+export class Database extends DatabaseMeta {
     @property() oid: number;
-    @property() name: string;
-    @property() owner: string;
-    @property() acl: AclItem[];
     @property() bytes: number;
 
     constructor(data: object) {

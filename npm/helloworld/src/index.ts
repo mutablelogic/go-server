@@ -3,6 +3,7 @@
 import './wc/GoogleAuth'
 import './wc/Provider'
 import './wc/Array'
+import './wc/Table'
 
 // Import classes
 import { GoogleAuth } from './wc/GoogleAuth';

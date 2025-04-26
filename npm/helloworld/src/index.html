@@ -10,7 +10,8 @@
 
 <body>
   <wc-google-auth id="auth"></wc-google-auth>
-  <code><wc-provider origin="http://localhost:8080/" path="/pg/v1/database" interval="5" id="databases"></wc-provider></code>
-  <wc-array provider="#databases"></wc-array>
+  <code><wc-provider origin="http://localhost:8080/" path="/pg/v1/schema" interval="5" id="databases"></wc-provider></code>
+  <wc-array provider="#databases" id="#database-array"></wc-array>
+  <wc-table array="#database-array"></wc-table>
 </body>
 </html>
