@@ -441,4 +441,25 @@ func Test_Manager_005(t *testing.T) {
 		assert.Equal(len(objects.Body), int(objects.Count))
 		t.Log(objects)
 	})
+
+	// Get non-existent tablespace
+	t.Run("GetTablespaces1", func(t *testing.T) {
+		_, err := manager.GetTablespace(context.TODO(), "non_existing_tablespace")
+		assert.ErrorIs(err, httpresponse.ErrNotFound)
+	})
+
+	// Get tablespaces
+	t.Run("GetTablespaces1", func(t *testing.T) {
+		objects, err := manager.ListTablespaces(context.TODO(), schema.TablespaceListRequest{})
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+		for _, tablespace := range objects.Body {
+			tablespace2, err := manager.GetTablespace(context.TODO(), types.PtrString(tablespace.Name))
+			if !assert.NoError(err) {
+				t.FailNow()
+			}
+			assert.Equal(tablespace, *tablespace2)
+		}
+	})
 }

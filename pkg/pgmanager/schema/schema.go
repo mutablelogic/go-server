@@ -267,12 +267,12 @@ const (
 	schemaSelect = `
 		WITH sc AS (
 			SELECT
-				S.oid AS "oid", current_database() AS "database", S.nspname AS "name", R.rolname AS "owner", S.nspacl AS "acl", SUM(pg_relation_size(C.oid)) AS "size"
+				S.oid AS "oid", current_database() AS "database", S.nspname AS "name", R.rolname AS "owner", S.nspacl AS "acl", COALESCE(SUM(pg_relation_size(C.oid)),0) AS "size"
 			FROM
 				"pg_catalog"."pg_namespace" S
-			JOIN
+			LEFT JOIN
 				"pg_catalog"."pg_roles" R ON S.nspowner = R.oid
-			JOIN
+			LEFT JOIN
 				"pg_catalog"."pg_class" C ON C.relnamespace = S.oid
 			WHERE
 				S.nspname NOT LIKE 'pg_%' AND S.nspname != 'information_schema'
