@@ -11,6 +11,7 @@ import (
 	auth "github.com/mutablelogic/go-server/pkg/auth/cmd"
 	certmanager "github.com/mutablelogic/go-server/pkg/cert/cmd"
 	pgmanager "github.com/mutablelogic/go-server/pkg/pgmanager/cmd"
+	pgqueue "github.com/mutablelogic/go-server/pkg/pgqueue/cmd"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -25,6 +26,7 @@ type CLI struct {
 	pgmanager.RoleCommands
 	pgmanager.ConnectionCommands
 	pgmanager.TablespaceCommands
+	pgqueue.TickerCommands
 	certmanager.NameCommands
 	certmanager.CertCommands
 	auth.UserCommands
@@ -44,11 +46,12 @@ func main() {
 		kong.UsageOnError(),
 		kong.ConfigureHelp(kong.HelpOptions{Compact: true}),
 		kong.Vars{
-			"HOST":        hostName(),
-			"USER":        userName(),
-			"CERT_PREFIX": "/cert/v1",
-			"PG_PREFIX":   "/pg/v1",
-			"AUTH_PREFIX": "/auth/v1",
+			"HOST":         hostName(),
+			"USER":         userName(),
+			"CERT_PREFIX":  "/cert/v1",
+			"PG_PREFIX":    "/pg/v1",
+			"AUTH_PREFIX":  "/auth/v1",
+			"QUEUE_PREFIX": "/queue/v1",
 		},
 	)
 

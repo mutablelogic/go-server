@@ -142,9 +142,6 @@ func (w TickerMeta) Insert(bind *pg.Bind) (string, error) {
 		bind.Set("id", ticker)
 	}
 
-	// Set interval
-	bind.Set("interval", w.Interval)
-
 	// Return the query
 	return tickerInsert, nil
 }
@@ -245,7 +242,7 @@ const (
 		INSERT INTO ${"schema"}.ticker 
 			("ns", "ticker", "interval", "ts") 
 		VALUES 
-			(@ns, @id, @interval, DEFAULT)
+			(@ns, @id, DEFAULT, DEFAULT)
 		RETURNING
 			"ticker", "interval", "ts"
 	`

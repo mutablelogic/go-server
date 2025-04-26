@@ -18,6 +18,7 @@ import (
 	httpserver "github.com/mutablelogic/go-server/pkg/httpserver/config"
 	logger "github.com/mutablelogic/go-server/pkg/logger/config"
 	pg "github.com/mutablelogic/go-server/pkg/pgmanager/config"
+	pgqueue "github.com/mutablelogic/go-server/pkg/pgqueue/config"
 
 	// Static content
 	helloworld "github.com/mutablelogic/go-server/npm/helloworld"
@@ -42,6 +43,9 @@ type ServiceRunCommand struct {
 	} `embed:""`
 	PGPool struct {
 		pg.Config `embed:"" prefix:"pg."` // Postgresql configuration
+	} `embed:""`
+	PGQueue struct {
+		pgqueue.Config `embed:"" prefix:"pgqueue."` // Postgresql queue configuration
 	} `embed:""`
 	CertManager struct {
 		cert.Config `embed:"" prefix:"cert."` // Certificate manager configuration
@@ -145,6 +149,26 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 			// Return the new configuration
 			return config, nil
 
+		case "pgqueue":
+			config := plugin.(pgqueue.Config)
+
+			// Set the router
+			if router, ok := ref.Provider(ctx).Task(ctx, "httprouter").(server.HTTPRouter); !ok || router == nil {
+				return nil, httpresponse.ErrInternalError.Withf("Invalid router %q", "httprouter")
+			} else {
+				config.Router = router
+			}
+
+			// Set the connection pool
+			if pool, ok := ref.Provider(ctx).Task(ctx, "pgpool").(server.PG); !ok || pool == nil {
+				return nil, httpresponse.ErrInternalError.Withf("Invalid connection pool %q", "pgpool")
+			} else {
+				config.Pool = pool
+			}
+
+			// Return the new configuration
+			return config, nil
+
 		case "pgpool":
 			config := plugin.(pg.Config)
 
@@ -172,7 +196,7 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 
 		// No-op
 		return plugin, nil
-	}, cmd.Log.Config, cmd.Router.Config, cmd.Server.Config, cmd.HelloWorld.Config, cmd.Auth.Config, cmd.PGPool.Config, cmd.CertManager.Config)
+	}, cmd.Log.Config, cmd.Router.Config, cmd.Server.Config, cmd.HelloWorld.Config, cmd.Auth.Config, cmd.PGPool.Config, cmd.PGQueue.Config, cmd.CertManager.Config)
 	if err != nil {
 		return err
 	}
