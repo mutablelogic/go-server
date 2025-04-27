@@ -86,7 +86,7 @@ func Ticker(ctx context.Context) *pgqueue.Ticker {
 }
 
 func Task(ctx context.Context) *pgqueue.Task {
-	if value, ok := ctx.Value(ctxTicker).(*pgqueue.Task); !ok || value == nil {
+	if value, ok := ctx.Value(ctxTask).(*pgqueue.Task); !ok || value == nil {
 		return nil
 	} else {
 		return value

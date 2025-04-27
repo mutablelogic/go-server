@@ -58,7 +58,7 @@ func OptWorker(v string) Opt {
 func OptNamespace(v string) Opt {
 	return func(o *opt) error {
 		if v = strings.TrimSpace(v); !types.IsIdentifier(v) {
-			return httpresponse.ErrBadRequest.With("invalid namespacename ")
+			return httpresponse.ErrBadRequest.With("invalid namespace")
 		} else {
 			o.namespace = strings.ToLower(v)
 		}

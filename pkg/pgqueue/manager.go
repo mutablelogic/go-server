@@ -405,6 +405,29 @@ func (manager *Manager) RunTaskLoop(ctx context.Context, ch chan<- *schema.Task)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS - NOTIFICATION
+
+// RunNotificationLoop runs a loop to process database notifications, until the context is cancelled
+// or an error occurs.
+func (manager *Manager) RunNotificationLoop(ctx context.Context, ch chan<- *pg.Notification) error {
+	// Loop until context is cancelled
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+			if notification, err := manager.listener.WaitForNotification(ctx); err != nil {
+				if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+					return err
+				}
+			} else {
+				ch <- notification
+			}
+		}
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
 func httperr(err error) error {

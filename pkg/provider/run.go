@@ -47,7 +47,7 @@ func (provider *provider) Run(parent context.Context) error {
 
 		// Create a context for each task
 		ctx, cancel := context.WithCancel(context.Background())
-		task.Context = ref.WithProvider(ctx, provider)
+		task.Context = ref.WithPath(ref.WithProvider(ctx, provider), label)
 		task.CancelFunc = cancel
 		task.WaitGroup.Add(1)
 		go func(task *state) {
