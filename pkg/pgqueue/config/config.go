@@ -54,7 +54,7 @@ func (c Config) New(ctx context.Context) (server.Task, error) {
 	}
 
 	// Return the task
-	return &task{}, nil
+	return &task{manager}, nil
 }
 
 ////////////////////////////////////////////////////////////////////////////////

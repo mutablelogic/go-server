@@ -44,8 +44,8 @@ func (c *Client) GetQueue(ctx context.Context, name string) (*schema.Queue, erro
 	return &response, nil
 }
 
-func (c *Client) CreateQueue(ctx context.Context, queue schema.Queue) (*schema.Queue, error) {
-	req, err := client.NewJSONRequest(queue)
+func (c *Client) CreateQueue(ctx context.Context, meta schema.QueueMeta) (*schema.Queue, error) {
+	req, err := client.NewJSONRequest(meta)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func (c *Client) DeleteQueue(ctx context.Context, name string) error {
 	return c.DoWithContext(ctx, client.MethodDelete, nil, client.OptPath("queue", name))
 }
 
-func (c *Client) UpdateQueue(ctx context.Context, name string, meta schema.Queue) (*schema.Queue, error) {
+func (c *Client) UpdateQueue(ctx context.Context, name string, meta schema.QueueMeta) (*schema.Queue, error) {
 	req, err := client.NewJSONRequestEx(http.MethodPatch, meta, "")
 	if err != nil {
 		return nil, err

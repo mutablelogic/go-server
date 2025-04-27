@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	// Packages
@@ -18,8 +19,10 @@ import (
 // TYPES
 
 type Manager struct {
-	conn   pg.PoolConn
-	worker string
+	conn     pg.PoolConn
+	worker   string
+	listener pg.Listener
+	topics   []string
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -61,6 +64,16 @@ func NewManager(ctx context.Context, conn pg.PoolConn, opt ...Opt) (*Manager, er
 		return schema.Bootstrap(ctx, conn)
 	}); err != nil {
 		return nil, err
+	}
+
+	// Create a listener for new tasks in this namespace
+	if listener := pg.NewListener(conn); listener == nil {
+		return nil, httpresponse.ErrInternalError.Withf("Cannot create listener")
+	} else {
+		self.listener = listener
+		self.topics = []string{
+			strings.Join([]string{opts.namespace, schema.TopicQueueInsert}, "_"),
+		}
 	}
 
 	// Return success
@@ -144,7 +157,8 @@ func (manager *Manager) NextTicker(ctx context.Context) (*schema.Ticker, error) 
 	return &ticker, nil
 }
 
-// RunTickerLoop runs a loop to process matured tickers, until the context is cancelled.
+// RunTickerLoop runs a loop to process matured tickers, until the context is cancelled,
+// or an error occurs.
 func (manager *Manager) RunTickerLoop(ctx context.Context, ch chan<- *schema.Ticker) error {
 	delta := schema.TickerPeriod
 	timer := time.NewTimer(100 * time.Millisecond)
@@ -192,7 +206,7 @@ func (manager *Manager) RunTickerLoop(ctx context.Context, ch chan<- *schema.Tic
 // PUBLIC METHODS - QUEUE
 
 // RegisterQueue creates a new queue, or updates an existing queue, and returns it.
-func (manager *Manager) RegisterQueue(ctx context.Context, meta schema.Queue) (*schema.Queue, error) {
+func (manager *Manager) RegisterQueue(ctx context.Context, meta schema.QueueMeta) (*schema.Queue, error) {
 	var queue schema.Queue
 	if err := manager.conn.Tx(ctx, func(conn pg.Conn) error {
 		// Get a queue
@@ -244,7 +258,7 @@ func (manager *Manager) DeleteQueue(ctx context.Context, name string) (*schema.Q
 }
 
 // UpdateQueue updates an existing queue, and returns it.
-func (manager *Manager) UpdateQueue(ctx context.Context, name string, meta schema.Queue) (*schema.Queue, error) {
+func (manager *Manager) UpdateQueue(ctx context.Context, name string, meta schema.QueueMeta) (*schema.Queue, error) {
 	var queue schema.Queue
 	if err := manager.conn.Update(ctx, &queue, schema.QueueName(name), meta); err != nil {
 		return nil, httperr(err)
@@ -301,7 +315,7 @@ func (manager *Manager) NextTask(ctx context.Context, opt ...Opt) (*schema.Task,
 			return nil
 		}
 
-		// Return the task
+		// Get the task
 		return conn.Get(ctx, &task, taskId)
 	}); err != nil {
 		return nil, httperr(err)
@@ -312,6 +326,81 @@ func (manager *Manager) NextTask(ctx context.Context, opt ...Opt) (*schema.Task,
 		return nil, nil
 	} else {
 		return &task.Task, nil
+	}
+}
+
+// ReleaseTask releases a task from a queue, and returns it. Can optionally set the status
+func (manager *Manager) ReleaseTask(ctx context.Context, task uint64, success bool, result any, status *string) (*schema.Task, error) {
+	var taskId schema.TaskId
+	var taskObj schema.TaskWithStatus
+
+	// Release the task, and return it
+	if err := manager.conn.Tx(ctx, func(conn pg.Conn) error {
+		if err := conn.Get(ctx, &taskId, schema.TaskRelease{Id: task, Fail: !success, Result: result}); err != nil {
+			return err
+		}
+
+		// No task found
+		if taskId == 0 {
+			return pg.ErrNotFound
+		}
+
+		// Get the task
+		return conn.Get(ctx, &taskObj, taskId)
+	}); err != nil {
+		return nil, httperr(err)
+	}
+
+	// Optionally set the status
+	if status != nil {
+		*status = taskObj.Status
+	}
+
+	// Return task
+	return &taskObj.Task, nil
+}
+
+// RunTaskLoop runs a loop to process tasks, until the context is cancelled
+// or an error occurs.
+func (manager *Manager) RunTaskLoop(ctx context.Context, ch chan<- *schema.Task) error {
+	delta := schema.TaskPeriod
+	timer := time.NewTimer(100 * time.Millisecond)
+	defer timer.Stop()
+
+	// Subscribe to pg topics
+	for _, topic := range manager.topics {
+		if err := manager.listener.Listen(ctx, topic); err != nil {
+			return err
+		}
+	}
+	defer func() {
+		for _, topic := range manager.topics {
+			manager.listener.Unlisten(ctx, topic)
+		}
+	}()
+
+	// Loop until context is cancelled
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-timer.C:
+			// Check for matured tasks
+			task, err := manager.NextTask(ctx)
+			if err != nil {
+				return err
+			}
+
+			if task != nil {
+				ch <- task
+				delta = 100 * time.Millisecond
+			} else {
+				delta = schema.TaskPeriod
+			}
+
+			// Next loop
+			timer.Reset(delta)
+		}
 	}
 }
 

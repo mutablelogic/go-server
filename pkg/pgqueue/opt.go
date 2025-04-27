@@ -47,9 +47,7 @@ func applyOpts(opts ...Opt) (*opt, error) {
 // Set the worker name when a task is locked for work
 func OptWorker(v string) Opt {
 	return func(o *opt) error {
-		if v = strings.TrimSpace(v); v == "" {
-			return httpresponse.ErrBadRequest.With("empty worker name")
-		} else {
+		if v = strings.TrimSpace(v); v != "" {
 			o.worker = v
 		}
 		return nil

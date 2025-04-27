@@ -75,7 +75,7 @@ func queueList(w http.ResponseWriter, r *http.Request, manager *pgqueue.Manager)
 
 func queueCreate(w http.ResponseWriter, r *http.Request, manager *pgqueue.Manager) error {
 	// Parse request
-	var req schema.Queue
+	var req schema.QueueMeta
 	if err := httprequest.Read(r, &req); err != nil {
 		return httpresponse.Error(w, err)
 	}
@@ -119,7 +119,7 @@ func queueDelete(w http.ResponseWriter, r *http.Request, manager *pgqueue.Manage
 
 func queueUpdate(w http.ResponseWriter, r *http.Request, manager *pgqueue.Manager, name string) error {
 	// Parse request
-	var meta schema.Queue
+	var meta schema.QueueMeta
 	if err := httprequest.Read(r, &meta); err != nil {
 		return httpresponse.Error(w, err)
 	}

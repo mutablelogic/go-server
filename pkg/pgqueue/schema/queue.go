@@ -17,11 +17,16 @@ import (
 
 type QueueName string
 
-type Queue struct {
+type QueueMeta struct {
 	Queue      string         `json:"queue,omitempty" arg:"" help:"Queue name"`
 	TTL        *time.Duration `json:"ttl,omitempty" help:"Time-to-live for queue messages"`
 	Retries    *uint64        `json:"retries" help:"Number of retries before failing"`
 	RetryDelay *time.Duration `json:"retry_delay" help:"Backoff delay"`
+}
+
+type Queue struct {
+	QueueMeta
+	Namespace string `json:"namespace,omitempty" help:"Namespace"`
 }
 
 type QueueListRequest struct {
@@ -63,6 +68,14 @@ func (q Queue) String() string {
 	return string(data)
 }
 
+func (q QueueMeta) String() string {
+	data, err := json.MarshalIndent(q, "", "  ")
+	if err != nil {
+		return err.Error()
+	}
+	return string(data)
+}
+
 func (q QueueList) String() string {
 	data, err := json.MarshalIndent(q, "", "  ")
 	if err != nil {
@@ -84,7 +97,7 @@ func (q QueueStatus) String() string {
 
 // Queue
 func (q *Queue) Scan(row pg.Row) error {
-	return row.Scan(&q.Queue, &q.TTL, &q.Retries, &q.RetryDelay)
+	return row.Scan(&q.Queue, &q.TTL, &q.Retries, &q.RetryDelay, &q.Namespace)
 }
 
 // QueueList
@@ -198,7 +211,7 @@ func (l QueueStatusRequest) Select(bind *pg.Bind, op pg.Op) (string, error) {
 // WRITER
 
 // Insert
-func (q Queue) Insert(bind *pg.Bind) (string, error) {
+func (q QueueMeta) Insert(bind *pg.Bind) (string, error) {
 	// Queue name
 	queue, err := QueueName(q.Queue).queueName()
 	if err != nil {
@@ -215,7 +228,7 @@ func (q Queue) Insert(bind *pg.Bind) (string, error) {
 }
 
 // Patch
-func (q Queue) Update(bind *pg.Bind) error {
+func (q QueueMeta) Update(bind *pg.Bind) error {
 	var patch []string
 
 	// Queue name
@@ -298,11 +311,11 @@ const (
 		) VALUES (
 		 	@ns, @queue, DEFAULT, DEFAULT, DEFAULT
 		) RETURNING 
-			queue, ttl, retries, retry_delay
+			queue, ttl, retries, retry_delay, ns
 	`
 	queueGet = `
 		SELECT
-			queue, ttl, retries, retry_delay
+			queue, ttl, retries, retry_delay, ns
 		FROM
 			${"schema"}.queue
 		WHERE
@@ -318,7 +331,7 @@ const (
 		AND
 			ns = @ns
 		RETURNING
-			queue, ttl, retries, retry_delay
+			queue, ttl, retries, retry_delay, ns
 	`
 	queueDelete = `
 		DELETE FROM ${"schema"}.queue WHERE
@@ -326,11 +339,11 @@ const (
 		AND
 			ns = @ns
 		RETURNING
-			queue, ttl, retries, retry_delay
+			queue, ttl, retries, retry_delay, ns
 	`
 	queueList = `
 		SELECT
-			queue, ttl, retries, retry_delay
+			queue, ttl, retries, retry_delay, ns
 		FROM 
 			${"schema"}.queue 
 		WHERE

@@ -3,170 +3,68 @@ package pgqueue
 import (
 	"context"
 	"errors"
-	"sync"
+	"fmt"
 	"time"
 
 	// Packages
-	pg "github.com/djthorpe/go-pg"
+	server "github.com/mutablelogic/go-server"
 	schema "github.com/mutablelogic/go-server/pkg/pgqueue/schema"
+	ref "github.com/mutablelogic/go-server/pkg/ref"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-// CreateTask creates a new task, and returns it.
-func (client *Client) CreateTask(ctx context.Context, queue string, meta schema.TaskMeta) (*schema.Task, error) {
-	var taskId schema.TaskId
-	var task schema.TaskWithStatus
-	if err := client.conn.With("id", queue).Insert(ctx, &taskId, meta); err != nil {
-		return nil, err
-	} else if err := client.conn.Get(ctx, &task, taskId); err != nil {
-		return nil, err
+func RunTicker(ctx context.Context, ticker *schema.Ticker, fn server.PGCallback) error {
+	var deadline time.Duration
+	if ticker.Interval != nil {
+		deadline = *ticker.Interval
 	}
-	return &task.Task, nil
+	return runTask(ref.WithTicker(ctx, ticker), deadline, fn, nil)
 }
 
-// GetTask returns a task based on identifier, and optionally sets the task status.
-func (client *Client) GetTask(ctx context.Context, task uint64, status *string) (*schema.Task, error) {
-	var taskObj schema.TaskWithStatus
-	if err := client.conn.Get(ctx, &taskObj, schema.TaskId(task)); err != nil {
-		return nil, err
-	} else if status != nil {
-		*status = taskObj.Status
+func RunTask(ctx context.Context, task *schema.Task, fn server.PGCallback, payload any) error {
+	var deadline time.Duration
+	if task.DiesAt != nil {
+		deadline = time.Until(*task.DiesAt)
 	}
-	return &taskObj.Task, nil
+	return runTask(ref.WithTask(ctx, task), deadline, fn, payload)
 }
 
-// NextTask retains a task, and returns it. Returns nil if there is no task to retain
-func (client *Client) NextTask(ctx context.Context) (*schema.Task, error) {
-	var taskId schema.TaskId
-	var task schema.TaskWithStatus
-	if err := client.conn.Get(ctx, &taskId, schema.TaskRetain{
-		Worker: client.worker,
-	}); err != nil {
-		return nil, err
-	} else if taskId == 0 {
-		// No task to retain
-		return nil, nil
-	} else if err := client.conn.Get(ctx, &task, taskId); err != nil {
-		return nil, err
-	}
-	return &task.Task, nil
-}
+////////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
 
-// ReleaseTask releases a task from a queue, and returns it.
-func (client *Client) ReleaseTask(ctx context.Context, task uint64, result any) (*schema.Task, error) {
-	var taskId schema.TaskId
-	var taskObj schema.TaskWithStatus
-	if err := client.conn.Get(ctx, &taskId, schema.TaskRelease{
-		Id:     task,
-		Fail:   false,
-		Result: result,
-	}); err != nil {
-		return nil, err
-	} else if taskId == 0 {
-		// No task found
-		return nil, pg.ErrNotFound
-	}
-	if err := client.conn.Get(ctx, &taskObj, taskId); err != nil {
-		return nil, err
-	}
-	return &taskObj.Task, nil
-}
+// RunTask runs a task with the given context and payload. The task will be
+// executed with a deadline. If the task does not complete within the deadline,
+// it will be cancelled and an error will be returned.
+func runTask(parent context.Context, deadline time.Duration, fn server.PGCallback, payload any) (errs error) {
+	ctx, cancel := contextWithDeadline(parent, deadline)
+	defer cancel()
 
-// FailTask fails a task, either for retry or permanent failure, and returns the task and status.
-func (client *Client) FailTask(ctx context.Context, task uint64, result any, status *string) (*schema.Task, error) {
-	var taskId schema.TaskId
-	var taskObj schema.TaskWithStatus
-	if err := client.conn.Get(ctx, &taskId, schema.TaskRelease{
-		Id:     task,
-		Fail:   true,
-		Result: result,
-	}); err != nil {
-		return nil, err
-	} else if taskId == 0 {
-		// No task found
-		return nil, pg.ErrNotFound
-	}
-	if err := client.conn.Get(ctx, &taskObj, taskId); err != nil {
-		return nil, err
-	} else if status != nil {
-		*status = taskObj.Status
-	}
-	return &taskObj.Task, nil
-}
-
-// RunTaskLoop runs a loop to process matured tasks, until the context is cancelled.
-// It does not retain or release tasks, but simply returns them to the caller.
-func (client *Client) RunTaskLoop(ctx context.Context, taskch chan<- *schema.Task, errch chan<- error) error {
-	var wg sync.WaitGroup
-
-	max_delta := schema.TaskPeriod
-	min_delta := schema.TaskPeriod / 10
-	timer := time.NewTimer(200 * time.Millisecond)
-	defer timer.Stop()
-
-	// Make a channel for notifications
-	notifych := make(chan *pg.Notification)
-	defer close(notifych)
-
-	// Listen for notifications
-	wg.Add(1)
-	go func(ctx context.Context) {
-		defer wg.Done()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			default:
-				notification, err := client.listener.WaitForNotification(ctx)
-				if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
-					errch <- err
-				} else {
-					notifych <- notification
-				}
-			}
+	// Catch panics
+	defer func() {
+		if r := recover(); r != nil {
+			errs = errors.Join(errs, fmt.Errorf("PANIC: %v", r))
 		}
-	}(ctx)
+	}()
 
-	nextTaskFn := func() error {
-		// Check for matured tasks
-		task, err := client.NextTask(ctx)
-		if err != nil {
-			return err
-		}
-		if task != nil {
-			// Emit task to channel
-			taskch <- task
-			// Retain task, reset timer to minimum period
-			timer.Reset(min_delta)
-		} else {
-			// No task to retain, reset timer to maximum period
-			timer.Reset(max_delta)
-		}
-		return nil
+	// Run the task function
+	if err := fn(ctx, payload); err != nil {
+		errs = errors.Join(errs, err)
 	}
 
-	// Loop until context is cancelled
-FOR_LOOP:
-	for {
-		select {
-		case <-ctx.Done():
-			break FOR_LOOP
-		case <-timer.C:
-			if err := nextTaskFn(); err != nil {
-				errch <- err
-			}
-		case <-notifych:
-			if err := nextTaskFn(); err != nil {
-				errch <- err
-			}
-		}
+	// Concatenate any errors from the deadline
+	if ctx.Err() != nil {
+		errs = errors.Join(errs, ctx.Err())
 	}
 
-	// Wait for all goroutines to finish
-	wg.Wait()
+	// Return errs
+	return errs
+}
 
-	// Return success
-	return nil
+func contextWithDeadline(ctx context.Context, deadline time.Duration) (context.Context, context.CancelFunc) {
+	if deadline > 0 {
+		return context.WithTimeout(ctx, deadline)
+	}
+	return ctx, func() {}
 }

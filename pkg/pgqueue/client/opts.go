@@ -45,6 +45,11 @@ func WithOffsetLimit(offset uint64, limit *uint64) Opt {
 	}
 }
 
+// With worker name
+func WithWorker(v string) Opt {
+	return OptSet("worker", v)
+}
+
 func OptSet(k, v string) Opt {
 	return func(o *opt) error {
 		if v == "" {

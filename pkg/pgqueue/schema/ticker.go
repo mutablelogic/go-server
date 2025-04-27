@@ -24,7 +24,8 @@ type TickerMeta struct {
 
 type Ticker struct {
 	TickerMeta
-	Ts *time.Time `json:"timestamp,omitempty"`
+	Namespace string     `json:"namespace,omitempty" help:"Namespace"`
+	Ts        *time.Time `json:"timestamp,omitempty"`
 }
 
 type TickerListRequest struct {
@@ -113,7 +114,7 @@ func (t TickerNext) Select(bind *pg.Bind, op pg.Op) (string, error) {
 // READER
 
 func (r *Ticker) Scan(row pg.Row) error {
-	return row.Scan(&r.Ticker, &r.Interval, &r.Ts)
+	return row.Scan(&r.Ticker, &r.Interval, &r.Namespace, &r.Ts)
 }
 
 // TickerList
@@ -224,7 +225,7 @@ const (
 	tickerNextFunc = `
         -- Return the next matured ticker for a namespace
         CREATE OR REPLACE FUNCTION ${"schema"}.ticker_next(ns TEXT) RETURNS TABLE (
-            "ticker" TEXT, "interval" INTERVAL, "ts" TIMESTAMP
+            "ticker" TEXT, "interval" INTERVAL, "ns" TEXT, "ts" TIMESTAMP
         ) AS $$
 			WITH 
 				next_ticker AS (` + tickerSelect + `WHERE "ns" = ns AND ("ts" IS NULL OR "ts" + "interval" < NOW()) ORDER BY "ts" NULLS FIRST)
@@ -235,7 +236,7 @@ const (
 			WHERE
 				"ns" = ns AND "ticker" = (SELECT "ticker" FROM next_ticker LIMIT 1 FOR UPDATE SKIP LOCKED)
 			RETURNING		
-				"ticker", "interval", "ts"
+				"ticker", "interval", "ns", "ts"
         $$ LANGUAGE SQL
     `
 	tickerInsert = `
@@ -244,7 +245,7 @@ const (
 		VALUES 
 			(@ns, @id, DEFAULT, DEFAULT)
 		RETURNING
-			"ticker", "interval", "ts"
+			"ticker", "interval", "ns", "ts"
 	`
 	tickerPatch = `
 		UPDATE ${"schema"}.ticker SET
@@ -253,7 +254,7 @@ const (
 		WHERE
 			"ns" = @ns AND "ticker" = @id
 		RETURNING
-			"ticker", "interval", "ts"
+			"ticker", "interval", "ns", "ts"
 	`
 	tickerDelete = `
 		DELETE FROM 
@@ -261,11 +262,11 @@ const (
 		WHERE 
 			"ns" = @ns AND "ticker" = @id
 		RETURNING
-			"ticker", "interval", "ts"
+			"ticker", "interval",  "ns", "ts"
 	`
 	tickerSelect = `
 		SELECT
-			"ticker", "interval", "ts"
+			"ticker", "interval", "ns", "ts"
 		FROM
 			${"schema"}.ticker
 	`

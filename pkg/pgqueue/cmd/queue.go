@@ -26,7 +26,7 @@ type QueueListCommand struct {
 }
 
 type QueueCreateCommand struct {
-	schema.Queue
+	schema.QueueMeta
 }
 
 type QueueGetCommand struct {
@@ -35,7 +35,7 @@ type QueueGetCommand struct {
 
 type QueueUpdateCommand struct {
 	Name string `help:"New Queue name"`
-	schema.Queue
+	schema.QueueMeta
 }
 
 type QueueDeleteCommand struct {
@@ -73,7 +73,7 @@ func (cmd QueueGetCommand) Run(ctx server.Cmd) error {
 
 func (cmd QueueCreateCommand) Run(ctx server.Cmd) error {
 	return run(ctx, func(ctx context.Context, provider *client.Client) error {
-		queue, err := provider.CreateQueue(ctx, cmd.Queue)
+		queue, err := provider.CreateQueue(ctx, cmd.QueueMeta)
 		if err != nil {
 			return err
 		}
@@ -93,10 +93,10 @@ func (cmd QueueDeleteCommand) Run(ctx server.Cmd) error {
 func (cmd QueueUpdateCommand) Run(ctx server.Cmd) error {
 	return run(ctx, func(ctx context.Context, provider *client.Client) error {
 		// Swap queue names
-		cmd.Name, cmd.Queue.Queue = cmd.Queue.Queue, cmd.Name
+		cmd.Name, cmd.QueueMeta.Queue = cmd.QueueMeta.Queue, cmd.Name
 
 		// Update the queue
-		queue, err := provider.UpdateQueue(ctx, cmd.Name, cmd.Queue)
+		queue, err := provider.UpdateQueue(ctx, cmd.Name, cmd.QueueMeta)
 		if err != nil {
 			return err
 		}

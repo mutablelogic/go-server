@@ -183,7 +183,7 @@ func Test_Manager_002(t *testing.T) {
 
 	// Register a queue
 	t.Run("RegisterQueue1", func(t *testing.T) {
-		queue, err := manager.RegisterQueue(context.TODO(), schema.Queue{
+		queue, err := manager.RegisterQueue(context.TODO(), schema.QueueMeta{
 			Queue: "queue1",
 		})
 		if !assert.NoError(err) {
@@ -198,13 +198,13 @@ func Test_Manager_002(t *testing.T) {
 
 	// Re-register a queue with different parameters
 	t.Run("RegisterTicker2", func(t *testing.T) {
-		queue1, err := manager.RegisterQueue(context.TODO(), schema.Queue{
+		queue1, err := manager.RegisterQueue(context.TODO(), schema.QueueMeta{
 			Queue: "queue2",
 		})
 		if !assert.NoError(err) {
 			t.FailNow()
 		}
-		queue2, err := manager.RegisterQueue(context.TODO(), schema.Queue{
+		queue2, err := manager.RegisterQueue(context.TODO(), schema.QueueMeta{
 			Queue:      "queue2",
 			TTL:        types.DurationPtr(2 * time.Hour),
 			Retries:    types.Uint64Ptr(5),
@@ -230,7 +230,7 @@ func Test_Manager_002(t *testing.T) {
 
 	// Get queue
 	t.Run("GetQueue2", func(t *testing.T) {
-		queue1, err := manager.RegisterQueue(context.TODO(), schema.Queue{
+		queue1, err := manager.RegisterQueue(context.TODO(), schema.QueueMeta{
 			Queue: "queue3",
 		})
 		if !assert.NoError(err) {
@@ -253,5 +253,171 @@ func Test_Manager_002(t *testing.T) {
 		assert.NotNil(list)
 		assert.NotZero(list.Count)
 		assert.NotNil(list.Body)
+	})
+
+	// Delete non-existent queue
+	t.Run("DeleteQueue1", func(t *testing.T) {
+		queue, err := manager.DeleteQueue(context.TODO(), "nonexistent")
+		assert.ErrorIs(err, httpresponse.ErrNotFound)
+		assert.Nil(queue)
+	})
+
+	// Get queue
+	t.Run("DeleteQueue2", func(t *testing.T) {
+		queue1, err := manager.RegisterQueue(context.TODO(), schema.QueueMeta{
+			Queue: "queue4",
+		})
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+
+		queue2, err := manager.DeleteQueue(context.TODO(), "queue4")
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+		assert.Equal(queue1, queue2)
+
+		queue3, err := manager.DeleteQueue(context.TODO(), "queue4")
+		assert.ErrorIs(err, httpresponse.ErrNotFound)
+		assert.Nil(queue3)
+	})
+}
+
+func Test_Manager_003(t *testing.T) {
+	assert := assert.New(t)
+	conn := conn.Begin(t)
+	defer conn.Close()
+
+	// Create a new queue manager
+	manager, err := pgqueue.NewManager(context.TODO(), conn)
+	if !assert.NoError(err) {
+		t.FailNow()
+	}
+	assert.NotNil(manager)
+
+	queue, err := manager.RegisterQueue(context.TODO(), schema.QueueMeta{
+		Queue:      "queue5",
+		RetryDelay: types.DurationPtr(0), // No retry delay
+	})
+	if !assert.NoError(err) {
+		t.FailNow()
+	}
+
+	// Create a task
+	t.Run("CreateTask", func(t *testing.T) {
+		task1, err := manager.CreateTask(context.TODO(), queue.Queue, schema.TaskMeta{
+			Payload: true,
+		})
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+		assert.NotNil(task1)
+		assert.NotZero(task1.Id)
+		assert.Equal(queue.Queue, task1.Queue)
+		assert.Equal(*queue.Retries, *task1.Retries)
+	})
+
+	// Retain a task
+	t.Run("RetainTask", func(t *testing.T) {
+		_, err := manager.CreateTask(context.TODO(), queue.Queue, schema.TaskMeta{
+			Payload: true,
+		})
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+		task2, err := manager.NextTask(context.TODO(), pgqueue.OptWorker(t.Name()))
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+		assert.NotNil(task2)
+		assert.NotZero(task2.Id)
+		assert.Equal(types.PtrString(task2.Worker), t.Name())
+	})
+
+	// Retain then release a task with success
+	t.Run("ReleaseTask1", func(t *testing.T) {
+		_, err := manager.CreateTask(context.TODO(), queue.Queue, schema.TaskMeta{
+			Payload: true,
+		})
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+		task2, err := manager.NextTask(context.TODO(), pgqueue.OptWorker(t.Name()))
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+		assert.NotNil(task2)
+		assert.NotZero(task2.Id)
+		assert.Equal(types.PtrString(task2.Worker), t.Name())
+
+		task3, err := manager.ReleaseTask(context.TODO(), task2.Id, true, nil, nil)
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+		assert.Equal(task3.Id, task2.Id)
+		assert.Equal(task3.Queue, task2.Queue)
+		assert.NotZero(task3.FinishedAt)
+		assert.Nil(task3.DiesAt)
+	})
+
+	// Retain then release a task with failure
+	t.Run("ReleaseTask2", func(t *testing.T) {
+		_, err := manager.CreateTask(context.TODO(), queue.Queue, schema.TaskMeta{
+			Payload: true,
+		})
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+		task2, err := manager.NextTask(context.TODO(), pgqueue.OptWorker(t.Name()))
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+		assert.NotNil(task2)
+		assert.NotZero(task2.Id)
+		assert.Equal(types.PtrString(task2.Worker), t.Name())
+
+		task3, err := manager.ReleaseTask(context.TODO(), task2.Id, false, nil, nil)
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+		assert.Equal(task3.Id, task2.Id)
+		assert.Equal(task3.Queue, task2.Queue)
+		assert.Zero(task3.FinishedAt)
+		assert.NotNil(task3.DiesAt)
+		assert.NotEqual(types.PtrUint64(task3.Retries), types.PtrUint64(task2.Retries))
+	})
+
+	// Retain then release tasks with failure
+	t.Run("ReleaseTask3", func(t *testing.T) {
+		_, err := manager.CreateTask(context.TODO(), queue.Queue, schema.TaskMeta{
+			Payload: true,
+		})
+		if !assert.NoError(err) {
+			t.FailNow()
+		}
+
+		for {
+			task, err := manager.NextTask(context.TODO(), pgqueue.OptWorker(t.Name()))
+			if !assert.NoError(err) {
+				t.FailNow()
+			}
+			if task == nil {
+				break
+			}
+
+			var status string
+			task2, err := manager.ReleaseTask(context.TODO(), task.Id, false, nil, &status)
+			if !assert.NoError(err) {
+				t.FailNow()
+			}
+
+			assert.True(status == "retry" || status == "failed")
+			switch status {
+			case "retry":
+				assert.Greater(*task2.Retries, uint64(0))
+			case "failed":
+				assert.Zero(*task2.Retries)
+			}
+		}
 	})
 }
