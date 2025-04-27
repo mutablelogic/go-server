@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"math/rand"
-	"os"
 	"sync"
 	"time"
 
@@ -36,8 +35,6 @@ func (task *task) Run(parent context.Context) error {
 	// Create a cancelable context
 	ctx, cancel := context.WithCancel(context.Background())
 	ctx = ref.WithPath(ref.WithLog(ctx, ref.Log(parent)), ref.Path(parent)...)
-
-	ref.DumpContext(os.Stdout, parent)
 
 	// Ticker loop
 	tickerch := make(chan *schema.Ticker)
@@ -110,40 +107,11 @@ FOR_LOOP:
 // PRIVATE METHODS
 
 func (t *task) tryTicker(ctx context.Context, ticker *schema.Ticker) error {
-	return pgqueue.RunTicker(ctx, ticker, func(ctx context.Context, payload any) error {
-		ref.Log(ctx).Debug(ctx, "Running ticker ", ref.Ticker(ctx))
-		select {
-		case <-ctx.Done():
-			ref.Log(ctx).Debug(ctx, "  Ticker cancelled")
-			return ctx.Err()
-		case <-time.After(time.Second * time.Duration(rand.Intn(20))):
-			ref.Log(ctx).Debug(ctx, "  Ticker done")
-		}
-		return nil
-	})
+	return pgqueue.RunTicker(ctx, ticker, tickerFunc)
 }
 
 func (t *task) tryTask(ctx context.Context, task *schema.Task) (*schema.Task, error) {
-	err := pgqueue.RunTask(ctx, task, func(ctx context.Context, payload any) error {
-		var err error
-		if rand.Intn(10) == 0 {
-			err = errors.New("random error")
-		}
-
-		ref.Log(ctx).Debug(ctx, "Running task ", ref.Task(ctx), " with payload ", payload)
-		select {
-		case <-ctx.Done():
-			ref.Log(ctx).Debug(ctx, "  Task cancelled")
-			return ctx.Err()
-		case <-time.After(time.Second * time.Duration(rand.Intn(10))):
-			if err != nil {
-				ref.Log(ctx).Debug(ctx, "  Task failed: ", err)
-			} else {
-				ref.Log(ctx).Debug(ctx, "  Task succeeded")
-			}
-		}
-		return err
-	}, task.Payload)
+	err := pgqueue.RunTask(ctx, task, taskFunc, task.Payload)
 
 	if err != nil {
 		// Fail the task
@@ -158,4 +126,40 @@ func (t *task) tryTask(ctx context.Context, task *schema.Task) (*schema.Task, er
 		// Succeed the task
 		return t.manager.ReleaseTask(ctx, task.Id, true, nil, nil)
 	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// TEST CALLBACKS
+
+func taskFunc(ctx context.Context, payload any) error {
+	var err error
+	if rand.Intn(2) == 0 {
+		err = errors.New("random error")
+	}
+
+	ref.Log(ctx).Debug(ctx, "Running task ", ref.Task(ctx), " with payload ", payload)
+	select {
+	case <-ctx.Done():
+		ref.Log(ctx).Debug(ctx, "  Task cancelled")
+		return ctx.Err()
+	case <-time.After(time.Second * time.Duration(rand.Intn(10))):
+		if err != nil {
+			ref.Log(ctx).Debug(ctx, "  Task failed: ", err)
+		} else {
+			ref.Log(ctx).Debug(ctx, "  Task succeeded")
+		}
+	}
+	return err
+}
+
+func tickerFunc(ctx context.Context, payload any) error {
+	ref.Log(ctx).Debug(ctx, "Running ticker ", ref.Ticker(ctx))
+	select {
+	case <-ctx.Done():
+		ref.Log(ctx).Debug(ctx, "  Ticker cancelled")
+		return ctx.Err()
+	case <-time.After(time.Second * time.Duration(rand.Intn(20))):
+		ref.Log(ctx).Debug(ctx, "  Ticker done")
+	}
+	return nil
 }

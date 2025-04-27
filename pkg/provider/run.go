@@ -53,7 +53,7 @@ func (provider *provider) Run(parent context.Context) error {
 		go func(task *state) {
 			defer task.WaitGroup.Done()
 			defer task.CancelFunc()
-			provider.Print(ctx, "Starting task ", label)
+			provider.Print(parent, "Starting task ", label)
 			if err := task.Run(task.Context); err != nil {
 				result = errors.Join(result, fmt.Errorf("%q: %w", label, err))
 				prematureCancel()
