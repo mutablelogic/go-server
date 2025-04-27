@@ -130,7 +130,11 @@ func (t *task) RegisterTicker(ctx context.Context, meta schema.TickerMeta, fn se
 	if err != nil {
 		return nil, err
 	}
-	// TODO: Register the ticker callback
+
+	// Register the ticker callback
+	t.registerCallback(ticker.Namespace, ticker.Ticker, fn)
+
+	// Return the ticker metadata
 	return ticker, nil
 }
 
@@ -141,14 +145,29 @@ func (t *task) RegisterQueue(ctx context.Context, meta schema.QueueMeta, fn serv
 	if err != nil {
 		return nil, err
 	}
+
 	// Register a queue cleanup timer
+	// TODO: queue name should include the namespace
 	if _, err := t.manager.RegisterTickerNs(ctx, schema.CleanupNamespace, schema.TickerMeta{
 		Ticker:   queue.Queue,
 		Interval: queue.TTL,
 	}); err != nil {
 		_, err_ := t.manager.DeleteQueue(ctx, meta.Queue)
 		return nil, errors.Join(err, err_)
+	} else {
+		t.registerCallback(schema.CleanupNamespace, queue.Queue, func(ctx context.Context, _ any) error {
+			// Cleanup the queue
+			if _, err := t.manager.CleanQueue(ctx, queue.Queue); err != nil {
+				return err
+			}
+			return nil
+		})
 	}
+
+	// Register the task callback
+	t.registerCallback(queue.Namespace, queue.Queue, fn)
+
+	// Return the queue metadata
 	return queue, nil
 }
 

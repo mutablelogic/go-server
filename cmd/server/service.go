@@ -92,6 +92,13 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 				config.Pool = pool
 			}
 
+			// Set the queue
+			if queue, ok := ref.Provider(ctx).Task(ctx, "pgqueue").(server.PGQueue); !ok || queue == nil {
+				return nil, httpresponse.ErrInternalError.Withf("Invalid connection pool %q", "pgqueue")
+			} else {
+				config.Queue = queue
+			}
+
 			return config, nil
 
 		case "httpserver":
