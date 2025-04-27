@@ -319,6 +319,15 @@ func (manager *Manager) UpdateQueue(ctx context.Context, name string, meta schem
 	return &queue, nil
 }
 
+// CleanQueue removes stale tasks from a queue, and returns the tasks removed
+func (manager *Manager) CleanQueue(ctx context.Context, name string) ([]schema.Task, error) {
+	var resp schema.QueueCleanResponse
+	if err := manager.conn.List(ctx, &resp, schema.QueueCleanRequest{Queue: name}); err != nil {
+		return nil, httperr(err)
+	}
+	return resp.Body, nil
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS - TASK
 

@@ -174,14 +174,19 @@ func (t *task) tryTicker(ctx context.Context, taskpool *pgqueue.TaskPool, ticker
 }
 
 func (t *task) tryTask(ctx context.Context, taskpool *pgqueue.TaskPool, task *schema.Task) {
+	now := time.Now()
 	taskpool.RunTask(ctx, task, taskFunc, task.Payload, func(err error) {
-		// Task succeeded
-		if err == nil {
-			t.manager.ReleaseTask(ctx, task.Id, true, nil, nil)
-			return
+		var status string
+		delta := time.Since(now).Truncate(time.Millisecond)
+		if _, err_ := t.manager.ReleaseTask(context.TODO(), task.Id, err == nil, err, &status); err_ != nil {
+			err = errors.Join(err, err_)
 		}
-		// Fail the task
-		t.manager.ReleaseTask(ctx, task.Id, false, err.Error(), nil)
+		switch {
+		case err == nil:
+			ref.Log(ctx).With("task", task, "delta_ms", delta.Milliseconds(), "status", "success").Print(ctx, "Task completed in ", delta)
+		default:
+			ref.Log(ctx).With("task", task, "delta_ms", delta.Milliseconds(), "status", status, "error", err.Error()).Printf(ctx, "Failed (with %s) after %v: %v", status, delta, err)
+		}
 	})
 }
 
@@ -190,23 +195,15 @@ func (t *task) tryTask(ctx context.Context, taskpool *pgqueue.TaskPool, task *sc
 
 func taskFunc(ctx context.Context, payload any) error {
 	var err error
-	if rand.Intn(2) == 0 {
+	if rand.Intn(2) == 1 {
 		err = errors.New("random error")
 	}
-
-	ref.Log(ctx).With("task", ref.Task(ctx)).Print(ctx, "Running task with payload ", payload)
 	select {
 	case <-ctx.Done():
-		ref.Log(ctx).With("task", ref.Task(ctx)).Print(ctx, "Task deadline exceeded")
 		return ctx.Err()
 	case <-time.After(time.Second * time.Duration(rand.Intn(10))):
-		if err != nil {
-			ref.Log(ctx).With("task", ref.Task(ctx)).Print(ctx, "Task failed: ", err)
-		} else {
-			ref.Log(ctx).With("task", ref.Task(ctx)).Print(ctx, "Task succeeded")
-		}
+		return err
 	}
-	return err
 }
 
 func tickerFunc(ctx context.Context, payload any) error {

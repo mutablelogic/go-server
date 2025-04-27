@@ -19,6 +19,7 @@ type QueueCommands struct {
 	CreateQueue QueueCreateCommand `cmd:"create" group:"QUEUE" help:"Create a new queue"`
 	UpdateQueue QueueUpdateCommand `cmd:"update" group:"QUEUE" help:"Update queue"`
 	DeleteQueue QueueDeleteCommand `cmd:"delete" group:"QUEUE" help:"Delete queue"`
+	CleanQueue  QueueCleanCommand  `cmd:"clean" group:"QUEUE" help:"Clean queue"`
 }
 
 type QueueListCommand struct {
@@ -39,6 +40,10 @@ type QueueUpdateCommand struct {
 }
 
 type QueueDeleteCommand struct {
+	QueueGetCommand
+}
+
+type QueueCleanCommand struct {
 	QueueGetCommand
 }
 
@@ -103,6 +108,19 @@ func (cmd QueueUpdateCommand) Run(ctx server.Cmd) error {
 
 		// Print queue
 		fmt.Println(queue)
+		return nil
+	})
+}
+
+func (cmd QueueCleanCommand) Run(ctx server.Cmd) error {
+	return run(ctx, func(ctx context.Context, provider *client.Client) error {
+		tasks, err := provider.CleanQueue(ctx, cmd.Queue)
+		if err != nil {
+			return err
+		}
+
+		// Print tasks that were cleaned
+		fmt.Println(tasks)
 		return nil
 	})
 }

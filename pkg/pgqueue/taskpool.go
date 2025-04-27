@@ -121,8 +121,8 @@ func runTask(parent context.Context, deadline time.Duration, fn server.PGCallbac
 		errs = errors.Join(errs, err)
 	}
 
-	// Concatenate any errors from the deadline
-	if ctx.Err() != nil {
+	// Concatenate any errors from the context if not already present
+	if ctx.Err() != nil && !errors.Is(errs, ctx.Err()) {
 		errs = errors.Join(errs, ctx.Err())
 	}
 

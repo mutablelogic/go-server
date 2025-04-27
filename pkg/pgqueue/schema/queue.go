@@ -39,7 +39,9 @@ type QueueList struct {
 	Body  []Queue `json:"body,omitempty"`
 }
 
-type QueueCleanRequest struct{}
+type QueueCleanRequest struct {
+	Queue string `json:"queue,omitempty" arg:"" help:"Queue name"`
+}
 
 type QueueCleanResponse struct {
 	Body []Task `json:"body,omitempty"`
@@ -164,6 +166,13 @@ func (q QueueName) Select(bind *pg.Bind, op pg.Op) (string, error) {
 }
 
 func (q QueueCleanRequest) Select(bind *pg.Bind, op pg.Op) (string, error) {
+	// Set queue name
+	if name, err := QueueName(q.Queue).queueName(); err != nil {
+		return "", err
+	} else {
+		bind.Set("id", name)
+	}
+
 	switch op {
 	case pg.List:
 		return queueClean, nil

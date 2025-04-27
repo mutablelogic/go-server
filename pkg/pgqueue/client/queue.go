@@ -79,3 +79,16 @@ func (c *Client) UpdateQueue(ctx context.Context, name string, meta schema.Queue
 	// Return the response
 	return &response, nil
 }
+
+func (c *Client) CleanQueue(ctx context.Context, name string) ([]schema.Task, error) {
+	req := client.NewRequest()
+
+	// Perform request
+	var response []schema.Task
+	if err := c.DoWithContext(ctx, req, &response, client.OptPath("queue", name, "clean")); err != nil {
+		return nil, err
+	}
+
+	// Return the response
+	return response, nil
+}

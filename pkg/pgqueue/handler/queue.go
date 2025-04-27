@@ -51,6 +51,20 @@ func registerQueue(ctx context.Context, router server.HTTPRouter, prefix string,
 			_ = httpresponse.Error(w, httpresponse.Err(http.StatusMethodNotAllowed), r.Method)
 		}
 	})
+
+	router.HandleFunc(ctx, types.JoinPath(prefix, "queue/{name}/clean"), func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
+		httpresponse.Cors(w, r, router.Origin(), http.MethodGet)
+
+		switch r.Method {
+		case http.MethodOptions:
+			_ = httpresponse.Empty(w, http.StatusOK)
+		case http.MethodGet:
+			_ = queueClean(w, r, manager, r.PathValue("name"))
+		default:
+			_ = httpresponse.Error(w, httpresponse.Err(http.StatusMethodNotAllowed), r.Method)
+		}
+	})
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -65,6 +79,17 @@ func queueList(w http.ResponseWriter, r *http.Request, manager *pgqueue.Manager)
 
 	// List the queues
 	response, err := manager.ListQueues(r.Context(), req)
+	if err != nil {
+		return httpresponse.Error(w, err)
+	}
+
+	// Return success
+	return httpresponse.JSON(w, http.StatusOK, httprequest.Indent(r), response)
+}
+
+func queueClean(w http.ResponseWriter, r *http.Request, manager *pgqueue.Manager, name string) error {
+	// Get the dead tasks
+	response, err := manager.CleanQueue(r.Context(), name)
 	if err != nil {
 		return httpresponse.Error(w, err)
 	}
