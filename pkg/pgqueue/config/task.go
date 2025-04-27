@@ -83,7 +83,7 @@ func (task *task) Run(parent context.Context) error {
 
 	// Task worker pool
 	taskpool := pgqueue.NewTaskPool(task.workers)
-	ref.Log(ctx).Debug(parent, "Created task pool with ", task.workers, " workers")
+	ref.Log(ctx).Debug(parent, "Created task pool with ", task.workers, " threads")
 
 FOR_LOOP:
 	for {

@@ -330,7 +330,7 @@ const (
     `
 	taskCreateInsertFunc = `
         -- Insert a new payload into a queue
-        CREATE OR REPLACE FUNCTION ${"schema"}.queue_insert(ns TEXT, q TEXT, p JSONB, delayed_at TIMESTAMP) RETURNS BIGINT AS $$
+        CREATE OR REPLACE FUNCTION ${"schema"}.queue_insert(n TEXT, q TEXT, p JSONB, delayed_at TIMESTAMP) RETURNS BIGINT AS $$
         WITH defaults AS (
             -- Select the retries and ttl from the queue defaults
             SELECT
@@ -342,13 +342,13 @@ const (
             FROM
                 ${"schema"}."queue"
             WHERE
-                "queue" = q AND "ns" = ns
+                "queue" = q AND "ns" = n
             LIMIT
                 1
         ) INSERT INTO 
             ${"schema"}."task" ("ns", "queue", "payload", "delayed_at", "retries", "initial_retries", "dies_at")
         SELECT
-            ns, q, p, CASE
+            n, q, p, CASE
                 WHEN "delayed_at" IS NULL THEN NULL
                 WHEN "delayed_at" < TIMEZONE('UTC', NOW()) THEN (NOW() AT TIME ZONE 'UTC')
                 ELSE "delayed_at"
@@ -379,7 +379,7 @@ const (
     `
 	taskRetainFunc = `
         -- A specific worker locks a task in a queue for processing
-        CREATE OR REPLACE FUNCTION ${"schema"}.queue_lock(ns TEXT, w TEXT) RETURNS BIGINT AS $$
+        CREATE OR REPLACE FUNCTION ${"schema"}.queue_lock(n TEXT, w TEXT) RETURNS BIGINT AS $$
         UPDATE ${"schema"}."task" SET 
             "started_at" = TIMEZONE('UTC', NOW()), "worker" = w, "result" = 'null'
         WHERE "id" = (
@@ -388,7 +388,7 @@ const (
             FROM
 				${"schema"}."task"
             WHERE
-				"ns" = ns
+				"ns" = n
             AND
 				("started_at" IS NULL AND "finished_at" IS NULL AND "dies_at" > TIMEZONE('UTC', NOW()))
             AND 
@@ -471,7 +471,7 @@ const (
     `
 	taskCleanFunc = `
 		-- Cleanup tasks in a queue which are in an end state 
-		CREATE OR REPLACE FUNCTION ${"schema"}.queue_clean(ns TEXT, q TEXT) RETURNS TABLE (
+		CREATE OR REPLACE FUNCTION ${"schema"}.queue_clean(n TEXT, q TEXT) RETURNS TABLE (
             "id" BIGINT, "queue" TEXT, "ns" TEXT, "payload" JSONB, "result" JSONB, "worker" TEXT, "created_at" TIMESTAMP, "delayed_at" TIMESTAMP, "started_at" TIMESTAMP, "finished_at" TIMESTAMP, "dies_at" TIMESTAMP, "retries" INTEGER
         ) AS $$
 			DELETE FROM
@@ -484,7 +484,7 @@ const (
                         FROM 
                             ${"schema"}."task" 
                         WHERE
-                            "ns" = ns AND "queue" = q
+                            "ns" = n AND "queue" = q
                         AND
                             (dies_at IS NULL OR dies_at < TIMEZONE('UTC', NOW()))
                     ) SELECT 
