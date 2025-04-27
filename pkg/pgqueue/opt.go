@@ -57,7 +57,7 @@ func OptWorker(v string) Opt {
 // Set the namespace for the tickers and queues
 func OptNamespace(v string) Opt {
 	return func(o *opt) error {
-		if v = strings.TrimSpace(v); !types.IsIdentifier(v) {
+		if v = strings.TrimSpace(v); !types.IsIdentifier(v) || v == schema.DefaultNamespace || v == schema.CleanupNamespace {
 			return httpresponse.ErrBadRequest.With("invalid namespace")
 		} else {
 			o.namespace = strings.ToLower(v)

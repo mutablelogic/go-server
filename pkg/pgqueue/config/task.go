@@ -22,6 +22,7 @@ import (
 type task struct {
 	manager *pgqueue.Manager
 	wg      sync.WaitGroup
+	workers uint
 }
 
 var _ server.Task = (*task)(nil)
@@ -42,10 +43,20 @@ func (task *task) Run(parent context.Context) error {
 	task.wg.Add(1)
 	go func() {
 		defer task.wg.Done()
-		if err := task.manager.RunTickerLoop(ctx, tickerch); err != nil {
+		if err := task.manager.RunTickerLoop(ctx, task.manager.Namespace(), tickerch); err != nil {
 			errs = errors.Join(errs, err)
 		}
+	}()
 
+	// Ticker loop for cleanup of tasks
+	cleanupch := make(chan *schema.Ticker)
+	defer close(cleanupch)
+	task.wg.Add(1)
+	go func() {
+		defer task.wg.Done()
+		if err := task.manager.RunTickerLoop(ctx, schema.CleanupNamespace, cleanupch); err != nil {
+			errs = errors.Join(errs, err)
+		}
 	}()
 
 	// Notification loop
@@ -70,6 +81,10 @@ func (task *task) Run(parent context.Context) error {
 		}
 	}()
 
+	// Task worker pool
+	taskpool := pgqueue.NewTaskPool(task.workers)
+	ref.Log(ctx).Debug(parent, "Created task pool with ", task.workers, " workers")
+
 FOR_LOOP:
 	for {
 		select {
@@ -87,12 +102,14 @@ FOR_LOOP:
 				if evt == nil {
 					break
 				}
-				task.tryTask(ctx, evt)
+				task.tryTask(ctx, taskpool, evt)
 			}
 		case evt := <-tickerch:
-			task.tryTicker(ctx, evt)
+			task.tryTicker(ctx, taskpool, evt)
 		case evt := <-taskch:
-			task.tryTask(ctx, evt)
+			task.tryTask(ctx, taskpool, evt)
+		case evt := <-cleanupch:
+			ref.Log(ctx).Print(parent, "CLEANUP TICKER ", evt)
 		}
 	}
 
@@ -104,28 +121,68 @@ FOR_LOOP:
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// PRIVATE METHODS
+// PUBLIC METHODS
 
-func (t *task) tryTicker(ctx context.Context, ticker *schema.Ticker) error {
-	return pgqueue.RunTicker(ctx, ticker, tickerFunc)
+// RegisterTicker registers a periodic task (ticker) with a callback function.
+// It returns the metadata of the registered ticker.
+func (t *task) RegisterTicker(ctx context.Context, meta schema.TickerMeta, fn server.PGCallback) (*schema.Ticker, error) {
+	ticker, err := t.manager.RegisterTicker(ctx, meta)
+	if err != nil {
+		return nil, err
+	}
+	// TODO: Register the ticker callback
+	return ticker, nil
 }
 
-func (t *task) tryTask(ctx context.Context, task *schema.Task) (*schema.Task, error) {
-	err := pgqueue.RunTask(ctx, task, taskFunc, task.Payload)
-
+// RegisterQueue registers a task queue with a callback function.
+// It returns the metadata of the registered queue.
+func (t *task) RegisterQueue(ctx context.Context, meta schema.QueueMeta, fn server.PGCallback) (*schema.Queue, error) {
+	queue, err := t.manager.RegisterQueue(ctx, meta)
 	if err != nil {
-		// Fail the task
-		if task, err := t.manager.ReleaseTask(ctx, task.Id, false, err.Error(), nil); err != nil {
-			return nil, err
-		} else if types.PtrUint64(task.Retries) == 0 {
-			return task, errors.New("task failed, will not retry")
-		} else {
-			return task, nil
-		}
-	} else {
-		// Succeed the task
-		return t.manager.ReleaseTask(ctx, task.Id, true, nil, nil)
+		return nil, err
 	}
+	// Register a queue cleanup timer
+	if _, err := t.manager.RegisterTickerNs(ctx, schema.CleanupNamespace, schema.TickerMeta{
+		Ticker:   queue.Queue,
+		Interval: queue.TTL,
+	}); err != nil {
+		_, err_ := t.manager.DeleteQueue(ctx, meta.Queue)
+		return nil, errors.Join(err, err_)
+	}
+	return queue, nil
+}
+
+// CreateTask adds a new task to a specified queue with a payload and optional delay.
+// It returns the metadata of the created task.
+func (t *task) CreateTask(ctx context.Context, queue string, payload any, delay time.Duration) (*schema.Task, error) {
+	meta := schema.TaskMeta{
+		Payload: payload,
+	}
+	if delay > 0 {
+		meta.DelayedAt = types.TimePtr(time.Now().Add(delay))
+	}
+	return t.manager.CreateTask(ctx, queue, meta)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+func (t *task) tryTicker(ctx context.Context, taskpool *pgqueue.TaskPool, ticker *schema.Ticker) {
+	taskpool.RunTicker(ctx, ticker, tickerFunc, func(err error) {
+		// TODO: Deal with errors
+	})
+}
+
+func (t *task) tryTask(ctx context.Context, taskpool *pgqueue.TaskPool, task *schema.Task) {
+	taskpool.RunTask(ctx, task, taskFunc, task.Payload, func(err error) {
+		// Task succeeded
+		if err == nil {
+			t.manager.ReleaseTask(ctx, task.Id, true, nil, nil)
+			return
+		}
+		// Fail the task
+		t.manager.ReleaseTask(ctx, task.Id, false, err.Error(), nil)
+	})
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -137,29 +194,29 @@ func taskFunc(ctx context.Context, payload any) error {
 		err = errors.New("random error")
 	}
 
-	ref.Log(ctx).Debug(ctx, "Running task ", ref.Task(ctx), " with payload ", payload)
+	ref.Log(ctx).With("task", ref.Task(ctx)).Print(ctx, "Running task with payload ", payload)
 	select {
 	case <-ctx.Done():
-		ref.Log(ctx).Debug(ctx, "  Task cancelled")
+		ref.Log(ctx).With("task", ref.Task(ctx)).Print(ctx, "Task deadline exceeded")
 		return ctx.Err()
 	case <-time.After(time.Second * time.Duration(rand.Intn(10))):
 		if err != nil {
-			ref.Log(ctx).Debug(ctx, "  Task failed: ", err)
+			ref.Log(ctx).With("task", ref.Task(ctx)).Print(ctx, "Task failed: ", err)
 		} else {
-			ref.Log(ctx).Debug(ctx, "  Task succeeded")
+			ref.Log(ctx).With("task", ref.Task(ctx)).Print(ctx, "Task succeeded")
 		}
 	}
 	return err
 }
 
 func tickerFunc(ctx context.Context, payload any) error {
-	ref.Log(ctx).Debug(ctx, "Running ticker ", ref.Ticker(ctx))
+	ref.Log(ctx).Print(ctx, "Running ticker ", ref.Ticker(ctx))
 	select {
 	case <-ctx.Done():
-		ref.Log(ctx).Debug(ctx, "  Ticker cancelled")
+		ref.Log(ctx).Print(ctx, "Ticker deadline exceeded")
 		return ctx.Err()
 	case <-time.After(time.Second * time.Duration(rand.Intn(20))):
-		ref.Log(ctx).Debug(ctx, "  Ticker done")
+		ref.Log(ctx).Print(ctx, "Ticker done")
 	}
 	return nil
 }

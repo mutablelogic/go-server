@@ -152,7 +152,7 @@ func Test_Manager_001(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := manager.RunTickerLoop(ctx, ch); err != nil {
+			if err := manager.RunTickerLoop(ctx, "default", ch); err != nil {
 				assert.NoError(err)
 			}
 		}()

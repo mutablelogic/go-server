@@ -9,6 +9,7 @@ import (
 	"time"
 
 	// Packages
+
 	pg "github.com/djthorpe/go-pg"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	schema "github.com/mutablelogic/go-server/pkg/pgqueue/schema"
@@ -19,10 +20,11 @@ import (
 // TYPES
 
 type Manager struct {
-	conn     pg.PoolConn
-	worker   string
-	listener pg.Listener
-	topics   []string
+	conn      pg.PoolConn
+	worker    string
+	namespace string
+	listener  pg.Listener
+	topics    []string
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -43,6 +45,7 @@ func NewManager(ctx context.Context, conn pg.PoolConn, opt ...Opt) (*Manager, er
 	} else {
 		self.worker = opts.worker
 	}
+	self.namespace = opts.namespace
 
 	// Set the connection
 	self.conn = conn.With(
@@ -66,18 +69,25 @@ func NewManager(ctx context.Context, conn pg.PoolConn, opt ...Opt) (*Manager, er
 		return nil, err
 	}
 
-	// Create a listener for new tasks in this namespace
-	if listener := pg.NewListener(conn); listener == nil {
-		return nil, httpresponse.ErrInternalError.Withf("Cannot create listener")
-	} else {
-		self.listener = listener
-		self.topics = []string{
-			strings.Join([]string{opts.namespace, schema.TopicQueueInsert}, "_"),
-		}
+	// Set the listener and topics
+	self.listener = self.conn.Listener()
+	self.topics = []string{
+		strings.Join([]string{opts.namespace, schema.TopicQueueInsert}, "_"),
 	}
 
 	// Return success
 	return self, nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS
+
+func (manager *Manager) Namespace() string {
+	return manager.namespace
+}
+
+func (manager *Manager) Worker() string {
+	return manager.worker
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -87,6 +97,35 @@ func NewManager(ctx context.Context, conn pg.PoolConn, opt ...Opt) (*Manager, er
 func (manager *Manager) RegisterTicker(ctx context.Context, meta schema.TickerMeta) (*schema.Ticker, error) {
 	var ticker schema.Ticker
 	if err := manager.conn.Tx(ctx, func(conn pg.Conn) error {
+		// Get a ticker
+		if err := conn.Get(ctx, &ticker, schema.TickerName(meta.Ticker)); err != nil && !errors.Is(err, pg.ErrNotFound) {
+			return err
+		} else if errors.Is(err, pg.ErrNotFound) {
+			// If the ticker does not exist, then create it
+			if err := conn.Insert(ctx, &ticker, meta); err != nil {
+				return err
+			}
+		}
+
+		// Finally, update the ticker
+		return conn.Update(ctx, &ticker, schema.TickerName(meta.Ticker), meta)
+	}); err != nil {
+		return nil, httperr(err)
+	}
+	return &ticker, nil
+}
+
+// RegisterTicker creates a new ticker, or updates an existing ticker, and returns it.
+func (manager *Manager) RegisterTickerNs(ctx context.Context, namespace string, meta schema.TickerMeta) (*schema.Ticker, error) {
+	var ticker schema.Ticker
+
+	// Check namespace is valid
+	if !types.IsIdentifier(namespace) {
+		return nil, httpresponse.ErrBadRequest.Withf("Invalid namespace %q", namespace)
+	}
+
+	// Register the ticker
+	if err := manager.conn.With("ns", namespace).Tx(ctx, func(conn pg.Conn) error {
 		// Get a ticker
 		if err := conn.Get(ctx, &ticker, schema.TickerName(meta.Ticker)); err != nil && !errors.Is(err, pg.ErrNotFound) {
 			return err
@@ -143,6 +182,20 @@ func (manager *Manager) ListTickers(ctx context.Context, req schema.TickerListRe
 	return &list, nil
 }
 
+// NextTickerNs returns the next matured ticker in a namespace, or nil
+func (manager *Manager) NextTickerNs(ctx context.Context, namespace string) (*schema.Ticker, error) {
+	var ticker schema.Ticker
+	if err := manager.conn.With("ns", namespace).Get(ctx, &ticker, schema.TickerNext{}); errors.Is(err, pg.ErrNotFound) {
+		// No matured ticker
+		return nil, nil
+	} else if err != nil {
+		return nil, err
+	}
+
+	// Return matured ticker
+	return &ticker, nil
+}
+
 // NextTicker returns the next matured ticker, or nil
 func (manager *Manager) NextTicker(ctx context.Context) (*schema.Ticker, error) {
 	var ticker schema.Ticker
@@ -159,7 +212,7 @@ func (manager *Manager) NextTicker(ctx context.Context) (*schema.Ticker, error) 
 
 // RunTickerLoop runs a loop to process matured tickers, until the context is cancelled,
 // or an error occurs.
-func (manager *Manager) RunTickerLoop(ctx context.Context, ch chan<- *schema.Ticker) error {
+func (manager *Manager) RunTickerLoop(ctx context.Context, namespace string, ch chan<- *schema.Ticker) error {
 	delta := schema.TickerPeriod
 	timer := time.NewTimer(100 * time.Millisecond)
 	defer timer.Stop()
@@ -173,7 +226,7 @@ func (manager *Manager) RunTickerLoop(ctx context.Context, ch chan<- *schema.Tic
 			return nil
 		case <-timer.C:
 			// Check for matured tickers
-			ticker, err := manager.NextTicker(ctx)
+			ticker, err := manager.NextTickerNs(ctx, namespace)
 			if err != nil {
 				return err
 			}
@@ -367,18 +420,6 @@ func (manager *Manager) RunTaskLoop(ctx context.Context, ch chan<- *schema.Task)
 	timer := time.NewTimer(100 * time.Millisecond)
 	defer timer.Stop()
 
-	// Subscribe to pg topics
-	for _, topic := range manager.topics {
-		if err := manager.listener.Listen(ctx, topic); err != nil {
-			return err
-		}
-	}
-	defer func() {
-		for _, topic := range manager.topics {
-			manager.listener.Unlisten(ctx, topic)
-		}
-	}()
-
 	// Loop until context is cancelled
 	for {
 		select {
@@ -410,6 +451,18 @@ func (manager *Manager) RunTaskLoop(ctx context.Context, ch chan<- *schema.Task)
 // RunNotificationLoop runs a loop to process database notifications, until the context is cancelled
 // or an error occurs.
 func (manager *Manager) RunNotificationLoop(ctx context.Context, ch chan<- *pg.Notification) error {
+	// Subscribe to topics
+	for _, topic := range manager.topics {
+		if err := manager.listener.Listen(ctx, topic); err != nil {
+			return err
+		}
+	}
+	defer func() {
+		for _, topic := range manager.topics {
+			manager.listener.Unlisten(ctx, topic)
+		}
+	}()
+
 	// Loop until context is cancelled
 	for {
 		select {

@@ -100,7 +100,7 @@ func tickerNext(w http.ResponseWriter, r *http.Request, manager *pgqueue.Manager
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		manager.RunTickerLoop(r.Context(), ch)
+		manager.RunTickerLoop(r.Context(), manager.Namespace(), ch)
 	}()
 
 	// Receive tickers from the channel and write them to the response

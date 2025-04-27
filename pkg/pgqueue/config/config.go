@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"runtime"
 
 	// Packages
 	server "github.com/mutablelogic/go-server"
@@ -20,7 +21,6 @@ type Config struct {
 	Namespace *string           `help:"Namespace"`                             // Namespace for queues and tickers
 	Worker    *string           `help:"Worker name"`                           // The name of the worker
 	Prefix    string            `default:"${QUEUE_PREFIX}" help:"Path prefix"` // HTTP Path Prefix
-
 }
 
 var _ server.Plugin = Config{}
@@ -54,7 +54,7 @@ func (c Config) New(ctx context.Context) (server.Task, error) {
 	}
 
 	// Return the task
-	return &task{manager: manager}, nil
+	return &task{manager: manager, workers: uint(runtime.NumCPU())}, nil
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -65,5 +65,5 @@ func (c Config) Name() string {
 }
 
 func (c Config) Description() string {
-	return "Postgresql Task Queue"
+	return "PostgreSQL Task Queue"
 }

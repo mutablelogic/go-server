@@ -109,23 +109,17 @@ type PGCallback func(context.Context, any) error
 type PGQueue interface {
 	Task
 
-	// Worker returns the unique name of the queue worker.
-	Worker() string
-
 	// RegisterTicker registers a periodic task (ticker) with a callback function.
 	// It returns the metadata of the registered ticker.
 	RegisterTicker(context.Context, pgschema.TickerMeta, PGCallback) (*pgschema.Ticker, error)
 
 	// RegisterQueue registers a task queue with a callback function.
 	// It returns the metadata of the registered queue.
-	RegisterQueue(context.Context, pgschema.Queue, PGCallback) (*pgschema.Queue, error)
+	RegisterQueue(context.Context, pgschema.QueueMeta, PGCallback) (*pgschema.Queue, error)
 
 	// CreateTask adds a new task to a specified queue with a payload and optional delay.
 	// It returns the metadata of the created task.
 	CreateTask(context.Context, string, any, time.Duration) (*pgschema.Task, error)
-
-	// DeleteTicker removes a registered ticker by its name.
-	DeleteTicker(context.Context, string) error
 }
 
 ///////////////////////////////////////////////////////////////////////////////
