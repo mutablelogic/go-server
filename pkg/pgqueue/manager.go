@@ -216,7 +216,6 @@ func (manager *Manager) RunTickerLoop(ctx context.Context, namespace string, ch 
 	delta := schema.TickerPeriod
 	timer := time.NewTimer(100 * time.Millisecond)
 	defer timer.Stop()
-
 	prev := time.Now()
 
 	// Loop until context is cancelled

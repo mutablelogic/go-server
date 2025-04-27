@@ -13,7 +13,7 @@ import (
 	pgqueue "github.com/mutablelogic/go-server/pkg/pgqueue"
 	schema "github.com/mutablelogic/go-server/pkg/pgqueue/schema"
 	ref "github.com/mutablelogic/go-server/pkg/ref"
-	"github.com/mutablelogic/go-server/pkg/types"
+	types "github.com/mutablelogic/go-server/pkg/types"
 )
 
 ////////////////////////////////////////////////////////////////////////////////

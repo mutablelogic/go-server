@@ -224,17 +224,17 @@ const (
 	`
 	tickerNextFunc = `
         -- Return the next matured ticker for a namespace
-        CREATE OR REPLACE FUNCTION ${"schema"}.ticker_next(ns TEXT) RETURNS TABLE (
+        CREATE OR REPLACE FUNCTION ${"schema"}.ticker_next(namespace TEXT) RETURNS TABLE (
             "ticker" TEXT, "interval" INTERVAL, "ns" TEXT, "ts" TIMESTAMP
         ) AS $$
 			WITH 
-				next_ticker AS (` + tickerSelect + `WHERE "ns" = ns AND ("ts" IS NULL OR "ts" + "interval" < NOW()) ORDER BY "ts" NULLS FIRST)
+				next_ticker AS (` + tickerSelect + `WHERE "ns" = namespace AND ("ts" IS NULL OR "ts" + "interval" <= NOW()) ORDER BY "ts" NULLS FIRST)
 			UPDATE
 				${"schema"}.ticker
 			SET
 				"ts" = TIMEZONE('UTC', NOW())
 			WHERE
-				"ns" = ns AND "ticker" = (SELECT "ticker" FROM next_ticker LIMIT 1 FOR UPDATE SKIP LOCKED)
+				"ns" = namespace AND "ticker" = (SELECT "ticker" FROM next_ticker LIMIT 1 FOR UPDATE SKIP LOCKED)
 			RETURNING		
 				"ticker", "interval", "ns", "ts"
         $$ LANGUAGE SQL
