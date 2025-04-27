@@ -105,10 +105,7 @@ type PG interface {
 type PGCallback func(context.Context, any) error
 
 // PGQueue defines methods for interacting with a PostgreSQL-backed task queue.
-// It also embeds the Task interface, implying it runs as a background service.
 type PGQueue interface {
-	Task
-
 	// RegisterTicker registers a periodic task (ticker) with a callback function.
 	// It returns the metadata of the registered ticker.
 	RegisterTicker(context.Context, pgschema.TickerMeta, PGCallback) (*pgschema.Ticker, error)
