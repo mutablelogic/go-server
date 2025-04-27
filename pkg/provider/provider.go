@@ -3,11 +3,16 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"slices"
+	"strings"
 	"sync"
 
 	// Packages
 	server "github.com/mutablelogic/go-server"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
+	logger "github.com/mutablelogic/go-server/pkg/logger"
+	ref "github.com/mutablelogic/go-server/pkg/ref"
 	types "github.com/mutablelogic/go-server/pkg/types"
 )
 
@@ -15,6 +20,9 @@ import (
 // TYPES
 
 type provider struct {
+	// Order of the plugins
+	porder []string
+
 	// Map labels to plugins
 	plugin map[string]server.Plugin
 
@@ -26,7 +34,12 @@ type provider struct {
 
 	// Function to resolve plugin members
 	resolver ResolverFunc
+
+	// Default logger
+	server.Logger `json:"-"`
 }
+
+var _ server.Provider = (*provider)(nil)
 
 type state struct {
 	server.Task
@@ -47,6 +60,7 @@ func New(resolver ResolverFunc, plugins ...server.Plugin) (*provider, error) {
 	self.task = make(map[string]*state, len(plugins))
 	self.order = make([]string, 0, len(plugins))
 	self.resolver = resolver
+	self.Logger = logger.New(os.Stderr, logger.Term, false)
 
 	// Add the plugins
 	for _, plugin := range plugins {
@@ -61,7 +75,10 @@ func New(resolver ResolverFunc, plugins ...server.Plugin) (*provider, error) {
 		label := plugin.Name()
 		if _, exists := self.plugin[label]; exists {
 			return nil, httpresponse.ErrInternalError.Withf("Plugin %q already exists", plugin.Name())
+		} else if label == providerLabel {
+			return nil, httpresponse.ErrInternalError.Withf("Label %q is reserved", providerLabel)
 		} else {
+			self.porder = append(self.porder, label)
 			self.plugin[label] = plugin
 		}
 	}
@@ -73,7 +90,7 @@ func New(resolver ResolverFunc, plugins ...server.Plugin) (*provider, error) {
 ////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
-func (provider *provider) String() string {
+func (provider *provider) MarshalJSON() ([]byte, error) {
 	type jtask struct {
 		Name        string        `json:"name"`
 		Description string        `json:"description,omitempty"`
@@ -92,7 +109,11 @@ func (provider *provider) String() string {
 			Task:        provider.task[label].Task,
 		})
 	}
-	data, err := json.MarshalIndent(result, "", "  ")
+	return json.Marshal(result)
+}
+
+func (provider *provider) String() string {
+	data, err := json.MarshalIndent(provider, "", "  ")
 	if err != nil {
 		return err.Error()
 	}
@@ -104,7 +125,7 @@ func (provider *provider) String() string {
 
 // Return a task from a label
 func (provider *provider) Task(ctx context.Context, label string) server.Task {
-	provider.Print(ctx, "Called Task for ", label)
+	provider.Debugf(ctx, "Called Task for %q", label)
 
 	// If the task is already created, then return it
 	if task, exists := provider.task[label]; exists {
@@ -114,27 +135,43 @@ func (provider *provider) Task(ctx context.Context, label string) server.Task {
 	// If the plugin doesn't exist, return nil
 	plugin, exists := provider.plugin[label]
 	if !exists {
+		provider.Print(ctx, label, ": ", httpresponse.ErrNotFound.Withf("Plugin %q not found", label))
 		return nil
 	}
+
+	// Check for circular dependency
+	if path := ref.Path(ctx); slices.Contains(path, label) {
+		provider.Print(ctx, httpresponse.ErrInternalError.Withf("circular dependency for %s -> %s", strings.Join(path, " -> "), label))
+		return nil
+	}
+
+	// modify ctx to append path
+	ctx = ref.WithPath(ctx, label)
 
 	// Resolve the plugin
 	if provider.resolver != nil {
 		var err error
-		plugin, err = provider.resolver(withProvider(ctx, provider), label, plugin)
+		plugin, err = provider.resolver(ctx, label, plugin)
 		if err != nil {
-			provider.Print(ctx, "Error: ", label, ": ", err)
+			provider.Print(ctx, label, ": ", err)
 			return nil
 		}
 	}
 
 	// Create the task
-	task, err := plugin.New(withPath(ctx, label))
+	provider.Debug(ctx, "creating a new task for label ", label)
+	task, err := plugin.New(ctx)
 	if err != nil {
-		provider.Print(ctx, "Error: ", label, ": ", err)
+		provider.Print(ctx, label, ": ", err)
 		return nil
 	} else if task == nil {
-		provider.Print(ctx, "Error: ", label, ": ", httpresponse.ErrInternalError.With("Task is nil"))
+		provider.Print(ctx, label, ": ", httpresponse.ErrInternalError.With("Task is nil"))
 		return nil
+	}
+
+	// If it's a logger, replace the current logger
+	if logger, ok := task.(server.Logger); ok && logger != nil {
+		provider.Logger = logger
 	}
 
 	// Set the task and order
@@ -150,7 +187,7 @@ func (provider *provider) Task(ctx context.Context, label string) server.Task {
 
 // Make all tasks
 func (provider *provider) constructor(ctx context.Context) error {
-	for label := range provider.plugin {
+	for _, label := range provider.porder {
 		if task := provider.Task(ctx, label); task == nil {
 			return httpresponse.ErrConflict.Withf("Failed to create task %q", label)
 		}

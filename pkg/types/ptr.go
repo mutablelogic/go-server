@@ -12,11 +12,14 @@ func StringPtr(s string) *string {
 
 // TrimStringPtr returns a pointer to a white-space trimmed string, or nil
 // if the string is empty
-func TrimStringPtr(s string) *string {
-	if s = strings.TrimSpace(s); s == "" {
+func TrimStringPtr(s *string) *string {
+	if s == nil {
 		return nil
+	} else if v := strings.TrimSpace(*s); v == "" {
+		return nil
+	} else {
+		return &v
 	}
-	return &s
 }
 
 // PtrString returns a string from a pointer
@@ -102,6 +105,19 @@ func DurationPtr(v time.Duration) *time.Duration {
 
 // PtrDuration returns a duration from a pointer
 func PtrDuration(v *time.Duration) time.Duration {
+	if v == nil {
+		return 0
+	}
+	return *v
+}
+
+// Float64Ptr returns a pointer to a float64
+func Float64Ptr(v float64) *float64 {
+	return &v
+}
+
+// PtrFloat64 returns a float64 from a pointer
+func PtrFloat64(v *float64) float64 {
 	if v == nil {
 		return 0
 	}

@@ -2,12 +2,14 @@ package server
 
 import (
 	"context"
+	"io/fs"
 	"net/http"
 	"time"
 
 	// Packages
 	pg "github.com/djthorpe/go-pg"
-	schema "github.com/mutablelogic/go-server/pkg/pgqueue/schema"
+	authschema "github.com/mutablelogic/go-server/pkg/auth/schema"
+	pgschema "github.com/mutablelogic/go-server/pkg/pgqueue/schema"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -48,6 +50,9 @@ type HTTPRouter interface {
 
 	// Register a function to handle a URL path
 	HandleFunc(context.Context, string, http.HandlerFunc)
+
+	// Register serving of static files from a filesystem
+	HandleFS(context.Context, string, fs.FS)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -61,52 +66,70 @@ type HTTPMiddleware interface {
 ///////////////////////////////////////////////////////////////////////////////
 // LOGGER
 
+// Logger defines methods for logging messages and structured data.
+// It can also act as HTTP middleware for request logging.
 type Logger interface {
-	// Emit a debugging message
-	//Debug(context.Context, ...any)
+	HTTPMiddleware
 
-	// Emit a debugging message with formatting
-	//Debugf(context.Context, string, ...any)
+	// Debug logs a debugging message.
+	Debug(context.Context, ...any)
 
-	// Emit an informational message
+	// Debugf logs a formatted debugging message.
+	Debugf(context.Context, string, ...any)
+
+	// Print logs an informational message.
 	Print(context.Context, ...any)
 
-	// Emit an informational message with formatting
-	//Printf(context.Context, string, ...any)
+	// Printf logs a formatted informational message.
+	Printf(context.Context, string, ...any)
 
-	// Append structured data to the log in key-value pairs
-	// where the key is a string and the value is any type
-	//With(...any) Logger
+	// With returns a new Logger that includes the given key-value pairs
+	// in its structured log output.
+	With(...any) Logger
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // PGPOOL
 
+// PG provides access to a PostgreSQL connection pool.
 type PG interface {
-	// Return the connection pool
+	// Conn returns the underlying connection pool object.
 	Conn() pg.PoolConn
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // PGQUEUE
 
+// PGCallback defines the function signature for handling tasks dequeued
+// from a PostgreSQL-backed queue.
 type PGCallback func(context.Context, any) error
 
+// PGQueue defines methods for interacting with a PostgreSQL-backed task queue.
 type PGQueue interface {
-	Task
+	// RegisterTicker registers a periodic task (ticker) with a callback function.
+	// It returns the metadata of the registered ticker.
+	RegisterTicker(context.Context, pgschema.TickerMeta, PGCallback) (*pgschema.Ticker, error)
 
-	// Return the worker name
-	Worker() string
+	// RegisterQueue registers a task queue with a callback function.
+	// It returns the metadata of the registered queue.
+	RegisterQueue(context.Context, pgschema.QueueMeta, PGCallback) (*pgschema.Queue, error)
 
-	// Register a ticker with a callback, and return the registered ticker
-	RegisterTicker(context.Context, schema.TickerMeta, PGCallback) (*schema.Ticker, error)
+	// CreateTask adds a new task to a specified queue with a payload and optional delay.
+	// It returns the metadata of the created task.
+	CreateTask(context.Context, string, any, time.Duration) (*pgschema.Task, error)
+}
 
-	// Register a queue with a callback, and return the registered queue
-	RegisterQueue(context.Context, schema.Queue, PGCallback) (*schema.Queue, error)
+///////////////////////////////////////////////////////////////////////////////
+// AUTHENTICATION AND AUTHORIZATION
 
-	// Create a task for a queue with a payload and optional delay, and return it
-	CreateTask(context.Context, string, any, time.Duration) (*schema.Task, error)
+// Auth defines methods for authenticating users based on HTTP requests
+// and authorizing them based on required scopes.
+type Auth interface {
+	// Authenticate attempts to identify and return the user associated with
+	// an incoming HTTP request, typically by inspecting headers or tokens.
+	Authenticate(*http.Request) (*authschema.User, error)
 
-	// Delete a ticker by name
-	DeleteTicker(context.Context, string) error
+	// Authorize checks if a given user has the necessary permissions (scopes)
+	// to perform an action.
+	Authorize(context.Context, *authschema.User, ...string) error
 }

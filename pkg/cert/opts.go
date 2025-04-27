@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math/big"
 	"net"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -48,10 +49,20 @@ func apply(opts ...Opt) (*Cert, error) {
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
+// Set certificate name
+func withName(name string) Opt {
+	return func(o *Cert) error {
+		if name != "" {
+			o.Name = name
+		}
+		return nil
+	}
+}
+
 // Set common name
 func WithCommonName(name string) Opt {
 	return func(o *Cert) error {
-		if name != "" {
+		if name = strings.TrimSpace(name); name != "" {
 			o.x509.Subject.CommonName = name
 		}
 		return nil
@@ -61,10 +72,10 @@ func WithCommonName(name string) Opt {
 // Set organization
 func WithOrganization(org, unit string) Opt {
 	return func(o *Cert) error {
-		if org != "" {
+		if org = strings.TrimSpace(org); org != "" {
 			o.x509.Subject.Organization = []string{org}
 		}
-		if unit != "" {
+		if unit = strings.TrimSpace(unit); unit != "" {
 			o.x509.Subject.OrganizationalUnit = []string{unit}
 		}
 		return nil
@@ -74,13 +85,13 @@ func WithOrganization(org, unit string) Opt {
 // Set country
 func WithCountry(country, state, city string) Opt {
 	return func(o *Cert) error {
-		if country != "" {
+		if country = strings.TrimSpace(country); country != "" {
 			o.x509.Subject.Country = []string{country}
 		}
-		if state != "" {
+		if state = strings.TrimSpace(state); state != "" {
 			o.x509.Subject.Province = []string{state}
 		}
-		if city != "" {
+		if city = strings.TrimSpace(city); city != "" {
 			o.x509.Subject.Locality = []string{city}
 		}
 		return nil
@@ -90,10 +101,10 @@ func WithCountry(country, state, city string) Opt {
 // Set address
 func WithAddress(address, postcode string) Opt {
 	return func(o *Cert) error {
-		if address != "" {
+		if address = strings.TrimSpace(address); address != "" {
 			o.x509.Subject.StreetAddress = []string{address}
 		}
-		if postcode != "" {
+		if postcode = strings.TrimSpace(postcode); postcode != "" {
 			o.x509.Subject.PostalCode = []string{postcode}
 		}
 		return nil
@@ -134,6 +145,32 @@ func WithSerial(serial *big.Int) Opt {
 			o.x509.SerialNumber = serial
 		}
 		return nil
+	}
+}
+
+// Create either an ECDSA or RSA key
+func WithKeyType(t string) Opt {
+	return func(o *Cert) error {
+		t = strings.ToUpper(strings.TrimSpace(t))
+		switch {
+		case t == "RSA":
+			return WithRSAKey(0)(o)
+		case strings.HasPrefix(t, "RSA"):
+			if bits, err := strconv.ParseUint(strings.TrimPrefix(t, "RSA"), 10, 32); err != nil {
+				return err
+			} else {
+				return WithRSAKey(int(bits))(o)
+			}
+		default:
+			return WithEllipticKey(t)(o)
+		}
+	}
+}
+
+// Create with a default key type
+func WithDefaultKeyType() Opt {
+	return func(o *Cert) error {
+		return WithRSAKey(0)(o)
 	}
 }
 

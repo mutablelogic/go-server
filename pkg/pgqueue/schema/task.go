@@ -37,6 +37,7 @@ type Task struct {
 	Id uint64 `json:"id,omitempty"`
 	TaskMeta
 	Worker     *string    `json:"worker,omitempty"`
+	Namespace  string     `json:"namespace,omitempty"`
 	Queue      string     `json:"queue,omitempty"`
 	Result     any        `json:"result,omitempty"`
 	CreatedAt  *time.Time `json:"created_at,omitempty"`
@@ -66,6 +67,14 @@ type TaskList struct {
 // STRINGIFY
 
 func (t Task) String() string {
+	data, err := json.MarshalIndent(t, "", "  ")
+	if err != nil {
+		return err.Error()
+	}
+	return string(data)
+}
+
+func (t TaskMeta) String() string {
 	data, err := json.MarshalIndent(t, "", "  ")
 	if err != nil {
 		return err.Error()
@@ -103,11 +112,11 @@ func (t *TaskId) Scan(row pg.Row) error {
 }
 
 func (t *Task) Scan(row pg.Row) error {
-	return row.Scan(&t.Id, &t.Queue, &t.Payload, &t.Result, &t.Worker, &t.CreatedAt, &t.DelayedAt, &t.StartedAt, &t.FinishedAt, &t.DiesAt, &t.Retries)
+	return row.Scan(&t.Id, &t.Queue, &t.Namespace, &t.Payload, &t.Result, &t.Worker, &t.CreatedAt, &t.DelayedAt, &t.StartedAt, &t.FinishedAt, &t.DiesAt, &t.Retries)
 }
 
 func (t *TaskWithStatus) Scan(row pg.Row) error {
-	return row.Scan(&t.Id, &t.Queue, &t.Payload, &t.Result, &t.Worker, &t.CreatedAt, &t.DelayedAt, &t.StartedAt, &t.FinishedAt, &t.DiesAt, &t.Retries, &t.Status)
+	return row.Scan(&t.Id, &t.Queue, &t.Namespace, &t.Payload, &t.Result, &t.Worker, &t.CreatedAt, &t.DelayedAt, &t.StartedAt, &t.FinishedAt, &t.DiesAt, &t.Retries, &t.Status)
 }
 
 // TaskList
@@ -321,7 +330,7 @@ const (
     `
 	taskCreateInsertFunc = `
         -- Insert a new payload into a queue
-        CREATE OR REPLACE FUNCTION ${"schema"}.queue_insert(ns TEXT, q TEXT, p JSONB, delayed_at TIMESTAMP) RETURNS BIGINT AS $$
+        CREATE OR REPLACE FUNCTION ${"schema"}.queue_insert(n TEXT, q TEXT, p JSONB, delayed_at TIMESTAMP) RETURNS BIGINT AS $$
         WITH defaults AS (
             -- Select the retries and ttl from the queue defaults
             SELECT
@@ -333,13 +342,13 @@ const (
             FROM
                 ${"schema"}."queue"
             WHERE
-                "queue" = q AND "ns" = ns
+                "queue" = q AND "ns" = n
             LIMIT
                 1
         ) INSERT INTO 
             ${"schema"}."task" ("ns", "queue", "payload", "delayed_at", "retries", "initial_retries", "dies_at")
         SELECT
-            ns, q, p, CASE
+            n, q, p, CASE
                 WHEN "delayed_at" IS NULL THEN NULL
                 WHEN "delayed_at" < TIMEZONE('UTC', NOW()) THEN (NOW() AT TIME ZONE 'UTC')
                 ELSE "delayed_at"
@@ -353,7 +362,7 @@ const (
 	taskCreateNotifyFunc = `
         CREATE OR REPLACE FUNCTION ${"schema"}.queue_notify() RETURNS TRIGGER AS $$
         BEGIN
-            PERFORM pg_notify(LOWER(NEW.ns) || '_queue_insert', LOWER(NEW.queue));
+            PERFORM pg_notify(NEW.ns || '_queue_insert',NEW.queue);
             RETURN NEW;
         END;
         $$ LANGUAGE plpgsql
@@ -370,7 +379,7 @@ const (
     `
 	taskRetainFunc = `
         -- A specific worker locks a task in a queue for processing
-        CREATE OR REPLACE FUNCTION ${"schema"}.queue_lock(ns TEXT, w TEXT) RETURNS BIGINT AS $$
+        CREATE OR REPLACE FUNCTION ${"schema"}.queue_lock(n TEXT, w TEXT) RETURNS BIGINT AS $$
         UPDATE ${"schema"}."task" SET 
             "started_at" = TIMEZONE('UTC', NOW()), "worker" = w, "result" = 'null'
         WHERE "id" = (
@@ -379,7 +388,7 @@ const (
             FROM
 				${"schema"}."task"
             WHERE
-				"ns" = ns
+				"ns" = n
             AND
 				("started_at" IS NULL AND "finished_at" IS NULL AND "dies_at" > TIMEZONE('UTC', NOW()))
             AND 
@@ -462,8 +471,8 @@ const (
     `
 	taskCleanFunc = `
 		-- Cleanup tasks in a queue which are in an end state 
-		CREATE OR REPLACE FUNCTION ${"schema"}.queue_clean(ns TEXT, q TEXT) RETURNS TABLE (
-            "id" BIGINT, "queue" TEXT, "payload" JSONB, "result" JSONB, "worker" TEXT, "created_at" TIMESTAMP, "delayed_at" TIMESTAMP, "started_at" TIMESTAMP, "finished_at" TIMESTAMP, "dies_at" TIMESTAMP, "retries" INTEGER
+		CREATE OR REPLACE FUNCTION ${"schema"}.queue_clean(n TEXT, q TEXT) RETURNS TABLE (
+            "id" BIGINT, "queue" TEXT, "ns" TEXT, "payload" JSONB, "result" JSONB, "worker" TEXT, "created_at" TIMESTAMP, "delayed_at" TIMESTAMP, "started_at" TIMESTAMP, "finished_at" TIMESTAMP, "dies_at" TIMESTAMP, "retries" INTEGER
         ) AS $$
 			DELETE FROM
 				${"schema"}."task"
@@ -475,7 +484,7 @@ const (
                         FROM 
                             ${"schema"}."task" 
                         WHERE
-                            "ns" = ns AND "queue" = q
+                            "ns" = n AND "queue" = q
                         AND
                             (dies_at IS NULL OR dies_at < TIMEZONE('UTC', NOW()))
                     ) SELECT 
@@ -490,7 +499,7 @@ const (
 						100
                 )
 			RETURNING
-				"id", "queue", "payload", "result", "worker", "created_at", "delayed_at", "started_at", "finished_at", "dies_at", "retries"
+				"id", "queue", "ns", "payload", "result", "worker", "created_at", "delayed_at", "started_at", "finished_at", "dies_at", "retries"
 		$$ LANGUAGE SQL
 	`
 	taskRetain = `
@@ -507,7 +516,7 @@ const (
     `
 	taskSelect = `
         SELECT 
-            "id", "queue", "payload", "result", "worker", "created_at", "delayed_at", "started_at", "finished_at", "dies_at", "retries", ${"schema"}.queue_task_status("id") AS "status"
+            "id", "queue", "ns", "payload", "result", "worker", "created_at", "delayed_at", "started_at", "finished_at", "dies_at", "retries", ${"schema"}.queue_task_status("id") AS "status"
         FROM
             ${"schema"}."task"
     `

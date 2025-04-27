@@ -17,11 +17,16 @@ import (
 
 type QueueName string
 
+type QueueMeta struct {
+	Queue      string         `json:"queue,omitempty" arg:"" help:"Queue name"`
+	TTL        *time.Duration `json:"ttl,omitempty" help:"Time-to-live for queue messages"`
+	Retries    *uint64        `json:"retries" help:"Number of retries before failing"`
+	RetryDelay *time.Duration `json:"retry_delay" help:"Backoff delay"`
+}
+
 type Queue struct {
-	Queue      string         `json:"queue,omitempty"`
-	TTL        *time.Duration `json:"ttl,omitempty"`
-	Retries    *uint64        `json:"retries"`
-	RetryDelay *time.Duration `json:"retry_delay"`
+	QueueMeta
+	Namespace string `json:"namespace,omitempty" help:"Namespace"`
 }
 
 type QueueListRequest struct {
@@ -34,7 +39,9 @@ type QueueList struct {
 	Body  []Queue `json:"body,omitempty"`
 }
 
-type QueueCleanRequest struct{}
+type QueueCleanRequest struct {
+	Queue string `json:"queue,omitempty" arg:"" help:"Queue name"`
+}
 
 type QueueCleanResponse struct {
 	Body []Task `json:"body,omitempty"`
@@ -63,6 +70,14 @@ func (q Queue) String() string {
 	return string(data)
 }
 
+func (q QueueMeta) String() string {
+	data, err := json.MarshalIndent(q, "", "  ")
+	if err != nil {
+		return err.Error()
+	}
+	return string(data)
+}
+
 func (q QueueList) String() string {
 	data, err := json.MarshalIndent(q, "", "  ")
 	if err != nil {
@@ -84,7 +99,7 @@ func (q QueueStatus) String() string {
 
 // Queue
 func (q *Queue) Scan(row pg.Row) error {
-	return row.Scan(&q.Queue, &q.TTL, &q.Retries, &q.RetryDelay)
+	return row.Scan(&q.Queue, &q.TTL, &q.Retries, &q.RetryDelay, &q.Namespace)
 }
 
 // QueueList
@@ -151,6 +166,13 @@ func (q QueueName) Select(bind *pg.Bind, op pg.Op) (string, error) {
 }
 
 func (q QueueCleanRequest) Select(bind *pg.Bind, op pg.Op) (string, error) {
+	// Set queue name
+	if name, err := QueueName(q.Queue).queueName(); err != nil {
+		return "", err
+	} else {
+		bind.Set("id", name)
+	}
+
 	switch op {
 	case pg.List:
 		return queueClean, nil
@@ -198,7 +220,7 @@ func (l QueueStatusRequest) Select(bind *pg.Bind, op pg.Op) (string, error) {
 // WRITER
 
 // Insert
-func (q Queue) Insert(bind *pg.Bind) (string, error) {
+func (q QueueMeta) Insert(bind *pg.Bind) (string, error) {
 	// Queue name
 	queue, err := QueueName(q.Queue).queueName()
 	if err != nil {
@@ -215,7 +237,7 @@ func (q Queue) Insert(bind *pg.Bind) (string, error) {
 }
 
 // Patch
-func (q Queue) Update(bind *pg.Bind) error {
+func (q QueueMeta) Update(bind *pg.Bind) error {
 	var patch []string
 
 	// Queue name
@@ -298,11 +320,11 @@ const (
 		) VALUES (
 		 	@ns, @queue, DEFAULT, DEFAULT, DEFAULT
 		) RETURNING 
-			queue, ttl, retries, retry_delay
+			queue, ttl, retries, retry_delay, ns
 	`
 	queueGet = `
 		SELECT
-			queue, ttl, retries, retry_delay
+			queue, ttl, retries, retry_delay, ns
 		FROM
 			${"schema"}.queue
 		WHERE
@@ -318,7 +340,7 @@ const (
 		AND
 			ns = @ns
 		RETURNING
-			queue, ttl, retries, retry_delay
+			queue, ttl, retries, retry_delay, ns
 	`
 	queueDelete = `
 		DELETE FROM ${"schema"}.queue WHERE
@@ -326,11 +348,11 @@ const (
 		AND
 			ns = @ns
 		RETURNING
-			queue, ttl, retries, retry_delay
+			queue, ttl, retries, retry_delay, ns
 	`
 	queueList = `
 		SELECT
-			queue, ttl, retries, retry_delay
+			queue, ttl, retries, retry_delay, ns
 		FROM 
 			${"schema"}.queue 
 		WHERE

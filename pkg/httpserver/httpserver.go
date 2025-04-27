@@ -11,7 +11,8 @@ import (
 	"time"
 
 	// Packages
-	"github.com/mutablelogic/go-server/pkg/provider"
+	"github.com/mutablelogic/go-server/pkg/httpresponse"
+	ref "github.com/mutablelogic/go-server/pkg/ref"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -89,7 +90,7 @@ func (server *server) Run(parent context.Context) error {
 
 		// Stop server, terminate connections after 30 seconds
 		if err := server.shutdown(); err != nil {
-			provider.Log(parent).Print(parent, err)
+			ref.Log(parent).Print(parent, err)
 		}
 	}(ctx)
 
@@ -111,7 +112,7 @@ func (server *server) Run(parent context.Context) error {
 	if errors.Is(result, http.ErrServerClosed) {
 		return nil
 	} else {
-		provider.Log(parent).Print(parent, result)
+		ref.Log(parent).Print(parent, result)
 		return result
 	}
 }
@@ -122,5 +123,9 @@ func (server *server) Run(parent context.Context) error {
 func (server *server) shutdown() error {
 	shutdownContext, cancel := context.WithTimeout(context.Background(), defaultShutdownTimeout)
 	defer cancel()
-	return server.http.Shutdown(shutdownContext)
+	if err := server.http.Shutdown(shutdownContext); errors.Is(err, context.DeadlineExceeded) {
+		return httpresponse.ErrInternalError.With("shutdown timeout, forced connections to close")
+	} else {
+		return err
+	}
 }

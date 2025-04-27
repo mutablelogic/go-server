@@ -1,0 +1,21 @@
+{
+    "httpserver": {
+        "label": "main",
+        "listen": "http://localhost:8080/",
+        "router": "httprouter.main",
+        "read-timeout": "5m",
+        "write-timeout": "30s",
+        "tls": {
+            "name": "myserver",
+            "verify": true,
+            "cert": "/path/to/certfile",
+            "key": "/path/to/keyfile"
+        }
+    },
+    "httprouter": {
+        "label": "main",
+        "prefix": "/",
+        "origin": "*",
+        "middleware": [ "log", "auth"]
+    }
+}

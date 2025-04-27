@@ -1,0 +1,19 @@
+{
+    "name": "@mutablelogic/helloworld",
+    "version": "0.0.0",
+    "description": "Static files",
+    "main": "dist/index.js",
+    "scripts": {
+        "dev": "esbuild src/index.ts src/index.html --bundle --loader:.html=copy --watch --outdir=dist --allow-overwrite --servedir=dist --banner:js=\"document.addEventListener('DOMContentLoaded', () => { new EventSource('/esbuild').addEventListener('change', () => location.reload()) });\"",
+        "prod": "rm -fr dist && install -d dist && esbuild src/index.ts src/index.html --bundle --sourcemap --loader:.html=copy --outdir=dist --allow-overwrite"
+    },
+    "dependencies": {
+        "tslib": "^2.5.2",
+        "lit":"^3.3.0"
+    },
+    "devDependencies": {
+        "esbuild": "^0.25.3",
+        "esbuild-plugin-tsc": "^0.4.0",
+        "typescript": "^5.0.4"
+    }
+}

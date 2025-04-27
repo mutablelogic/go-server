@@ -2,12 +2,13 @@ package httprouter
 
 import (
 	"context"
+	"io/fs"
 	"net/http"
 
 	// Packages
 	server "github.com/mutablelogic/go-server"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
-	provider "github.com/mutablelogic/go-server/pkg/provider"
+	ref "github.com/mutablelogic/go-server/pkg/ref"
 	types "github.com/mutablelogic/go-server/pkg/types"
 )
 
@@ -34,12 +35,16 @@ func New(ctx context.Context, prefix, origin string, middleware ...string) (*rou
 	router.origin = origin
 
 	// Get middleware
-	for _, name := range middleware {
-		middleware, ok := provider.Provider(ctx).Task(ctx, name).(server.HTTPMiddleware)
-		if !ok || middleware == nil {
-			return nil, httpresponse.ErrInternalError.Withf("Invalid middleware %q", name)
+	// TODO: Only store references to middleware here not the middleware itself
+	for _, label := range middleware {
+		middleware := ref.Provider(ctx).Task(ctx, label)
+		if middleware == nil {
+			return nil, httpresponse.ErrInternalError.Withf("%q is nil", label)
+		} else if middleware_, ok := middleware.(server.HTTPMiddleware); !ok {
+			return nil, httpresponse.ErrInternalError.Withf("%q is not HTTPMiddleware", label)
+		} else {
+			router.middleware = append(router.middleware, middleware_)
 		}
-		router.middleware = append(router.middleware, middleware)
 	}
 
 	// Return success
@@ -65,20 +70,36 @@ func (r *router) HandleFunc(ctx context.Context, prefix string, fn http.HandlerF
 	}
 
 	// Apply middleware, set context
-	provider.Log(ctx).Print(ctx, "Register route: ", types.JoinPath(r.prefix, prefix))
+	ref.Log(ctx).Debug(ctx, "Register route: ", types.JoinPath(r.prefix, prefix))
 	r.ServeMux.HandleFunc(types.JoinPath(r.prefix, prefix), func(w http.ResponseWriter, r *http.Request) {
+		r = r.WithContext(ref.WithLog(r.Context(), ref.Log(ctx)))
+		// TODO: Add Log into the r context, but don't replace the original
 		fn(w, r)
-		/* TODO fn(w, r.WithContext(
-			provider.WithLog(
-				provider.WithName(
-					r.Context(), provider.Name(ctx),
-				), provider.Log(ctx),
-			),
-		))*/
 	})
 }
 
 // Return the origin for CORS
 func (r *router) Origin() string {
 	return r.origin
+}
+
+// Register serving of static files from a filesystem
+func (r *router) HandleFS(ctx context.Context, prefix string, fs fs.FS) {
+	// Create the file server
+	fn := http.StripPrefix(types.JoinPath(r.prefix, prefix), http.FileServer(http.FS(fs))).ServeHTTP
+
+	// Wrap the function with middleware
+	for _, middleware := range r.middleware {
+		fn = middleware.HandleFunc(fn)
+	}
+
+	// Apply middleware
+	ref.Log(ctx).Debug(ctx, "Register route: ", types.JoinPath(r.prefix, prefix))
+	r.ServeMux.HandleFunc(types.JoinPath(r.prefix, prefix), func(w http.ResponseWriter, req *http.Request) {
+		// Set CORS headers
+		httpresponse.Cors(w, req, r.origin, http.MethodGet)
+
+		// Call the file server
+		fn(w, req.WithContext(ref.WithLog(ctx, ref.Log(ctx))))
+	})
 }

@@ -64,6 +64,8 @@ func NewTextStream(w http.ResponseWriter, tuples ...string) *TextStream {
 
 	// Set the default content type
 	w.Header().Set(types.ContentTypeHeader, types.ContentTypeTextStream)
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
 
 	// Set additional headers
 	for i := 0; i < len(tuples); i += 2 {

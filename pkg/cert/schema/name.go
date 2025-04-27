@@ -2,14 +2,14 @@ package schema
 
 import (
 	"context"
+	"crypto/x509/pkix"
 	"encoding/json"
-	"strings"
 	"time"
 
 	// Packages
 	pg "github.com/djthorpe/go-pg"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
-	"github.com/mutablelogic/go-server/pkg/types"
+	types "github.com/mutablelogic/go-server/pkg/types"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -18,7 +18,6 @@ import (
 type NameId uint64
 
 type NameMeta struct {
-	CommonName    string  `json:"commonName,omitempty"`
 	Org           *string `json:"organizationName,omitempty"`
 	Unit          *string `json:"organizationalUnit,omitempty"`
 	Country       *string `json:"countryName,omitempty"`
@@ -35,13 +34,14 @@ type Name struct {
 	Subject *string   `json:"subject,omitempty"`
 }
 
-type NameList struct {
-	Count uint64 `json:"count"`
-	Body  []Name `json:"body,omitempty"`
-}
-
 type NameListRequest struct {
 	pg.OffsetLimit
+}
+
+type NameList struct {
+	NameListRequest
+	Count uint64 `json:"count"`
+	Body  []Name `json:"body,omitempty"`
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -64,6 +64,14 @@ func (n Name) String() string {
 }
 
 func (n NameList) String() string {
+	data, err := json.MarshalIndent(n, "", "  ")
+	if err != nil {
+		return err.Error()
+	}
+	return string(data)
+}
+
+func (n NameListRequest) String() string {
 	data, err := json.MarshalIndent(n, "", "  ")
 	if err != nil {
 		return err.Error()
@@ -114,12 +122,13 @@ func (n NameListRequest) Select(bind *pg.Bind, op pg.Op) (string, error) {
 // WRITER
 
 func (n NameMeta) Insert(bind *pg.Bind) (string, error) {
-	if commonName := strings.TrimSpace(n.CommonName); commonName == "" {
-		return "", httpresponse.ErrBadRequest.With("commonName is missing")
-	} else {
-		bind.Set("commonName", commonName)
-	}
-	// TODO
+	bind.Set("organizationName", types.TrimStringPtr(n.Org))
+	bind.Set("organizationalUnit", types.TrimStringPtr(n.Unit))
+	bind.Set("countryName", types.TrimStringPtr(n.Country))
+	bind.Set("localityName", types.TrimStringPtr(n.City))
+	bind.Set("stateOrProvinceName", types.TrimStringPtr(n.State))
+	bind.Set("streetAddress", types.TrimStringPtr(n.StreetAddress))
+	bind.Set("postalCode", types.TrimStringPtr(n.PostalCode))
 
 	// Return insert or replace
 	return nameReplace, nil
@@ -127,29 +136,26 @@ func (n NameMeta) Insert(bind *pg.Bind) (string, error) {
 
 func (n NameMeta) Update(bind *pg.Bind) error {
 	bind.Del("patch")
-	if name := strings.TrimSpace(n.CommonName); name != "" {
-		bind.Append("patch", `"commonName" = `+bind.Set("commonName", name))
-	}
 	if n.Org != nil {
-		bind.Append("patch", `"organizationName" = `+bind.Set("organizationName", types.TrimStringPtr(*n.Org)))
+		bind.Append("patch", `"organizationName" = `+bind.Set("organizationName", types.TrimStringPtr(n.Org)))
 	}
 	if n.Unit != nil {
-		bind.Append("patch", `"organizationalUnit" = `+bind.Set("organizationalUnit", types.TrimStringPtr(*n.Unit)))
+		bind.Append("patch", `"organizationalUnit" = `+bind.Set("organizationalUnit", types.TrimStringPtr(n.Unit)))
 	}
 	if n.Country != nil {
-		bind.Append("patch", `"countryName" = `+bind.Set("countryName", types.TrimStringPtr(*n.Country)))
+		bind.Append("patch", `"countryName" = `+bind.Set("countryName", types.TrimStringPtr(n.Country)))
 	}
 	if n.City != nil {
-		bind.Append("patch", `"localityName" = `+bind.Set("localityName", types.TrimStringPtr(*n.City)))
+		bind.Append("patch", `"localityName" = `+bind.Set("localityName", types.TrimStringPtr(n.City)))
 	}
 	if n.State != nil {
-		bind.Append("patch", `"stateOrProvinceName" = `+bind.Set("stateOrProvinceName", types.TrimStringPtr(*n.State)))
+		bind.Append("patch", `"stateOrProvinceName" = `+bind.Set("stateOrProvinceName", types.TrimStringPtr(n.State)))
 	}
 	if n.StreetAddress != nil {
-		bind.Append("patch", `"streetAddress" = `+bind.Set("streetAddress", types.TrimStringPtr(*n.StreetAddress)))
+		bind.Append("patch", `"streetAddress" = `+bind.Set("streetAddress", types.TrimStringPtr(n.StreetAddress)))
 	}
 	if n.PostalCode != nil {
-		bind.Append("patch", `"postalCode" = `+bind.Set("postalCode", types.TrimStringPtr(*n.PostalCode)))
+		bind.Append("patch", `"postalCode" = `+bind.Set("postalCode", types.TrimStringPtr(n.PostalCode)))
 	}
 
 	// Join the patch fields
@@ -167,7 +173,39 @@ func (n NameMeta) Update(bind *pg.Bind) error {
 // READER
 
 func (n *Name) Scan(row pg.Row) error {
-	return row.Scan(&n.Id, &n.CommonName, &n.Org, &n.Unit, &n.Country, &n.City, &n.State, &n.StreetAddress, &n.PostalCode, &n.Ts)
+	var name pkix.Name
+
+	// Scan from row
+	if err := row.Scan(&n.Id, &n.Org, &n.Unit, &n.Country, &n.City, &n.State, &n.StreetAddress, &n.PostalCode, &n.Ts); err != nil {
+		return err
+	}
+
+	// Create subject field
+	if n.Org != nil {
+		name.Organization = []string{types.PtrString(n.Org)}
+	}
+	if n.Unit != nil {
+		name.OrganizationalUnit = []string{types.PtrString(n.Unit)}
+	}
+	if n.Country != nil {
+		name.Country = []string{types.PtrString(n.Country)}
+	}
+	if n.City != nil {
+		name.Locality = []string{types.PtrString(n.City)}
+	}
+	if n.State != nil {
+		name.Province = []string{types.PtrString(n.State)}
+	}
+	if n.StreetAddress != nil {
+		name.StreetAddress = []string{types.PtrString(n.StreetAddress)}
+	}
+	if n.PostalCode != nil {
+		name.PostalCode = []string{types.PtrString(n.PostalCode)}
+	}
+	n.Subject = types.StringPtr(name.String())
+
+	// Return success
+	return nil
 }
 
 func (n *NameList) Scan(row pg.Row) error {
@@ -204,7 +242,6 @@ const (
 	nameCreateTable = `
 		CREATE TABLE IF NOT EXISTS ${"schema"}."name" (
 			"id" SERIAL PRIMARY KEY,
-			"commonName" TEXT NOT NULL,
 			"organizationName" TEXT,
 			"organizationalUnit" TEXT,
 			"countryName" TEXT,
@@ -212,26 +249,16 @@ const (
 			"stateOrProvinceName" TEXT,
 			"streetAddress" TEXT,
 			"postalCode" TEXT,
-			"ts" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			UNIQUE ("commonName")
+			"ts" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)
 	`
 	nameReplace = `
 		INSERT INTO ${"schema"}."name" (
-			"commonName",  "organizationName", "organizationalUnit", "countryName", "localityName", "stateOrProvinceName", "streetAddress", "postalCode"
+			"organizationName", "organizationalUnit", "countryName", "localityName", "stateOrProvinceName", "streetAddress", "postalCode"
 		) VALUES (
-		 	@commonName, @organizationName, @organizationalUnit, @countryName, @localityName, @stateOrProvinceName, @streetAddress, @postalCode
-		) ON CONFLICT ("commonName") DO UPDATE SET
-			"organizationName" = @organizationName,
-			"organizationalUnit" = @organizationalUnit,
-			"countryName" = @countryName,
-			"localityName" = @localityName,
-			"stateOrProvinceName" = @stateOrProvinceName,
-			"streetAddress" = @streetAddress,
-			"postalCode" = @postalCode,
-			"ts" = CURRENT_TIMESTAMP
-		RETURNING
-			"id", "commonName", "organizationName", "organizationalUnit", "countryName", "localityName", "stateOrProvinceName", "streetAddress", "postalCode", "ts"
+		 	@organizationName, @organizationalUnit, @countryName, @localityName, @stateOrProvinceName, @streetAddress, @postalCode
+		) RETURNING
+			"id", "organizationName", "organizationalUnit", "countryName", "localityName", "stateOrProvinceName", "streetAddress", "postalCode", "ts"
 	`
 	namePatch = `
 		UPDATE ${"schema"}."name" SET
@@ -239,17 +266,17 @@ const (
 		WHERE 
 			"id" = @id
 		RETURNING
-			"id", "commonName", "organizationName", "organizationalUnit", "countryName", "localityName", "stateOrProvinceName", "streetAddress", "postalCode", "ts"
+			"id", "organizationName", "organizationalUnit", "countryName", "localityName", "stateOrProvinceName", "streetAddress", "postalCode", "ts"
 	`
 	nameDelete = `
 		DELETE FROM ${"schema"}."name" WHERE 
 			"id" = @id
 		RETURNING
-			"id", "commonName", "organizationName", "organizationalUnit", "countryName", "localityName", "stateOrProvinceName", "streetAddress", "postalCode", "ts"
+			"id","organizationName", "organizationalUnit", "countryName", "localityName", "stateOrProvinceName", "streetAddress", "postalCode", "ts"
 	`
 	nameSelect = `
 		SELECT
-			"id", "commonName", "organizationName", "organizationalUnit", "countryName", "localityName", "stateOrProvinceName", "streetAddress", "postalCode", "ts"
+			"id", "organizationName", "organizationalUnit", "countryName", "localityName", "stateOrProvinceName", "streetAddress", "postalCode", "ts"
 		FROM
 			${"schema"}."name"
 	`

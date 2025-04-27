@@ -25,14 +25,14 @@ func Cors(w http.ResponseWriter, r *http.Request, origin string, methods ...stri
 
 // Return a string of methods, which are in uppercase
 func corsMethods(args ...string) string {
-	if len(args) == 0 {
-		return "*"
-	}
 	var methods []string
 	for _, method := range args {
 		if method := strings.TrimSpace(method); types.IsUppercase(method) && method != "" {
 			methods = append(methods, method)
 		}
+	}
+	if len(methods) == 0 {
+		return "*"
 	}
 	return strings.Join(methods, ", ")
 }
@@ -47,6 +47,9 @@ func corsHeaders(args ...string) string {
 		if header := strings.TrimSpace(header); !types.IsUppercase(header) && header != "" {
 			headers = append(headers, header)
 		}
+	}
+	if len(headers) == 0 {
+		return "*"
 	}
 	return strings.Join(headers, ", ")
 }
