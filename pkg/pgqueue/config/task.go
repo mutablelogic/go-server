@@ -168,8 +168,15 @@ func (t *task) CreateTask(ctx context.Context, queue string, payload any, delay 
 // PRIVATE METHODS
 
 func (t *task) tryTicker(ctx context.Context, taskpool *pgqueue.TaskPool, ticker *schema.Ticker) {
+	now := time.Now()
 	taskpool.RunTicker(ctx, ticker, tickerFunc, func(err error) {
-		// TODO: Deal with errors
+		delta := time.Since(now).Truncate(time.Millisecond)
+		switch {
+		case err == nil:
+			ref.Log(ctx).With("ticker", ticker, "delta_ms", delta.Milliseconds()).Print(ctx, "Ticker completed in ", delta)
+		default:
+			ref.Log(ctx).With("ticker", ticker, "delta_ms", delta.Milliseconds(), "error", err.Error()).Printf(ctx, "Failed after %v: %v", delta, err)
+		}
 	})
 }
 
@@ -207,13 +214,14 @@ func taskFunc(ctx context.Context, payload any) error {
 }
 
 func tickerFunc(ctx context.Context, payload any) error {
-	ref.Log(ctx).Print(ctx, "Running ticker ", ref.Ticker(ctx))
+	var err error
+	if rand.Intn(2) == 1 {
+		err = errors.New("random error")
+	}
 	select {
 	case <-ctx.Done():
-		ref.Log(ctx).Print(ctx, "Ticker deadline exceeded")
 		return ctx.Err()
 	case <-time.After(time.Second * time.Duration(rand.Intn(20))):
-		ref.Log(ctx).Print(ctx, "Ticker done")
+		return err
 	}
-	return nil
 }
