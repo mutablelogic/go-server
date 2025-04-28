@@ -34,6 +34,7 @@ type CLI struct {
 	auth.UserCommands
 	auth.TokenCommands
 	auth.AuthCommands
+	VersionCommands
 }
 
 ///////////////////////////////////////////////////////////////////////////////
