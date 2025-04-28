@@ -27,13 +27,17 @@ func Test_TaskPool_002(t *testing.T) {
 	assert.NotNil(pool)
 
 	j := 0
-	for i := 0; i < 10; i++ {
-		pool.RunTask(context.TODO(), &schema.Task{}, func(ctx context.Context, payload any) error {
+	for i := range 10 {
+		pool.RunTask(context.TODO(), &schema.Task{
+			TaskMeta: schema.TaskMeta{
+				Payload: i,
+			},
+		}, func(ctx context.Context, payload any) error {
 			t.Log("Task with payload", payload)
 			time.Sleep(time.Second)
 			j += 1
 			return nil
-		}, i, nil)
+		}, nil)
 	}
 	pool.Close()
 	assert.Equal(10, j)

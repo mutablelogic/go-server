@@ -11,7 +11,7 @@ COPY . .
 # Build the server
 RUN \
     apt update -y && apt upgrade -y && \
-    OS=${OS} ARCH=${ARCH} make build 
+    OS=${OS} ARCH=${ARCH} make build-docker 
 
 # Copy binaries to /usr/local/bin
 FROM --platform=${OS}/${ARCH} debian:bookworm-slim

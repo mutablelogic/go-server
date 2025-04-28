@@ -2,12 +2,15 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"time"
 
 	// Packages
 	server "github.com/mutablelogic/go-server"
 	client "github.com/mutablelogic/go-server/pkg/pgqueue/client"
 	schema "github.com/mutablelogic/go-server/pkg/pgqueue/schema"
+	types "github.com/mutablelogic/go-server/pkg/types"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -27,7 +30,9 @@ type TickerListCommand struct {
 }
 
 type TickerCreateCommand struct {
-	schema.TickerMeta
+	Ticker   string         `arg:"" help:"Ticker name"`
+	Payload  *string        `help:"JSON Ticker payload"`
+	Interval *time.Duration `help:"Interval (default 1 minute)"`
 }
 
 type TickerGetCommand struct {
@@ -36,7 +41,7 @@ type TickerGetCommand struct {
 
 type TickerUpdateCommand struct {
 	Ticker string `help:"New ticker name"`
-	schema.TickerMeta
+	TickerCreateCommand
 }
 
 type TickerDeleteCommand struct {
@@ -77,7 +82,21 @@ func (cmd TickerGetCommand) Run(ctx server.Cmd) error {
 
 func (cmd TickerCreateCommand) Run(ctx server.Cmd) error {
 	return run(ctx, func(ctx context.Context, provider *client.Client) error {
-		ticker, err := provider.CreateTicker(ctx, cmd.TickerMeta)
+		// Get ticker metadata
+		meta := schema.TickerMeta{
+			Ticker: cmd.Ticker,
+		}
+		if cmd.Payload != nil {
+			if err := json.Unmarshal([]byte(types.PtrString(cmd.Payload)), &meta.Payload); err != nil {
+				return fmt.Errorf("failed to unmarshal payload: %w", err)
+			}
+		}
+		if cmd.Interval != nil {
+			meta.Interval = types.DurationPtr(*cmd.Interval)
+		}
+
+		// Create ticker
+		ticker, err := provider.CreateTicker(ctx, meta)
 		if err != nil {
 			return err
 		}
@@ -97,10 +116,21 @@ func (cmd TickerDeleteCommand) Run(ctx server.Cmd) error {
 func (cmd TickerUpdateCommand) Run(ctx server.Cmd) error {
 	return run(ctx, func(ctx context.Context, provider *client.Client) error {
 		// Swap ticker names
-		cmd.Ticker, cmd.TickerMeta.Ticker = cmd.TickerMeta.Ticker, cmd.Ticker
+		cmd.Ticker, cmd.TickerCreateCommand.Ticker = cmd.TickerCreateCommand.Ticker, cmd.Ticker
+
+		// Set the metadata
+		meta := schema.TickerMeta{
+			Ticker:   cmd.Ticker,
+			Interval: cmd.Interval,
+		}
+		if cmd.Payload != nil {
+			if err := json.Unmarshal([]byte(types.PtrString(cmd.Payload)), &meta.Payload); err != nil {
+				return fmt.Errorf("failed to unmarshal payload: %w", err)
+			}
+		}
 
 		// Update the ticker
-		ticker, err := provider.UpdateTicker(ctx, cmd.Ticker, cmd.TickerMeta)
+		ticker, err := provider.UpdateTicker(ctx, cmd.Ticker, meta)
 		if err != nil {
 			return err
 		}

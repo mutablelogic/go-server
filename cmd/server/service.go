@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	// Packages
@@ -32,7 +33,8 @@ type ServiceCommands struct {
 }
 
 type ServiceRunCommand struct {
-	Router struct {
+	Plugins []string `help:"Plugin paths"`
+	Router  struct {
 		httprouter.Config `embed:"" prefix:"router."` // Router configuration
 	} `embed:""`
 	Server struct {
@@ -62,6 +64,15 @@ type ServiceRunCommand struct {
 // PUBLIC METHODS
 
 func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
+	// Load plugins
+	plugins, err := provider.LoadPluginsForPattern(cmd.Plugins...)
+	if err != nil {
+		return err
+	}
+	for _, plugin := range plugins {
+		fmt.Println("TODO: Loaded plugins:", plugin.Name())
+	}
+
 	// Set the server listener and router prefix
 	cmd.Server.Listen = app.GetEndpoint()
 	cmd.Router.Prefix = types.NormalisePath(cmd.Server.Listen.Path)

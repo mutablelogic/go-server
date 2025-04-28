@@ -72,17 +72,21 @@ func (pool *TaskPool) RunTicker(ctx context.Context, t *schema.Ticker, fn server
 	if result == nil {
 		result = func(err error) {}
 	}
+	if fn == nil {
+		result(fmt.Errorf("missing callback function for ticker %q in namespace %q", t.Ticker, t.Namespace))
+		return
+	}
 	pool.workers <- task{
 		ctx:      ref.WithTicker(ctx, t),
 		deadline: deadline,
 		fn:       fn,
 		result:   result,
-		payload:  nil,
+		payload:  t.Payload,
 	}
 }
 
 // Queue a task for running. Will block whilst all the workers are busy
-func (pool *TaskPool) RunTask(ctx context.Context, t *schema.Task, fn server.PGCallback, payload any, result func(error)) {
+func (pool *TaskPool) RunTask(ctx context.Context, t *schema.Task, fn server.PGCallback, result func(error)) {
 	var deadline time.Duration
 	if t.DiesAt != nil {
 		deadline = time.Until(*t.DiesAt)
@@ -90,12 +94,16 @@ func (pool *TaskPool) RunTask(ctx context.Context, t *schema.Task, fn server.PGC
 	if result == nil {
 		result = func(err error) {}
 	}
+	if fn == nil {
+		result(fmt.Errorf("missing callback function for queue %q in namespace %q", t.Queue, t.Namespace))
+		return
+	}
 	pool.workers <- task{
 		ctx:      ref.WithTask(ctx, t),
 		deadline: deadline,
 		fn:       fn,
 		result:   result,
-		payload:  payload,
+		payload:  t.Payload,
 	}
 }
 

@@ -210,7 +210,7 @@ func (manager *Manager) NextTicker(ctx context.Context) (*schema.Ticker, error) 
 	return &ticker, nil
 }
 
-// RunTickerLoop runs a loop to process matured tickers, until the context is cancelled,
+// RunTickerLoop runs a loop to process matured tickers in a namespace, until the context is cancelled,
 // or an error occurs.
 func (manager *Manager) RunTickerLoop(ctx context.Context, namespace string, ch chan<- *schema.Ticker) error {
 	delta := schema.TickerPeriod

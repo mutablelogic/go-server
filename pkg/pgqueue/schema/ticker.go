@@ -19,6 +19,7 @@ type TickerName string
 
 type TickerMeta struct {
 	Ticker   string         `json:"ticker" arg:"" help:"Ticker name"`
+	Payload  any            `json:"payload,omitempty"`
 	Interval *time.Duration `json:"interval,omitempty" help:"Interval (default 1 minute)"`
 }
 
@@ -114,7 +115,7 @@ func (t TickerNext) Select(bind *pg.Bind, op pg.Op) (string, error) {
 // READER
 
 func (r *Ticker) Scan(row pg.Row) error {
-	return row.Scan(&r.Ticker, &r.Interval, &r.Namespace, &r.Ts)
+	return row.Scan(&r.Ticker, &r.Interval, &r.Namespace, &r.Payload, &r.Ts)
 }
 
 // TickerList
@@ -169,6 +170,15 @@ func (w TickerMeta) Update(bind *pg.Bind) error {
 		}
 	}
 
+	// Payload
+	if w.Payload != nil {
+		data, err := json.Marshal(w.Payload)
+		if err != nil {
+			return err
+		}
+		bind.Append("patch", `payload = `+bind.Set("payload", string(data)))
+	}
+
 	// Set patch
 	if patch := bind.Join("patch", ","); patch == "" {
 		return httpresponse.ErrBadRequest.With("No patch values")
@@ -185,7 +195,7 @@ func (q TickerName) tickerName() (string, error) {
 	if name := strings.ToLower(strings.TrimSpace(string(q))); name == "" {
 		return "", httpresponse.ErrBadRequest.With("Missing ticker name")
 	} else if !types.IsIdentifier(name) {
-		return "", httpresponse.ErrBadRequest.With("Invalid ticker name")
+		return "", httpresponse.ErrBadRequest.Withf("Invalid ticker name: %q", name)
 	} else {
 		return name, nil
 	}
@@ -214,6 +224,7 @@ const (
 			-- ticker namespace and name
 			"ns"                   TEXT NOT NULL,
 			"ticker"               TEXT NOT NULL,
+            "payload"              JSONB NOT NULL DEFAULT '{}',
 			-- interval (NULL means disabled)
 			"interval"             INTERVAL DEFAULT INTERVAL '1 minute',
 			-- last tick
@@ -225,7 +236,7 @@ const (
 	tickerNextFunc = `
         -- Return the next matured ticker for a namespace
         CREATE OR REPLACE FUNCTION ${"schema"}.ticker_next(namespace TEXT) RETURNS TABLE (
-            "ticker" TEXT, "interval" INTERVAL, "ns" TEXT, "ts" TIMESTAMP
+            "ticker" TEXT, "interval" INTERVAL, "ns" TEXT, "payload" JSONB, "ts" TIMESTAMP
         ) AS $$
 			WITH 
 				next_ticker AS (` + tickerSelect + `WHERE "ns" = namespace AND ("ts" IS NULL OR "ts" + "interval" <= NOW()) ORDER BY "ts" NULLS FIRST)
@@ -236,7 +247,7 @@ const (
 			WHERE
 				"ns" = namespace AND "ticker" = (SELECT "ticker" FROM next_ticker LIMIT 1 FOR UPDATE SKIP LOCKED)
 			RETURNING		
-				"ticker", "interval", "ns", "ts"
+				"ticker", "interval", "ns", "payload", "ts"
         $$ LANGUAGE SQL
     `
 	tickerInsert = `
@@ -245,7 +256,7 @@ const (
 		VALUES 
 			(@ns, @id, DEFAULT, DEFAULT)
 		RETURNING
-			"ticker", "interval", "ns", "ts"
+			"ticker", "interval", "ns", "payload", "ts"
 	`
 	tickerPatch = `
 		UPDATE ${"schema"}.ticker SET
@@ -254,7 +265,7 @@ const (
 		WHERE
 			"ns" = @ns AND "ticker" = @id
 		RETURNING
-			"ticker", "interval", "ns", "ts"
+			"ticker", "interval", "ns", "payload", "ts"
 	`
 	tickerDelete = `
 		DELETE FROM 
@@ -262,11 +273,11 @@ const (
 		WHERE 
 			"ns" = @ns AND "ticker" = @id
 		RETURNING
-			"ticker", "interval",  "ns", "ts"
+			"ticker", "interval",  "ns", "payload", "ts"
 	`
 	tickerSelect = `
 		SELECT
-			"ticker", "interval", "ns", "ts"
+			"ticker", "interval", "ns", "payload", "ts"
 		FROM
 			${"schema"}.ticker
 	`

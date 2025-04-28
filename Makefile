@@ -44,25 +44,32 @@ all: clean build
 ###############################################################################
 # BUILD
 
-# Build the commands in the cmd directory
+# Compile NPM and build the commands in the cmd directory
 .PHONY: build
-build: tidy $(NPM_DIR) $(PLUGIN_DIR) $(CMD_DIR)
+build: $(NPM_DIR) build-docker
 
+# Build the commands in the cmd directory
+.PHONY: build-docker
+build-docker: tidy $(PLUGIN_DIR) $(CMD_DIR)
+
+# Build the commands
 $(CMD_DIR): go-dep mkdir
 	@echo Build command $(notdir $@) GOOS=${OS} GOARCH=${ARCH}
 	@GOOS=${OS} GOARCH=${ARCH} ${GO} build ${BUILD_FLAGS} -o ${BUILD_DIR}/$(notdir $@) ./$@
 
+# Build the plugins
 $(PLUGIN_DIR): go-dep mkdir
 	@echo Build plugin $(notdir $@) GOOS=${OS} GOARCH=${ARCH}
 	@GOOS=${OS} GOARCH=${ARCH} ${GO} build -buildmode=plugin ${BUILD_FLAGS} -o ${BUILD_DIR}/$(notdir $@).plugin ./$@
 
+# Build the NPM packages
 $(NPM_DIR): npm-dep
 	@echo Build npm $(notdir $@)
 	@cd $@ && npm install && npm run prod	
 
 # Build the docker image
 .PHONY: docker
-docker: docker-dep
+docker: docker-dep ${NPM_DIR}
 	@echo build docker image ${DOCKER_TAG} OS=${OS} ARCH=${ARCH} SOURCE=${DOCKER_SOURCE} VERSION=${VERSION}
 	@${DOCKER} build \
 		--tag ${DOCKER_TAG} \
