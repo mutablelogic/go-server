@@ -11,7 +11,7 @@ import (
 	"time"
 
 	// Packages
-	"github.com/mutablelogic/go-server/pkg/httpresponse"
+	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	ref "github.com/mutablelogic/go-server/pkg/ref"
 )
 

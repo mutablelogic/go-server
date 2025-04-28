@@ -71,15 +71,26 @@ func (c Config) New(ctx context.Context) (server.Task, error) {
 		certhandler.RegisterCert(ctx, c.Router, c.Prefix, certmanager)
 	}
 
-	// Queue task to check for SSL expiry
+	// Queue ticker and queue to check for SSL expiry
 	if c.Queue != nil {
-		c.Queue.RegisterTicker(ctx, pgqueue.TickerMeta{
+		if _, err := c.Queue.RegisterTicker(ctx, pgqueue.TickerMeta{
 			Ticker:   c.Name(),
 			Interval: types.DurationPtr(time.Minute),
 		}, func(ctx context.Context, _ any) error {
 			ref.Log(ctx).Print(ctx, "Checking for SSL expiry...")
 			return nil
-		})
+		}); err != nil {
+			return nil, err
+		}
+		if _, err := c.Queue.RegisterQueue(ctx, pgqueue.QueueMeta{
+			Queue: c.Name(),
+			TTL:   types.DurationPtr(time.Minute),
+		}, func(ctx context.Context, _ any) error {
+			ref.Log(ctx).Print(ctx, "Checking for SSL expiry...")
+			return nil
+		}); err != nil {
+			return nil, err
+		}
 	}
 
 	// Return the task

@@ -3,7 +3,7 @@ package config
 import (
 	"context"
 	"errors"
-	"math/rand"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,18 +20,33 @@ import (
 // TYPES
 
 type task struct {
-	manager *pgqueue.Manager
-	wg      sync.WaitGroup
-	workers uint
+	wg        sync.WaitGroup
+	manager   *pgqueue.Manager
+	taskpool  *pgqueue.TaskPool
+	callbacks map[string]server.PGCallback
 }
 
 var _ server.Task = (*task)(nil)
+
+////////////////////////////////////////////////////////////////////////////////
+// LIFECYCLE
+
+func NewTask(manager *pgqueue.Manager, threads uint) (server.Task, error) {
+	self := new(task)
+	self.manager = manager
+	self.taskpool = pgqueue.NewTaskPool(threads)
+	self.callbacks = make(map[string]server.PGCallback, 100)
+	return self, nil
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
 func (task *task) Run(parent context.Context) error {
 	var errs error
+
+	// Close the task pool when done
+	defer task.taskpool.Close()
 
 	// Create a cancelable context
 	ctx, cancel := context.WithCancel(context.Background())
@@ -81,10 +96,6 @@ func (task *task) Run(parent context.Context) error {
 		}
 	}()
 
-	// Task worker pool
-	taskpool := pgqueue.NewTaskPool(task.workers)
-	ref.Log(ctx).Debug(parent, "Created task pool with ", task.workers, " threads")
-
 FOR_LOOP:
 	for {
 		select {
@@ -102,14 +113,16 @@ FOR_LOOP:
 				if evt == nil {
 					break
 				}
-				task.tryTask(ctx, taskpool, evt)
+				task.tryTask(ctx, task.taskpool, evt)
 			}
 		case evt := <-tickerch:
-			task.tryTicker(ctx, taskpool, evt)
+			task.tryTicker(ctx, task.taskpool, evt)
 		case evt := <-taskch:
-			task.tryTask(ctx, taskpool, evt)
+			task.tryTask(ctx, task.taskpool, evt)
 		case evt := <-cleanupch:
-			ref.Log(ctx).Print(parent, "CLEANUP TICKER ", evt)
+			if namespace_queue := splitName(evt.Ticker, 2); len(namespace_queue) == 2 {
+				ref.Log(ctx).Print(parent, "CLEANUP TICKER ns=", namespace_queue[0], " queue=", namespace_queue[1])
+			}
 		}
 	}
 
@@ -126,13 +139,14 @@ FOR_LOOP:
 // RegisterTicker registers a periodic task (ticker) with a callback function.
 // It returns the metadata of the registered ticker.
 func (t *task) RegisterTicker(ctx context.Context, meta schema.TickerMeta, fn server.PGCallback) (*schema.Ticker, error) {
+	ref.Log(ctx).Print(ctx, "Register ticker: ", meta.Ticker)
 	ticker, err := t.manager.RegisterTicker(ctx, meta)
 	if err != nil {
 		return nil, err
 	}
 
 	// Register the ticker callback
-	t.registerCallback(ticker.Namespace, ticker.Ticker, fn)
+	t.setTickerCallback(ticker, fn)
 
 	// Return the ticker metadata
 	return ticker, nil
@@ -141,21 +155,21 @@ func (t *task) RegisterTicker(ctx context.Context, meta schema.TickerMeta, fn se
 // RegisterQueue registers a task queue with a callback function.
 // It returns the metadata of the registered queue.
 func (t *task) RegisterQueue(ctx context.Context, meta schema.QueueMeta, fn server.PGCallback) (*schema.Queue, error) {
+	ref.Log(ctx).Print(ctx, "Register queue: ", meta.Queue)
 	queue, err := t.manager.RegisterQueue(ctx, meta)
 	if err != nil {
 		return nil, err
 	}
 
 	// Register a queue cleanup timer
-	// TODO: queue name should include the namespace
-	if _, err := t.manager.RegisterTickerNs(ctx, schema.CleanupNamespace, schema.TickerMeta{
-		Ticker:   queue.Queue,
+	if ticker, err := t.manager.RegisterTickerNs(ctx, schema.CleanupNamespace, schema.TickerMeta{
+		Ticker:   joinName(queue.Namespace, queue.Queue),
 		Interval: queue.TTL,
 	}); err != nil {
 		_, err_ := t.manager.DeleteQueue(ctx, meta.Queue)
 		return nil, errors.Join(err, err_)
 	} else {
-		t.registerCallback(schema.CleanupNamespace, queue.Queue, func(ctx context.Context, _ any) error {
+		t.setTickerCallback(ticker, func(ctx context.Context, _ any) error {
 			// Cleanup the queue
 			if _, err := t.manager.CleanQueue(ctx, queue.Queue); err != nil {
 				return err
@@ -165,7 +179,7 @@ func (t *task) RegisterQueue(ctx context.Context, meta schema.QueueMeta, fn serv
 	}
 
 	// Register the task callback
-	t.registerCallback(queue.Namespace, queue.Queue, fn)
+	t.setTaskCallback(queue, fn)
 
 	// Return the queue metadata
 	return queue, nil
@@ -188,7 +202,7 @@ func (t *task) CreateTask(ctx context.Context, queue string, payload any, delay 
 
 func (t *task) tryTicker(ctx context.Context, taskpool *pgqueue.TaskPool, ticker *schema.Ticker) {
 	now := time.Now()
-	taskpool.RunTicker(ctx, ticker, tickerFunc, func(err error) {
+	taskpool.RunTicker(ctx, ticker, t.getTickerCallback(ticker), func(err error) {
 		delta := time.Since(now).Truncate(time.Millisecond)
 		switch {
 		case err == nil:
@@ -201,7 +215,7 @@ func (t *task) tryTicker(ctx context.Context, taskpool *pgqueue.TaskPool, ticker
 
 func (t *task) tryTask(ctx context.Context, taskpool *pgqueue.TaskPool, task *schema.Task) {
 	now := time.Now()
-	taskpool.RunTask(ctx, task, taskFunc, task.Payload, func(err error) {
+	taskpool.RunTask(ctx, task, t.getTaskCallback(task), func(err error) {
 		var status string
 		delta := time.Since(now).Truncate(time.Millisecond)
 		if _, err_ := t.manager.ReleaseTask(context.TODO(), task.Id, err == nil, err, &status); err_ != nil {
@@ -216,31 +230,32 @@ func (t *task) tryTask(ctx context.Context, taskpool *pgqueue.TaskPool, task *sc
 	})
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// TEST CALLBACKS
-
-func taskFunc(ctx context.Context, payload any) error {
-	var err error
-	if rand.Intn(2) == 1 {
-		err = errors.New("random error")
-	}
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-time.After(time.Second * time.Duration(rand.Intn(10))):
-		return err
-	}
+func (t *task) setTickerCallback(ticker *schema.Ticker, fn server.PGCallback) {
+	key := joinName("ticker", ticker.Namespace, ticker.Ticker)
+	t.callbacks[key] = fn
 }
 
-func tickerFunc(ctx context.Context, payload any) error {
-	var err error
-	if rand.Intn(2) == 1 {
-		err = errors.New("random error")
-	}
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-time.After(time.Second * time.Duration(rand.Intn(20))):
-		return err
-	}
+func (t *task) setTaskCallback(queue *schema.Queue, fn server.PGCallback) {
+	key := joinName("task", queue.Namespace, queue.Queue)
+	t.callbacks[key] = fn
+}
+
+func (t *task) getTickerCallback(ticker *schema.Ticker) server.PGCallback {
+	key := joinName("ticker", ticker.Namespace, ticker.Ticker)
+	return t.callbacks[key]
+}
+
+func (t *task) getTaskCallback(task *schema.Task) server.PGCallback {
+	key := joinName("task", task.Namespace, task.Queue)
+	return t.callbacks[key]
+}
+
+const namespaceSeparator = "/"
+
+func joinName(parts ...string) string {
+	return strings.Join(parts, namespaceSeparator)
+}
+
+func splitName(name string, n int) []string {
+	return strings.SplitN(name, namespaceSeparator, n)
 }
