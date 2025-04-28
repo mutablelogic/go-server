@@ -117,6 +117,9 @@ type PGQueue interface {
 	// CreateTask adds a new task to a specified queue with a payload and optional delay.
 	// It returns the metadata of the created task.
 	CreateTask(context.Context, string, any, time.Duration) (*pgschema.Task, error)
+
+	// UnmarshalPayload unmarshals a payload into a destination object.
+	UnmarshalPayload(dest any, payload any) error
 }
 
 ///////////////////////////////////////////////////////////////////////////////

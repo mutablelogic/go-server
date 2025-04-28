@@ -8,6 +8,7 @@ import (
 	"time"
 
 	// Packages
+	marshaler "github.com/djthorpe/go-marshaler"
 	pg "github.com/djthorpe/go-pg"
 	server "github.com/mutablelogic/go-server"
 	pgqueue "github.com/mutablelogic/go-server/pkg/pgqueue"
@@ -24,6 +25,7 @@ type task struct {
 	manager   *pgqueue.Manager
 	taskpool  *pgqueue.TaskPool
 	callbacks map[string]server.PGCallback
+	decoder   *marshaler.Decoder
 }
 
 var _ server.Task = (*task)(nil)
@@ -36,6 +38,7 @@ func NewTask(manager *pgqueue.Manager, threads uint) (server.Task, error) {
 	self.manager = manager
 	self.taskpool = pgqueue.NewTaskPool(threads)
 	self.callbacks = make(map[string]server.PGCallback, 100)
+	self.decoder = marshaler.NewDecoder("json", marshaler.ConvertTime, marshaler.ConvertDuration, marshaler.ConvertIntUint)
 	return self, nil
 }
 
@@ -120,8 +123,23 @@ FOR_LOOP:
 		case evt := <-taskch:
 			task.tryTask(ctx, task.taskpool, evt)
 		case evt := <-cleanupch:
-			if namespace_queue := splitName(evt.Ticker, 2); len(namespace_queue) == 2 {
-				ref.Log(ctx).Print(parent, "CLEANUP TICKER ns=", namespace_queue[0], " queue=", namespace_queue[1])
+			var namespace_queue []string
+			if err := task.UnmarshalPayload(&namespace_queue, evt.Payload); err != nil {
+				ref.Log(ctx).With("ticker", evt).Print(parent, err)
+			} else if len(namespace_queue) == 2 && namespace_queue[0] == task.manager.Namespace() {
+				n := 0
+				for {
+					tasks, err := task.manager.CleanQueue(ctx, namespace_queue[1])
+					if err != nil {
+						ref.Log(ctx).With("ticker", evt).Print(parent, "clean queue:", err)
+						break
+					}
+					if len(tasks) == 0 {
+						break
+					}
+					n += len(tasks)
+				}
+				ref.Log(ctx).With("ticker", evt).Debug(parent, "removed ", n, " tasks from queue")
 			}
 		}
 	}
@@ -139,7 +157,7 @@ FOR_LOOP:
 // RegisterTicker registers a periodic task (ticker) with a callback function.
 // It returns the metadata of the registered ticker.
 func (t *task) RegisterTicker(ctx context.Context, meta schema.TickerMeta, fn server.PGCallback) (*schema.Ticker, error) {
-	ref.Log(ctx).Print(ctx, "Register ticker: ", meta.Ticker)
+	ref.Log(ctx).Debug(ctx, "Register ticker: ", meta.Ticker, " in namespace ", t.manager.Namespace())
 	ticker, err := t.manager.RegisterTicker(ctx, meta)
 	if err != nil {
 		return nil, err
@@ -155,7 +173,7 @@ func (t *task) RegisterTicker(ctx context.Context, meta schema.TickerMeta, fn se
 // RegisterQueue registers a task queue with a callback function.
 // It returns the metadata of the registered queue.
 func (t *task) RegisterQueue(ctx context.Context, meta schema.QueueMeta, fn server.PGCallback) (*schema.Queue, error) {
-	ref.Log(ctx).Print(ctx, "Register queue: ", meta.Queue)
+	ref.Log(ctx).Debug(ctx, "Register queue: ", meta.Queue, " in namespace ", t.manager.Namespace())
 	queue, err := t.manager.RegisterQueue(ctx, meta)
 	if err != nil {
 		return nil, err
@@ -164,6 +182,7 @@ func (t *task) RegisterQueue(ctx context.Context, meta schema.QueueMeta, fn serv
 	// Register a queue cleanup timer
 	if ticker, err := t.manager.RegisterTickerNs(ctx, schema.CleanupNamespace, schema.TickerMeta{
 		Ticker:   joinName(queue.Namespace, queue.Queue),
+		Payload:  []string{queue.Namespace, queue.Queue},
 		Interval: queue.TTL,
 	}); err != nil {
 		_, err_ := t.manager.DeleteQueue(ctx, meta.Queue)
@@ -195,6 +214,11 @@ func (t *task) CreateTask(ctx context.Context, queue string, payload any, delay 
 		meta.DelayedAt = types.TimePtr(time.Now().Add(delay))
 	}
 	return t.manager.CreateTask(ctx, queue, meta)
+}
+
+// Convert a payload into a struct
+func (t *task) UnmarshalPayload(dest any, payload any) error {
+	return t.decoder.Decode(payload, dest)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -250,7 +274,7 @@ func (t *task) getTaskCallback(task *schema.Task) server.PGCallback {
 	return t.callbacks[key]
 }
 
-const namespaceSeparator = "/"
+const namespaceSeparator = "_"
 
 func joinName(parts ...string) string {
 	return strings.Join(parts, namespaceSeparator)
