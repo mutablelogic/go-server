@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -25,7 +26,7 @@ const (
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func NewWithPlugins(resolver ResolverFunc, paths ...string) (server.Provider, error) {
+func NewWithPlugins(paths ...string) (server.Provider, error) {
 	self := new(provider)
 
 	// Load plugins
@@ -38,7 +39,6 @@ func NewWithPlugins(resolver ResolverFunc, paths ...string) (server.Provider, er
 	self.protos = make(map[string]*meta.Meta, len(plugins))
 	self.plugin = make(map[string]server.Plugin, len(plugins))
 	self.task = make(map[string]*state, len(plugins))
-	self.resolver = resolver
 	self.Logger = logger.New(os.Stderr, logger.Term, false)
 	for _, plugin := range plugins {
 		name := plugin.Name()
@@ -59,7 +59,7 @@ func NewWithPlugins(resolver ResolverFunc, paths ...string) (server.Provider, er
 
 // Create a "concrete" plugin from a prototype and a label, using the function to "hook"
 // any values into the plugin
-func (provider *provider) Load(name, label string, fn func(server.Plugin)) error {
+func (provider *provider) Load(name, label string, fn func(context.Context, server.Plugin)) error {
 	proto, exists := provider.protos[name]
 	if !exists {
 		return httpresponse.ErrBadRequest.Withf("Plugin not found: %q", name)
@@ -83,7 +83,7 @@ func (provider *provider) Load(name, label string, fn func(server.Plugin)) error
 		// Create a plugin from the prototype
 		plugin := proto.New()
 		if fn != nil {
-			fn(plugin)
+			fn(context.TODO(), plugin)
 		}
 		provider.plugin[label] = plugin
 		provider.porder = append(provider.porder, label)

@@ -201,30 +201,49 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 
 func (cmd *ServiceRun2Command) Run(app server.Cmd) error {
 	// Create a provider by loading the plugins
-	provider, err := provider.NewWithPlugins(nil, cmd.Plugins...)
+	provider, err := provider.NewWithPlugins(cmd.Plugins...)
 	if err != nil {
 		return err
 	}
 
-	// Create configurations
-	err = errors.Join(err, provider.Load("log", "main", func(config server.Plugin) {
+	// Set the configuration
+	err = errors.Join(err, provider.Load("log", "main", func(ctx context.Context, config server.Plugin) {
 		logger := config.(*logger.Config)
 		logger.Debug = app.GetDebug() >= server.Debug
 	}))
-	err = errors.Join(err, provider.Load("httprouter", "main", func(config server.Plugin) {
+	err = errors.Join(err, provider.Load("httprouter", "main", func(ctx context.Context, config server.Plugin) {
 		httprouter := config.(*httprouter.Config)
-		httprouter.Origin = "*"
 		httprouter.Prefix = types.NormalisePath(app.GetEndpoint().Path)
+		httprouter.Origin = "*"
+		httprouter.Middleware = []string{"log.main"}
 	}))
-	err = errors.Join(err, provider.Load("httpserver", "main", func(config server.Plugin) {
+	err = errors.Join(err, provider.Load("httpserver", "main", func(ctx context.Context, config server.Plugin) {
 		httpserver := config.(*httpserver.Config)
 		httpserver.Listen = app.GetEndpoint()
+		httpserver.Router = provider.Task(ctx, "httprouter.main").(http.Handler)
 	}))
-	err = errors.Join(err, provider.Load("helloworld", "main", nil))
-	err = errors.Join(err, provider.Load("auth", "main", nil))
-	err = errors.Join(err, provider.Load("pgpool", "main", nil))
-	err = errors.Join(err, provider.Load("pgqueue", "main", nil))
-	err = errors.Join(err, provider.Load("certmanager", "main", nil))
+	err = errors.Join(err, provider.Load("helloworld", "main", func(ctx context.Context, config server.Plugin) {
+		// NO-OP
+	}))
+	err = errors.Join(err, provider.Load("pgpool", "main", func(ctx context.Context, config server.Plugin) {
+		pgpool := config.(*pg.Config)
+		pgpool.Router = provider.Task(ctx, "httprouter.main").(server.HTTPRouter)
+	}))
+	err = errors.Join(err, provider.Load("auth", "main", func(ctx context.Context, config server.Plugin) {
+		auth := config.(*auth.Config)
+		auth.Pool = provider.Task(ctx, "pgpool.main").(server.PG)
+		auth.Router = provider.Task(ctx, "httprouter.main").(server.HTTPRouter)
+	}))
+	err = errors.Join(err, provider.Load("pgqueue", "main", func(ctx context.Context, config server.Plugin) {
+		pgqueue := config.(*pgqueue.Config)
+		pgqueue.Pool = provider.Task(ctx, "pgpool.main").(server.PG)
+		pgqueue.Router = provider.Task(ctx, "httprouter.main").(server.HTTPRouter)
+	}))
+	err = errors.Join(err, provider.Load("certmanager", "main", func(ctx context.Context, config server.Plugin) {
+		certmanager := config.(*cert.Config)
+		certmanager.Router = provider.Task(ctx, "httprouter.main").(server.HTTPRouter)
+		certmanager.Pool = provider.Task(ctx, "pgpool.main").(server.PG)
+	}))
 	if err != nil {
 		return err
 	}

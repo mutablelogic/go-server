@@ -38,7 +38,7 @@ type Provider interface {
 	Task
 
 	// Load a plugin by name and label
-	Load(string, string, func(config Plugin)) error
+	Load(string, string, func(context.Context, Plugin)) error
 
 	// Return a task given a plugin label
 	Task(context.Context, string) Task
