@@ -28,7 +28,7 @@ jobs:
       - name: Install build tools
         run: |
           sudo apt -y update
-          sudo apt -y install build-essential git
+          sudo apt -y install build-essential git npm
           git config --global advice.detachedHead false    
       - name: Checkout
         uses: actions/checkout@v4
