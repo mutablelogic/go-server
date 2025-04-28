@@ -12,6 +12,7 @@ import (
 	server "github.com/mutablelogic/go-server"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	logger "github.com/mutablelogic/go-server/pkg/logger"
+	meta "github.com/mutablelogic/go-server/pkg/provider/meta"
 	ref "github.com/mutablelogic/go-server/pkg/ref"
 	types "github.com/mutablelogic/go-server/pkg/types"
 )
@@ -20,6 +21,9 @@ import (
 // TYPES
 
 type provider struct {
+	// Plugin metadata
+	protos map[string]*meta.Meta
+
 	// Order of the plugins
 	porder []string
 
@@ -159,7 +163,7 @@ func (provider *provider) Task(ctx context.Context, label string) server.Task {
 	}
 
 	// Create the task
-	provider.Debug(ctx, "creating a new task for label ", label)
+	provider.Debugf(ctx, "Creating a new task %q", label)
 	task, err := plugin.New(ctx)
 	if err != nil {
 		provider.Print(ctx, label, ": ", err)

@@ -57,6 +57,11 @@ $(CMD_DIR): go-dep mkdir
 	@echo Build command $(notdir $@) GOOS=${OS} GOARCH=${ARCH}
 	@GOOS=${OS} GOARCH=${ARCH} ${GO} build ${BUILD_FLAGS} -o ${BUILD_DIR}/$(notdir $@) ./$@
 
+
+# Build the plugins
+.PHONY: plugins
+plugins: $(PLUGIN_DIR) $(NPM_DIR)
+
 # Build the plugins
 $(PLUGIN_DIR): go-dep mkdir
 	@echo Build plugin $(notdir $@) GOOS=${OS} GOARCH=${ARCH}
@@ -64,8 +69,9 @@ $(PLUGIN_DIR): go-dep mkdir
 
 # Build the NPM packages
 $(NPM_DIR): npm-dep
-	@echo Build npm $(notdir $@)
+	@echo Build npm $(notdir $@) GOOS=${OS} GOARCH=${ARCH}
 	@cd $@ && npm install && npm run prod	
+	@GOOS=${OS} GOARCH=${ARCH} ${GO} build -buildmode=plugin ${BUILD_FLAGS} -o ${BUILD_DIR}/$(notdir $@).plugin ./$@
 
 # Build the docker image
 .PHONY: docker

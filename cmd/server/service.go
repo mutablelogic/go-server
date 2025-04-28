@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"net/http"
 
 	// Packages
@@ -20,23 +20,24 @@ import (
 	logger "github.com/mutablelogic/go-server/pkg/logger/config"
 	pg "github.com/mutablelogic/go-server/pkg/pgmanager/config"
 	pgqueue "github.com/mutablelogic/go-server/pkg/pgqueue/config"
-
-	// Static content
-	helloworld "github.com/mutablelogic/go-server/npm/helloworld"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
 type ServiceCommands struct {
-	Run ServiceRunCommand `cmd:"" group:"SERVICE" help:"Run the service"`
+	Run  ServiceRunCommand  `cmd:"" group:"SERVICE" help:"Run the service"`
+	Run2 ServiceRun2Command `cmd:"" group:"SERVICE" help:"Run the service with plugins"`
+}
+
+type ServiceRun2Command struct {
+	Plugins []string `help:"Plugin paths"`
 }
 
 type ServiceRunCommand struct {
-	Plugins []string `help:"Plugin paths"`
-	Router  struct {
+	Router struct {
 		httprouter.Config `embed:"" prefix:"router."` // Router configuration
-	} `embed:""`
+	} `embed:"" prefix:""`
 	Server struct {
 		httpserver.Config `embed:"" prefix:"server."` // Server configuration
 	} `embed:""`
@@ -55,24 +56,12 @@ type ServiceRunCommand struct {
 	Log struct {
 		logger.Config `embed:"" prefix:"log."` // Logger configuration
 	} `embed:""`
-	HelloWorld struct {
-		helloworld.Config `embed:"" prefix:"helloworld."` // HelloWorld configuration
-	} `embed:""`
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
 func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
-	// Load plugins
-	plugins, err := provider.LoadPluginsForPattern(cmd.Plugins...)
-	if err != nil {
-		return err
-	}
-	for _, plugin := range plugins {
-		fmt.Println("TODO: Loaded plugins:", plugin.Name())
-	}
-
 	// Set the server listener and router prefix
 	cmd.Server.Listen = app.GetEndpoint()
 	cmd.Router.Prefix = types.NormalisePath(cmd.Server.Listen.Path)
@@ -130,19 +119,6 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 
 			// Set the middleware
 			config.Middleware = []string{}
-
-			// Return the new configuration with the router
-			return config, nil
-
-		case "helloworld":
-			config := plugin.(helloworld.Config)
-
-			// Set the router
-			if router, ok := ref.Provider(ctx).Task(ctx, "httprouter").(server.HTTPRouter); !ok || router == nil {
-				return nil, httpresponse.ErrInternalError.Withf("Invalid router %q", "httprouter")
-			} else {
-				config.Router = router
-			}
 
 			// Return the new configuration with the router
 			return config, nil
@@ -214,7 +190,41 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 
 		// No-op
 		return plugin, nil
-	}, cmd.Log.Config, cmd.Router.Config, cmd.Server.Config, cmd.HelloWorld.Config, cmd.Auth.Config, cmd.PGPool.Config, cmd.PGQueue.Config, cmd.CertManager.Config)
+	}, cmd.Log.Config, cmd.Router.Config, cmd.Server.Config, cmd.Auth.Config, cmd.PGPool.Config, cmd.PGQueue.Config, cmd.CertManager.Config)
+	if err != nil {
+		return err
+	}
+
+	// Run the provider
+	return provider.Run(app.Context())
+}
+
+func (cmd *ServiceRun2Command) Run(app server.Cmd) error {
+	// Create a provider by loading the plugins
+	provider, err := provider.NewWithPlugins(nil, cmd.Plugins...)
+	if err != nil {
+		return err
+	}
+
+	// Create configurations
+	err = errors.Join(err, provider.Load("log", "main", func(config server.Plugin) {
+		logger := config.(*logger.Config)
+		logger.Debug = app.GetDebug() >= server.Debug
+	}))
+	err = errors.Join(err, provider.Load("httprouter", "main", func(config server.Plugin) {
+		httprouter := config.(*httprouter.Config)
+		httprouter.Origin = "*"
+		httprouter.Prefix = types.NormalisePath(app.GetEndpoint().Path)
+	}))
+	err = errors.Join(err, provider.Load("httpserver", "main", func(config server.Plugin) {
+		httpserver := config.(*httpserver.Config)
+		httpserver.Listen = app.GetEndpoint()
+	}))
+	err = errors.Join(err, provider.Load("helloworld", "main", nil))
+	err = errors.Join(err, provider.Load("auth", "main", nil))
+	err = errors.Join(err, provider.Load("pgpool", "main", nil))
+	err = errors.Join(err, provider.Load("pgqueue", "main", nil))
+	err = errors.Join(err, provider.Load("certmanager", "main", nil))
 	if err != nil {
 		return err
 	}

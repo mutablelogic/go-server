@@ -1,4 +1,4 @@
-package helloworld
+package main
 
 import (
 	"context"
@@ -50,6 +50,10 @@ func (c Config) Name() string {
 
 func (c Config) Description() string {
 	return "Hello World example static content"
+}
+
+func Plugin() server.Plugin {
+	return Config{}
 }
 
 ////////////////////////////////////////////////////////////////////////////////

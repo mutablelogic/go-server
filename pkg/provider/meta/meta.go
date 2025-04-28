@@ -10,6 +10,7 @@ import (
 	"time"
 
 	// Packages
+	"github.com/mutablelogic/go-server"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	ast "github.com/mutablelogic/go-server/pkg/parser/ast"
 )
@@ -99,13 +100,17 @@ func (m *Meta) Validate(values any) error {
 	return nil
 }
 
+func (m *Meta) New() server.Plugin {
+	return reflect.New(m.Type).Interface().(server.Plugin)
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
 func newMetaField(rf reflect.StructField) (*Meta, error) {
 	meta := new(Meta)
 
-	fmt.Println("newMetaField", rf.Name, rf.Type)
+	//fmt.Println("newMetaField", rf.Name, rf.Type)
 
 	// Name
 	if name := nameForField(rf, "json", "yaml", "name"); name == "" {
