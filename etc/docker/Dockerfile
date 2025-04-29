@@ -25,4 +25,5 @@ RUN apt update -y && apt install -y ca-certificates
 LABEL org.opencontainers.image.source=https://${SOURCE}
 
 # Entrypoint when running the server
+ENV PLUGIN_PATH="/usr/local/bin/*.plugin"
 ENTRYPOINT [ "/usr/local/bin/server" ]

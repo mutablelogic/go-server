@@ -34,7 +34,7 @@ type ServiceCommands struct {
 }
 
 type ServiceRunCommand struct {
-	Plugins []string `help:"Plugin paths"`
+	Plugins []string `help:"Plugin paths" env:"PLUGIN_PATH"`
 }
 
 type ServiceConfigCommand struct {
