@@ -19,16 +19,17 @@ import (
 // TYPES
 
 type Meta struct {
-	Name   string
-	Type   reflect.Type
-	Fields []*Meta
+	Name        string
+	Description string
+	Type        reflect.Type
+	Fields      []*Meta
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
 // New creates a new metadata object from a structure
-func New(v any, name string) (*Meta, error) {
+func New(v server.Plugin) (*Meta, error) {
 	meta := new(Meta)
 	if v == nil {
 		return nil, httpresponse.ErrInternalError.Withf("nil value")
@@ -40,7 +41,8 @@ func New(v any, name string) (*Meta, error) {
 	if rt.Kind() != reflect.Struct {
 		return nil, httpresponse.ErrInternalError.Withf("expected struct, got %T", v)
 	} else {
-		meta.Name = name
+		meta.Name = v.Name()
+		meta.Description = v.Description()
 		meta.Type = rt
 	}
 
@@ -73,14 +75,25 @@ func (m *Meta) String() string {
 func (m *Meta) Write(w io.Writer) error {
 	var buf bytes.Buffer
 
+	if m.Description != "" {
+		buf.WriteString("// ")
+		buf.WriteString(m.Description)
+		buf.WriteString("\n")
+	}
 	buf.WriteString(m.Name)
 	buf.WriteString(" \"label\" {\n")
 
 	for _, field := range m.Fields {
 		buf.WriteString("  ")
 		buf.WriteString(field.Name)
-		buf.WriteString(" ")
-		buf.WriteString(typeName(field.Type))
+		buf.WriteString(" = ")
+		buf.WriteString("<" + typeName(field.Type) + ">")
+
+		if field.Description != "" {
+			buf.WriteString("  // ")
+			buf.WriteString(field.Description)
+		}
+
 		buf.WriteString("\n")
 	}
 
@@ -119,6 +132,9 @@ func newMetaField(rf reflect.StructField) (*Meta, error) {
 	} else {
 		meta.Name = name
 	}
+
+	// Description
+	meta.Description = rf.Tag.Get("help")
 
 	// Type
 	if t := typeName(rf.Type); t == "" {

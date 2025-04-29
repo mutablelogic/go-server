@@ -28,25 +28,6 @@ const (
 func NewWithPlugins(paths ...string) (server.Provider, error) {
 	self := new(provider)
 
-	/*
-		// Change directory to the executable directory
-		wd, err := os.Getwd()
-		if err != nil {
-			return nil, err
-		}
-		defer func() {
-			os.Chdir(wd)
-		}()
-		execpath, err := os.Executable()
-		if err != nil {
-			return nil, err
-		}
-		execdir := filepath.Dir(execpath)
-		if err := os.Chdir(execdir); err != nil {
-			return nil, err
-		}
-	*/
-
 	// Load plugins
 	plugins, err := loadPluginsForPattern(paths...)
 	if err != nil {
@@ -65,7 +46,7 @@ func NewWithPlugins(paths ...string) (server.Provider, error) {
 			return nil, httpresponse.ErrBadRequest.Withf("Duplicate plugin: %q", name)
 		} else if !types.IsIdentifier(name) {
 			return nil, httpresponse.ErrBadRequest.Withf("Invalid plugin: %q", name)
-		} else if meta, err := meta.New(plugin, name); err != nil {
+		} else if meta, err := meta.New(plugin); err != nil {
 			return nil, httpresponse.ErrBadRequest.Withf("Invalid plugin: %q", name)
 		} else {
 			self.protos[name] = meta

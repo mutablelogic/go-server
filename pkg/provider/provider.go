@@ -1,8 +1,10 @@
 package provider
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"os"
 	"slices"
 	"strings"
@@ -122,6 +124,18 @@ func (provider *provider) String() string {
 		return err.Error()
 	}
 	return string(data)
+}
+
+func (provider *provider) WriteConfig(w io.Writer) error {
+	var buf bytes.Buffer
+	for _, proto := range provider.protos {
+		if err := proto.Write(&buf); err != nil {
+			return err
+		}
+		buf.WriteRune('\n')
+	}
+	_, err := w.Write(buf.Bytes())
+	return err
 }
 
 ////////////////////////////////////////////////////////////////////////////////

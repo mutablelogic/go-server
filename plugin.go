@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"io"
 	"io/fs"
 	"net/http"
 	"time"
@@ -36,6 +37,9 @@ type Task interface {
 // Provider represents a service provider
 type Provider interface {
 	Task
+
+	// Write out the plugin configuration to a writer
+	WriteConfig(io.Writer) error
 
 	// Load a plugin by name and label, and provide a resolver function
 	Load(string, string, PluginResolverFunc) error
