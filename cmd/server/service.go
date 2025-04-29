@@ -128,14 +128,14 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 		auth := config.(*auth.Config)
 
 		// Set the router
-		if router, ok := ref.Provider(ctx).Task(ctx, "httprouter").(server.HTTPRouter); !ok || router == nil {
+		if router, ok := ref.Provider(ctx).Task(ctx, "httprouter.main").(server.HTTPRouter); !ok || router == nil {
 			return httpresponse.ErrInternalError.With("Invalid router")
 		} else {
 			auth.Router = router
 		}
 
 		// Set the connection pool
-		if pool, ok := ref.Provider(ctx).Task(ctx, "pgpool").(server.PG); !ok || pool == nil {
+		if pool, ok := ref.Provider(ctx).Task(ctx, "pgpool.main").(server.PG); !ok || pool == nil {
 			return httpresponse.ErrInternalError.With("Invalid connection pool")
 		} else {
 			auth.Pool = pool
@@ -148,14 +148,14 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 		pgqueue := config.(*pgqueue.Config)
 
 		// Set the router
-		if router, ok := ref.Provider(ctx).Task(ctx, "httprouter").(server.HTTPRouter); !ok || router == nil {
+		if router, ok := ref.Provider(ctx).Task(ctx, "httprouter.main").(server.HTTPRouter); !ok || router == nil {
 			return httpresponse.ErrInternalError.With("Invalid router")
 		} else {
 			pgqueue.Router = router
 		}
 
 		// Set the connection pool
-		if pool, ok := ref.Provider(ctx).Task(ctx, "pgpool").(server.PG); !ok || pool == nil {
+		if pool, ok := ref.Provider(ctx).Task(ctx, "pgpool.main").(server.PG); !ok || pool == nil {
 			return httpresponse.ErrInternalError.With("Invalid connection pool")
 		} else {
 			pgqueue.Pool = pool
@@ -167,21 +167,21 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 		certmanager := config.(*cert.Config)
 
 		// Set the router
-		if router, ok := ref.Provider(ctx).Task(ctx, "httprouter").(server.HTTPRouter); !ok || router == nil {
+		if router, ok := ref.Provider(ctx).Task(ctx, "httprouter.main").(server.HTTPRouter); !ok || router == nil {
 			return httpresponse.ErrInternalError.With("Invalid router")
 		} else {
 			certmanager.Router = router
 		}
 
 		// Set the connection pool
-		if pool, ok := ref.Provider(ctx).Task(ctx, "pgpool").(server.PG); !ok || pool == nil {
+		if pool, ok := ref.Provider(ctx).Task(ctx, "pgpool.main").(server.PG); !ok || pool == nil {
 			return httpresponse.ErrInternalError.With("Invalid connection pool")
 		} else {
 			certmanager.Pool = pool
 		}
 
 		// Set the queue
-		if queue, ok := ref.Provider(ctx).Task(ctx, "pgqueue").(server.PGQueue); !ok || queue == nil {
+		if queue, ok := ref.Provider(ctx).Task(ctx, "pgqueue.main").(server.PGQueue); !ok || queue == nil {
 			return httpresponse.ErrInternalError.With("Invalid task queue")
 		} else {
 			certmanager.Queue = queue

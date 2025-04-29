@@ -16,14 +16,26 @@ features and functionality as needed. More documentation soon on how to do that.
 
 ## Running
 
-You can run the server in a docker container or build it from source. To run the latest
-released version as a docker container:
+The binary includes both the *server*-side application and the *client*-side
+command-line tools. Both can be run as docker containers.
+
+To run the latest released version as a docker container:
 
 ```bash
 docker run ghcr.io/mutablelogic/go-server:latest
 ```
 
-This will print out the help message.
+This will print out the help message and provide insight into running both the server application
+and interacting with the server through commands. To run the server, you'll need a PostgreSQL
+database, and you can set the environment variables `PG_HOST`, `PG_DATABASE`, `PG_USER` and `PG_PASS`.
+
+### Bootstrapping the database server and roles
+
+More information about setting up the databses TODO
+
+### Creating a new database
+
+Information about setting up a new database
 
 ## Building
 
