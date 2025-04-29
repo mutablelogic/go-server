@@ -36,8 +36,8 @@ type provider struct {
 	// Order that the tasks were created
 	order []string
 
-	// Function to resolve plugin members
-	resolver ResolverFunc
+	// Map labels to resolvers
+	resolvers map[string]server.PluginResolverFunc
 
 	// Default logger
 	server.Logger `json:"-"`
@@ -58,12 +58,12 @@ type ResolverFunc func(context.Context, string, server.Plugin) (server.Plugin, e
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func New(resolver ResolverFunc, plugins ...server.Plugin) (*provider, error) {
+func New(plugins ...server.Plugin) (*provider, error) {
 	self := new(provider)
 	self.plugin = make(map[string]server.Plugin, len(plugins))
 	self.task = make(map[string]*state, len(plugins))
 	self.order = make([]string, 0, len(plugins))
-	self.resolver = resolver
+	self.resolvers = make(map[string]server.PluginResolverFunc, len(plugins))
 	self.Logger = logger.New(os.Stderr, logger.Term, false)
 
 	// Add the plugins
@@ -153,10 +153,8 @@ func (provider *provider) Task(ctx context.Context, label string) server.Task {
 	ctx = ref.WithPath(ctx, label)
 
 	// Resolve the plugin
-	if provider.resolver != nil {
-		var err error
-		plugin, err = provider.resolver(ctx, label, plugin)
-		if err != nil {
+	if fn := provider.resolvers[label]; fn != nil {
+		if err := fn(ctx, label, plugin); err != nil {
 			provider.Print(ctx, label, ": ", err)
 			return nil
 		}
@@ -184,17 +182,4 @@ func (provider *provider) Task(ctx context.Context, label string) server.Task {
 
 	// Return the task
 	return task
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// PRIVATE METHODS
-
-// Make all tasks
-func (provider *provider) constructor(ctx context.Context) error {
-	for _, label := range provider.porder {
-		if task := provider.Task(ctx, label); task == nil {
-			return httpresponse.ErrConflict.Withf("Failed to create task %q", label)
-		}
-	}
-	return nil
 }

@@ -67,7 +67,6 @@ func (provider *provider) Run(parent context.Context) error {
 	<-ctx.Done()
 
 	// Cancel all the tasks in reverse order, waiting for each to complete before cancelling the next
-	// TODO: Make sure we are cancelling in the right order
 	sort.Sort(sort.Reverse(sort.StringSlice(provider.order)))
 	for _, label := range provider.order {
 		provider.Print(ctx, "Stopping task ", label)
@@ -77,4 +76,17 @@ func (provider *provider) Run(parent context.Context) error {
 
 	// Return any errors
 	return result
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+// Make all tasks
+func (provider *provider) constructor(ctx context.Context) error {
+	for _, label := range provider.porder {
+		if task := provider.Task(ctx, label); task == nil {
+			return httpresponse.ErrConflict.Withf("Failed to create task %q", label)
+		}
+	}
+	return nil
 }

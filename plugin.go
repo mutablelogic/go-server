@@ -37,12 +37,15 @@ type Task interface {
 type Provider interface {
 	Task
 
-	// Load a plugin by name and label
-	Load(string, string, func(context.Context, Plugin)) error
+	// Load a plugin by name and label, and provide a resolver function
+	Load(string, string, PluginResolverFunc) error
 
 	// Return a task given a plugin label
 	Task(context.Context, string) Task
 }
+
+// Define a function for resolving plugin configuration
+type PluginResolverFunc func(context.Context, string, Plugin) error
 
 ///////////////////////////////////////////////////////////////////////////////
 // HTTP ROUTER

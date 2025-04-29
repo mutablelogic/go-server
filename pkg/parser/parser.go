@@ -10,7 +10,7 @@ import (
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	ast "github.com/mutablelogic/go-server/pkg/parser/ast"
 	jsonparser "github.com/mutablelogic/go-server/pkg/parser/jsonparser"
-	meta "github.com/mutablelogic/go-server/pkg/parser/meta"
+	meta "github.com/mutablelogic/go-server/pkg/provider/meta"
 )
 
 ////////////////////////////////////////////////////////////////////////////////

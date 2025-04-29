@@ -7,9 +7,10 @@ import (
 
 	// Packages
 	server "github.com/mutablelogic/go-server"
+	"github.com/mutablelogic/go-server/npm/helloworld"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	provider "github.com/mutablelogic/go-server/pkg/provider"
-	ref "github.com/mutablelogic/go-server/pkg/ref"
+	"github.com/mutablelogic/go-server/pkg/ref"
 	types "github.com/mutablelogic/go-server/pkg/types"
 
 	// Plugins
@@ -26,14 +27,15 @@ import (
 // TYPES
 
 type ServiceCommands struct {
-	Run  ServiceRunCommand  `cmd:"" group:"SERVICE" help:"Run the service"`
-	Run2 ServiceRun2Command `cmd:"" group:"SERVICE" help:"Run the service with plugins"`
+	//	Run  ServiceRunCommand  `cmd:"" group:"SERVICE" help:"Run the service"`
+	Run ServiceRun2Command `cmd:"" group:"SERVICE" help:"Run the service with plugins"`
 }
 
 type ServiceRun2Command struct {
 	Plugins []string `help:"Plugin paths"`
 }
 
+/*
 type ServiceRunCommand struct {
 	Router struct {
 		httprouter.Config `embed:"" prefix:"router."` // Router configuration
@@ -57,10 +59,11 @@ type ServiceRunCommand struct {
 		logger.Config `embed:"" prefix:"log."` // Logger configuration
 	} `embed:""`
 }
+*/
 
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
-
+/*
 func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 	// Set the server listener and router prefix
 	cmd.Server.Listen = app.GetEndpoint()
@@ -198,6 +201,7 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 	// Run the provider
 	return provider.Run(app.Context())
 }
+*/
 
 func (cmd *ServiceRun2Command) Run(app server.Cmd) error {
 	// Create a provider by loading the plugins
@@ -207,42 +211,133 @@ func (cmd *ServiceRun2Command) Run(app server.Cmd) error {
 	}
 
 	// Set the configuration
-	err = errors.Join(err, provider.Load("log", "main", func(ctx context.Context, config server.Plugin) {
+	err = errors.Join(err, provider.Load("log", "main", func(ctx context.Context, label string, config server.Plugin) error {
 		logger := config.(*logger.Config)
 		logger.Debug = app.GetDebug() >= server.Debug
+		return nil
 	}))
-	err = errors.Join(err, provider.Load("httprouter", "main", func(ctx context.Context, config server.Plugin) {
+	err = errors.Join(err, provider.Load("httprouter", "main", func(ctx context.Context, label string, config server.Plugin) error {
 		httprouter := config.(*httprouter.Config)
 		httprouter.Prefix = types.NormalisePath(app.GetEndpoint().Path)
 		httprouter.Origin = "*"
 		httprouter.Middleware = []string{"log.main"}
+		return nil
 	}))
-	err = errors.Join(err, provider.Load("httpserver", "main", func(ctx context.Context, config server.Plugin) {
+	err = errors.Join(err, provider.Load("httpserver", "main", func(ctx context.Context, label string, config server.Plugin) error {
 		httpserver := config.(*httpserver.Config)
 		httpserver.Listen = app.GetEndpoint()
-		httpserver.Router = provider.Task(ctx, "httprouter.main").(http.Handler)
+
+		// Set router
+		if router, ok := provider.Task(ctx, "httprouter.main").(http.Handler); !ok || router == nil {
+			return httpresponse.ErrInternalError.With("Invalid router")
+		} else {
+			httpserver.Router = router
+		}
+
+		// Return success
+		return nil
 	}))
-	err = errors.Join(err, provider.Load("helloworld", "main", func(ctx context.Context, config server.Plugin) {
-		// NO-OP
+	err = errors.Join(err, provider.Load("helloworld", "main", func(ctx context.Context, label string, config server.Plugin) error {
+		helloworld := config.(*helloworld.Config)
+
+		// Set router
+		if router, ok := provider.Task(ctx, "httprouter.main").(server.HTTPRouter); !ok || router == nil {
+			return httpresponse.ErrInternalError.With("Invalid router")
+		} else {
+			helloworld.Router = router
+		}
+
+		// Return success
+		return nil
 	}))
-	err = errors.Join(err, provider.Load("pgpool", "main", func(ctx context.Context, config server.Plugin) {
+	err = errors.Join(err, provider.Load("pgpool", "main", func(ctx context.Context, label string, config server.Plugin) error {
 		pgpool := config.(*pg.Config)
-		pgpool.Router = provider.Task(ctx, "httprouter.main").(server.HTTPRouter)
+
+		// Set router
+		if router, ok := provider.Task(ctx, "httprouter.main").(server.HTTPRouter); !ok || router == nil {
+			return httpresponse.ErrInternalError.With("Invalid router")
+		} else {
+			pgpool.Router = router
+		}
+
+		// Set trace
+		if app.GetDebug() == server.Trace {
+			pgpool.Trace = func(ctx context.Context, query string, args any, err error) {
+				if err != nil {
+					ref.Log(ctx).With("args", args).Print(ctx, err, " ON ", query)
+				} else {
+					ref.Log(ctx).With("args", args).Debug(ctx, query)
+				}
+			}
+		}
+
+		// Return success
+		return nil
 	}))
-	err = errors.Join(err, provider.Load("auth", "main", func(ctx context.Context, config server.Plugin) {
+	err = errors.Join(err, provider.Load("auth", "main", func(ctx context.Context, label string, config server.Plugin) error {
 		auth := config.(*auth.Config)
-		auth.Pool = provider.Task(ctx, "pgpool.main").(server.PG)
-		auth.Router = provider.Task(ctx, "httprouter.main").(server.HTTPRouter)
+
+		// Set the router
+		if router, ok := ref.Provider(ctx).Task(ctx, "httprouter").(server.HTTPRouter); !ok || router == nil {
+			return httpresponse.ErrInternalError.With("Invalid router")
+		} else {
+			auth.Router = router
+		}
+
+		// Set the connection pool
+		if pool, ok := ref.Provider(ctx).Task(ctx, "pgpool").(server.PG); !ok || pool == nil {
+			return httpresponse.ErrInternalError.With("Invalid connection pool")
+		} else {
+			auth.Pool = pool
+		}
+
+		// Return success
+		return nil
 	}))
-	err = errors.Join(err, provider.Load("pgqueue", "main", func(ctx context.Context, config server.Plugin) {
+	err = errors.Join(err, provider.Load("pgqueue", "main", func(ctx context.Context, label string, config server.Plugin) error {
 		pgqueue := config.(*pgqueue.Config)
-		pgqueue.Pool = provider.Task(ctx, "pgpool.main").(server.PG)
-		pgqueue.Router = provider.Task(ctx, "httprouter.main").(server.HTTPRouter)
+
+		// Set the router
+		if router, ok := ref.Provider(ctx).Task(ctx, "httprouter").(server.HTTPRouter); !ok || router == nil {
+			return httpresponse.ErrInternalError.With("Invalid router")
+		} else {
+			pgqueue.Router = router
+		}
+
+		// Set the connection pool
+		if pool, ok := ref.Provider(ctx).Task(ctx, "pgpool").(server.PG); !ok || pool == nil {
+			return httpresponse.ErrInternalError.With("Invalid connection pool")
+		} else {
+			pgqueue.Pool = pool
+		}
+
+		return nil
 	}))
-	err = errors.Join(err, provider.Load("certmanager", "main", func(ctx context.Context, config server.Plugin) {
+	err = errors.Join(err, provider.Load("certmanager", "main", func(ctx context.Context, label string, config server.Plugin) error {
 		certmanager := config.(*cert.Config)
-		certmanager.Router = provider.Task(ctx, "httprouter.main").(server.HTTPRouter)
-		certmanager.Pool = provider.Task(ctx, "pgpool.main").(server.PG)
+
+		// Set the router
+		if router, ok := ref.Provider(ctx).Task(ctx, "httprouter").(server.HTTPRouter); !ok || router == nil {
+			return httpresponse.ErrInternalError.With("Invalid router")
+		} else {
+			certmanager.Router = router
+		}
+
+		// Set the connection pool
+		if pool, ok := ref.Provider(ctx).Task(ctx, "pgpool").(server.PG); !ok || pool == nil {
+			return httpresponse.ErrInternalError.With("Invalid connection pool")
+		} else {
+			certmanager.Pool = pool
+		}
+
+		// Set the queue
+		if queue, ok := ref.Provider(ctx).Task(ctx, "pgqueue").(server.PGQueue); !ok || queue == nil {
+			return httpresponse.ErrInternalError.With("Invalid task queue")
+		} else {
+			certmanager.Queue = queue
+		}
+
+		return nil
 	}))
 	if err != nil {
 		return err

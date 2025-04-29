@@ -1,4 +1,4 @@
-package main
+package helloworld
 
 import (
 	"context"
@@ -25,7 +25,7 @@ var _ server.Task = (*task)(nil)
 ////////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 
-//go:embed dist
+//go:embed dist/*
 var fs embed.FS
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -50,10 +50,6 @@ func (c Config) Name() string {
 
 func (c Config) Description() string {
 	return "Hello World example static content"
-}
-
-func Plugin() server.Plugin {
-	return Config{}
 }
 
 ////////////////////////////////////////////////////////////////////////////////

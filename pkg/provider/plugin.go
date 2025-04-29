@@ -1,7 +1,6 @@
 package provider
 
 import (
-	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -29,6 +28,25 @@ const (
 func NewWithPlugins(paths ...string) (server.Provider, error) {
 	self := new(provider)
 
+	/*
+		// Change directory to the executable directory
+		wd, err := os.Getwd()
+		if err != nil {
+			return nil, err
+		}
+		defer func() {
+			os.Chdir(wd)
+		}()
+		execpath, err := os.Executable()
+		if err != nil {
+			return nil, err
+		}
+		execdir := filepath.Dir(execpath)
+		if err := os.Chdir(execdir); err != nil {
+			return nil, err
+		}
+	*/
+
 	// Load plugins
 	plugins, err := loadPluginsForPattern(paths...)
 	if err != nil {
@@ -38,6 +56,7 @@ func NewWithPlugins(paths ...string) (server.Provider, error) {
 	// Create the prototype map
 	self.protos = make(map[string]*meta.Meta, len(plugins))
 	self.plugin = make(map[string]server.Plugin, len(plugins))
+	self.resolvers = make(map[string]server.PluginResolverFunc, len(plugins))
 	self.task = make(map[string]*state, len(plugins))
 	self.Logger = logger.New(os.Stderr, logger.Term, false)
 	for _, plugin := range plugins {
@@ -59,35 +78,34 @@ func NewWithPlugins(paths ...string) (server.Provider, error) {
 
 // Create a "concrete" plugin from a prototype and a label, using the function to "hook"
 // any values into the plugin
-func (provider *provider) Load(name, label string, fn func(context.Context, server.Plugin)) error {
+func (provider *provider) Load(name, label string, fn server.PluginResolverFunc) error {
 	proto, exists := provider.protos[name]
 	if !exists {
 		return httpresponse.ErrBadRequest.Withf("Plugin not found: %q", name)
 	}
 
 	// Make the label
+	// TODO: use types package to manage labels
 	if label != "" {
 		if !types.IsIdentifier(label) {
 			return httpresponse.ErrBadRequest.Withf("Invalid label: %q", label)
 		} else {
-			label = name
+			label = strings.Join([]string{name, label}, ".")
 		}
 	} else {
-		label = strings.Join([]string{label, name}, ".")
+		label = name
 	}
 
 	// Register the plugin with the label
 	if _, exists := provider.plugin[label]; exists {
 		return httpresponse.ErrBadRequest.Withf("Plugin already exists: %q", label)
-	} else {
-		// Create a plugin from the prototype
-		plugin := proto.New()
-		if fn != nil {
-			fn(context.TODO(), plugin)
-		}
-		provider.plugin[label] = plugin
-		provider.porder = append(provider.porder, label)
 	}
+
+	// Create a plugin from the prototype and set the resolver
+	plugin := proto.New()
+	provider.plugin[label] = plugin
+	provider.resolvers[label] = fn
+	provider.porder = append(provider.porder, label)
 
 	// Return success
 	return nil
