@@ -41,10 +41,10 @@ The plugins and the `server` binary will be built in the `build` directory.
 
 You need the following three tools installed to build the server:
 
-- [Go](https://golang.org/doc/install/source) (1.23 or later, not required for docker builds)
-- [Make](https://www.gnu.org/software/make/)
-- [Docker](https://docs.docker.com/get-docker/)
-- [NPM](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm)
+* [Go](https://golang.org/doc/install/source) (1.23 or later, not required for docker builds)
+* [Make](https://www.gnu.org/software/make/)
+* [Docker](https://docs.docker.com/get-docker/)
+* [NPM](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm)
 
 ### Makefile targets
 
@@ -68,15 +68,14 @@ Binaries are placed in the `build` directory.
 You can also affect the build by setting the following environment variables. For example,
 
 ```bash
-GOOS=linux GOARCH=amd64 make
+OS=linux ARCH=amd64 make
 ```
 
 | Variable | Description |
 |----------|-------------|
-| `GOOS` | The target operating system for the build |
-| `GOARCH` | The target architecture for the build |
+| `OS` | The target operating system for the build |
+| `ARCH` | The target architecture for the build |
 | `BUILD_DIR` | The target architecture for the build |
 | `VERBOSE` | Setting this flag will provide verbose output for unit tests |
 | `VERSION` | Explicitly set the version |
 | `DOCKER_REPO` | The docker repository to push to. Defaults to `ghcr.io/mutablelogic/go-server` |
-
