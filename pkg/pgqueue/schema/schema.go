@@ -15,7 +15,7 @@ const (
 	SchemaName       = "pgqueue"
 	DefaultNamespace = "default"
 	CleanupNamespace = "cleanup"
-	DefaultPrefix    = "/queue/v1"
+	APIPrefix        = "/queue/v1"
 	TopicQueueInsert = "queue_insert"
 	QueueListLimit   = 100
 	TickerListLimit  = 100

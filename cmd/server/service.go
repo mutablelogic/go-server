@@ -9,7 +9,11 @@ import (
 	// Packages
 	server "github.com/mutablelogic/go-server"
 	helloworld "github.com/mutablelogic/go-server/npm/helloworld"
+	auth_schema "github.com/mutablelogic/go-server/pkg/auth/schema"
+	cert_schema "github.com/mutablelogic/go-server/pkg/cert/schema"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
+	pgmanager_schema "github.com/mutablelogic/go-server/pkg/pgmanager/schema"
+	pgqueue_schema "github.com/mutablelogic/go-server/pkg/pgqueue/schema"
 	provider "github.com/mutablelogic/go-server/pkg/provider"
 	ref "github.com/mutablelogic/go-server/pkg/ref"
 	types "github.com/mutablelogic/go-server/pkg/types"
@@ -104,6 +108,7 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 		pgpool := config.(*pg.Config)
 
 		// Set router
+		pgpool.Prefix = pgmanager_schema.APIPrefix
 		if router, ok := provider.Task(ctx, "httprouter.main").(server.HTTPRouter); !ok || router == nil {
 			return httpresponse.ErrInternalError.With("Invalid router")
 		} else {
@@ -128,6 +133,7 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 		auth := config.(*auth.Config)
 
 		// Set the router
+		auth.Prefix = auth_schema.APIPrefix
 		if router, ok := ref.Provider(ctx).Task(ctx, "httprouter.main").(server.HTTPRouter); !ok || router == nil {
 			return httpresponse.ErrInternalError.With("Invalid router")
 		} else {
@@ -148,6 +154,7 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 		pgqueue := config.(*pgqueue.Config)
 
 		// Set the router
+		pgqueue.Prefix = pgqueue_schema.APIPrefix
 		if router, ok := ref.Provider(ctx).Task(ctx, "httprouter.main").(server.HTTPRouter); !ok || router == nil {
 			return httpresponse.ErrInternalError.With("Invalid router")
 		} else {
@@ -167,6 +174,7 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 		certmanager := config.(*cert.Config)
 
 		// Set the router
+		certmanager.Prefix = cert_schema.APIPrefix
 		if router, ok := ref.Provider(ctx).Task(ctx, "httprouter.main").(server.HTTPRouter); !ok || router == nil {
 			return httpresponse.ErrInternalError.With("Invalid router")
 		} else {

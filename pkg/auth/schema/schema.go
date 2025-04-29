@@ -15,6 +15,7 @@ const (
 	RootUserName      = "root"
 	UserListLimit     = 50
 	AuthHashAlgorithm = "sha256"
+	APIPrefix         = "/auth/v1"
 )
 
 const (

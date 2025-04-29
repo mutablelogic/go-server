@@ -11,6 +11,7 @@ import (
 
 const (
 	CatalogSchema = "pg_catalog"
+	APIPrefix     = "/pg/v1"
 )
 
 const (
