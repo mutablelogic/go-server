@@ -173,12 +173,14 @@ var (
 )
 
 func setValue(rv reflect.Value, str string) error {
+	// Zero value
+	if str == "" {
+		rv.SetZero()
+		return nil
+	}
+
 	switch rv.Kind() {
 	case reflect.Bool:
-		// Zero value
-		if str == "" {
-			rv.SetZero()
-		}
 		// Bool
 		if v, err := strconv.ParseBool(str); err != nil {
 			return httpresponse.ErrBadRequest.Withf("invalid value for %s: %q", rv.Type(), str)
@@ -186,10 +188,6 @@ func setValue(rv reflect.Value, str string) error {
 			rv.SetBool(v)
 		}
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		// Zero value
-		if str == "" {
-			rv.SetZero()
-		}
 		// Duration
 		if rv.Type() == durationType {
 			if v, err := time.ParseDuration(str); err != nil {
@@ -205,10 +203,6 @@ func setValue(rv reflect.Value, str string) error {
 			rv.SetInt(v)
 		}
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		// Zero value
-		if str == "" {
-			rv.SetZero()
-		}
 		// Uint
 		if v, err := strconv.ParseUint(str, 10, 64); err != nil {
 			return httpresponse.ErrBadRequest.Withf("invalid value for %s: %q", rv.Type(), str)
@@ -216,10 +210,6 @@ func setValue(rv reflect.Value, str string) error {
 			rv.SetUint(v)
 		}
 	case reflect.Float32, reflect.Float64:
-		// Zero value
-		if str == "" {
-			rv.SetZero()
-		}
 		// Float
 		if v, err := strconv.ParseFloat(str, 64); err != nil {
 			return httpresponse.ErrBadRequest.Withf("invalid value for %s: %q", rv.Type(), str)
@@ -229,8 +219,13 @@ func setValue(rv reflect.Value, str string) error {
 	case reflect.String:
 		// String
 		rv.SetString(str)
+	default:
+		// TODO URL and Datetime
+		return httpresponse.ErrBadRequest.Withf("invalid value for %s: %q", rv.Type(), str)
 	}
-	return httpresponse.ErrBadRequest.Withf("invalid value for %s: %q", rv.Type(), str)
+
+	// Return success
+	return nil
 }
 
 func typeName(rt reflect.Type) string {

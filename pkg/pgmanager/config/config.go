@@ -18,10 +18,10 @@ type Config struct {
 	User     string            `env:"PG_USER" default:"${USER}" help:"Database user"`
 	Pass     string            `env:"PG_PASSWORD" help:"User password"`
 	Database string            `env:"PG_DATABASE" help:"Database name, uses username if not set"`
-	SSLMode  string            `default:"default" enum:"default,disable,allow,prefer,require,verify-ca,verify-full" help:"SSL mode"`
+	SSLMode  string            `env:"PG_SSLMODE" enum:"default,disable,allow,prefer,require,verify-ca,verify-full" help:"SSL mode"`
 	Trace    pg.TraceFn        `json:"-" kong:"-"`
-	Router   server.HTTPRouter `json:"-" kong:"-"`                         // Which HTTP router to use
-	Prefix   string            `default:"${PG_PREFIX}" help:"Path prefix"` // HTTP Path Prefix
+	Router   server.HTTPRouter `json:"-" kong:"-"`  // Which HTTP router to use
+	Prefix   string            `help:"Path prefix"` // HTTP Path Prefix
 }
 
 var _ server.Plugin = Config{}
