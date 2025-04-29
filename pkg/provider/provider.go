@@ -1,8 +1,10 @@
 package provider
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"os"
 	"slices"
 	"strings"
@@ -12,6 +14,7 @@ import (
 	server "github.com/mutablelogic/go-server"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	logger "github.com/mutablelogic/go-server/pkg/logger"
+	meta "github.com/mutablelogic/go-server/pkg/provider/meta"
 	ref "github.com/mutablelogic/go-server/pkg/ref"
 	types "github.com/mutablelogic/go-server/pkg/types"
 )
@@ -20,6 +23,9 @@ import (
 // TYPES
 
 type provider struct {
+	// Plugin metadata
+	protos map[string]*meta.Meta
+
 	// Order of the plugins
 	porder []string
 
@@ -32,8 +38,8 @@ type provider struct {
 	// Order that the tasks were created
 	order []string
 
-	// Function to resolve plugin members
-	resolver ResolverFunc
+	// Map labels to resolvers
+	resolvers map[string]server.PluginResolverFunc
 
 	// Default logger
 	server.Logger `json:"-"`
@@ -54,12 +60,12 @@ type ResolverFunc func(context.Context, string, server.Plugin) (server.Plugin, e
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func New(resolver ResolverFunc, plugins ...server.Plugin) (*provider, error) {
+func New(plugins ...server.Plugin) (*provider, error) {
 	self := new(provider)
 	self.plugin = make(map[string]server.Plugin, len(plugins))
 	self.task = make(map[string]*state, len(plugins))
 	self.order = make([]string, 0, len(plugins))
-	self.resolver = resolver
+	self.resolvers = make(map[string]server.PluginResolverFunc, len(plugins))
 	self.Logger = logger.New(os.Stderr, logger.Term, false)
 
 	// Add the plugins
@@ -120,6 +126,18 @@ func (provider *provider) String() string {
 	return string(data)
 }
 
+func (provider *provider) WriteConfig(w io.Writer) error {
+	var buf bytes.Buffer
+	for _, proto := range provider.protos {
+		if err := proto.Write(&buf); err != nil {
+			return err
+		}
+		buf.WriteRune('\n')
+	}
+	_, err := w.Write(buf.Bytes())
+	return err
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
@@ -149,17 +167,15 @@ func (provider *provider) Task(ctx context.Context, label string) server.Task {
 	ctx = ref.WithPath(ctx, label)
 
 	// Resolve the plugin
-	if provider.resolver != nil {
-		var err error
-		plugin, err = provider.resolver(ctx, label, plugin)
-		if err != nil {
+	if fn := provider.resolvers[label]; fn != nil {
+		if err := fn(ctx, label, plugin); err != nil {
 			provider.Print(ctx, label, ": ", err)
 			return nil
 		}
 	}
 
 	// Create the task
-	provider.Debug(ctx, "creating a new task for label ", label)
+	provider.Debugf(ctx, "Creating a new task %q", label)
 	task, err := plugin.New(ctx)
 	if err != nil {
 		provider.Print(ctx, label, ": ", err)
@@ -180,17 +196,4 @@ func (provider *provider) Task(ctx context.Context, label string) server.Task {
 
 	// Return the task
 	return task
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// PRIVATE METHODS
-
-// Make all tasks
-func (provider *provider) constructor(ctx context.Context) error {
-	for _, label := range provider.porder {
-		if task := provider.Task(ctx, label); task == nil {
-			return httpresponse.ErrConflict.Withf("Failed to create task %q", label)
-		}
-	}
-	return nil
 }

@@ -4,8 +4,7 @@ import (
 	"testing"
 
 	// Packages
-
-	"github.com/mutablelogic/go-server/pkg/parser/meta"
+	meta "github.com/mutablelogic/go-server/pkg/provider/meta"
 	assert "github.com/stretchr/testify/assert"
 )
 

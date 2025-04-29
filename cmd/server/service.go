@@ -2,11 +2,13 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"net/http"
+	"os"
 
 	// Packages
 	server "github.com/mutablelogic/go-server"
+	helloworld "github.com/mutablelogic/go-server/npm/helloworld"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	provider "github.com/mutablelogic/go-server/pkg/provider"
 	ref "github.com/mutablelogic/go-server/pkg/ref"
@@ -20,23 +22,186 @@ import (
 	logger "github.com/mutablelogic/go-server/pkg/logger/config"
 	pg "github.com/mutablelogic/go-server/pkg/pgmanager/config"
 	pgqueue "github.com/mutablelogic/go-server/pkg/pgqueue/config"
-
-	// Static content
-	helloworld "github.com/mutablelogic/go-server/npm/helloworld"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
 type ServiceCommands struct {
-	Run ServiceRunCommand `cmd:"" group:"SERVICE" help:"Run the service"`
+	//	Run  ServiceRunCommand  `cmd:"" group:"SERVICE" help:"Run the service"`
+	Run    ServiceRunCommand    `cmd:"" group:"SERVICE" help:"Run the service with plugins"`
+	Config ServiceConfigCommand `cmd:"" group:"SERVICE" help:"Output the plugin configuration"`
 }
 
 type ServiceRunCommand struct {
-	Plugins []string `help:"Plugin paths"`
-	Router  struct {
+	Plugins []string `help:"Plugin paths" env:"PLUGIN_PATH"`
+}
+
+type ServiceConfigCommand struct {
+	ServiceRunCommand
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS
+
+func (cmd *ServiceConfigCommand) Run(app server.Cmd) error {
+	// Create a provider by loading the plugins
+	provider, err := provider.NewWithPlugins(cmd.Plugins...)
+	if err != nil {
+		return err
+	}
+	return provider.WriteConfig(os.Stdout)
+}
+
+func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
+	// Create a provider by loading the plugins
+	provider, err := provider.NewWithPlugins(cmd.Plugins...)
+	if err != nil {
+		return err
+	}
+
+	// Set the configuration
+	err = errors.Join(err, provider.Load("log", "main", func(ctx context.Context, label string, config server.Plugin) error {
+		logger := config.(*logger.Config)
+		logger.Debug = app.GetDebug() >= server.Debug
+		return nil
+	}))
+	err = errors.Join(err, provider.Load("httprouter", "main", func(ctx context.Context, label string, config server.Plugin) error {
+		httprouter := config.(*httprouter.Config)
+		httprouter.Prefix = types.NormalisePath(app.GetEndpoint().Path)
+		httprouter.Origin = "*"
+		httprouter.Middleware = []string{"log.main"}
+		return nil
+	}))
+	err = errors.Join(err, provider.Load("httpserver", "main", func(ctx context.Context, label string, config server.Plugin) error {
+		httpserver := config.(*httpserver.Config)
+		httpserver.Listen = app.GetEndpoint()
+
+		// Set router
+		if router, ok := provider.Task(ctx, "httprouter.main").(http.Handler); !ok || router == nil {
+			return httpresponse.ErrInternalError.With("Invalid router")
+		} else {
+			httpserver.Router = router
+		}
+
+		// Return success
+		return nil
+	}))
+	err = errors.Join(err, provider.Load("helloworld", "main", func(ctx context.Context, label string, config server.Plugin) error {
+		helloworld := config.(*helloworld.Config)
+
+		// Set router
+		if router, ok := provider.Task(ctx, "httprouter.main").(server.HTTPRouter); !ok || router == nil {
+			return httpresponse.ErrInternalError.With("Invalid router")
+		} else {
+			helloworld.Router = router
+		}
+
+		// Return success
+		return nil
+	}))
+	err = errors.Join(err, provider.Load("pgpool", "main", func(ctx context.Context, label string, config server.Plugin) error {
+		pgpool := config.(*pg.Config)
+
+		// Set router
+		if router, ok := provider.Task(ctx, "httprouter.main").(server.HTTPRouter); !ok || router == nil {
+			return httpresponse.ErrInternalError.With("Invalid router")
+		} else {
+			pgpool.Router = router
+		}
+
+		// Set trace
+		if app.GetDebug() == server.Trace {
+			pgpool.Trace = func(ctx context.Context, query string, args any, err error) {
+				if err != nil {
+					ref.Log(ctx).With("args", args).Print(ctx, err, " ON ", query)
+				} else {
+					ref.Log(ctx).With("args", args).Debug(ctx, query)
+				}
+			}
+		}
+
+		// Return success
+		return nil
+	}))
+	err = errors.Join(err, provider.Load("auth", "main", func(ctx context.Context, label string, config server.Plugin) error {
+		auth := config.(*auth.Config)
+
+		// Set the router
+		if router, ok := ref.Provider(ctx).Task(ctx, "httprouter").(server.HTTPRouter); !ok || router == nil {
+			return httpresponse.ErrInternalError.With("Invalid router")
+		} else {
+			auth.Router = router
+		}
+
+		// Set the connection pool
+		if pool, ok := ref.Provider(ctx).Task(ctx, "pgpool").(server.PG); !ok || pool == nil {
+			return httpresponse.ErrInternalError.With("Invalid connection pool")
+		} else {
+			auth.Pool = pool
+		}
+
+		// Return success
+		return nil
+	}))
+	err = errors.Join(err, provider.Load("pgqueue", "main", func(ctx context.Context, label string, config server.Plugin) error {
+		pgqueue := config.(*pgqueue.Config)
+
+		// Set the router
+		if router, ok := ref.Provider(ctx).Task(ctx, "httprouter").(server.HTTPRouter); !ok || router == nil {
+			return httpresponse.ErrInternalError.With("Invalid router")
+		} else {
+			pgqueue.Router = router
+		}
+
+		// Set the connection pool
+		if pool, ok := ref.Provider(ctx).Task(ctx, "pgpool").(server.PG); !ok || pool == nil {
+			return httpresponse.ErrInternalError.With("Invalid connection pool")
+		} else {
+			pgqueue.Pool = pool
+		}
+
+		return nil
+	}))
+	err = errors.Join(err, provider.Load("certmanager", "main", func(ctx context.Context, label string, config server.Plugin) error {
+		certmanager := config.(*cert.Config)
+
+		// Set the router
+		if router, ok := ref.Provider(ctx).Task(ctx, "httprouter").(server.HTTPRouter); !ok || router == nil {
+			return httpresponse.ErrInternalError.With("Invalid router")
+		} else {
+			certmanager.Router = router
+		}
+
+		// Set the connection pool
+		if pool, ok := ref.Provider(ctx).Task(ctx, "pgpool").(server.PG); !ok || pool == nil {
+			return httpresponse.ErrInternalError.With("Invalid connection pool")
+		} else {
+			certmanager.Pool = pool
+		}
+
+		// Set the queue
+		if queue, ok := ref.Provider(ctx).Task(ctx, "pgqueue").(server.PGQueue); !ok || queue == nil {
+			return httpresponse.ErrInternalError.With("Invalid task queue")
+		} else {
+			certmanager.Queue = queue
+		}
+
+		return nil
+	}))
+	if err != nil {
+		return err
+	}
+
+	// Run the provider
+	return provider.Run(app.Context())
+}
+
+/*
+type ServiceRunCommand struct {
+	Router struct {
 		httprouter.Config `embed:"" prefix:"router."` // Router configuration
-	} `embed:""`
+	} `embed:"" prefix:""`
 	Server struct {
 		httpserver.Config `embed:"" prefix:"server."` // Server configuration
 	} `embed:""`
@@ -55,24 +220,11 @@ type ServiceRunCommand struct {
 	Log struct {
 		logger.Config `embed:"" prefix:"log."` // Logger configuration
 	} `embed:""`
-	HelloWorld struct {
-		helloworld.Config `embed:"" prefix:"helloworld."` // HelloWorld configuration
-	} `embed:""`
 }
+*/
 
-///////////////////////////////////////////////////////////////////////////////
-// PUBLIC METHODS
-
+/*
 func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
-	// Load plugins
-	plugins, err := provider.LoadPluginsForPattern(cmd.Plugins...)
-	if err != nil {
-		return err
-	}
-	for _, plugin := range plugins {
-		fmt.Println("TODO: Loaded plugins:", plugin.Name())
-	}
-
 	// Set the server listener and router prefix
 	cmd.Server.Listen = app.GetEndpoint()
 	cmd.Router.Prefix = types.NormalisePath(cmd.Server.Listen.Path)
@@ -130,19 +282,6 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 
 			// Set the middleware
 			config.Middleware = []string{}
-
-			// Return the new configuration with the router
-			return config, nil
-
-		case "helloworld":
-			config := plugin.(helloworld.Config)
-
-			// Set the router
-			if router, ok := ref.Provider(ctx).Task(ctx, "httprouter").(server.HTTPRouter); !ok || router == nil {
-				return nil, httpresponse.ErrInternalError.Withf("Invalid router %q", "httprouter")
-			} else {
-				config.Router = router
-			}
 
 			// Return the new configuration with the router
 			return config, nil
@@ -214,7 +353,7 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 
 		// No-op
 		return plugin, nil
-	}, cmd.Log.Config, cmd.Router.Config, cmd.Server.Config, cmd.HelloWorld.Config, cmd.Auth.Config, cmd.PGPool.Config, cmd.PGQueue.Config, cmd.CertManager.Config)
+	}, cmd.Log.Config, cmd.Router.Config, cmd.Server.Config, cmd.Auth.Config, cmd.PGPool.Config, cmd.PGQueue.Config, cmd.CertManager.Config)
 	if err != nil {
 		return err
 	}
@@ -222,3 +361,4 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 	// Run the provider
 	return provider.Run(app.Context())
 }
+*/
