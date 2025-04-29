@@ -9,9 +9,13 @@ import (
 	kong "github.com/alecthomas/kong"
 	server "github.com/mutablelogic/go-server"
 	auth "github.com/mutablelogic/go-server/pkg/auth/cmd"
+	auth_schema "github.com/mutablelogic/go-server/pkg/auth/schema"
 	certmanager "github.com/mutablelogic/go-server/pkg/cert/cmd"
+	cert_schema "github.com/mutablelogic/go-server/pkg/cert/schema"
 	pgmanager "github.com/mutablelogic/go-server/pkg/pgmanager/cmd"
+	pgmanager_schema "github.com/mutablelogic/go-server/pkg/pgmanager/schema"
 	pgqueue "github.com/mutablelogic/go-server/pkg/pgqueue/cmd"
+	pgqueue_schema "github.com/mutablelogic/go-server/pkg/pgqueue/schema"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -51,10 +55,10 @@ func main() {
 		kong.Vars{
 			"HOST":         hostName(),
 			"USER":         userName(),
-			"CERT_PREFIX":  "/cert/v1",
-			"PG_PREFIX":    "/pg/v1",
-			"AUTH_PREFIX":  "/auth/v1",
-			"QUEUE_PREFIX": "/queue/v1",
+			"CERT_PREFIX":  cert_schema.APIPrefix,
+			"PG_PREFIX":    pgmanager_schema.APIPrefix,
+			"AUTH_PREFIX":  auth_schema.APIPrefix,
+			"QUEUE_PREFIX": pgqueue_schema.APIPrefix,
 		},
 	)
 

@@ -16,14 +16,26 @@ features and functionality as needed. More documentation soon on how to do that.
 
 ## Running
 
-You can run the server in a docker container or build it from source. To run the latest
-released version as a docker container:
+The binary includes both the *server*-side application and the *client*-side
+command-line tools. Both can be run as docker containers.
+
+To run the latest released version as a docker container:
 
 ```bash
 docker run ghcr.io/mutablelogic/go-server:latest
 ```
 
-This will print out the help message.
+This will print out the help message and provide insight into running both the server application
+and interacting with the server through commands. To run the server, you'll need a PostgreSQL
+database, and you can set the environment variables `PG_HOST`, `PG_DATABASE`, `PG_USER` and `PG_PASS`.
+
+### Bootstrapping the database server and roles
+
+More information about setting up the databses TODO
+
+### Creating a new database
+
+Information about setting up a new database
 
 ## Building
 
@@ -41,10 +53,10 @@ The plugins and the `server` binary will be built in the `build` directory.
 
 You need the following three tools installed to build the server:
 
-- [Go](https://golang.org/doc/install/source) (1.23 or later, not required for docker builds)
-- [Make](https://www.gnu.org/software/make/)
-- [Docker](https://docs.docker.com/get-docker/)
-- [NPM](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm)
+* [Go](https://golang.org/doc/install/source) (1.23 or later, not required for docker builds)
+* [Make](https://www.gnu.org/software/make/)
+* [Docker](https://docs.docker.com/get-docker/)
+* [NPM](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm)
 
 ### Makefile targets
 
@@ -68,15 +80,14 @@ Binaries are placed in the `build` directory.
 You can also affect the build by setting the following environment variables. For example,
 
 ```bash
-GOOS=linux GOARCH=amd64 make
+OS=linux ARCH=amd64 make
 ```
 
 | Variable | Description |
 |----------|-------------|
-| `GOOS` | The target operating system for the build |
-| `GOARCH` | The target architecture for the build |
+| `OS` | The target operating system for the build |
+| `ARCH` | The target architecture for the build |
 | `BUILD_DIR` | The target architecture for the build |
 | `VERBOSE` | Setting this flag will provide verbose output for unit tests |
 | `VERSION` | Explicitly set the version |
 | `DOCKER_REPO` | The docker repository to push to. Defaults to `ghcr.io/mutablelogic/go-server` |
-

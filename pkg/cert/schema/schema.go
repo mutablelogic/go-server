@@ -12,6 +12,7 @@ import (
 
 const (
 	SchemaName = "certmanager"
+	APIPrefix  = "/cert/v1"
 )
 
 const (

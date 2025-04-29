@@ -5,14 +5,16 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"os"
 	"reflect"
-	"strings"
+	"strconv"
 	"time"
 
 	// Packages
-	"github.com/mutablelogic/go-server"
+	server "github.com/mutablelogic/go-server"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	ast "github.com/mutablelogic/go-server/pkg/parser/ast"
+	types "github.com/mutablelogic/go-server/pkg/types"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -21,7 +23,9 @@ import (
 type Meta struct {
 	Name        string
 	Description string
+	Default     string
 	Type        reflect.Type
+	Index       []int
 	Fields      []*Meta
 }
 
@@ -93,6 +97,9 @@ func (m *Meta) Write(w io.Writer) error {
 			buf.WriteString("  // ")
 			buf.WriteString(field.Description)
 		}
+		if field.Default != "" {
+			buf.WriteString(" (default: " + types.Quote(field.Default) + ")")
+		}
 
 		buf.WriteString("\n")
 	}
@@ -114,7 +121,12 @@ func (m *Meta) Validate(values any) error {
 }
 
 func (m *Meta) New() server.Plugin {
-	return reflect.New(m.Type).Interface().(server.Plugin)
+	obj := reflect.New(m.Type)
+	for _, field := range m.Fields {
+		// Expand field for env
+		setValue(obj.Elem().FieldByIndex(field.Index), os.ExpandEnv(field.Default))
+	}
+	return obj.Interface().(server.Plugin)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -122,8 +134,7 @@ func (m *Meta) New() server.Plugin {
 
 func newMetaField(rf reflect.StructField) (*Meta, error) {
 	meta := new(Meta)
-
-	//fmt.Println("newMetaField", rf.Name, rf.Type)
+	meta.Index = rf.Index
 
 	// Name
 	if name := nameForField(rf, "json", "yaml", "name"); name == "" {
@@ -134,7 +145,16 @@ func newMetaField(rf reflect.StructField) (*Meta, error) {
 	}
 
 	// Description
-	meta.Description = rf.Tag.Get("help")
+	if description, _ := valueForField(rf, "description", "help"); description != "" {
+		meta.Description = description
+	}
+
+	// Env - needs to be an identififer
+	if env, _ := valueForField(rf, "env"); types.IsIdentifier(env) {
+		meta.Default = "${" + env + "}"
+	} else if def, _ := valueForField(rf, "default"); def != "" {
+		meta.Default = def
+	}
 
 	// Type
 	if t := typeName(rf.Type); t == "" {
@@ -151,6 +171,67 @@ var (
 	urlType      = reflect.TypeOf((*url.URL)(nil)).Elem()
 	durationType = reflect.TypeOf(time.Duration(0))
 )
+
+func setValue(rv reflect.Value, str string) error {
+	switch rv.Kind() {
+	case reflect.Bool:
+		// Zero value
+		if str == "" {
+			rv.SetZero()
+		}
+		// Bool
+		if v, err := strconv.ParseBool(str); err != nil {
+			return httpresponse.ErrBadRequest.Withf("invalid value for %s: %q", rv.Type(), str)
+		} else {
+			rv.SetBool(v)
+		}
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		// Zero value
+		if str == "" {
+			rv.SetZero()
+		}
+		// Duration
+		if rv.Type() == durationType {
+			if v, err := time.ParseDuration(str); err != nil {
+				return httpresponse.ErrBadRequest.Withf("invalid value for %s: %q", rv.Type(), str)
+			} else {
+				rv.Set(reflect.ValueOf(v))
+			}
+		}
+		// Int
+		if v, err := strconv.ParseInt(str, 10, 64); err != nil {
+			return httpresponse.ErrBadRequest.Withf("invalid value for %s: %q", rv.Type(), str)
+		} else {
+			rv.SetInt(v)
+		}
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		// Zero value
+		if str == "" {
+			rv.SetZero()
+		}
+		// Uint
+		if v, err := strconv.ParseUint(str, 10, 64); err != nil {
+			return httpresponse.ErrBadRequest.Withf("invalid value for %s: %q", rv.Type(), str)
+		} else {
+			rv.SetUint(v)
+		}
+	case reflect.Float32, reflect.Float64:
+		// Zero value
+		if str == "" {
+			rv.SetZero()
+		}
+		// Float
+		if v, err := strconv.ParseFloat(str, 64); err != nil {
+			return httpresponse.ErrBadRequest.Withf("invalid value for %s: %q", rv.Type(), str)
+		} else {
+			rv.SetFloat(v)
+		}
+	case reflect.String:
+		// String
+		rv.SetString(str)
+	}
+	return httpresponse.ErrBadRequest.Withf("invalid value for %s: %q", rv.Type(), str)
+}
 
 func typeName(rt reflect.Type) string {
 	if rt.Kind() == reflect.Ptr {
@@ -189,20 +270,26 @@ func typeName(rt reflect.Type) string {
 	return "ref"
 }
 
-func nameForField(rt reflect.StructField, tags ...string) string {
+func valueForField(rf reflect.StructField, tags ...string) (string, bool) {
 	for _, tag := range tags {
-		tag, ok := rt.Tag.Lookup(tag)
+		tag, ok := rf.Tag.Lookup(tag)
 		if !ok {
 			continue
 		}
-		if tag == "-" || tag == "" {
+		if tag == "-" {
 			// Ignore
-			return ""
+			return "", true
+		} else {
+			return tag, true
 		}
-		name := strings.Split(tag, ",")
-		if len(name) > 0 && name[0] != "" {
-			return name[0]
-		}
+	}
+	return "", false
+}
+
+func nameForField(rt reflect.StructField, tags ...string) string {
+	value, exists := valueForField(rt, tags...)
+	if exists {
+		return value
 	}
 	return rt.Name
 }
