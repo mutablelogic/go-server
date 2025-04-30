@@ -24,7 +24,7 @@ func Test_ACLItem_002(t *testing.T) {
 	t.Run("2", func(t *testing.T) {
 		acl, err := schema.NewACLItem("=r/miriam")
 		if assert.NoError(err) {
-			assert.Equal("public", acl.Role)
+			assert.Equal(schema.DefaultAclRole, acl.Role)
 			assert.Equal([]string{"SELECT"}, acl.Priv)
 			assert.Equal("miriam", acl.Grantor)
 			t.Log(acl)
@@ -36,7 +36,7 @@ func Test_ACLItem_002(t *testing.T) {
 		if assert.NoError(err) {
 			assert.Equal("miriam", acl.Role)
 			assert.Equal([]string{"SELECT WITH GRANT OPTION", "UPDATE"}, acl.Priv)
-			assert.Equal("public", acl.Grantor)
+			assert.Equal(schema.DefaultAclRole, acl.Grantor)
 			t.Log(acl)
 		}
 	})

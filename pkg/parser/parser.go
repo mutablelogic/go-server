@@ -32,7 +32,7 @@ func New(plugins ...server.Plugin) (*parser, error) {
 		name := plugin.Name()
 		if _, exists := p.meta[name]; exists {
 			return nil, httpresponse.ErrConflict.Withf("duplicate plugin: %q", name)
-		} else if meta, err := meta.New(plugin, name); err != nil {
+		} else if meta, err := meta.New(plugin); err != nil {
 			return nil, httpresponse.ErrInternalError.Withf("%s for %q", err, name)
 		} else {
 			p.meta[name] = meta
@@ -83,14 +83,17 @@ func (p *parser) jsonParse(root ast.Node) error {
 
 	// tree should contain <dict plugin:<dict values> plugin:<dict values> ...>
 	for _, plugins := range root.Children() {
+		if plugins.Type() != ast.Ident {
+			return httpresponse.ErrBadRequest.Withf("expected identifier, got %s", plugins.Type())
+		}
 		plugin := plugins.Value().(string)
-		if plugin, exists := p.meta[plugin]; !exists {
+		if plugin_, exists := p.meta[plugin]; !exists {
 			return httpresponse.ErrNotFound.Withf("plugin not found: %q", plugin)
 		} else if children := plugins.Children(); len(children) != 1 {
 			return httpresponse.ErrBadRequest.Withf("expected one child, got %d", len(children))
 		} else if dict := children[0]; dict.Type() != ast.Dict {
 			return httpresponse.ErrBadRequest.Withf("expected object, got %s", dict.Type())
-		} else if err := plugin.Validate(dict.Value()); err != nil {
+		} else if err := plugin_.Validate(dict.Value()); err != nil {
 			return err
 		}
 	}
