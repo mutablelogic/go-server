@@ -13,6 +13,9 @@ import (
 
 // Cmd represents the command line interface context
 type Cmd interface {
+	// Run the command
+	Run() error
+
 	// Return the context
 	Context() context.Context
 

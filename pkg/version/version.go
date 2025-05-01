@@ -14,7 +14,20 @@ var (
 )
 
 ////////////////////////////////////////////////////////////////////////////////
-// PRIVATE METHODS
+// PUBLIC METHODS
+
+func Version() string {
+	if GitTag != "" {
+		return GitTag
+	}
+	if GitBranch != "" {
+		return GitBranch
+	}
+	if GitHash != "" {
+		return GitHash
+	}
+	return "dev"
+}
 
 func Map() map[string]any {
 	vars := map[string]any{}
