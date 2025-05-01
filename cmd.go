@@ -34,11 +34,6 @@ type Cmd interface {
 
 type DebugLevel uint
 
-type CmdOffsetLimit struct {
-	Offset uint64  `name:"offset" help:"List item offset"`
-	Limit  *uint64 `name:"limit" help:"List item limit"`
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 

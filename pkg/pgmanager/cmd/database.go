@@ -22,7 +22,7 @@ type DatabaseCommands struct {
 }
 
 type DatabaseListCommand struct {
-	server.CmdOffsetLimit
+	schema.DatabaseListRequest
 }
 
 type DatabaseGetCommand struct {
