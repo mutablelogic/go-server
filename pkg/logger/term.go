@@ -54,8 +54,9 @@ const (
 // PUBLIC METHODS
 
 func (h *TermHandler) Handle(ctx context.Context, r slog.Record) error {
-	level := r.Level.String() + ":"
-	label := ref.Label(ctx) + ":"
+	var parts []any
+
+	level := r.Level.String()
 	switch r.Level {
 	case slog.LevelDebug:
 		level = colorize(darkGray, level)
@@ -66,6 +67,12 @@ func (h *TermHandler) Handle(ctx context.Context, r slog.Record) error {
 	case slog.LevelError:
 		level = colorize(lightRed, level)
 	}
+	parts = append(parts, level+":")
+
+	label := ref.Label(ctx)
+	if label != "" {
+		parts = append(parts, label+":")
+	}
 
 	// Gather attributes
 	var data []byte
@@ -75,14 +82,10 @@ func (h *TermHandler) Handle(ctx context.Context, r slog.Record) error {
 		data = data_
 	}
 
+	parts = append(parts, colorize(white, r.Message), string(data))
+
 	// Print the message, return any errors
-	fmt.Fprintln(h.Writer,
-		colorize(lightGray, r.Time.Format(timeFormat)),
-		level,
-		label,
-		colorize(white, r.Message),
-		string(data),
-	)
+	fmt.Fprintln(h.Writer, parts...)
 	return nil
 }
 
