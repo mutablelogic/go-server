@@ -167,6 +167,11 @@ func (t *task) Conn() pg.PoolConn {
 	return t.manager.Conn()
 }
 
+// Namespace returns the namespace of the queue.
+func (t *task) Namespace() string {
+	return t.manager.Namespace()
+}
+
 // RegisterTicker registers a periodic task (ticker) with a callback function.
 // It returns the metadata of the registered ticker.
 func (t *task) RegisterTicker(ctx context.Context, meta schema.TickerMeta, fn server.PGCallback) (*schema.Ticker, error) {
