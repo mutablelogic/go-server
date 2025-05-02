@@ -61,7 +61,7 @@ func (task *task) Run(parent context.Context) error {
 
 	// Create a cancelable context
 	ctx, cancel := context.WithCancel(context.Background())
-	ctx = ref.WithPath(ref.WithLog(ctx, ref.Log(parent)), ref.Path(parent)...)
+	ctx = ref.WithPath(ref.WithProvider(ctx, ref.Provider(parent)), ref.Path(parent)...)
 
 	// Ticker loop
 	tickerch := make(chan *schema.Ticker)
@@ -260,7 +260,8 @@ func (t *task) tryTask(ctx context.Context, taskpool *pgqueue.TaskPool, task *sc
 	taskpool.RunTask(ctx, task, t.getTaskCallback(task), func(err error) {
 		var status string
 		delta := time.Since(now).Truncate(time.Millisecond)
-		if _, err_ := t.manager.ReleaseTask(context.TODO(), task.Id, err == nil, err, &status); err_ != nil {
+		child := ref.WithPath(ref.WithProvider(context.TODO(), ref.Provider(ctx)), ref.Path(ctx)...)
+		if _, err_ := t.manager.ReleaseTask(child, task.Id, err == nil, err, &status); err_ != nil {
 			err = errors.Join(err, err_)
 		}
 		switch {

@@ -54,10 +54,10 @@ func Label(ctx context.Context) string {
 }
 
 func Log(ctx context.Context) server.Logger {
-	if value := ctx.Value(ctxLogger); value == nil {
+	if provider := ctx.Value(ctxProvider); provider == nil {
 		return nil
 	} else {
-		return value.(server.Logger)
+		return provider.(server.Logger)
 	}
 }
 
@@ -91,10 +91,6 @@ func Task(ctx context.Context) *pgqueue.Task {
 	} else {
 		return value
 	}
-}
-
-func WithLog(ctx context.Context, logger server.Logger) context.Context {
-	return context.WithValue(ctx, ctxLogger, logger)
 }
 
 func WithAuth(ctx context.Context, auth server.Auth) context.Context {
