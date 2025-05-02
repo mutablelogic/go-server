@@ -90,6 +90,10 @@ func (manager *Manager) Worker() string {
 	return manager.worker
 }
 
+func (manager *Manager) Conn() pg.PoolConn {
+	return manager.conn
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS - TICKER
 

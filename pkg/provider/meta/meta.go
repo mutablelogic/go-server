@@ -168,7 +168,7 @@ func newMetaField(rf reflect.StructField) (*Meta, error) {
 
 var (
 	timeType     = reflect.TypeOf(time.Time{})
-	urlType      = reflect.TypeOf((*url.URL)(nil)).Elem()
+	urlType      = reflect.TypeOf((*url.URL)(nil))
 	durationType = reflect.TypeOf(time.Duration(0))
 )
 
@@ -219,8 +219,16 @@ func setValue(rv reflect.Value, str string) error {
 	case reflect.String:
 		// String
 		rv.SetString(str)
+	case reflect.Ptr:
+		if rv.Type() == urlType {
+			if v, err := url.Parse(str); err == nil {
+				rv.Set(reflect.ValueOf(v))
+				return nil
+			}
+		}
+		fallthrough
 	default:
-		// TODO URL and Datetime
+		// TODO: Datetime
 		return httpresponse.ErrBadRequest.Withf("invalid value for %s: %q", rv.Type(), str)
 	}
 
@@ -254,10 +262,11 @@ func typeName(rt reflect.Type) string {
 		if subtype := typeName(rt.Elem()); subtype != "" && rt.Key().Kind() == reflect.String {
 			return "map(" + subtype + ")"
 		}
-	case reflect.Struct:
+	case reflect.Ptr:
 		if rt == urlType {
 			return "url"
 		}
+	case reflect.Struct:
 		if rt == timeType {
 			return "datetime"
 		}

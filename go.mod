@@ -4,7 +4,7 @@ go 1.23.5
 
 require (
 	github.com/alecthomas/kong v1.10.0
-	github.com/djthorpe/go-marshaler v0.0.15
+	github.com/djthorpe/go-marshaler v1.0.0
 	github.com/djthorpe/go-pg v1.0.5
 	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/mutablelogic/go-client v1.0.12
