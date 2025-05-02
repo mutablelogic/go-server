@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -39,7 +40,13 @@ func NewTask(manager *pgqueue.Manager, threads uint) (server.Task, error) {
 	self.manager = manager
 	self.taskpool = pgqueue.NewTaskPool(threads)
 	self.callbacks = make(map[string]server.PGCallback, 100)
-	self.decoder = marshaler.NewDecoder("json", marshaler.ConvertTime, marshaler.ConvertDuration, marshaler.ConvertIntUint)
+	self.decoder = marshaler.NewDecoder("json",
+		convertPtr,
+		convertFloatToIntUint,
+		marshaler.ConvertTime,
+		marshaler.ConvertDuration,
+		marshaler.ConvertIntUint,
+	)
 	return self, nil
 }
 
@@ -288,4 +295,54 @@ func joinName(parts ...string) string {
 
 func splitName(name string, n int) []string {
 	return strings.SplitN(name, namespaceSeparator, n)
+}
+
+// //////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+var (
+	nilValue = reflect.ValueOf(nil)
+)
+
+// convertPtr returns value if pointer
+func convertPtr(src reflect.Value, dest reflect.Type) (reflect.Value, error) {
+	// Pass value through
+	if src.Type() == dest {
+		return src, nil
+	}
+
+	// Convert src to elem
+	if dest.Kind() == reflect.Ptr {
+		if dest.Elem() == src.Type() {
+			if src.CanAddr() {
+				return src.Addr(), nil
+			} else {
+				src_ := reflect.New(dest.Elem())
+				src_.Elem().Set(src)
+				return src_, nil
+			}
+		}
+	}
+
+	// Skip
+	return nilValue, nil
+}
+
+// convert float types to int or uint
+func convertFloatToIntUint(src reflect.Value, dest reflect.Type) (reflect.Value, error) {
+	// Pass value through
+	if src.Type() == dest {
+		return src, nil
+	}
+	switch dest.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		if src.Kind() == reflect.Float64 || src.Kind() == reflect.Float32 {
+			return reflect.ValueOf(int64(src.Float())), nil
+		}
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		if src.Kind() == reflect.Float64 || src.Kind() == reflect.Float32 {
+			return reflect.ValueOf(uint64(src.Float())), nil
+		}
+	}
+	// Skip
+	return nilValue, nil
 }
