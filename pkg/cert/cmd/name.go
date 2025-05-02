@@ -22,7 +22,7 @@ type NameCommands struct {
 }
 
 type NameListCommand struct {
-	server.CmdOffsetLimit
+	schema.NameListRequest
 }
 
 type NameMeta struct {

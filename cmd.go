@@ -13,6 +13,9 @@ import (
 
 // Cmd represents the command line interface context
 type Cmd interface {
+	// Run the command
+	Run() error
+
 	// Return the context
 	Context() context.Context
 
@@ -30,11 +33,6 @@ type Cmd interface {
 // TYPES
 
 type DebugLevel uint
-
-type CmdOffsetLimit struct {
-	Offset uint64  `name:"offset" help:"List item offset"`
-	Limit  *uint64 `name:"limit" help:"List item limit"`
-}
 
 ///////////////////////////////////////////////////////////////////////////////
 // GLOBALS

@@ -160,7 +160,7 @@ func (acl ACLItem) RevokeTablespace(ctx context.Context, conn pg.Conn, name stri
 
 func (acl ACLItem) exec(ctx context.Context, conn pg.Conn, role, sql string) error {
 	// PUBLIC -> PUBLIC and role -> "role"
-	if role == defaultAclRole {
+	if role == DefaultAclRole {
 		conn = conn.With("role", role)
 	} else {
 		conn = conn.With("role", types.DoubleQuote(role))
@@ -267,8 +267,8 @@ func (acl *ACLItem) UnmarshalJSON(data []byte) error {
 		return httpresponse.ErrBadRequest.With("missing role")
 	} else if role = strings.TrimSpace(role); role == "" {
 		return httpresponse.ErrBadRequest.With("missing role")
-	} else if strings.ToUpper(role) == defaultAclRole {
-		acl.Role = defaultAclRole
+	} else if strings.ToUpper(role) == DefaultAclRole {
+		acl.Role = DefaultAclRole
 	} else {
 		acl.Role = role
 	}
@@ -341,7 +341,7 @@ func (acl ACLItem) IsAll() bool {
 
 func toRole(v string) string {
 	if v == "" {
-		return defaultAclRole
+		return DefaultAclRole
 	}
 	return v
 }

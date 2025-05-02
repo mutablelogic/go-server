@@ -22,7 +22,7 @@ type RoleCommands struct {
 }
 
 type RoleListCommand struct {
-	server.CmdOffsetLimit
+	schema.RoleListRequest
 }
 
 type RoleCreateCommand struct {

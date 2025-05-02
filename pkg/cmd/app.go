@@ -1,4 +1,4 @@
-package main
+package cmd
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"os/user"
 	"path/filepath"
 	"syscall"
 
@@ -20,46 +21,60 @@ import (
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type Globals struct {
+type app struct {
 	Endpoint string `env:"ENDPOINT" default:"http://localhost/" help:"Service endpoint"`
 	Debug    bool   `help:"Enable debug output"`
 	Trace    bool   `help:"Enable trace output"`
 
-	vars   kong.Vars `kong:"-"` // Variables for kong
+	kong   *kong.Context `kong:"-"` // Kong parser
+	vars   kong.Vars     `kong:"-"` // Variables for kong
 	ctx    context.Context
 	cancel context.CancelFunc
 }
 
-var _ server.Cmd = (*Globals)(nil)
+var _ server.Cmd = (*app)(nil)
 
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func NewApp(app Globals, vars kong.Vars) (*Globals, error) {
-	// Set the vars
-	app.vars = vars
+func New(commands any, description string) (server.Cmd, error) {
+	app := new(app)
+
+	app.kong = kong.Parse(commands,
+		kong.Name(execName()),
+		kong.Description(description),
+		kong.UsageOnError(),
+		kong.ConfigureHelp(kong.HelpOptions{Compact: true}),
+		kong.Embed(app),
+		kong.Vars{
+			"HOST": hostName(),
+			"USER": userName(),
+		},
+	)
 
 	// Create the context
 	// This context is cancelled when the process receives a SIGINT or SIGTERM
 	app.ctx, app.cancel = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 
 	// Return the app
-	return &app, nil
+	return app, nil
 }
 
-func (app *Globals) Close() error {
+func (app *app) Run() error {
+	app.kong.BindTo(app, (*server.Cmd)(nil))
+	err := app.kong.Run()
 	app.cancel()
-	return nil
+	return err
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func (app *Globals) Context() context.Context {
+func (app *app) Context() context.Context {
 	return app.ctx
 }
 
-func (app *Globals) GetDebug() server.DebugLevel {
+func (app *app) GetDebug() server.DebugLevel {
 	if app.Debug {
 		return server.Debug
 	}
@@ -69,7 +84,7 @@ func (app *Globals) GetDebug() server.DebugLevel {
 	return server.None
 }
 
-func (app *Globals) GetEndpoint(paths ...string) *url.URL {
+func (app *app) GetEndpoint(paths ...string) *url.URL {
 	url, err := url.Parse(app.Endpoint)
 	if err != nil {
 		return nil
@@ -82,7 +97,7 @@ func (app *Globals) GetEndpoint(paths ...string) *url.URL {
 	return url
 }
 
-func (app *Globals) GetClientOpts() []client.ClientOpt {
+func (app *app) GetClientOpts() []client.ClientOpt {
 	opts := []client.ClientOpt{}
 
 	// Trace mode
@@ -103,4 +118,32 @@ func (app *Globals) GetClientOpts() []client.ClientOpt {
 
 	// Return options
 	return opts
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+func hostName() string {
+	name, err := os.Hostname()
+	if err != nil {
+		panic(err)
+	}
+	return name
+}
+
+func userName() string {
+	user, err := user.Current()
+	if err != nil {
+		panic(err)
+	}
+	return user.Username
+}
+
+func execName() string {
+	// The name of the executable
+	name, err := os.Executable()
+	if err != nil {
+		panic(err)
+	}
+	return filepath.Base(name)
 }

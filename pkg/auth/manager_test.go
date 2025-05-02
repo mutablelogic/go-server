@@ -301,7 +301,7 @@ func Test_Auth_002(t *testing.T) {
 
 	// Create a new user
 	user, err := manager.CreateUser(context.TODO(), schema.UserMeta{
-		Name:  types.StringPtr("test"),
+		Name:  types.StringPtr("test20"),
 		Desc:  types.StringPtr("test user"),
 		Scope: []string{},
 		Meta:  map[string]any{},
@@ -312,7 +312,7 @@ func Test_Auth_002(t *testing.T) {
 
 	// Create a new user and archive
 	archived, err := manager.CreateUser(context.TODO(), schema.UserMeta{
-		Name:  types.StringPtr("test2"),
+		Name:  types.StringPtr("test21"),
 		Desc:  types.StringPtr("test user"),
 		Scope: []string{},
 		Meta:  map[string]any{},
@@ -372,7 +372,7 @@ func Test_Auth_002(t *testing.T) {
 	t.Run("GetToken3", func(t *testing.T) {
 		// Create a new user
 		user, err := manager.CreateUser(context.TODO(), schema.UserMeta{
-			Name:  types.StringPtr("test3"),
+			Name:  types.StringPtr("test22"),
 			Desc:  types.StringPtr("test user"),
 			Scope: []string{},
 			Meta:  map[string]any{},
@@ -498,7 +498,7 @@ func Test_Auth_003(t *testing.T) {
 
 	// Create a new user
 	user, err := manager.CreateUser(context.TODO(), schema.UserMeta{
-		Name:  types.StringPtr("test"),
+		Name:  types.StringPtr("test30"),
 		Desc:  types.StringPtr("test user"),
 		Scope: []string{},
 		Meta:  map[string]any{},

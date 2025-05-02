@@ -15,6 +15,7 @@ const (
 	ContentLengthHeader     = "Content-Length"
 	ContentDispositonHeader = "Content-Disposition"
 	ContentModifiedHeader   = "Last-Modified"
+	ContentHashHeader       = "ETag"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

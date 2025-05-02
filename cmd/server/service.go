@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 
@@ -17,6 +18,7 @@ import (
 	provider "github.com/mutablelogic/go-server/pkg/provider"
 	ref "github.com/mutablelogic/go-server/pkg/ref"
 	types "github.com/mutablelogic/go-server/pkg/types"
+	version "github.com/mutablelogic/go-server/pkg/version"
 
 	// Plugins
 	auth "github.com/mutablelogic/go-server/pkg/auth/config"
@@ -200,6 +202,8 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 	if err != nil {
 		return err
 	}
+
+	fmt.Println("go-server", version.Version())
 
 	// Run the provider
 	return provider.Run(app.Context())
