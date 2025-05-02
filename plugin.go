@@ -116,6 +116,9 @@ type PGCallback func(context.Context, any) error
 
 // PGQueue defines methods for interacting with a PostgreSQL-backed task queue.
 type PGQueue interface {
+	// Conn returns the underlying connection pool object.
+	Conn() pg.PoolConn
+
 	// RegisterTicker registers a periodic task (ticker) with a callback function.
 	// It returns the metadata of the registered ticker.
 	RegisterTicker(context.Context, pgschema.TickerMeta, PGCallback) (*pgschema.Ticker, error)

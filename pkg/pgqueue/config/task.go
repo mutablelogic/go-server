@@ -29,6 +29,7 @@ type task struct {
 }
 
 var _ server.Task = (*task)(nil)
+var _ server.PGQueue = (*task)(nil)
 
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
@@ -153,6 +154,11 @@ FOR_LOOP:
 
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
+
+// Conn returns the underlying connection pool object.
+func (t *task) Conn() pg.PoolConn {
+	return t.manager.Conn()
+}
 
 // RegisterTicker registers a periodic task (ticker) with a callback function.
 // It returns the metadata of the registered ticker.
