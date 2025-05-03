@@ -42,6 +42,7 @@ func NewTask(manager *pgqueue.Manager, threads uint) (server.Task, error) {
 	self.callbacks = make(map[string]server.PGCallback, 100)
 	self.decoder = marshaler.NewDecoder("json",
 		convertPtr,
+		convertPGTime,
 		convertFloatToIntUint,
 		marshaler.ConvertTime,
 		marshaler.ConvertDuration,
@@ -147,7 +148,9 @@ FOR_LOOP:
 					}
 					n += len(tasks)
 				}
-				ref.Log(ctx).With("ticker", evt).Debug(parent, "removed ", n, " tasks from queue")
+				if n > 0 {
+					ref.Log(ctx).With("ticker", evt).Debug(parent, "removed ", n, " tasks from queue")
+				}
 			}
 		}
 	}
@@ -299,15 +302,31 @@ func joinName(parts ...string) string {
 	return strings.Join(parts, namespaceSeparator)
 }
 
-func splitName(name string, n int) []string {
-	return strings.SplitN(name, namespaceSeparator, n)
-}
-
 // //////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
+
 var (
 	nilValue = reflect.ValueOf(nil)
+	timeType = reflect.TypeOf(time.Time{})
 )
+
+// convertTime returns time in postgres format
+func convertPGTime(src reflect.Value, dest reflect.Type) (reflect.Value, error) {
+	// Pass value through
+	if src.Type() == dest {
+		return src, nil
+	}
+
+	if dest == timeType {
+		// Convert time 2025-05-03T17:29:32.329803 => time.Time
+		if t, err := time.Parse("2006-01-02T15:04:05.999999999", src.String()); err == nil {
+			return reflect.ValueOf(t), nil
+		}
+	}
+
+	// Skip
+	return nilValue, nil
+}
 
 // convertPtr returns value if pointer
 func convertPtr(src reflect.Value, dest reflect.Type) (reflect.Value, error) {
