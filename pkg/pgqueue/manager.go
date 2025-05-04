@@ -13,6 +13,7 @@ import (
 	pg "github.com/djthorpe/go-pg"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	schema "github.com/mutablelogic/go-server/pkg/pgqueue/schema"
+	ref "github.com/mutablelogic/go-server/pkg/ref"
 	types "github.com/mutablelogic/go-server/pkg/types"
 )
 
@@ -462,26 +463,27 @@ func (manager *Manager) RunTaskLoop(ctx context.Context, ch chan<- *schema.Task)
 
 // RunNotificationLoop runs a loop to process database notifications, until the context is cancelled
 // or an error occurs.
-func (manager *Manager) RunNotificationLoop(ctx context.Context, ch chan<- *pg.Notification) error {
+func (manager *Manager) RunNotificationLoop(parent context.Context, ch chan<- *pg.Notification) error {
 	// Subscribe to topics
 	for _, topic := range manager.topics {
-		if err := manager.listener.Listen(ctx, topic); err != nil {
+		if err := manager.listener.Listen(parent, topic); err != nil {
 			return err
 		}
 	}
 	defer func() {
+		ctx := ref.WithProvider(context.Background(), ref.Provider(parent))
 		for _, topic := range manager.topics {
-			manager.listener.Unlisten(context.TODO(), topic)
+			manager.listener.Unlisten(ctx, topic)
 		}
 	}()
 
 	// Loop until context is cancelled
 	for {
 		select {
-		case <-ctx.Done():
+		case <-parent.Done():
 			return nil
 		default:
-			if notification, err := manager.listener.WaitForNotification(ctx); err != nil {
+			if notification, err := manager.listener.WaitForNotification(parent); err != nil {
 				if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
 					return err
 				}
