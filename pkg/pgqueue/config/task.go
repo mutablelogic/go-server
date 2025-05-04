@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -43,6 +45,7 @@ func NewTask(manager *pgqueue.Manager, threads uint) (server.Task, error) {
 	self.decoder = marshaler.NewDecoder("json",
 		convertPtr,
 		convertPGTime,
+		convertPGDuration,
 		convertFloatToIntUint,
 		marshaler.ConvertTime,
 		marshaler.ConvertDuration,
@@ -306,11 +309,13 @@ func joinName(parts ...string) string {
 // PRIVATE METHODS
 
 var (
-	nilValue = reflect.ValueOf(nil)
-	timeType = reflect.TypeOf(time.Time{})
+	nilValue           = reflect.ValueOf(nil)
+	timeType           = reflect.TypeOf(time.Time{})
+	durationType       = reflect.TypeOf(time.Duration(0))
+	rePostgresDuration = regexp.MustCompile(`^(\d+):(\d+):(\d+)$`)
 )
 
-// convertTime returns time in postgres format
+// convertPGTime returns time from postgres format
 func convertPGTime(src reflect.Value, dest reflect.Type) (reflect.Value, error) {
 	// Pass value through
 	if src.Type() == dest {
@@ -321,6 +326,32 @@ func convertPGTime(src reflect.Value, dest reflect.Type) (reflect.Value, error) 
 		// Convert time 2025-05-03T17:29:32.329803 => time.Time
 		if t, err := time.Parse("2006-01-02T15:04:05.999999999", src.String()); err == nil {
 			return reflect.ValueOf(t), nil
+		}
+	}
+
+	// Skip
+	return nilValue, nil
+}
+
+// convertPGDuration returns duration from postgres format
+func convertPGDuration(src reflect.Value, dest reflect.Type) (reflect.Value, error) {
+	// Pass value through
+	if src.Type() == dest {
+		return src, nil
+	}
+
+	if dest == durationType {
+		// Convert 00:00:00 => time.Duration
+		if parts := rePostgresDuration.FindStringSubmatch(src.String()); len(parts) == 4 {
+			if hours, err := strconv.ParseUint(parts[1], 10, 64); err != nil {
+				return nilValue, err
+			} else if minutes, err := strconv.ParseUint(parts[2], 10, 64); err != nil {
+				return nilValue, err
+			} else if seconds, err := strconv.ParseUint(parts[3], 10, 64); err != nil {
+				return nilValue, err
+			} else {
+				return reflect.ValueOf(time.Duration(hours)*time.Hour + time.Duration(minutes)*time.Minute + time.Duration(seconds)*time.Second), nil
+			}
 		}
 	}
 
