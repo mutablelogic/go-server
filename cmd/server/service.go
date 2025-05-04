@@ -25,6 +25,7 @@ import (
 	cert "github.com/mutablelogic/go-server/pkg/cert/config"
 	httprouter "github.com/mutablelogic/go-server/pkg/httprouter/config"
 	httpserver "github.com/mutablelogic/go-server/pkg/httpserver/config"
+	ldap "github.com/mutablelogic/go-server/pkg/ldap/config"
 	logger "github.com/mutablelogic/go-server/pkg/logger/config"
 	pg "github.com/mutablelogic/go-server/pkg/pgmanager/config"
 	pgqueue "github.com/mutablelogic/go-server/pkg/pgqueue/config"
@@ -199,6 +200,20 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 
 		return nil
 	}))
+
+	err = errors.Join(err, provider.Load("ldap", "main", func(ctx context.Context, label string, config server.Plugin) error {
+		ldap := config.(*ldap.Config)
+
+		// Set the router
+		if router, ok := ref.Provider(ctx).Task(ctx, "httprouter.main").(server.HTTPRouter); !ok || router == nil {
+			return httpresponse.ErrInternalError.With("Invalid router")
+		} else {
+			ldap.Router = router
+		}
+
+		return nil
+	}))
+
 	if err != nil {
 		return err
 	}

@@ -8,6 +8,7 @@ import (
 	auth "github.com/mutablelogic/go-server/pkg/auth/cmd"
 	certmanager "github.com/mutablelogic/go-server/pkg/cert/cmd"
 	cmd "github.com/mutablelogic/go-server/pkg/cmd"
+	ldap "github.com/mutablelogic/go-server/pkg/ldap/cmd"
 	pgmanager "github.com/mutablelogic/go-server/pkg/pgmanager/cmd"
 	pgqueue "github.com/mutablelogic/go-server/pkg/pgqueue/cmd"
 )
@@ -31,6 +32,10 @@ type CLI struct {
 	auth.UserCommands
 	auth.TokenCommands
 	auth.AuthCommands
+
+	// LDAP commands
+	LDAP struct{ ldap.ObjectCommands } `cmd:""`
+
 	VersionCommands
 }
 
