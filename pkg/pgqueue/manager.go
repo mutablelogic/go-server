@@ -471,7 +471,7 @@ func (manager *Manager) RunNotificationLoop(ctx context.Context, ch chan<- *pg.N
 	}
 	defer func() {
 		for _, topic := range manager.topics {
-			manager.listener.Unlisten(ctx, topic)
+			manager.listener.Unlisten(context.TODO(), topic)
 		}
 	}()
 

@@ -322,10 +322,25 @@ func convertPGTime(src reflect.Value, dest reflect.Type) (reflect.Value, error) 
 		return src, nil
 	}
 
-	if dest == timeType {
+	if dest == timeType || dest.Kind() == reflect.Ptr && dest.Elem() == timeType {
+		var v reflect.Value
+
 		// Convert time 2025-05-03T17:29:32.329803 => time.Time
 		if t, err := time.Parse("2006-01-02T15:04:05.999999999", src.String()); err == nil {
-			return reflect.ValueOf(t), nil
+			v = reflect.ValueOf(t)
+		} else if t, err := time.Parse("2006-01-02T15:04:05.999999999Z", src.String()); err == nil {
+			v = reflect.ValueOf(t)
+		}
+
+		// Return value
+		if v.IsValid() {
+			if dest.Kind() == reflect.Ptr {
+				value := reflect.New(dest.Elem())
+				value.Elem().Set(v)
+				return value, nil
+			} else {
+				return v, nil
+			}
 		}
 	}
 
