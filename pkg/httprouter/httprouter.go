@@ -63,18 +63,20 @@ func (r *router) Run(ctx context.Context) error {
 // HTTP ROUTER
 
 // Register a function to handle a URL path
-func (r *router) HandleFunc(ctx context.Context, prefix string, fn http.HandlerFunc) {
+func (r *router) HandleFunc(parent context.Context, prefix string, fn http.HandlerFunc) {
 	// Wrap the function with middleware
 	for _, middleware := range r.middleware {
 		fn = middleware.HandleFunc(fn)
 	}
 
 	// Apply middleware, set context
-	ref.Log(ctx).Debug(ctx, "Register route: ", types.JoinPath(r.prefix, prefix))
+	ref.Log(parent).Debug(parent, "Register route: ", types.JoinPath(r.prefix, prefix))
 	r.ServeMux.HandleFunc(types.JoinPath(r.prefix, prefix), func(w http.ResponseWriter, r *http.Request) {
-		r = r.WithContext(ref.WithLog(r.Context(), ref.Log(ctx)))
-		// TODO: Add Log into the r context, but don't replace the original
-		fn(w, r)
+		// Add provider to context
+		ctx := ref.WithProvider(r.Context(), ref.Provider(parent))
+
+		// Serve the request
+		fn(w, r.WithContext(ctx))
 	})
 }
 
@@ -84,7 +86,7 @@ func (r *router) Origin() string {
 }
 
 // Register serving of static files from a filesystem
-func (r *router) HandleFS(ctx context.Context, prefix string, fs fs.FS) {
+func (r *router) HandleFS(parent context.Context, prefix string, fs fs.FS) {
 	// Create the file server
 	fn := http.StripPrefix(types.JoinPath(r.prefix, prefix), http.FileServer(http.FS(fs))).ServeHTTP
 
@@ -94,12 +96,12 @@ func (r *router) HandleFS(ctx context.Context, prefix string, fs fs.FS) {
 	}
 
 	// Apply middleware
-	ref.Log(ctx).Debug(ctx, "Register route: ", types.JoinPath(r.prefix, prefix))
+	ref.Log(parent).Debug(parent, "Register static: ", types.JoinPath(r.prefix, prefix))
 	r.ServeMux.HandleFunc(types.JoinPath(r.prefix, prefix), func(w http.ResponseWriter, req *http.Request) {
 		// Set CORS headers
 		httpresponse.Cors(w, req, r.origin, http.MethodGet)
 
 		// Call the file server
-		fn(w, req.WithContext(ref.WithLog(ctx, ref.Log(ctx))))
+		fn(w, req.WithContext(ref.WithProvider(parent, ref.Provider(parent))))
 	})
 }

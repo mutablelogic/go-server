@@ -119,6 +119,9 @@ type PGQueue interface {
 	// Conn returns the underlying connection pool object.
 	Conn() pg.PoolConn
 
+	// Namespace returns the namespace of the queue.
+	Namespace() string
+
 	// RegisterTicker registers a periodic task (ticker) with a callback function.
 	// It returns the metadata of the registered ticker.
 	RegisterTicker(context.Context, pgschema.TickerMeta, PGCallback) (*pgschema.Ticker, error)

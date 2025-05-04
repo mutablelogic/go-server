@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -42,6 +44,8 @@ func NewTask(manager *pgqueue.Manager, threads uint) (server.Task, error) {
 	self.callbacks = make(map[string]server.PGCallback, 100)
 	self.decoder = marshaler.NewDecoder("json",
 		convertPtr,
+		convertPGTime,
+		convertPGDuration,
 		convertFloatToIntUint,
 		marshaler.ConvertTime,
 		marshaler.ConvertDuration,
@@ -61,7 +65,7 @@ func (task *task) Run(parent context.Context) error {
 
 	// Create a cancelable context
 	ctx, cancel := context.WithCancel(context.Background())
-	ctx = ref.WithPath(ref.WithLog(ctx, ref.Log(parent)), ref.Path(parent)...)
+	ctx = ref.WithPath(ref.WithProvider(ctx, ref.Provider(parent)), ref.Path(parent)...)
 
 	// Ticker loop
 	tickerch := make(chan *schema.Ticker)
@@ -147,7 +151,9 @@ FOR_LOOP:
 					}
 					n += len(tasks)
 				}
-				ref.Log(ctx).With("ticker", evt).Debug(parent, "removed ", n, " tasks from queue")
+				if n > 0 {
+					ref.Log(ctx).With("ticker", evt).Debug(parent, "removed ", n, " tasks from queue")
+				}
 			}
 		}
 	}
@@ -165,6 +171,11 @@ FOR_LOOP:
 // Conn returns the underlying connection pool object.
 func (t *task) Conn() pg.PoolConn {
 	return t.manager.Conn()
+}
+
+// Namespace returns the namespace of the queue.
+func (t *task) Namespace() string {
+	return t.manager.Namespace()
 }
 
 // RegisterTicker registers a periodic task (ticker) with a callback function.
@@ -255,7 +266,8 @@ func (t *task) tryTask(ctx context.Context, taskpool *pgqueue.TaskPool, task *sc
 	taskpool.RunTask(ctx, task, t.getTaskCallback(task), func(err error) {
 		var status string
 		delta := time.Since(now).Truncate(time.Millisecond)
-		if _, err_ := t.manager.ReleaseTask(context.TODO(), task.Id, err == nil, err, &status); err_ != nil {
+		child := ref.WithPath(ref.WithProvider(context.TODO(), ref.Provider(ctx)), ref.Path(ctx)...)
+		if _, err_ := t.manager.ReleaseTask(child, task.Id, err == nil, err, &status); err_ != nil {
 			err = errors.Join(err, err_)
 		}
 		switch {
@@ -293,15 +305,74 @@ func joinName(parts ...string) string {
 	return strings.Join(parts, namespaceSeparator)
 }
 
-func splitName(name string, n int) []string {
-	return strings.SplitN(name, namespaceSeparator, n)
-}
-
 // //////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
+
 var (
-	nilValue = reflect.ValueOf(nil)
+	nilValue           = reflect.ValueOf(nil)
+	timeType           = reflect.TypeOf(time.Time{})
+	durationType       = reflect.TypeOf(time.Duration(0))
+	rePostgresDuration = regexp.MustCompile(`^(\d+):(\d+):(\d+)$`)
 )
+
+// convertPGTime returns time from postgres format
+func convertPGTime(src reflect.Value, dest reflect.Type) (reflect.Value, error) {
+	// Pass value through
+	if src.Type() == dest {
+		return src, nil
+	}
+
+	if dest == timeType || dest.Kind() == reflect.Ptr && dest.Elem() == timeType {
+		var v reflect.Value
+
+		// Convert time 2025-05-03T17:29:32.329803 => time.Time
+		if t, err := time.Parse("2006-01-02T15:04:05.999999999", src.String()); err == nil {
+			v = reflect.ValueOf(t)
+		} else if t, err := time.Parse("2006-01-02T15:04:05.999999999Z", src.String()); err == nil {
+			v = reflect.ValueOf(t)
+		}
+
+		// Return value
+		if v.IsValid() {
+			if dest.Kind() == reflect.Ptr {
+				value := reflect.New(dest.Elem())
+				value.Elem().Set(v)
+				return value, nil
+			} else {
+				return v, nil
+			}
+		}
+	}
+
+	// Skip
+	return nilValue, nil
+}
+
+// convertPGDuration returns duration from postgres format
+func convertPGDuration(src reflect.Value, dest reflect.Type) (reflect.Value, error) {
+	// Pass value through
+	if src.Type() == dest {
+		return src, nil
+	}
+
+	if dest == durationType {
+		// Convert 00:00:00 => time.Duration
+		if parts := rePostgresDuration.FindStringSubmatch(src.String()); len(parts) == 4 {
+			if hours, err := strconv.ParseUint(parts[1], 10, 64); err != nil {
+				return nilValue, err
+			} else if minutes, err := strconv.ParseUint(parts[2], 10, 64); err != nil {
+				return nilValue, err
+			} else if seconds, err := strconv.ParseUint(parts[3], 10, 64); err != nil {
+				return nilValue, err
+			} else {
+				return reflect.ValueOf(time.Duration(hours)*time.Hour + time.Duration(minutes)*time.Minute + time.Duration(seconds)*time.Second), nil
+			}
+		}
+	}
+
+	// Skip
+	return nilValue, nil
+}
 
 // convertPtr returns value if pointer
 func convertPtr(src reflect.Value, dest reflect.Type) (reflect.Value, error) {
