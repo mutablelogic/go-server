@@ -11,7 +11,7 @@ import (
 	// Packages
 	pg "github.com/djthorpe/go-pg"
 	authschema "github.com/mutablelogic/go-server/pkg/auth/schema"
-	"github.com/mutablelogic/go-server/pkg/ldap/schema"
+	ldapschema "github.com/mutablelogic/go-server/pkg/ldap/schema"
 	pgschema "github.com/mutablelogic/go-server/pkg/pgqueue/schema"
 )
 
@@ -159,30 +159,30 @@ type Auth interface {
 
 type LDAP interface {
 	// Objects
-	List(context.Context, schema.ObjectListRequest) (*schema.ObjectList, error) // List all objects in the directory
-	Get(context.Context, string, ...string) (*schema.Object, error)             // Get an object with attributes
-	Delete(context.Context, string) (*schema.Object, error)                     // Delete an object
-	Create(context.Context, string, url.Values) (*schema.Object, error)         // Create a new object with attributes
-	Update(context.Context, string, url.Values) (*schema.Object, error)         // Update an object with attributes
+	List(context.Context, ldapschema.ObjectListRequest) (*ldapschema.ObjectList, error) // List all objects in the directory
+	Get(context.Context, string, ...string) (*ldapschema.Object, error)                 // Get an object with attributes
+	Delete(context.Context, string) (*ldapschema.Object, error)                         // Delete an object
+	Create(context.Context, string, url.Values) (*ldapschema.Object, error)             // Create a new object with attributes
+	Update(context.Context, string, url.Values) (*ldapschema.Object, error)             // Update an object with attributes
 
 	// Introspection
-	ListObjectClasses(context.Context) ([]*schema.ObjectClass, error)    // Return all classes
-	ListAttributeTypes(context.Context) ([]*schema.AttributeType, error) // Return all attributes
+	ListObjectClasses(context.Context) ([]*ldapschema.ObjectClass, error)    // Return all classes
+	ListAttributeTypes(context.Context) ([]*ldapschema.AttributeType, error) // Return all attributes
 
 	// Users
-	ListUsers(context.Context, schema.ObjectListRequest) ([]*schema.ObjectList, error) // List users
-	GetUser(context.Context, string, ...string) (*schema.Object, error)                // Get a user with attributes
-	CreateUser(context.Context, string, url.Values) (*schema.Object, error)            // Create a user with attributes
-	DeleteUser(context.Context, string) (*schema.Object, error)                        // Delete a user
+	ListUsers(context.Context, ldapschema.ObjectListRequest) ([]*ldapschema.ObjectList, error) // List users
+	GetUser(context.Context, string, ...string) (*ldapschema.Object, error)                    // Get a user with attributes
+	CreateUser(context.Context, string, url.Values) (*ldapschema.Object, error)                // Create a user with attributes
+	DeleteUser(context.Context, string) (*ldapschema.Object, error)                            // Delete a user
 
 	// Groups
-	ListGroups(context.Context, schema.ObjectListRequest) ([]*schema.ObjectList, error) // List groups
-	GetGroup(context.Context, string, ...string) (*schema.Object, error)                // Get a group with attributes
-	DeleteGroup(context.Context, string) (*schema.Object, error)                        // Delete a group
-	AddGroupUser(context.Context, string, string) (*schema.Object, error)               // Add a user to a group
-	RemoveGroupUser(context.Context, string, string) (*schema.Object, error)            // Remove a user from a group
+	ListGroups(context.Context, ldapschema.ObjectListRequest) ([]*ldapschema.ObjectList, error) // List groups
+	GetGroup(context.Context, string, ...string) (*ldapschema.Object, error)                    // Get a group with attributes
+	DeleteGroup(context.Context, string) (*ldapschema.Object, error)                            // Delete a group
+	AddGroupUser(context.Context, string, string) (*ldapschema.Object, error)                   // Add a user to a group
+	RemoveGroupUser(context.Context, string, string) (*ldapschema.Object, error)                // Remove a user from a group
 
 	// Auth
-	Bind(context.Context, string, string) (*schema.Object, error)                    // Check user and password
-	ChangePassword(context.Context, string, string, *string) (*schema.Object, error) // Change password for a user, and return the user object
+	Bind(context.Context, string, string) (*ldapschema.Object, error)                    // Check user and password
+	ChangePassword(context.Context, string, string, *string) (*ldapschema.Object, error) // Change password for a user, and return the user object
 }
