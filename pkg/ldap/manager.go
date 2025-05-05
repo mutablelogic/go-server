@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"strconv"
 	"sync"
@@ -28,6 +29,8 @@ type Manager struct {
 	user, pass string
 	dn         string
 	conn       *ldap.Conn
+	users      *schema.Group
+	groups     *schema.Group
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -94,8 +97,9 @@ func NewManager(opt ...Opt) (*Manager, error) {
 		self.dn = o.dn
 	}
 
-	// Set the schema
-	//self.schema = c.ObjectSchema()
+	// Set the schemas for users, groups
+	self.users = o.users
+	self.groups = o.groups
 
 	// Return success
 	return self, nil
@@ -115,7 +119,7 @@ func (manager *Manager) Run(ctx context.Context) error {
 		case <-ticker.C:
 			if err := manager.Connect(); err != nil {
 				// TODO: Log the error
-				fmt.Println(" Error...", err)
+				fmt.Println(" TODO: Error...", err)
 				retries = min(retries+1, schema.MaxRetries)
 				ticker.Reset(schema.MinRetryInterval * time.Duration(retries*retries))
 			} else {
@@ -220,9 +224,9 @@ func (manager *Manager) WhoAmI() (string, error) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// PUBLIC METHODS
+// PUBLIC METHODS - OBJECTS
 
-// Return the objects
+// Return the objects as a list
 func (manager *Manager) List(ctx context.Context, request schema.ObjectListRequest) (*schema.ObjectList, error) {
 	manager.Lock()
 	defer manager.Unlock()
@@ -232,38 +236,62 @@ func (manager *Manager) List(ctx context.Context, request schema.ObjectListReque
 		return nil, httpresponse.ErrInternalError.With("Not connected")
 	}
 
-	// Set the paging limit to be the minimum of user and schema limits
+	// Set the limit to be the minimum of user and schema limits
 	limit := uint64(schema.MaxListEntries)
-	pagesize := uint64(schema.MaxListPaging)
 	if request.Limit != nil {
 		limit = min(types.PtrUint64(request.Limit), limit)
-		if limit := types.PtrUint64(request.Limit); limit > 0 {
-			pagesize = min(types.PtrUint64(request.Limit), pagesize)
-		}
 	}
 
-	// Set filter
+	// Set filter and attributes
 	filter := "(objectclass=*)"
 	if request.Filter != nil {
 		filter = types.PtrString(request.Filter)
 	}
-
-	// Create the search request
-	page := ldap.NewControlPaging(uint32(pagesize))
-	req := ldap.NewSearchRequest(
-		manager.dn,
-		ldap.ScopeWholeSubtree, // Scope
-		ldap.NeverDerefAliases, // Deref Aliases
-		0,                      // Size Limit
-		0,                      // Time Limit
-		false,                  // Types Only
-		filter,                 // Filter
-		nil,                    // Attributes
-		[]ldap.Control{page},   // Controls
-	)
+	attrs := []string{"*"}
 
 	// Perform the search through paging, skipping the first N entries
 	var list schema.ObjectList
+	if err := manager.list(ctx, ldap.ScopeWholeSubtree, manager.dn, filter, 0, func(entry *schema.Object) error {
+		if list.Count >= request.Offset && list.Count < request.Offset+limit {
+			list.Body = append(list.Body, entry)
+		}
+		list.Count = list.Count + 1
+		return nil
+	}, attrs...); err != nil {
+		return nil, err
+	}
+
+	// Return success
+	return &list, nil
+}
+
+// Return the objects as a list using paging, calling a function for each entry.
+// When max is zero, paging is used to retrieve all entries. If max is greater than zero,
+// then the maximum number of entries is returned.
+func (manager *Manager) list(ctx context.Context, scope int, dn, filter string, max uint64, fn func(*schema.Object) error, attrs ...string) error {
+	// Create the paging control
+	var controls []ldap.Control
+	paging := ldap.NewControlPaging(schema.MaxListPaging)
+	if max == 0 {
+		controls = []ldap.Control{paging}
+	}
+
+	fmt.Println("searching", dn, filter, attrs)
+
+	// Create the search request
+	req := ldap.NewSearchRequest(
+		dn,
+		scope,
+		ldap.NeverDerefAliases,
+		int(max), // Size Limit
+		0,        // Time Limit
+		false,    // Types Only
+		filter,   // Filter
+		attrs,    // Attributes
+		controls, // Controls
+	)
+
+	// Perform the search through paging
 	for {
 		r := manager.conn.SearchAsync(ctx, req, 0)
 		for r.Next() {
@@ -271,26 +299,28 @@ func (manager *Manager) List(ctx context.Context, request schema.ObjectListReque
 			if entry == nil {
 				continue
 			}
-			if list.Count >= request.Offset && list.Count < request.Offset+limit {
-				list.Body = append(list.Body, schema.NewObjectFromEntry(r.Entry()))
+			if err := fn(schema.NewObjectFromEntry(entry)); errors.Is(err, io.EOF) {
+				break
+			} else if err != nil {
+				return err
 			}
-			list.Count = list.Count + 1
 		}
 		if err := r.Err(); err != nil {
-			return nil, err
+			return err
 		}
 
 		// Get response paging control, and copy the cookie over
 		if resp, ok := ldap.FindControl(r.Controls(), ldap.ControlTypePaging).(*ldap.ControlPaging); !ok {
-			return nil, httpresponse.ErrInternalError.With("Paging control not found")
+			break
 		} else if len(resp.Cookie) == 0 {
 			break
 		} else {
-			page.SetCookie(resp.Cookie)
+			paging.SetCookie(resp.Cookie)
 		}
 	}
 
-	return &list, nil
+	// Return success
+	return nil
 }
 
 // Get an object by DN
@@ -303,42 +333,20 @@ func (manager *Manager) Get(ctx context.Context, dn string) (*schema.Object, err
 		return nil, httpresponse.ErrInternalError.With("Not connected")
 	}
 
-	return manager.get(ctx, dn)
+	return manager.get(ctx, ldap.ScopeBaseObject, dn, "(objectclass=*)")
 }
 
-func (manager *Manager) get(ctx context.Context, dn string) (*schema.Object, error) {
+func (manager *Manager) get(ctx context.Context, scope int, dn, filter string, attrs ...string) (*schema.Object, error) {
 	var result *schema.Object
 
-	// Create the search request for a single object by DN
-	req := ldap.NewSearchRequest(
-		dn,                     // The DN we are looking for
-		ldap.ScopeBaseObject,   // Scope is just the base object
-		ldap.NeverDerefAliases, // Deref Aliases
-		1,                      // Size Limit (1 entry)
-		0,                      // Time Limit (no limit)
-		false,                  // Types Only
-		"(objectclass=*)",      // Filter (match any object class)
-		nil,                    // Attributes (retrieve all)
-		nil,                    // Controls
-	)
-
-	// Perform the search
-	r := manager.conn.SearchAsync(ctx, req, 0)
-	for r.Next() {
-		entry := r.Entry()
-		if entry != nil {
-			result = schema.NewObjectFromEntry(entry)
-			break // Exit loop once found
-		}
-	}
-
-	// Check for errors
-	if err := r.Err(); err != nil {
-		if ldapErr, ok := err.(*ldap.Error); ok && ldapErr.ResultCode == ldap.LDAPResultNoSuchObject {
-			return nil, httpresponse.ErrNotFound.With(dn)
-		} else {
-			return nil, err // Return other errors
-		}
+	// Search for one object
+	if err := manager.list(ctx, scope, dn, filter, 1, func(entry *schema.Object) error {
+		result = entry
+		return io.EOF
+	}, attrs...); errors.Is(err, io.EOF) {
+		// Do nothing
+	} else if err != nil {
+		return nil, err
 	}
 
 	// Return success
@@ -356,7 +364,7 @@ func (manager *Manager) Delete(ctx context.Context, dn string) (*schema.Object, 
 	}
 
 	// Get the object
-	object, err := manager.get(ctx, dn)
+	object, err := manager.get(ctx, ldap.ScopeBaseObject, dn, "(objectclass=*)")
 	if err != nil {
 		return nil, err
 	}
@@ -392,7 +400,7 @@ func (manager *Manager) Create(ctx context.Context, dn string, attr url.Values) 
 	}
 
 	// Return the new object
-	return manager.get(ctx, addReq.DN)
+	return manager.get(ctx, ldap.ScopeBaseObject, addReq.DN, "(objectclass=*)")
 }
 
 // Bind a user to check if they are authenticated, returns
@@ -421,7 +429,7 @@ func (manager *Manager) Bind(ctx context.Context, dn, password string) (*schema.
 	}
 
 	// Return the user
-	return manager.get(ctx, dn)
+	return manager.get(ctx, ldap.ScopeBaseObject, dn, "(objectclass=*)")
 }
 
 // Change a password for a user. If the new password is empty, then the password is reset
@@ -449,7 +457,7 @@ func (manager *Manager) ChangePassword(ctx context.Context, dn, old string, new 
 	}
 
 	// Return the user
-	return manager.get(ctx, dn)
+	return manager.get(ctx, ldap.ScopeBaseObject, dn, "(objectclass=*)")
 }
 
 // Update attributes for an object
@@ -474,15 +482,166 @@ func (manager *Manager) Update(ctx context.Context, dn string, attr url.Values) 
 	}
 
 	// Return the new object
-	return manager.get(ctx, dn)
+	return manager.get(ctx, ldap.ScopeBaseObject, dn, "(objectclass=*)")
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS - OBEJCT CLASSES AND ATTRIBUTES
+
+// Returns object classes
+func (manager *Manager) ListObjectClasses(ctx context.Context) ([]*schema.ObjectClass, error) {
+	manager.Lock()
+	defer manager.Unlock()
+
+	// Check connection
+	if manager.conn == nil {
+		return nil, httpresponse.ErrInternalError.With("Not connected")
+	}
+
+	// Get the subschema dn from rootDSE
+	root, err := manager.get(ctx, ldap.ScopeBaseObject, "", "(objectclass=*)", schema.AttrSubSchemaDN)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get the subschema dn attribute
+	subschemadn := root.Get(schema.AttrSubSchemaDN)
+	if subschemadn == nil {
+		return nil, httpresponse.ErrNotFound.With(schema.AttrSubSchemaDN, " not found")
+	}
+
+	// List the object classes
+	var result []*schema.ObjectClass
+	if err := manager.list(ctx, ldap.ScopeBaseObject, types.PtrString(subschemadn), "(objectclass=subschema)", 1, func(entry *schema.Object) error {
+		objectClasses := entry.GetAll(schema.AttrObjectClasses)
+		if objectClasses == nil {
+			return httpresponse.ErrInternalError.With(schema.AttrObjectClasses, " not found")
+		}
+
+		// Parse the object classes
+		for _, objectClass := range objectClasses {
+			if objectClass, err := schema.ParseObjectClass(objectClass); err == nil && objectClass != nil {
+				result = append(result, objectClass)
+			}
+		}
+		return nil
+	}, schema.AttrObjectClasses); err != nil {
+		return nil, err
+	}
+
+	// Return success
+	return result, nil
+}
+
+// Returns attribute types
+func (manager *Manager) ListAttributeTypes(ctx context.Context) ([]*schema.AttributeType, error) {
+	manager.Lock()
+	defer manager.Unlock()
+
+	// Check connection
+	if manager.conn == nil {
+		return nil, httpresponse.ErrInternalError.With("Not connected")
+	}
+
+	// Get the subschema dn from rootDSE
+	root, err := manager.get(ctx, ldap.ScopeBaseObject, "", "(objectclass=*)", schema.AttrSubSchemaDN)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get the subschema dn attribute
+	subschemadn := root.Get(schema.AttrSubSchemaDN)
+	if subschemadn == nil {
+		return nil, httpresponse.ErrNotFound.With(schema.AttrSubSchemaDN, " not found")
+	}
+
+	// List the attribute types
+	var result []*schema.AttributeType
+	if err := manager.list(ctx, ldap.ScopeBaseObject, types.PtrString(subschemadn), "(objectclass=subschema)", 1, func(entry *schema.Object) error {
+		attributeTypes := entry.GetAll(schema.AttrAttributeTypes)
+		if attributeTypes == nil {
+			return httpresponse.ErrInternalError.With(schema.AttrAttributeTypes, " not found")
+		}
+
+		// Parse the object classes
+		for _, attributeType := range attributeTypes {
+			if attributeType, err := schema.ParseAttributeType(attributeType); err == nil && attributeType != nil {
+				result = append(result, attributeType)
+			}
+		}
+		return nil
+	}, schema.AttrAttributeTypes); err != nil {
+		return nil, err
+	}
+
+	// Return success
+	return result, nil
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS - USERS AND GROUPS
+
+// Return all users
+func (manager *Manager) ListUsers(ctx context.Context, request schema.ObjectListRequest) ([]*schema.ObjectList, error) {
+	// TODO
+	return nil, httpresponse.ErrNotImplemented.With("ListUsers not implemented")
+}
+
+// Return all groups
+func (manager *Manager) ListGroups(ctx context.Context, request schema.ObjectListRequest) ([]*schema.ObjectList, error) {
+	// TODO
+	return nil, httpresponse.ErrNotImplemented.With("ListGroups not implemented")
+}
+
+// Get a user
+func (manager *Manager) GetUser(ctx context.Context, dn string) (*schema.Object, error) {
+	// TODO
+	return nil, httpresponse.ErrNotImplemented.With("GetUser not implemented")
+}
+
+// Get a group
+func (manager *Manager) GetGroup(ctx context.Context, dn string) (*schema.Object, error) {
+	// TODO
+	return nil, httpresponse.ErrNotImplemented.With("GetGroup not implemented")
+}
+
+// Create a user
+func (manager *Manager) CreateUser(ctx context.Context, user string, attrs url.Values) (*schema.Object, error) {
+	// TODO
+	return nil, httpresponse.ErrNotImplemented.With("CreateUser not implemented")
+}
+
+// Create a group
+func (manager *Manager) CreateGroup(ctx context.Context, group string, attrs url.Values) (*schema.Object, error) {
+	// TODO
+	return nil, httpresponse.ErrNotImplemented.With("CreateGroup not implemented")
+}
+
+// Delete a user
+func (manager *Manager) DeleteUser(ctx context.Context, dn string) (*schema.Object, error) {
+	// TODO
+	return nil, httpresponse.ErrNotImplemented.With("DeleteUser not implemented")
+}
+
+// Delete a group
+func (manager *Manager) DeleteGroup(ctx context.Context, dn string) (*schema.Object, error) {
+	// TODO
+	return nil, httpresponse.ErrNotImplemented.With("DeleteGroup not implemented")
+}
+
+// Add a user to a group, and return the group
+func (manager *Manager) AddGroupUser(ctx context.Context, dn, user string) (*schema.Object, error) {
+	// TODO
+	return nil, httpresponse.ErrNotImplemented.With("DeleteGroup not implemented")
+}
+
+// Remove a user from a group, and return the group
+func (manager *Manager) RemoveGroupUser(ctx context.Context, dn, user string) (*schema.Object, error) {
+	// TODO
+	return nil, httpresponse.ErrNotImplemented.With("DeleteGroup not implemented")
 }
 
 /*
-// Return all users
-func (ldap *ldap) GetUsers() ([]*schema.Object, error) {
-	return ldap.Get(ldap.schema.UserObjectClass[0])
-}
-
 // Return all groups
 func (ldap *ldap) GetGroups() ([]*schema.Object, error) {
 	return ldap.Get(ldap.schema.GroupObjectClass[0])
@@ -619,33 +778,6 @@ func (ldap *ldap) CreateUser(name string, attrs ...schema.Attr) (*schema.Object,
 	// Return success
 	return o, nil
 }
-
-// Return one record
-func (ldap *ldap) SearchOne(filter string) (*schema.Object, error) {
-	// Check connection
-	if ldap.conn == nil {
-		return nil, ErrOutOfOrder.With("Not connected")
-	}
-
-	// Define the search request
-	searchRequest := goldap.NewSearchRequest(
-		ldap.dn, goldap.ScopeWholeSubtree, goldap.NeverDerefAliases, 1, 0, false,
-		filter, // The filter to apply
-		nil,    // The attributes to retrieve
-		nil,
-	)
-
-	// Perform the search, return first result
-	sr, err := ldap.conn.Search(searchRequest)
-	if err != nil {
-		return nil, err
-	} else if len(sr.Entries) == 0 {
-		return nil, nil
-	} else {
-		return schema.NewObjectFromEntry(sr.Entries[0]), nil
-	}
-}
-
 */
 
 ///////////////////////////////////////////////////////////////////////////////

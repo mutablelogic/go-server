@@ -18,22 +18,30 @@ import (
 
 type CLI struct {
 	ServiceCommands
-	pgmanager.DatabaseCommands
-	pgmanager.SchemaCommands
-	pgmanager.ObjectCommands
-	pgmanager.RoleCommands
-	pgmanager.ConnectionCommands
-	pgmanager.TablespaceCommands
-	pgqueue.QueueCommands
-	pgqueue.TaskCommands
-	pgqueue.TickerCommands
-	certmanager.NameCommands
-	certmanager.CertCommands
-	auth.UserCommands
-	auth.TokenCommands
-	auth.AuthCommands
 
-	// LDAP commands
+	PG struct {
+		pgmanager.DatabaseCommands
+		pgmanager.SchemaCommands
+		pgmanager.ObjectCommands
+		pgmanager.RoleCommands
+		pgmanager.ConnectionCommands
+		pgmanager.TablespaceCommands
+		pgqueue.QueueCommands
+		pgqueue.TaskCommands
+		pgqueue.TickerCommands
+	} `cmd:""`
+
+	Cert struct {
+		certmanager.NameCommands
+		certmanager.CertCommands
+	} `cmd:""`
+
+	Auth struct {
+		auth.UserCommands
+		auth.TokenCommands
+		auth.AuthCommands
+	} `cmd:""`
+
 	LDAP struct{ ldap.ObjectCommands } `cmd:""`
 
 	VersionCommands

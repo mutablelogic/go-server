@@ -1,6 +1,9 @@
 package schema
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 const (
 	SchemaName   = "ldap"
@@ -20,6 +23,25 @@ const (
 	// Maximum list entries to return
 	MaxListEntries = 1000
 
-	defaultUserOU  = "users"
-	defaultGroupOU = "groups"
+	// Attributes
+	AttrObjectClasses  = "objectClasses"
+	AttrAttributeTypes = "attributeTypes"
+	AttrSubSchemaDN    = "subschemaSubentry"
 )
+
+////////////////////////////////////////////////////////////////////////////////
+// TYPES
+
+type DN string
+
+type Group struct {
+	DN          DN       `json:"dn,omitempty"`
+	ObjectClass []string `json:"objectclass,omitempty"`
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS
+
+func (d DN) Join(parts ...string) DN {
+	return DN(strings.Join(append([]string{string(d)}, parts...), ","))
+}

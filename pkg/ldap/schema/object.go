@@ -8,6 +8,7 @@ import (
 	// Packages
 	pg "github.com/djthorpe/go-pg"
 	ldap "github.com/go-ldap/ldap/v3"
+	"github.com/mutablelogic/go-server/pkg/types"
 )
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -71,4 +72,35 @@ func (o *ObjectListRequest) String() string {
 		return err.Error()
 	}
 	return string(data)
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS
+
+// Returns an attribute value or nil if not found
+func (o *Object) Get(attr string) *string {
+	values := o.GetAll(attr)
+	if values == nil {
+		return nil
+	} else if len(values) == 0 {
+		return types.StringPtr("")
+	} else {
+		return types.StringPtr(values[0])
+	}
+}
+
+// Returns array or attributes or nil if not found
+func (o *Object) GetAll(attr string) []string {
+	// Try case insensitive
+	if values, ok := o.Values[attr]; ok {
+		return values
+	}
+	// Try case insensitive
+	for k, values := range o.Values {
+		if strings.EqualFold(k, attr) {
+			return values
+		}
+	}
+	// Not found
+	return nil
 }

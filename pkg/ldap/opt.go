@@ -1,7 +1,12 @@
 package ldap
 
-// Packages
-import "net/url"
+import (
+	"net/url"
+
+	// Packages
+	"github.com/mutablelogic/go-server/pkg/httpresponse"
+	schema "github.com/mutablelogic/go-server/pkg/ldap/schema"
+)
 
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
@@ -12,6 +17,8 @@ type opt struct {
 	pass       string
 	dn         string
 	skipverify bool
+	users      *schema.Group
+	groups     *schema.Group
 }
 
 // Opt represents a function that modifies the options
@@ -37,14 +44,32 @@ func applyOpts(opts ...Opt) (*opt, error) {
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
+func WithUserSchema(dn string, classes ...string) Opt {
+	return func(o *opt) error {
+		if dn == "" {
+			return httpresponse.ErrBadRequest.With("DN is empty")
+		}
+		o.users = &schema.Group{DN: schema.DN(dn), ObjectClass: classes}
+		return nil
+	}
+}
+
+func WithGroupSchema(dn string, classes ...string) Opt {
+	return func(o *opt) error {
+		if dn == "" {
+			return httpresponse.ErrBadRequest.With("DN is empty")
+		}
+		o.groups = &schema.Group{DN: schema.DN(dn), ObjectClass: classes}
+		return nil
+	}
+}
+
 func WithUrl(v string) Opt {
 	return func(o *opt) error {
-		if v = v; v != "" {
-			if u, err := url.Parse(v); err != nil {
-				return err
-			} else {
-				o.url = u
-			}
+		if u, err := url.Parse(v); err != nil {
+			return err
+		} else {
+			o.url = u
 		}
 		return nil
 	}
