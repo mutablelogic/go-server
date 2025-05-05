@@ -53,6 +53,18 @@ func WithFilter(v *string) Opt {
 	return OptSet("filter", types.PtrString(v))
 }
 
+// Set LDAP attributes
+func WithAttr(v ...string) Opt {
+	return func(o *opt) error {
+		if len(v) == 0 {
+			o.Del("attr")
+		} else {
+			o.Values["attr"] = v
+		}
+		return nil
+	}
+}
+
 func OptSet(k, v string) Opt {
 	return func(o *opt) error {
 		if v == "" {

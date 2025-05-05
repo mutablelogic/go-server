@@ -244,13 +244,11 @@ func (manager *Manager) List(ctx context.Context, request schema.ObjectListReque
 		limit = min(types.PtrUint64(request.Limit), limit)
 	}
 
-	// Set filter and attributes
+	// Set filter
 	filter := "(objectclass=*)"
 	if request.Filter != nil {
 		filter = types.PtrString(request.Filter)
 	}
-	// TODO
-	attrs := []string{}
 
 	// Perform the search through paging, skipping the first N entries
 	var list schema.ObjectList
@@ -260,7 +258,7 @@ func (manager *Manager) List(ctx context.Context, request schema.ObjectListReque
 		}
 		list.Count = list.Count + 1
 		return nil
-	}, attrs...); err != nil {
+	}, request.Attr...); err != nil {
 		return nil, err
 	}
 
@@ -325,7 +323,7 @@ func (manager *Manager) list(ctx context.Context, scope int, dn, filter string, 
 }
 
 // Get an object by DN
-func (manager *Manager) Get(ctx context.Context, dn string) (*schema.Object, error) {
+func (manager *Manager) Get(ctx context.Context, dn string, attrs ...string) (*schema.Object, error) {
 	manager.Lock()
 	defer manager.Unlock()
 
@@ -334,7 +332,8 @@ func (manager *Manager) Get(ctx context.Context, dn string) (*schema.Object, err
 		return nil, httpresponse.ErrInternalError.With("Not connected")
 	}
 
-	return manager.get(ctx, ldap.ScopeBaseObject, dn, "(objectclass=*)")
+	// Get the object
+	return manager.get(ctx, ldap.ScopeBaseObject, dn, "(objectclass=*)", attrs...)
 }
 
 func (manager *Manager) get(ctx context.Context, scope int, dn, filter string, attrs ...string) (*schema.Object, error) {

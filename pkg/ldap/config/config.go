@@ -15,10 +15,12 @@ import (
 // TYPES
 
 type Config struct {
-	Url      *url.URL          `env:"LDAP_URL" help:"LDAP connection URL"` // Connection URL
-	Password string            `env:"LDAP_PASSWORD" help:"Password"`       // Password
-	BaseDN   string            `env:"LDAP_BASE_DN" help:"Base DN"`         // Base DN
-	Router   server.HTTPRouter `kong:"-"`                                  // HTTP Router
+	Url        *url.URL          `env:"LDAP_URL" help:"LDAP connection URL"`                // Connection URL
+	User       string            `env:"LDAP_USER" help:"User"`                              // User
+	Password   string            `env:"LDAP_PASSWORD" help:"Password"`                      // Password
+	BaseDN     string            `env:"LDAP_BASE_DN" help:"Base DN"`                        // Base DN
+	SkipVerify bool              `env:"LDAP_SKIPVERIFY" help:"Skip TLS certificate verify"` // Skip verify
+	Router     server.HTTPRouter `kong:"-"`                                                 // HTTP Router
 }
 
 var _ server.Plugin = Config{}
@@ -28,15 +30,19 @@ var _ server.Plugin = Config{}
 
 func (c Config) New(ctx context.Context) (server.Task, error) {
 	// Add options
-	opts := []ldap.Opt{}
+	opts := []ldap.Opt{
+		ldap.WithUser(c.User),
+		ldap.WithPassword(c.Password),
+		ldap.WithBaseDN(c.BaseDN),
+	}
 	if c.Url != nil {
 		opts = append(opts, ldap.WithUrl(c.Url.String()))
 	}
-	if c.Password != "" {
-		opts = append(opts, ldap.WithPassword(c.Password))
-	}
 	if c.BaseDN != "" {
 		opts = append(opts, ldap.WithBaseDN(c.BaseDN))
+	}
+	if c.SkipVerify {
+		opts = append(opts, ldap.WithSkipVerify())
 	}
 
 	// Create a new LDAP manager

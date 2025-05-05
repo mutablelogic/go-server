@@ -26,7 +26,7 @@ type ObjectListCommand struct {
 
 func (cmd ObjectListCommand) Run(ctx server.Cmd) error {
 	return run(ctx, func(ctx context.Context, provider *client.Client) error {
-		queues, err := provider.ListObjects(ctx, client.WithFilter(cmd.Filter), client.WithOffsetLimit(cmd.Offset, cmd.Limit))
+		queues, err := provider.ListObjects(ctx, client.WithFilter(cmd.Filter), client.WithAttr(cmd.Attr...), client.WithOffsetLimit(cmd.Offset, cmd.Limit))
 		if err != nil {
 			return err
 		}

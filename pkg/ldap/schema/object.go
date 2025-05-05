@@ -21,7 +21,8 @@ type Object struct {
 
 type ObjectListRequest struct {
 	pg.OffsetLimit
-	Filter *string `json:"filter,omitempty"`
+	Filter *string  `json:"filter,omitempty" help:"Filter"`
+	Attr   []string `json:"attr,omitempty" help:"Attributes to return"`
 }
 
 type ObjectList struct {

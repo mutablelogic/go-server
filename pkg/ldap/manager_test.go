@@ -15,6 +15,7 @@ import (
 )
 
 const (
+	// https://github.com/shadowbq/FreeIPA-Configuration
 	User, Pass = "uid=admin,cn=users,cn=accounts,dc=demo1,dc=freeipa,dc=org", "Secret123"
 	URL        = "ldaps://ipa.demo1.freeipa.org/"
 	BaseDN     = "dc=demo1,dc=freeipa,dc=org"
@@ -35,9 +36,9 @@ func TestMain(m *testing.M) {
 			opts = append(opts, ldap.WithBaseDN(dn))
 		}
 	} else {
+		// Use FreeIPA instance
 		opts = append(opts, ldap.WithUrl(URL), ldap.WithUser(User), ldap.WithPassword(Pass), ldap.WithBaseDN(BaseDN), ldap.WithSkipVerify())
 	}
-
 	exitCode := m.Run()
 	os.Exit(exitCode)
 }
