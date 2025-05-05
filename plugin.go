@@ -158,16 +158,16 @@ type Auth interface {
 // LDAP
 
 type LDAP interface {
+	// Introspection
+	ListObjectClasses(context.Context) ([]*ldapschema.ObjectClass, error)    // Return all classes
+	ListAttributeTypes(context.Context) ([]*ldapschema.AttributeType, error) // Return all attributes
+
 	// Objects
 	List(context.Context, ldapschema.ObjectListRequest) (*ldapschema.ObjectList, error) // List all objects in the directory
 	Get(context.Context, string, ...string) (*ldapschema.Object, error)                 // Get an object with attributes
 	Delete(context.Context, string) (*ldapschema.Object, error)                         // Delete an object
 	Create(context.Context, string, url.Values) (*ldapschema.Object, error)             // Create a new object with attributes
 	Update(context.Context, string, url.Values) (*ldapschema.Object, error)             // Update an object with attributes
-
-	// Introspection
-	ListObjectClasses(context.Context) ([]*ldapschema.ObjectClass, error)    // Return all classes
-	ListAttributeTypes(context.Context) ([]*ldapschema.AttributeType, error) // Return all attributes
 
 	// Users
 	ListUsers(context.Context, ldapschema.ObjectListRequest) ([]*ldapschema.ObjectList, error) // List users
@@ -183,6 +183,6 @@ type LDAP interface {
 	RemoveGroupUser(context.Context, string, string) (*ldapschema.Object, error)                // Remove a user from a group
 
 	// Auth
-	Bind(context.Context, string, string) (*ldapschema.Object, error)                    // Check user and password
+	Bind(context.Context, string, string) (*ldapschema.Object, error)                    // Check credentials
 	ChangePassword(context.Context, string, string, *string) (*ldapschema.Object, error) // Change password for a user, and return the user object
 }
