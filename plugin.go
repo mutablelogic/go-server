@@ -118,8 +118,7 @@ type PGCallback func(context.Context, any) error
 
 // PGQueue defines methods for interacting with a PostgreSQL-backed task queue.
 type PGQueue interface {
-	// Conn returns the underlying connection pool object.
-	Conn() pg.PoolConn
+	PG
 
 	// Namespace returns the namespace of the queue.
 	Namespace() string
