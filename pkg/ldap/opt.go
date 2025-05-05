@@ -102,9 +102,9 @@ func WithPassword(v string) Opt {
 	}
 }
 
-func WithSkipVerify(v bool) Opt {
+func WithSkipVerify() Opt {
 	return func(o *opt) error {
-		o.skipverify = v
+		o.skipverify = true
 		return nil
 	}
 }

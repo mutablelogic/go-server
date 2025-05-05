@@ -8,31 +8,42 @@ import (
 	"time"
 
 	// Packages
-
-	"github.com/mutablelogic/go-server/pkg/httpresponse"
+	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	ldap "github.com/mutablelogic/go-server/pkg/ldap"
 	schema "github.com/mutablelogic/go-server/pkg/ldap/schema"
 	assert "github.com/stretchr/testify/assert"
 )
 
+const (
+	User, Pass = "uid=admin,cn=users,cn=accounts,dc=demo1,dc=freeipa,dc=org", "Secret123"
+	URL        = "ldaps://ipa.demo1.freeipa.org/"
+	BaseDN     = "dc=demo1,dc=freeipa,dc=org"
+)
+
+var (
+	opts = []ldap.Opt{}
+)
+
 /////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
+func TestMain(m *testing.M) {
+	// Get opts
+	if url := os.Getenv("LDAP_URL"); url != "" {
+		opts = append(opts, ldap.WithUrl(url), ldap.WithUser(os.Getenv("LDAP_USER")), ldap.WithPassword(os.Getenv("LDAP_PASSWORD")))
+		if dn := os.Getenv("LDAP_BASE_DN"); dn != "" {
+			opts = append(opts, ldap.WithBaseDN(dn))
+		}
+	} else {
+		opts = append(opts, ldap.WithUrl(URL), ldap.WithUser(User), ldap.WithPassword(Pass), ldap.WithBaseDN(BaseDN), ldap.WithSkipVerify())
+	}
+
+	exitCode := m.Run()
+	os.Exit(exitCode)
+}
+
 func Test_Manager_001(t *testing.T) {
 	assert := assert.New(t)
-
-	// Get opts
-	opts := []ldap.Opt{}
-	if url := os.Getenv("LDAP_URL"); url != "" {
-		opts = append(opts, ldap.WithUrl(url))
-	} else {
-		t.Skip("Skipping test, LDAP_URL not set")
-	}
-	if dn := os.Getenv("LDAP_BASE_DN"); dn != "" {
-		opts = append(opts, ldap.WithBaseDN(dn))
-	} else {
-		t.Skip("Skipping test, LDAP_BASE_DN not set")
-	}
 
 	// Create a new queue manager
 	manager, err := ldap.NewManager(opts...)
@@ -79,19 +90,6 @@ func Test_Manager_001(t *testing.T) {
 func Test_Manager_002(t *testing.T) {
 	assert := assert.New(t)
 
-	// Get opts
-	opts := []ldap.Opt{}
-	if url := os.Getenv("LDAP_URL"); url != "" {
-		opts = append(opts, ldap.WithUrl(url))
-	} else {
-		t.Skip("Skipping test, LDAP_URL not set")
-	}
-	if dn := os.Getenv("LDAP_BASE_DN"); dn != "" {
-		opts = append(opts, ldap.WithBaseDN(dn))
-	} else {
-		t.Skip("Skipping test, LDAP_BASE_DN not set")
-	}
-
 	// Create a new queue manager
 	manager, err := ldap.NewManager(opts...)
 	if !assert.NoError(err) {
@@ -125,19 +123,6 @@ func Test_Manager_002(t *testing.T) {
 
 func Test_Manager_003(t *testing.T) {
 	assert := assert.New(t)
-
-	// Get opts
-	opts := []ldap.Opt{}
-	if url := os.Getenv("LDAP_URL"); url != "" {
-		opts = append(opts, ldap.WithUrl(url))
-	} else {
-		t.Skip("Skipping test, LDAP_URL not set")
-	}
-	if dn := os.Getenv("LDAP_BASE_DN"); dn != "" {
-		opts = append(opts, ldap.WithBaseDN(dn))
-	} else {
-		t.Skip("Skipping test, LDAP_BASE_DN not set")
-	}
 
 	// Create a new queue manager
 	manager, err := ldap.NewManager(opts...)

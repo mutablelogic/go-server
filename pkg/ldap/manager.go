@@ -152,8 +152,10 @@ func (ldap *Manager) Host() string {
 // Return the user for the LDAP connection
 func (ldap *Manager) User() string {
 	if types.IsIdentifier(ldap.user) {
+		// If it's an identifier, then append the DN
 		return fmt.Sprint("cn=", ldap.user, ",", ldap.dn)
 	} else {
+		// Assume it's a DN
 		return ldap.user
 	}
 }
@@ -247,7 +249,8 @@ func (manager *Manager) List(ctx context.Context, request schema.ObjectListReque
 	if request.Filter != nil {
 		filter = types.PtrString(request.Filter)
 	}
-	attrs := []string{"*"}
+	// TODO
+	attrs := []string{}
 
 	// Perform the search through paging, skipping the first N entries
 	var list schema.ObjectList
@@ -275,8 +278,6 @@ func (manager *Manager) list(ctx context.Context, scope int, dn, filter string, 
 	if max == 0 {
 		controls = []ldap.Control{paging}
 	}
-
-	fmt.Println("searching", dn, filter, attrs)
 
 	// Create the search request
 	req := ldap.NewSearchRequest(
