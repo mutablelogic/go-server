@@ -16,11 +16,11 @@ import (
 // TYPES
 
 type ObjectCommands struct {
-	Objects      ObjectListCommand   `cmd:"" group:"LDAP" help:"List queues"`
-	Object       ObjectGetCommand    `cmd:"" group:"LDAP" help:"Get object by DN"`
+	Objects      ObjectListCommand   `cmd:"" group:"LDAP" help:"List objects"`
+	Object       ObjectGetCommand    `cmd:"" group:"LDAP" help:"Get object"`
 	CreateObject ObjectCreateCommand `cmd:"" group:"LDAP" help:"Create object"`
-	UpdateObject ObjectUpdateCommand `cmd:"" group:"LDAP" help:"Update object attributes by DN"`
-	DeleteObject ObjectDeleteCommand `cmd:"" group:"LDAP" help:"Delete object by DN"`
+	UpdateObject ObjectUpdateCommand `cmd:"" group:"LDAP" help:"Update object attributes"`
+	DeleteObject ObjectDeleteCommand `cmd:"" group:"LDAP" help:"Delete object"`
 }
 
 type ObjectListCommand struct {
