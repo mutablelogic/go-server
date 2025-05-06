@@ -5,9 +5,10 @@ API and web applications. It is designed to be extensible and modular, allowing 
 new features and functionality as needed. By default the server includes the following
 features:
 
-* Authentication of users using JWT tokens and API keys
-* Connection to PostgreSQL databases
+* Anthentication of users using Cognito, Google and LDAP
+* Authorization of users using JWT tokens and API keys
 * Task queues for running background jobs
+* Connection to PostgreSQL databases
 * Ability to manage the PostgreSQL database roles, databases, schemas and connections
 * Prometheus metrics support
 
