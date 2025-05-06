@@ -29,6 +29,26 @@ func registerObject(ctx context.Context, router server.HTTPRouter, prefix string
 			_ = httpresponse.Empty(w, http.StatusOK)
 		case http.MethodGet:
 			_ = objectList(w, r, manager)
+		case http.MethodPost:
+			_ = objectCreate(w, r, manager)
+		default:
+			_ = httpresponse.Error(w, httpresponse.Err(http.StatusMethodNotAllowed), r.Method)
+		}
+	})
+
+	router.HandleFunc(ctx, types.JoinPath(prefix, "object/{dn...}"), func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
+		httpresponse.Cors(w, r, router.Origin(), http.MethodGet, http.MethodDelete)
+
+		switch r.Method {
+		case http.MethodOptions:
+			_ = httpresponse.Empty(w, http.StatusOK)
+		case http.MethodGet:
+			_ = objectGet(w, r, manager, r.PathValue("dn"))
+		case http.MethodDelete:
+			_ = objectDelete(w, r, manager, r.PathValue("dn"))
+		case http.MethodPatch:
+			_ = objectUpdate(w, r, manager, r.PathValue("dn"))
 		default:
 			_ = httpresponse.Error(w, httpresponse.Err(http.StatusMethodNotAllowed), r.Method)
 		}

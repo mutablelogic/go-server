@@ -1,7 +1,6 @@
 package schema
 
 import (
-	"strings"
 	"time"
 )
 
@@ -32,16 +31,7 @@ const (
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type DN string
-
 type Group struct {
-	DN          DN       `json:"dn,omitempty"`
+	DN          *DN      `json:"dn,omitempty"`
 	ObjectClass []string `json:"objectclass,omitempty"`
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// PUBLIC METHODS
-
-func (d DN) Join(parts ...string) DN {
-	return DN(strings.Join(append([]string{string(d)}, parts...), ","))
 }

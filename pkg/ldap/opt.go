@@ -15,7 +15,7 @@ type opt struct {
 	url        *url.URL
 	user       string
 	pass       string
-	dn         string
+	dn         *schema.DN
 	skipverify bool
 	users      *schema.Group
 	groups     *schema.Group
@@ -48,8 +48,11 @@ func WithUserSchema(dn string, classes ...string) Opt {
 	return func(o *opt) error {
 		if dn == "" {
 			return httpresponse.ErrBadRequest.With("DN is empty")
+		} else if bdn, err := schema.NewDN(dn); err != nil {
+			return httpresponse.ErrBadRequest.With("DN is invalid: ", err)
+		} else {
+			o.users = &schema.Group{DN: bdn, ObjectClass: classes}
 		}
-		o.users = &schema.Group{DN: schema.DN(dn), ObjectClass: classes}
 		return nil
 	}
 }
@@ -58,8 +61,11 @@ func WithGroupSchema(dn string, classes ...string) Opt {
 	return func(o *opt) error {
 		if dn == "" {
 			return httpresponse.ErrBadRequest.With("DN is empty")
+		} else if bdn, err := schema.NewDN(dn); err != nil {
+			return httpresponse.ErrBadRequest.With("DN is invalid: ", err)
+		} else {
+			o.groups = &schema.Group{DN: bdn, ObjectClass: classes}
 		}
-		o.groups = &schema.Group{DN: schema.DN(dn), ObjectClass: classes}
 		return nil
 	}
 }
@@ -77,8 +83,12 @@ func WithUrl(v string) Opt {
 
 func WithBaseDN(v string) Opt {
 	return func(o *opt) error {
-		if v != "" {
-			o.dn = v
+		if v == "" {
+			return nil
+		} else if bdn, err := schema.NewDN(v); err != nil {
+			return httpresponse.ErrBadRequest.With("DN is invalid: ", err)
+		} else {
+			o.dn = bdn
 		}
 		return nil
 	}

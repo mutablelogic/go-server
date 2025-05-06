@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/url"
 	"strconv"
 	"sync"
@@ -13,8 +14,10 @@ import (
 
 	// Packages
 	ldap "github.com/go-ldap/ldap/v3"
+	"github.com/mutablelogic/go-server"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	schema "github.com/mutablelogic/go-server/pkg/ldap/schema"
+	ref "github.com/mutablelogic/go-server/pkg/ref"
 	types "github.com/mutablelogic/go-server/pkg/types"
 )
 
@@ -27,11 +30,13 @@ type Manager struct {
 	url        *url.URL
 	tls        *tls.Config
 	user, pass string
-	dn         string
+	dn         *schema.DN
 	conn       *ldap.Conn
 	users      *schema.Group
 	groups     *schema.Group
 }
+
+var _ server.LDAP = (*Manager)(nil)
 
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
@@ -91,7 +96,7 @@ func NewManager(opt ...Opt) (*Manager, error) {
 	self.url.User = nil
 
 	// Set the Distinguished Name
-	if o.dn == "" {
+	if o.dn == nil {
 		return nil, httpresponse.ErrBadRequest.With("missing dn parameter")
 	} else {
 		self.dn = o.dn
@@ -107,8 +112,12 @@ func NewManager(opt ...Opt) (*Manager, error) {
 
 func (manager *Manager) Run(ctx context.Context) error {
 	var retries uint
-	ticker := time.NewTimer(100 * time.Millisecond)
+
+	// Connect after a short random delay
+	ticker := time.NewTimer(time.Millisecond * time.Duration(rand.Intn(100)))
 	defer ticker.Stop()
+
+	// Continue to reconnect until cancelled
 	for {
 		select {
 		case <-ctx.Done():
@@ -118,16 +127,26 @@ func (manager *Manager) Run(ctx context.Context) error {
 			return nil
 		case <-ticker.C:
 			if err := manager.Connect(); err != nil {
-				// TODO: Log the error
-				fmt.Println(" TODO: Error...", err)
+				// Connection error
+				logf(ctx, "LDAP connection error: %v", err)
 				retries = min(retries+1, schema.MaxRetries)
 				ticker.Reset(schema.MinRetryInterval * time.Duration(retries*retries))
 			} else {
-				// Checks the connection once a minute
+				// Connection successful
+				if retries > 0 {
+					logf(ctx, "LDAP connected")
+				}
 				retries = 0
 				ticker.Reset(schema.MinRetryInterval * time.Duration(schema.MaxRetries))
 			}
 		}
+	}
+}
+
+// utility logging function
+func logf(ctx context.Context, format string, args ...any) {
+	if log := ref.Log(ctx); log != nil {
+		log.Printf(ctx, format, args...)
 	}
 }
 
@@ -169,11 +188,7 @@ func (manager *Manager) Connect() error {
 		if conn, err := ldapConnect(manager.Host(), manager.Port(), manager.tls); err != nil {
 			return err
 		} else if err := ldapBind(conn, manager.User(), manager.pass); err != nil {
-			if code := ldapErrorCode(err); code == ldap.LDAPResultInvalidCredentials || code == ldap.LDAPResultUnwillingToPerform {
-				return httpresponse.ErrNotAuthorized.With("Invalid credentials")
-			} else {
-				return err
-			}
+			return ldaperr(err)
 		} else {
 			manager.conn = conn
 		}
@@ -214,12 +229,12 @@ func (manager *Manager) WhoAmI() (string, error) {
 
 	// Check connection
 	if manager.conn == nil {
-		return "", httpresponse.ErrInternalError.With("Not connected")
+		return "", httpresponse.ErrGatewayError.With("Not connected")
 	}
 
 	// Ping
 	if whoami, err := manager.conn.WhoAmI([]ldap.Control{}); err != nil {
-		return "", err
+		return "", ldaperr(err)
 	} else {
 		return whoami.AuthzID, nil
 	}
@@ -235,7 +250,7 @@ func (manager *Manager) List(ctx context.Context, request schema.ObjectListReque
 
 	// Check connection
 	if manager.conn == nil {
-		return nil, httpresponse.ErrInternalError.With("Not connected")
+		return nil, httpresponse.ErrGatewayError.With("Not connected")
 	}
 
 	// Set the limit to be the minimum of user and schema limits
@@ -252,7 +267,7 @@ func (manager *Manager) List(ctx context.Context, request schema.ObjectListReque
 
 	// Perform the search through paging, skipping the first N entries
 	var list schema.ObjectList
-	if err := manager.list(ctx, ldap.ScopeWholeSubtree, manager.dn, filter, 0, func(entry *schema.Object) error {
+	if err := manager.list(ctx, ldap.ScopeWholeSubtree, manager.dn.String(), filter, 0, func(entry *schema.Object) error {
 		if list.Count >= request.Offset && list.Count < request.Offset+limit {
 			list.Body = append(list.Body, entry)
 		}
@@ -305,7 +320,7 @@ func (manager *Manager) list(ctx context.Context, scope int, dn, filter string, 
 			}
 		}
 		if err := r.Err(); err != nil {
-			return err
+			return ldaperr(err)
 		}
 
 		// Get response paging control, and copy the cookie over
@@ -323,17 +338,23 @@ func (manager *Manager) list(ctx context.Context, scope int, dn, filter string, 
 }
 
 // Get an object by DN
-func (manager *Manager) Get(ctx context.Context, dn string, attrs ...string) (*schema.Object, error) {
+func (manager *Manager) Get(ctx context.Context, dn string) (*schema.Object, error) {
 	manager.Lock()
 	defer manager.Unlock()
 
 	// Check connection
 	if manager.conn == nil {
-		return nil, httpresponse.ErrInternalError.With("Not connected")
+		return nil, httpresponse.ErrGatewayError.With("Not connected")
+	}
+
+	// Make absolute DN
+	absdn, err := manager.absdn(dn, manager.dn)
+	if err != nil {
+		return nil, err
 	}
 
 	// Get the object
-	return manager.get(ctx, ldap.ScopeBaseObject, dn, "(objectclass=*)", attrs...)
+	return manager.get(ctx, ldap.ScopeBaseObject, absdn.String(), "(objectclass=*)")
 }
 
 func (manager *Manager) get(ctx context.Context, scope int, dn, filter string, attrs ...string) (*schema.Object, error) {
@@ -353,31 +374,6 @@ func (manager *Manager) get(ctx context.Context, scope int, dn, filter string, a
 	return result, nil
 }
 
-// Delete an object by DN
-func (manager *Manager) Delete(ctx context.Context, dn string) (*schema.Object, error) {
-	manager.Lock()
-	defer manager.Unlock()
-
-	// Check connection
-	if manager.conn == nil {
-		return nil, httpresponse.ErrInternalError.With("Not connected")
-	}
-
-	// Get the object
-	object, err := manager.get(ctx, ldap.ScopeBaseObject, dn, "(objectclass=*)")
-	if err != nil {
-		return nil, err
-	}
-
-	// Delete the object
-	if err := manager.conn.Del(ldap.NewDelRequest(object.DN, []ldap.Control{})); err != nil {
-		return nil, err
-	}
-
-	// Return success
-	return object, nil
-}
-
 // Create an object
 func (manager *Manager) Create(ctx context.Context, dn string, attr url.Values) (*schema.Object, error) {
 	manager.Lock()
@@ -385,22 +381,61 @@ func (manager *Manager) Create(ctx context.Context, dn string, attr url.Values) 
 
 	// Check connection
 	if manager.conn == nil {
-		return nil, httpresponse.ErrInternalError.With("Not connected")
+		return nil, httpresponse.ErrGatewayError.With("Not connected")
+	}
+
+	// Make absolute DN
+	absdn, err := manager.absdn(dn, manager.dn)
+	if err != nil {
+		return nil, err
 	}
 
 	// Create the request
-	addReq := ldap.NewAddRequest(dn, []ldap.Control{})
+	addReq := ldap.NewAddRequest(absdn.String(), []ldap.Control{})
 	for key, values := range attr {
-		addReq.Attribute(key, values)
+		if len(values) > 0 {
+			addReq.Attribute(key, values)
+		}
 	}
 
 	// Make the request
 	if err := manager.conn.Add(addReq); err != nil {
-		return nil, err
+		return nil, ldaperr(err)
 	}
 
 	// Return the new object
 	return manager.get(ctx, ldap.ScopeBaseObject, addReq.DN, "(objectclass=*)")
+}
+
+// Delete an object by DN
+func (manager *Manager) Delete(ctx context.Context, dn string) (*schema.Object, error) {
+	manager.Lock()
+	defer manager.Unlock()
+
+	// Check connection
+	if manager.conn == nil {
+		return nil, httpresponse.ErrGatewayError.With("Not connected")
+	}
+
+	// Make absolute DN
+	absdn, err := manager.absdn(dn, manager.dn)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get the object
+	object, err := manager.get(ctx, ldap.ScopeBaseObject, absdn.String(), "(objectclass=*)")
+	if err != nil {
+		return nil, ldaperr(err)
+	}
+
+	// Delete the object
+	if err := manager.conn.Del(ldap.NewDelRequest(object.DN, []ldap.Control{})); err != nil {
+		return nil, ldaperr(err)
+	}
+
+	// Return success
+	return object, nil
 }
 
 // Bind a user to check if they are authenticated, returns
@@ -411,25 +446,27 @@ func (manager *Manager) Bind(ctx context.Context, dn, password string) (*schema.
 
 	// Check connection
 	if manager.conn == nil {
-		return nil, httpresponse.ErrInternalError.With("Not connected")
+		return nil, httpresponse.ErrGatewayError.With("Not connected")
+	}
+
+	// Make absolute DN
+	absdn, err := manager.absdn(dn, manager.dn)
+	if err != nil {
+		return nil, err
 	}
 
 	// Bind
-	if err := manager.conn.Bind(dn, password); err != nil {
-		if ldapErrorCode(err) == ldap.LDAPResultInvalidCredentials {
-			return nil, httpresponse.ErrNotAuthorized.With("Invalid credentials")
-		} else {
-			return nil, err
-		}
+	if err := manager.conn.Bind(absdn.String(), password); err != nil {
+		return nil, ldaperr(err)
 	}
 
 	// Rebind with this user
 	if err := ldapBind(manager.conn, manager.User(), manager.pass); err != nil {
-		return nil, err
+		return nil, ldaperr(err)
 	}
 
 	// Return the user
-	return manager.get(ctx, ldap.ScopeBaseObject, dn, "(objectclass=*)")
+	return manager.get(ctx, ldap.ScopeBaseObject, absdn.String(), "(objectclass=*)")
 }
 
 // Change a password for a user. If the new password is empty, then the password is reset
@@ -441,7 +478,7 @@ func (manager *Manager) ChangePassword(ctx context.Context, dn, old string, new 
 
 	// Check connection
 	if manager.conn == nil {
-		return nil, httpresponse.ErrInternalError.With("Not connected")
+		return nil, httpresponse.ErrGatewayError.With("Not connected")
 	}
 
 	// New password is required
@@ -449,40 +486,53 @@ func (manager *Manager) ChangePassword(ctx context.Context, dn, old string, new 
 		return nil, httpresponse.ErrBadRequest.With("New password parameter is required")
 	}
 
-	// Modify the password
-	if result, err := manager.conn.PasswordModify(ldap.NewPasswordModifyRequest(dn, old, types.PtrString(new))); err != nil {
+	// Make absolute DN
+	absdn, err := manager.absdn(dn, manager.dn)
+	if err != nil {
 		return nil, err
+	}
+
+	// Modify the password
+	if result, err := manager.conn.PasswordModify(ldap.NewPasswordModifyRequest(absdn.String(), old, types.PtrString(new))); err != nil {
+		return nil, ldaperr(err)
 	} else if new != nil {
 		*new = result.GeneratedPassword
 	}
 
 	// Return the user
-	return manager.get(ctx, ldap.ScopeBaseObject, dn, "(objectclass=*)")
+	return manager.get(ctx, ldap.ScopeBaseObject, absdn.String(), "(objectclass=*)")
 }
 
-// Update attributes for an object
+// Update attributes for an object. It will replace the attributes where the values is not empty,
+// and delete the attributes where the values is empty. The object is returned after the update.
 func (manager *Manager) Update(ctx context.Context, dn string, attr url.Values) (*schema.Object, error) {
 	manager.Lock()
 	defer manager.Unlock()
 
 	// Check connection
 	if manager.conn == nil {
-		return nil, httpresponse.ErrInternalError.With("Not connected")
+		return nil, httpresponse.ErrGatewayError.With("Not connected")
+	}
+
+	// Make absolute DN
+	absdn, err := manager.absdn(dn, manager.dn)
+	if err != nil {
+		return nil, err
 	}
 
 	// Create the request
-	modifyReq := ldap.NewModifyRequest(dn, []ldap.Control{})
+	modifyReq := ldap.NewModifyRequest(absdn.String(), []ldap.Control{})
 	for key, values := range attr {
 		modifyReq.Replace(key, values)
 	}
 
 	// Make the request
 	if err := manager.conn.Modify(modifyReq); err != nil {
-		return nil, err
+		return nil, ldaperr(err)
 	}
 
 	// Return the new object
-	return manager.get(ctx, ldap.ScopeBaseObject, dn, "(objectclass=*)")
+	return manager.get(ctx, ldap.ScopeBaseObject, absdn.String(), "(objectclass=*)")
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -495,7 +545,7 @@ func (manager *Manager) ListObjectClasses(ctx context.Context) ([]*schema.Object
 
 	// Check connection
 	if manager.conn == nil {
-		return nil, httpresponse.ErrInternalError.With("Not connected")
+		return nil, httpresponse.ErrGatewayError.With("Not connected")
 	}
 
 	// Get the subschema dn from rootDSE
@@ -540,7 +590,7 @@ func (manager *Manager) ListAttributeTypes(ctx context.Context) ([]*schema.Attri
 
 	// Check connection
 	if manager.conn == nil {
-		return nil, httpresponse.ErrInternalError.With("Not connected")
+		return nil, httpresponse.ErrGatewayError.With("Not connected")
 	}
 
 	// Get the subschema dn from rootDSE
@@ -815,4 +865,41 @@ func ldapErrorCode(err error) uint16 {
 	} else {
 		return 0
 	}
+}
+
+// Translate LDAP error to HTTP error
+func ldaperr(err error) error {
+	if err == nil {
+		return nil
+	}
+	code := ldapErrorCode(err)
+	if code == 0 {
+		return err
+	}
+	switch code {
+	case ldap.LDAPResultInvalidCredentials:
+		return httpresponse.ErrNotAuthorized.With("Invalid credentials")
+	case ldap.LDAPResultNoSuchObject:
+		return httpresponse.ErrNotFound.With("No such object")
+	case ldap.LDAPResultEntryAlreadyExists:
+		return httpresponse.ErrConflict.With(err.Error())
+	case ldap.LDAPResultNoSuchAttribute:
+		return httpresponse.ErrNotFound.With(err.Error())
+	case ldap.LDAPResultConstraintViolation:
+		return httpresponse.ErrConflict.With(err.Error())
+	default:
+		return httpresponse.ErrInternalError.With(err)
+	}
+}
+
+// Make the DN absolute
+func (manager *Manager) absdn(dn string, base *schema.DN) (*schema.DN, error) {
+	rdn, err := schema.NewDN(dn)
+	if err != nil {
+		return nil, httpresponse.ErrBadRequest.Withf("Invalid DN: %v", err.Error())
+	}
+	if !manager.dn.AncestorOf(rdn) {
+		return rdn.Join(manager.dn), nil
+	}
+	return rdn, nil
 }
