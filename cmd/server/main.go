@@ -42,7 +42,10 @@ type CLI struct {
 		auth.AuthCommands
 	} `cmd:""`
 
-	LDAP struct{ ldap.ObjectCommands } `cmd:""`
+	LDAP struct {
+		ldap.ObjectCommands
+		ldap.AuthCommands
+	} `cmd:""`
 
 	VersionCommands
 }

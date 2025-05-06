@@ -17,6 +17,7 @@ import (
 
 func Register(ctx context.Context, router server.HTTPRouter, manager *ldap.Manager) {
 	registerObject(ctx, router, schema.APIPrefix, manager)
+	registerAuth(ctx, router, schema.APIPrefix, manager)
 }
 
 func registerObject(ctx context.Context, router server.HTTPRouter, prefix string, manager *ldap.Manager) {
@@ -49,6 +50,24 @@ func registerObject(ctx context.Context, router server.HTTPRouter, prefix string
 			_ = objectDelete(w, r, manager, r.PathValue("dn"))
 		case http.MethodPatch:
 			_ = objectUpdate(w, r, manager, r.PathValue("dn"))
+		default:
+			_ = httpresponse.Error(w, httpresponse.Err(http.StatusMethodNotAllowed), r.Method)
+		}
+	})
+}
+
+func registerAuth(ctx context.Context, router server.HTTPRouter, prefix string, manager *ldap.Manager) {
+	router.HandleFunc(ctx, types.JoinPath(prefix, "auth/{dn...}"), func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
+		httpresponse.Cors(w, r, router.Origin(), http.MethodPost, http.MethodPut)
+
+		switch r.Method {
+		case http.MethodOptions:
+			_ = httpresponse.Empty(w, http.StatusOK)
+		case http.MethodPost:
+			_ = authBind(w, r, manager, r.PathValue("dn"))
+		case http.MethodPut:
+			_ = authChangePassword(w, r, manager, r.PathValue("dn"))
 		default:
 			_ = httpresponse.Error(w, httpresponse.Err(http.StatusMethodNotAllowed), r.Method)
 		}

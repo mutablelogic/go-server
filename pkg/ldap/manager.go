@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
+	"net/http"
 	"net/url"
 	"strconv"
 	"sync"
@@ -348,7 +349,7 @@ func (manager *Manager) Get(ctx context.Context, dn string) (*schema.Object, err
 	}
 
 	// Make absolute DN
-	absdn, err := manager.absdn(dn, manager.dn)
+	absdn, err := manager.absdn(dn)
 	if err != nil {
 		return nil, err
 	}
@@ -385,7 +386,7 @@ func (manager *Manager) Create(ctx context.Context, dn string, attr url.Values) 
 	}
 
 	// Make absolute DN
-	absdn, err := manager.absdn(dn, manager.dn)
+	absdn, err := manager.absdn(dn)
 	if err != nil {
 		return nil, err
 	}
@@ -418,7 +419,7 @@ func (manager *Manager) Delete(ctx context.Context, dn string) (*schema.Object, 
 	}
 
 	// Make absolute DN
-	absdn, err := manager.absdn(dn, manager.dn)
+	absdn, err := manager.absdn(dn)
 	if err != nil {
 		return nil, err
 	}
@@ -450,19 +451,24 @@ func (manager *Manager) Bind(ctx context.Context, dn, password string) (*schema.
 	}
 
 	// Make absolute DN
-	absdn, err := manager.absdn(dn, manager.dn)
+	absdn, err := manager.absdn(dn)
 	if err != nil {
 		return nil, err
 	}
 
-	// Bind
-	if err := manager.conn.Bind(absdn.String(), password); err != nil {
-		return nil, ldaperr(err)
+	// Bind - which may result in invalid credentials
+	var errs error
+	if err := manager.conn.Bind(absdn.String(), password); ldapErrorCode(err) == ldap.LDAPResultInvalidCredentials {
+		errs = ldaperr(err)
+	} else if err != nil {
+		return nil, err
 	}
 
 	// Rebind with this user
 	if err := ldapBind(manager.conn, manager.User(), manager.pass); err != nil {
-		return nil, ldaperr(err)
+		return nil, errors.Join(errs, ldaperr(err))
+	} else if errs != nil {
+		return nil, errs
 	}
 
 	// Return the user
@@ -487,7 +493,7 @@ func (manager *Manager) ChangePassword(ctx context.Context, dn, old string, new 
 	}
 
 	// Make absolute DN
-	absdn, err := manager.absdn(dn, manager.dn)
+	absdn, err := manager.absdn(dn)
 	if err != nil {
 		return nil, err
 	}
@@ -515,7 +521,7 @@ func (manager *Manager) Update(ctx context.Context, dn string, attr url.Values) 
 	}
 
 	// Make absolute DN
-	absdn, err := manager.absdn(dn, manager.dn)
+	absdn, err := manager.absdn(dn)
 	if err != nil {
 		return nil, err
 	}
@@ -887,13 +893,15 @@ func ldaperr(err error) error {
 		return httpresponse.ErrNotFound.With(err.Error())
 	case ldap.LDAPResultConstraintViolation:
 		return httpresponse.ErrConflict.With(err.Error())
+	case ldap.LDAPResultUnwillingToPerform:
+		return httpresponse.Err(http.StatusServiceUnavailable).With(err.Error())
 	default:
 		return httpresponse.ErrInternalError.With(err)
 	}
 }
 
 // Make the DN absolute
-func (manager *Manager) absdn(dn string, base *schema.DN) (*schema.DN, error) {
+func (manager *Manager) absdn(dn string) (*schema.DN, error) {
 	rdn, err := schema.NewDN(dn)
 	if err != nil {
 		return nil, httpresponse.ErrBadRequest.Withf("Invalid DN: %v", err.Error())
