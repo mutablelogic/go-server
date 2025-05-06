@@ -656,12 +656,16 @@ func (manager *Manager) CreateUser(ctx context.Context, user string, attrs url.V
 	}
 
 	// TODO: Uid
+	// objectClass is posixAccount and uidNumber is set, then ignore
+	// objectClass is posixAccount and uidNumber is not set, then set to next available uid
+	//   this comes from cn=maxID or cn=lastUID attribute serialNumber
+	//   or from sorting the uidNumber attribute
 	fmt.Println(absdn, object)
+	// TODO: Groups?
+	// TODO: Increment the lastUID
 
 	// Create the user
 	return manager.Create(ctx, absdn.String(), object.Values)
-
-	// TODO: Groups
 }
 
 /*
