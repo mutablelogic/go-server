@@ -105,3 +105,32 @@ func (o *Object) GetAll(attr string) []string {
 	// Not found
 	return nil
 }
+
+// Sets an attribute value
+func (o *Object) Set(attr string, v ...string) {
+	// Function to add or delete an attribute
+	set := func(k string, v []string) {
+		if len(v) == 0 {
+			delete(o.Values, k)
+		} else {
+			o.Values[k] = v
+		}
+	}
+
+	// Try case insensitive
+	if values, ok := o.Values[attr]; ok {
+		set(attr, values)
+		return
+	}
+
+	// Try case insensitive
+	for k, values := range o.Values {
+		if strings.EqualFold(k, attr) {
+			set(attr, values)
+			return
+		}
+	}
+
+	// Not found - add
+	set(attr, v)
+}

@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"net/url"
+	"strings"
 
 	// Packages
 	server "github.com/mutablelogic/go-server"
@@ -21,6 +22,11 @@ type Config struct {
 	BaseDN     string            `env:"LDAP_BASE_DN" help:"Base DN"`                        // Base DN
 	SkipVerify bool              `env:"LDAP_SKIPVERIFY" help:"Skip TLS certificate verify"` // Skip verify
 	Router     server.HTTPRouter `kong:"-"`                                                 // HTTP Router
+	UserSchema struct {
+		RDN           string `default:"cn=users,cn=account" help:"User root DN"`
+		Field         string `default:"uid" help:"User field"`
+		ObjectClasses string `default:"top,inetOrgPerson,posixAccount" help:"User object classes"`
+	}
 }
 
 var _ server.Plugin = Config{}
@@ -43,6 +49,10 @@ func (c Config) New(ctx context.Context) (server.Task, error) {
 	}
 	if c.SkipVerify {
 		opts = append(opts, ldap.WithSkipVerify())
+	}
+	if c.UserSchema.RDN != "" {
+		classes := strings.Split(c.UserSchema.ObjectClasses, ",")
+		opts = append(opts, ldap.WithUserSchema(c.UserSchema.RDN, c.UserSchema.Field, classes...))
 	}
 
 	// Create a new LDAP manager

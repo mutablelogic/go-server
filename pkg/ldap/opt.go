@@ -17,8 +17,8 @@ type opt struct {
 	pass       string
 	dn         *schema.DN
 	skipverify bool
-	users      *schema.Group
-	groups     *schema.Group
+	users      *schema.ObjectType
+	groups     *schema.ObjectType
 }
 
 // Opt represents a function that modifies the options
@@ -44,27 +44,23 @@ func applyOpts(opts ...Opt) (*opt, error) {
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func WithUserSchema(dn string, classes ...string) Opt {
+func WithUserSchema(dn, field string, classes ...string) Opt {
 	return func(o *opt) error {
-		if dn == "" {
-			return httpresponse.ErrBadRequest.With("DN is empty")
-		} else if bdn, err := schema.NewDN(dn); err != nil {
-			return httpresponse.ErrBadRequest.With("DN is invalid: ", err)
+		if ot, err := schema.NewObjectType(dn, field, classes...); err != nil {
+			return err
 		} else {
-			o.users = &schema.Group{DN: bdn, ObjectClass: classes}
+			o.users = ot
 		}
 		return nil
 	}
 }
 
-func WithGroupSchema(dn string, classes ...string) Opt {
+func WithGroupSchema(dn, field string, classes ...string) Opt {
 	return func(o *opt) error {
-		if dn == "" {
-			return httpresponse.ErrBadRequest.With("DN is empty")
-		} else if bdn, err := schema.NewDN(dn); err != nil {
-			return httpresponse.ErrBadRequest.With("DN is invalid: ", err)
+		if ot, err := schema.NewObjectType(dn, field, classes...); err != nil {
+			return err
 		} else {
-			o.groups = &schema.Group{DN: bdn, ObjectClass: classes}
+			o.groups = ot
 		}
 		return nil
 	}

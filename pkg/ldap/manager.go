@@ -15,7 +15,7 @@ import (
 
 	// Packages
 	ldap "github.com/go-ldap/ldap/v3"
-	"github.com/mutablelogic/go-server"
+	server "github.com/mutablelogic/go-server"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	schema "github.com/mutablelogic/go-server/pkg/ldap/schema"
 	ref "github.com/mutablelogic/go-server/pkg/ref"
@@ -33,8 +33,8 @@ type Manager struct {
 	user, pass string
 	dn         *schema.DN
 	conn       *ldap.Conn
-	users      *schema.Group
-	groups     *schema.Group
+	users      *schema.ObjectType
+	groups     *schema.ObjectType
 }
 
 var _ server.LDAP = (*Manager)(nil)
@@ -103,7 +103,7 @@ func NewManager(opt ...Opt) (*Manager, error) {
 		self.dn = o.dn
 	}
 
-	// Set the schemas for users, groups
+	// Set the object types for users, groups
 	self.users = o.users
 	self.groups = o.groups
 
@@ -637,6 +637,73 @@ func (manager *Manager) ListAttributeTypes(ctx context.Context) ([]*schema.Attri
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS - USERS AND GROUPS
 
+// Create a user
+func (manager *Manager) CreateUser(ctx context.Context, user string, attrs url.Values) (*schema.Object, error) {
+	if manager.users == nil {
+		return nil, httpresponse.ErrBadRequest.With("User schema not set")
+	}
+
+	// Create the object template
+	object, err := manager.users.New(user, attrs)
+	if err != nil {
+		return nil, httpresponse.ErrBadRequest.With(err)
+	}
+
+	// Make absolute DN
+	absdn, err := manager.absdn(object.DN)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: Uid
+	fmt.Println(absdn, object)
+
+	// Create the user
+	return manager.Create(ctx, absdn.String(), object.Values)
+
+	// TODO: Groups
+}
+
+/*
+	// If the uid is not set, then set it to the next available uid
+	var nextId int
+	uid, err := ldap.SearchOne("(&(objectclass=device)(cn=lastuid))")
+	if err != nil {
+		return nil, err
+	} else if uid == nil {
+		return nil, ErrNotImplemented.With("lastuid not found")
+	} else if uid_, err := strconv.ParseInt(uid.Get("serialNumber"), 10, 32); err != nil {
+		return nil, ErrNotImplemented.With("lastuid not found")
+	} else {
+		nextId = int(uid_) + 1
+		if err := schema.OptUserId(int(uid_))(o); err != nil {
+			return nil, err
+		}
+	}
+
+	// Create the request
+	addReq := goldap.NewAddRequest(o.DN, []goldap.Control{})
+	for name, values := range o.Values {
+		addReq.Attribute(name, values)
+	}
+
+	// Request -> Response
+	if err := ldap.conn.Add(addReq); err != nil {
+		return nil, err
+	}
+
+	// Increment the uid
+	if uid != nil && nextId > 0 {
+		modify := goldap.NewModifyRequest(uid.DN, []goldap.Control{})
+		modify.Replace("serialNumber", []string{fmt.Sprint(nextId)})
+		if err := ldap.conn.Modify(modify); err != nil {
+			return nil, err
+		}
+	}
+
+	// TODO: Add the user to a group
+*/
+
 // Return all users
 func (manager *Manager) ListUsers(ctx context.Context, request schema.ObjectListRequest) ([]*schema.ObjectList, error) {
 	// TODO
@@ -659,12 +726,6 @@ func (manager *Manager) GetUser(ctx context.Context, dn string) (*schema.Object,
 func (manager *Manager) GetGroup(ctx context.Context, dn string) (*schema.Object, error) {
 	// TODO
 	return nil, httpresponse.ErrNotImplemented.With("GetGroup not implemented")
-}
-
-// Create a user
-func (manager *Manager) CreateUser(ctx context.Context, user string, attrs url.Values) (*schema.Object, error) {
-	// TODO
-	return nil, httpresponse.ErrNotImplemented.With("CreateUser not implemented")
 }
 
 // Create a group
