@@ -13,10 +13,12 @@ import (
 
 func run(ctx server.Cmd, fn func(context.Context, *client.Client) error) error {
 	// Create a client
-	provider, err := client.New(ctx.GetEndpoint("${AUTH_PREFIX}").String(), ctx.GetClientOpts()...)
-	if err != nil {
+	if endpoint, err := ctx.GetEndpoint(); err != nil {
 		return err
+	} else if provider, err := client.New(endpoint.String(), ctx.GetClientOpts()...); err != nil {
+		return err
+	} else {
+		// Run the function
+		return fn(ctx.Context(), provider)
 	}
-	// Run the function
-	return fn(ctx.Context(), provider)
 }

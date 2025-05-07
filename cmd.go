@@ -23,7 +23,7 @@ type Cmd interface {
 	GetDebug() DebugLevel
 
 	// Return the endpoint
-	GetEndpoint(paths ...string) *url.URL
+	GetEndpoint(paths ...string) (*url.URL, error)
 
 	// Return the HTTP client options
 	GetClientOpts() []client.ClientOpt

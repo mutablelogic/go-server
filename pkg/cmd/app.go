@@ -75,26 +75,26 @@ func (app *app) Context() context.Context {
 }
 
 func (app *app) GetDebug() server.DebugLevel {
-	if app.Debug {
-		return server.Debug
-	}
 	if app.Trace {
 		return server.Trace
+	}
+	if app.Debug {
+		return server.Debug
 	}
 	return server.None
 }
 
-func (app *app) GetEndpoint(paths ...string) *url.URL {
+func (app *app) GetEndpoint(paths ...string) (*url.URL, error) {
 	url, err := url.Parse(app.Endpoint)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	for _, path := range paths {
 		url.Path = types.JoinPath(url.Path, os.Expand(path, func(key string) string {
 			return app.vars[key]
 		}))
 	}
-	return url
+	return url, nil
 }
 
 func (app *app) GetClientOpts() []client.ClientOpt {
