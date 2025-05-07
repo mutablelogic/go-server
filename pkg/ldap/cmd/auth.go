@@ -18,7 +18,7 @@ type AuthCommands struct {
 }
 
 type AuthBindCommand struct {
-	ObjectGetCommand
+	DN       string `arg:"" help:"User or DN"`
 	Password string `required:"" help:"Password"`
 }
 

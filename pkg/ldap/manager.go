@@ -462,6 +462,13 @@ func (manager *Manager) Bind(ctx context.Context, dn, password string) (*schema.
 		return nil, httpresponse.ErrGatewayError.With("Not connected")
 	}
 
+	// If the dn is an identifier, assume it is a user and we need to make an RDN
+	if types.IsIdentifier(dn) && manager.users != nil {
+		if user, err := manager.users.New(dn, nil); err == nil {
+			dn = user.DN
+		}
+	}
+
 	// Make absolute DN
 	absdn, err := manager.absdn(dn)
 	if err != nil {
@@ -502,6 +509,13 @@ func (manager *Manager) ChangePassword(ctx context.Context, dn, old string, new 
 	// New password is required
 	if new == nil {
 		return nil, httpresponse.ErrBadRequest.With("New password parameter is required")
+	}
+
+	// If the dn is an identifier, assume it is a user and we need to make an RDN
+	if types.IsIdentifier(dn) && manager.users != nil {
+		if user, err := manager.users.New(dn, nil); err == nil {
+			dn = user.DN
+		}
 	}
 
 	// Make absolute DN
