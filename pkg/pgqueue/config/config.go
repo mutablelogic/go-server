@@ -16,11 +16,10 @@ import (
 // TYPES
 
 type Config struct {
-	Pool      server.PG         `kong:"-"`                                     // Connection pool
-	Router    server.HTTPRouter `kong:"-"`                                     // Which HTTP router to use
-	Namespace *string           `help:"Namespace"`                             // Namespace for queues and tickers
-	Worker    *string           `help:"Worker name"`                           // The name of the worker
-	Prefix    string            `default:"${QUEUE_PREFIX}" help:"Path prefix"` // HTTP Path Prefix
+	Pool      server.PG         `kong:"-"`           // Connection pool
+	Router    server.HTTPRouter `kong:"-"`           // Which HTTP router to use
+	Namespace *string           `help:"Namespace"`   // Namespace for queues and tickers
+	Worker    *string           `help:"Worker name"` // The name of the worker
 }
 
 var _ server.Plugin = Config{}
@@ -50,7 +49,7 @@ func (c Config) New(ctx context.Context) (server.Task, error) {
 
 	// Register HTTP handlers
 	if c.Router != nil {
-		handler.Register(ctx, c.Router, c.Prefix, manager)
+		handler.Register(ctx, c.Router, schema.APIPrefix, manager)
 	}
 
 	// Return the task

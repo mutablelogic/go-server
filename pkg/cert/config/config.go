@@ -19,9 +19,8 @@ import (
 // TYPES
 
 type Config struct {
-	Pool   server.PG         `kong:"-"`                                    // Connection pool
-	Router server.HTTPRouter `kong:"-"`                                    // Which HTTP router to use
-	Prefix string            `default:"${CERT_PREFIX}" help:"Path prefix"` // HTTP Path Prefix
+	Pool   server.PG         `kong:"-"` // Connection pool
+	Router server.HTTPRouter `kong:"-"` // Which HTTP router to use
 	Root   struct {
 		Organization  string `name:"org" help:"Organization name"`
 		Unit          string `name:"unit" help:"Organization unit"`
@@ -67,8 +66,8 @@ func (c Config) New(ctx context.Context) (server.Task, error) {
 
 	// Register HTTP handlers
 	if c.Router != nil {
-		certhandler.RegisterName(ctx, c.Router, c.Prefix, certmanager)
-		certhandler.RegisterCert(ctx, c.Router, c.Prefix, certmanager)
+		certhandler.RegisterName(ctx, c.Router, schema.APIPrefix, certmanager)
+		certhandler.RegisterCert(ctx, c.Router, schema.APIPrefix, certmanager)
 	}
 
 	// Queue ticker and queue to check for SSL expiry
