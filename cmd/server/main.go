@@ -46,6 +46,7 @@ type CLI struct {
 		ldap.ObjectCommands
 		ldap.AuthCommands
 		ldap.UserCommands
+		ldap.GroupCommands
 	} `cmd:""`
 
 	VersionCommands

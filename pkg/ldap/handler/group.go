@@ -13,15 +13,15 @@ import (
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-func userList(w http.ResponseWriter, r *http.Request, manager *ldap.Manager) error {
+func groupList(w http.ResponseWriter, r *http.Request, manager *ldap.Manager) error {
 	// Parse request
 	var req schema.ObjectListRequest
 	if err := httprequest.Query(r.URL.Query(), &req); err != nil {
 		return httpresponse.Error(w, err)
 	}
 
-	// List the users
-	response, err := manager.ListUsers(r.Context(), req)
+	// List the groups
+	response, err := manager.ListGroups(r.Context(), req)
 	if err != nil {
 		return httpresponse.Error(w, err)
 	}
@@ -30,7 +30,7 @@ func userList(w http.ResponseWriter, r *http.Request, manager *ldap.Manager) err
 	return httpresponse.JSON(w, http.StatusOK, httprequest.Indent(r), response)
 }
 
-func userCreate(w http.ResponseWriter, r *http.Request, manager *ldap.Manager) error {
+func groupCreate(w http.ResponseWriter, r *http.Request, manager *ldap.Manager) error {
 	// Parse request
 	var req schema.Object
 	if err := httprequest.Read(r, &req); err != nil {
@@ -38,7 +38,7 @@ func userCreate(w http.ResponseWriter, r *http.Request, manager *ldap.Manager) e
 	}
 
 	// Create the object
-	response, err := manager.CreateUser(r.Context(), req.DN, req.Values)
+	response, err := manager.CreateGroup(r.Context(), req.DN, req.Values)
 	if err != nil {
 		return httpresponse.Error(w, err)
 	}
@@ -47,9 +47,9 @@ func userCreate(w http.ResponseWriter, r *http.Request, manager *ldap.Manager) e
 	return httpresponse.JSON(w, http.StatusCreated, httprequest.Indent(r), response)
 }
 
-func userGet(w http.ResponseWriter, r *http.Request, manager *ldap.Manager, user string) error {
-	// Get the user
-	response, err := manager.GetUser(r.Context(), user)
+func groupGet(w http.ResponseWriter, r *http.Request, manager *ldap.Manager, group string) error {
+	// Get the group
+	response, err := manager.GetGroup(r.Context(), group)
 	if err != nil {
 		return httpresponse.Error(w, err)
 	}
@@ -58,9 +58,9 @@ func userGet(w http.ResponseWriter, r *http.Request, manager *ldap.Manager, user
 	return httpresponse.JSON(w, http.StatusOK, httprequest.Indent(r), response)
 }
 
-func userDelete(w http.ResponseWriter, r *http.Request, manager *ldap.Manager, user string) error {
-	// Delete the y=user
-	_, err := manager.DeleteUser(r.Context(), user)
+func groupDelete(w http.ResponseWriter, r *http.Request, manager *ldap.Manager, group string) error {
+	// Delete the y=group
+	_, err := manager.DeleteGroup(r.Context(), group)
 	if err != nil {
 		return httpresponse.Error(w, err)
 	}

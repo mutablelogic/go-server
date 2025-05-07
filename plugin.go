@@ -165,21 +165,25 @@ type LDAP interface {
 	// Objects
 	List(context.Context, ldapschema.ObjectListRequest) (*ldapschema.ObjectList, error) // List all objects in the directory
 	Get(context.Context, string) (*ldapschema.Object, error)                            // Get an object
-	Delete(context.Context, string) (*ldapschema.Object, error)                         // Delete an object
 	Create(context.Context, string, url.Values) (*ldapschema.Object, error)             // Create a new object with attributes
 	Update(context.Context, string, url.Values) (*ldapschema.Object, error)             // Update an object with attributes
+	Delete(context.Context, string) (*ldapschema.Object, error)                         // Delete an object
 
 	// Users
-	/*
-		ListUsers(context.Context, ldapschema.ObjectListRequest) ([]*ldapschema.ObjectList, error) // List users
-		GetUser(context.Context, string, ...string) (*ldapschema.Object, error)                    // Get a user with attributes
-		CreateUser(context.Context, string, url.Values) (*ldapschema.Object, error)                // Create a user with attributes
-		DeleteUser(context.Context, string) (*ldapschema.Object, error)                            // Delete a user
+	ListUsers(context.Context, ldapschema.ObjectListRequest) (*ldapschema.ObjectList, error) // List users
+	GetUser(context.Context, string) (*ldapschema.Object, error)                             // Get a user
+	CreateUser(context.Context, string, url.Values) (*ldapschema.Object, error)              // Create a user with attributes
+	DeleteUser(context.Context, string) (*ldapschema.Object, error)                          // Delete a user
+	// UpdateUser(context.Context, string, url.Values) (*ldapschema.Object, error) // Update a user with attributes
 
-		// Groups
-		ListGroups(context.Context, ldapschema.ObjectListRequest) ([]*ldapschema.ObjectList, error) // List groups
-		GetGroup(context.Context, string, ...string) (*ldapschema.Object, error)                    // Get a group with attributes
-		DeleteGroup(context.Context, string) (*ldapschema.Object, error)                            // Delete a group
+	// Groups
+	ListGroups(context.Context, ldapschema.ObjectListRequest) (*ldapschema.ObjectList, error) // List groups
+	GetGroup(context.Context, string) (*ldapschema.Object, error)                             // Get a group
+	CreateGroup(context.Context, string, url.Values) (*ldapschema.Object, error)              // Create a group with attributes
+	DeleteGroup(context.Context, string) (*ldapschema.Object, error)                          // Delete a group
+	// UpdateGroup(context.Context, string, url.Values) (*ldapschema.Object, error) // Update a group with attributes
+
+	/*
 		AddGroupUser(context.Context, string, string) (*ldapschema.Object, error)                   // Add a user to a group
 		RemoveGroupUser(context.Context, string, string) (*ldapschema.Object, error)                // Remove a user from a group
 

@@ -27,21 +27,21 @@ type ObjectListCommand struct {
 	schema.ObjectListRequest
 }
 
-type ObjectGetCommand struct {
-	DN string `arg:"" help:"Distingushed Name"`
-}
-
 type ObjectCreateCommand struct {
 	ObjectGetCommand
 	Attr []string `arg:"" help:"attribute=value,value,..."`
 }
 
-type ObjectUpdateCommand struct {
-	ObjectCreateCommand
+type ObjectGetCommand struct {
+	DN string `arg:"" help:"Distingushed Name"`
 }
 
 type ObjectDeleteCommand struct {
 	ObjectGetCommand
+}
+
+type ObjectUpdateCommand struct {
+	ObjectCreateCommand
 }
 
 ///////////////////////////////////////////////////////////////////////////////

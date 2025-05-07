@@ -112,11 +112,14 @@ func NewManager(opt ...Opt) (*Manager, error) {
 }
 
 func (manager *Manager) Run(ctx context.Context) error {
-	var retries uint
+	var retries int
 
 	// Connect after a short random delay
-	ticker := time.NewTimer(time.Millisecond * time.Duration(rand.Intn(100)))
+	ticker := time.NewTimer(time.Millisecond * time.Duration(rand.Intn(1000)))
 	defer ticker.Stop()
+
+	// Set retries to one to report the connection
+	retries = -1
 
 	// Continue to reconnect until cancelled
 	for {
@@ -129,13 +132,13 @@ func (manager *Manager) Run(ctx context.Context) error {
 		case <-ticker.C:
 			if err := manager.Connect(); err != nil {
 				// Connection error
-				logf(ctx, "LDAP connection error: %v", err)
+				logf(ctx, "LDAP connection error: %v:%v: %v", manager.Host(), manager.Port(), err)
 				retries = min(retries+1, schema.MaxRetries)
-				ticker.Reset(schema.MinRetryInterval * time.Duration(retries*retries))
+				ticker.Reset(schema.MinRetryInterval*time.Duration(retries*retries) + (time.Millisecond * time.Duration(rand.Intn(1000))))
 			} else {
 				// Connection successful
-				if retries > 0 {
-					logf(ctx, "LDAP connected")
+				if retries != 0 {
+					logf(ctx, "LDAP connected %v:%v", manager.Host(), manager.Port())
 				}
 				retries = 0
 				ticker.Reset(schema.MinRetryInterval * time.Duration(schema.MaxRetries))
@@ -254,6 +257,11 @@ func (manager *Manager) List(ctx context.Context, request schema.ObjectListReque
 		return nil, httpresponse.ErrGatewayError.With("Not connected")
 	}
 
+	// List the objects
+	return manager.list_outer(ctx, manager.dn.String(), request)
+}
+
+func (manager *Manager) list_outer(ctx context.Context, dn string, request schema.ObjectListRequest) (*schema.ObjectList, error) {
 	// Set the limit to be the minimum of user and schema limits
 	limit := uint64(schema.MaxListEntries)
 	if request.Limit != nil {
@@ -268,7 +276,7 @@ func (manager *Manager) List(ctx context.Context, request schema.ObjectListReque
 
 	// Perform the search through paging, skipping the first N entries
 	var list schema.ObjectList
-	if err := manager.list(ctx, ldap.ScopeWholeSubtree, manager.dn.String(), filter, 0, func(entry *schema.Object) error {
+	if err := manager.list_inner(ctx, ldap.ScopeWholeSubtree, dn, filter, 0, func(entry *schema.Object) error {
 		if list.Count >= request.Offset && list.Count < request.Offset+limit {
 			list.Body = append(list.Body, entry)
 		}
@@ -285,7 +293,7 @@ func (manager *Manager) List(ctx context.Context, request schema.ObjectListReque
 // Return the objects as a list using paging, calling a function for each entry.
 // When max is zero, paging is used to retrieve all entries. If max is greater than zero,
 // then the maximum number of entries is returned.
-func (manager *Manager) list(ctx context.Context, scope int, dn, filter string, max uint64, fn func(*schema.Object) error, attrs ...string) error {
+func (manager *Manager) list_inner(ctx context.Context, scope int, dn, filter string, max uint64, fn func(*schema.Object) error, attrs ...string) error {
 	// Create the paging control
 	var controls []ldap.Control
 	paging := ldap.NewControlPaging(schema.MaxListPaging)
@@ -355,14 +363,18 @@ func (manager *Manager) Get(ctx context.Context, dn string) (*schema.Object, err
 	}
 
 	// Get the object
-	return manager.get(ctx, ldap.ScopeBaseObject, absdn.String(), "(objectclass=*)")
+	return manager.get_outer(ctx, absdn.String())
 }
 
-func (manager *Manager) get(ctx context.Context, scope int, dn, filter string, attrs ...string) (*schema.Object, error) {
+func (manager *Manager) get_outer(ctx context.Context, dn string) (*schema.Object, error) {
+	return manager.get_inner(ctx, ldap.ScopeBaseObject, dn, "(objectclass=*)")
+}
+
+func (manager *Manager) get_inner(ctx context.Context, scope int, dn, filter string, attrs ...string) (*schema.Object, error) {
 	var result *schema.Object
 
 	// Search for one object
-	if err := manager.list(ctx, scope, dn, filter, 1, func(entry *schema.Object) error {
+	if err := manager.list_inner(ctx, scope, dn, filter, 1, func(entry *schema.Object) error {
 		result = entry
 		return io.EOF
 	}, attrs...); errors.Is(err, io.EOF) {
@@ -405,7 +417,7 @@ func (manager *Manager) Create(ctx context.Context, dn string, attr url.Values) 
 	}
 
 	// Return the new object
-	return manager.get(ctx, ldap.ScopeBaseObject, addReq.DN, "(objectclass=*)")
+	return manager.get_outer(ctx, addReq.DN)
 }
 
 // Delete an object by DN
@@ -425,7 +437,7 @@ func (manager *Manager) Delete(ctx context.Context, dn string) (*schema.Object, 
 	}
 
 	// Get the object
-	object, err := manager.get(ctx, ldap.ScopeBaseObject, absdn.String(), "(objectclass=*)")
+	object, err := manager.get_outer(ctx, absdn.String())
 	if err != nil {
 		return nil, ldaperr(err)
 	}
@@ -472,7 +484,7 @@ func (manager *Manager) Bind(ctx context.Context, dn, password string) (*schema.
 	}
 
 	// Return the user
-	return manager.get(ctx, ldap.ScopeBaseObject, absdn.String(), "(objectclass=*)")
+	return manager.get_outer(ctx, absdn.String())
 }
 
 // Change a password for a user. If the new password is empty, then the password is reset
@@ -506,7 +518,7 @@ func (manager *Manager) ChangePassword(ctx context.Context, dn, old string, new 
 	}
 
 	// Return the user
-	return manager.get(ctx, ldap.ScopeBaseObject, absdn.String(), "(objectclass=*)")
+	return manager.get_outer(ctx, absdn.String())
 }
 
 // Update attributes for an object. It will replace the attributes where the values is not empty,
@@ -538,7 +550,7 @@ func (manager *Manager) Update(ctx context.Context, dn string, attr url.Values) 
 	}
 
 	// Return the new object
-	return manager.get(ctx, ldap.ScopeBaseObject, absdn.String(), "(objectclass=*)")
+	return manager.get_outer(ctx, absdn.String())
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -555,7 +567,7 @@ func (manager *Manager) ListObjectClasses(ctx context.Context) ([]*schema.Object
 	}
 
 	// Get the subschema dn from rootDSE
-	root, err := manager.get(ctx, ldap.ScopeBaseObject, "", "(objectclass=*)", schema.AttrSubSchemaDN)
+	root, err := manager.get_inner(ctx, ldap.ScopeBaseObject, "", "(objectclass=*)", schema.AttrSubSchemaDN)
 	if err != nil {
 		return nil, err
 	}
@@ -568,7 +580,7 @@ func (manager *Manager) ListObjectClasses(ctx context.Context) ([]*schema.Object
 
 	// List the object classes
 	var result []*schema.ObjectClass
-	if err := manager.list(ctx, ldap.ScopeBaseObject, types.PtrString(subschemadn), "(objectclass=subschema)", 1, func(entry *schema.Object) error {
+	if err := manager.list_inner(ctx, ldap.ScopeBaseObject, types.PtrString(subschemadn), "(objectclass=subschema)", 1, func(entry *schema.Object) error {
 		objectClasses := entry.GetAll(schema.AttrObjectClasses)
 		if objectClasses == nil {
 			return httpresponse.ErrInternalError.With(schema.AttrObjectClasses, " not found")
@@ -600,7 +612,7 @@ func (manager *Manager) ListAttributeTypes(ctx context.Context) ([]*schema.Attri
 	}
 
 	// Get the subschema dn from rootDSE
-	root, err := manager.get(ctx, ldap.ScopeBaseObject, "", "(objectclass=*)", schema.AttrSubSchemaDN)
+	root, err := manager.get_inner(ctx, ldap.ScopeBaseObject, "", "(objectclass=*)", schema.AttrSubSchemaDN)
 	if err != nil {
 		return nil, err
 	}
@@ -613,7 +625,7 @@ func (manager *Manager) ListAttributeTypes(ctx context.Context) ([]*schema.Attri
 
 	// List the attribute types
 	var result []*schema.AttributeType
-	if err := manager.list(ctx, ldap.ScopeBaseObject, types.PtrString(subschemadn), "(objectclass=subschema)", 1, func(entry *schema.Object) error {
+	if err := manager.list_inner(ctx, ldap.ScopeBaseObject, types.PtrString(subschemadn), "(objectclass=subschema)", 1, func(entry *schema.Object) error {
 		attributeTypes := entry.GetAll(schema.AttrAttributeTypes)
 		if attributeTypes == nil {
 			return httpresponse.ErrInternalError.With(schema.AttrAttributeTypes, " not found")
@@ -635,7 +647,81 @@ func (manager *Manager) ListAttributeTypes(ctx context.Context) ([]*schema.Attri
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// PUBLIC METHODS - USERS AND GROUPS
+// PUBLIC METHODS - USERS
+
+// Return all users
+func (manager *Manager) ListUsers(ctx context.Context, request schema.ObjectListRequest) (*schema.ObjectList, error) {
+	manager.Lock()
+	defer manager.Unlock()
+
+	// Check connection
+	if manager.conn == nil {
+		return nil, httpresponse.ErrGatewayError.With("Not connected")
+	}
+	if manager.users == nil {
+		return nil, httpresponse.ErrBadRequest.With("User schema not set")
+	}
+
+	// Make absolute DN
+	absdn, err := manager.absdn(manager.users.DN.String())
+	if err != nil {
+		return nil, err
+	}
+
+	// Perform the search of all objects in the subtree
+	return manager.list_outer(ctx, absdn.String(), request)
+}
+
+// Get a user
+func (manager *Manager) GetUser(ctx context.Context, user string) (*schema.Object, error) {
+	manager.Lock()
+	defer manager.Unlock()
+
+	// Check connection
+	if manager.conn == nil {
+		return nil, httpresponse.ErrGatewayError.With("Not connected")
+	}
+	if manager.users == nil {
+		return nil, httpresponse.ErrBadRequest.With("User schema not set")
+	}
+
+	// Create the object for the user
+	object, err := manager.users.New(user, nil)
+	if err != nil {
+		return nil, httpresponse.ErrBadRequest.With(err)
+	}
+
+	// Make absolute DN
+	absdn, err := manager.absdn(object.DN)
+	if err != nil {
+		return nil, err
+	}
+
+	// Perform the search of all objects in the subtree
+	return manager.get_outer(ctx, absdn.String())
+}
+
+// Delete a user
+func (manager *Manager) DeleteUser(ctx context.Context, user string) (*schema.Object, error) {
+	if manager.users == nil {
+		return nil, httpresponse.ErrBadRequest.With("User schema not set")
+	}
+
+	// Create the object template
+	object, err := manager.users.New(user, nil)
+	if err != nil {
+		return nil, httpresponse.ErrBadRequest.With(err)
+	}
+
+	// Make absolute DN
+	absdn, err := manager.absdn(object.DN)
+	if err != nil {
+		return nil, err
+	}
+
+	// Delete the user
+	return manager.Delete(ctx, absdn.String())
+}
 
 // Create a user
 func (manager *Manager) CreateUser(ctx context.Context, user string, attrs url.Values) (*schema.Object, error) {
@@ -708,48 +794,106 @@ func (manager *Manager) CreateUser(ctx context.Context, user string, attrs url.V
 	// TODO: Add the user to a group
 */
 
-// Return all users
-func (manager *Manager) ListUsers(ctx context.Context, request schema.ObjectListRequest) ([]*schema.ObjectList, error) {
-	// TODO
-	return nil, httpresponse.ErrNotImplemented.With("ListUsers not implemented")
-}
+///////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS - GROUPS
 
 // Return all groups
-func (manager *Manager) ListGroups(ctx context.Context, request schema.ObjectListRequest) ([]*schema.ObjectList, error) {
-	// TODO
-	return nil, httpresponse.ErrNotImplemented.With("ListGroups not implemented")
-}
+func (manager *Manager) ListGroups(ctx context.Context, request schema.ObjectListRequest) (*schema.ObjectList, error) {
+	manager.Lock()
+	defer manager.Unlock()
 
-// Get a user
-func (manager *Manager) GetUser(ctx context.Context, dn string) (*schema.Object, error) {
-	// TODO
-	return nil, httpresponse.ErrNotImplemented.With("GetUser not implemented")
-}
+	// Check connection
+	if manager.conn == nil {
+		return nil, httpresponse.ErrGatewayError.With("Not connected")
+	}
+	if manager.groups == nil {
+		return nil, httpresponse.ErrBadRequest.With("Group schema not set")
+	}
 
-// Get a group
-func (manager *Manager) GetGroup(ctx context.Context, dn string) (*schema.Object, error) {
-	// TODO
-	return nil, httpresponse.ErrNotImplemented.With("GetGroup not implemented")
+	// Make absolute DN
+	absdn, err := manager.absdn(manager.groups.DN.String())
+	if err != nil {
+		return nil, err
+	}
+
+	// Perform the search of all objects in the subtree
+	return manager.list_outer(ctx, absdn.String(), request)
 }
 
 // Create a group
-func (manager *Manager) CreateGroup(ctx context.Context, group string, attrs url.Values) (*schema.Object, error) {
-	// TODO
-	return nil, httpresponse.ErrNotImplemented.With("CreateGroup not implemented")
+func (manager *Manager) CreateGroup(ctx context.Context, user string, attrs url.Values) (*schema.Object, error) {
+	if manager.groups == nil {
+		return nil, httpresponse.ErrBadRequest.With("Group schema not set")
+	}
+
+	// Create the object template
+	object, err := manager.groups.New(user, attrs)
+	if err != nil {
+		return nil, httpresponse.ErrBadRequest.With(err)
+	}
+
+	// Make absolute DN
+	absdn, err := manager.absdn(object.DN)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create the group
+	return manager.Create(ctx, absdn.String(), object.Values)
 }
 
-// Delete a user
-func (manager *Manager) DeleteUser(ctx context.Context, dn string) (*schema.Object, error) {
-	// TODO
-	return nil, httpresponse.ErrNotImplemented.With("DeleteUser not implemented")
+// Get a group
+func (manager *Manager) GetGroup(ctx context.Context, group string) (*schema.Object, error) {
+	manager.Lock()
+	defer manager.Unlock()
+
+	// Check connection
+	if manager.conn == nil {
+		return nil, httpresponse.ErrGatewayError.With("Not connected")
+	}
+	if manager.groups == nil {
+		return nil, httpresponse.ErrBadRequest.With("Group schema not set")
+	}
+
+	// Create the object for the group
+	object, err := manager.groups.New(group, nil)
+	if err != nil {
+		return nil, httpresponse.ErrBadRequest.With(err)
+	}
+
+	// Make absolute DN
+	absdn, err := manager.absdn(object.DN)
+	if err != nil {
+		return nil, err
+	}
+
+	// Perform the search of all objects in the subtree
+	return manager.get_outer(ctx, absdn.String())
 }
 
 // Delete a group
-func (manager *Manager) DeleteGroup(ctx context.Context, dn string) (*schema.Object, error) {
-	// TODO
-	return nil, httpresponse.ErrNotImplemented.With("DeleteGroup not implemented")
+func (manager *Manager) DeleteGroup(ctx context.Context, group string) (*schema.Object, error) {
+	if manager.groups == nil {
+		return nil, httpresponse.ErrBadRequest.With("Group schema not set")
+	}
+
+	// Create the object for the group
+	object, err := manager.groups.New(group, nil)
+	if err != nil {
+		return nil, httpresponse.ErrBadRequest.With(err)
+	}
+
+	// Make absolute DN
+	absdn, err := manager.absdn(object.DN)
+	if err != nil {
+		return nil, err
+	}
+
+	// Delete the group
+	return manager.Delete(ctx, absdn.String())
 }
 
+/*
 // Add a user to a group, and return the group
 func (manager *Manager) AddGroupUser(ctx context.Context, dn, user string) (*schema.Object, error) {
 	// TODO

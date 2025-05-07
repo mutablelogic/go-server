@@ -216,6 +216,10 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 		ldap.UserSchema.Field = "uid"
 		ldap.UserSchema.ObjectClasses = "top,inetOrgPerson,person,posixAccount"
 
+		ldap.GroupSchema.RDN = "cn=groups,cn=accounts"
+		ldap.GroupSchema.Field = "cn"
+		ldap.GroupSchema.ObjectClasses = "top,groupOfNames,nestedGroup,posixGroup"
+
 		return nil
 	}))
 

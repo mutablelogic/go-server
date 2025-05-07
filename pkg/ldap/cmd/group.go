@@ -15,66 +15,66 @@ import (
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type UserCommands struct {
-	Users      UserListCommand   `cmd:"" group:"LDAP" help:"List users"`
-	User       UserGetCommand    `cmd:"" group:"LDAP" help:"Get user"`
-	CreateUser UserCreateCommand `cmd:"" group:"LDAP" help:"Create user"`
-	DeleteUser UserDeleteCommand `cmd:"" group:"LDAP" help:"Delete user"`
+type GroupCommands struct {
+	Groups      GroupListCommand   `cmd:"" group:"LDAP" help:"List groups"`
+	Group       GroupGetCommand    `cmd:"" group:"LDAP" help:"Get group"`
+	CreateGroup GroupCreateCommand `cmd:"" group:"LDAP" help:"Create group"`
+	DeleteGroup GroupDeleteCommand `cmd:"" group:"LDAP" help:"Delete group"`
 }
 
-type UserListCommand struct {
+type GroupListCommand struct {
 	schema.ObjectListRequest
 }
 
-type UserGetCommand struct {
-	User string `arg:"" help:"Username"`
+type GroupGetCommand struct {
+	Group string `arg:"" help:"Group name"`
 }
 
-type UserCreateCommand struct {
-	UserGetCommand
+type GroupCreateCommand struct {
+	GroupGetCommand
 	Attr []string `arg:"" help:"attribute=value,value,..."`
 }
 
-type UserDeleteCommand struct {
-	UserGetCommand
+type GroupDeleteCommand struct {
+	GroupGetCommand
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func (cmd UserListCommand) Run(ctx server.Cmd) error {
+func (cmd GroupListCommand) Run(ctx server.Cmd) error {
 	return run(ctx, func(ctx context.Context, provider *client.Client) error {
-		users, err := provider.ListUsers(ctx, client.WithFilter(cmd.Filter), client.WithAttr(cmd.Attr...), client.WithOffsetLimit(cmd.Offset, cmd.Limit))
+		groups, err := provider.ListGroups(ctx, client.WithFilter(cmd.Filter), client.WithAttr(cmd.Attr...), client.WithOffsetLimit(cmd.Offset, cmd.Limit))
 		if err != nil {
 			return err
 		}
 
-		// Print users
-		fmt.Println(users)
+		// Print groups
+		fmt.Println(groups)
 		return nil
 	})
 }
 
-func (cmd UserGetCommand) Run(ctx server.Cmd) error {
+func (cmd GroupGetCommand) Run(ctx server.Cmd) error {
 	return run(ctx, func(ctx context.Context, provider *client.Client) error {
-		user, err := provider.GetUser(ctx, cmd.User)
+		group, err := provider.GetGroup(ctx, cmd.Group)
 		if err != nil {
 			return err
 		}
 
-		// Print user
-		fmt.Println(user)
+		// Print group
+		fmt.Println(group)
 		return nil
 	})
 }
 
-func (cmd UserDeleteCommand) Run(ctx server.Cmd) error {
+func (cmd GroupDeleteCommand) Run(ctx server.Cmd) error {
 	return run(ctx, func(ctx context.Context, provider *client.Client) error {
-		return provider.DeleteUser(ctx, cmd.User)
+		return provider.DeleteGroup(ctx, cmd.Group)
 	})
 }
 
-func (cmd UserCreateCommand) Run(ctx server.Cmd) error {
+func (cmd GroupCreateCommand) Run(ctx server.Cmd) error {
 	return run(ctx, func(ctx context.Context, provider *client.Client) error {
 		// Decode attributes
 		attrs := url.Values{}
@@ -89,17 +89,17 @@ func (cmd UserCreateCommand) Run(ctx server.Cmd) error {
 			}
 		}
 
-		// Create user
-		user, err := provider.CreateUser(ctx, schema.Object{
-			DN:     cmd.User,
+		// Create group
+		group, err := provider.CreateGroup(ctx, schema.Object{
+			DN:     cmd.Group,
 			Values: attrs,
 		})
 		if err != nil {
 			return err
 		}
 
-		// Print object
-		fmt.Println(user)
+		// Print group
+		fmt.Println(group)
 		return nil
 	})
 }
