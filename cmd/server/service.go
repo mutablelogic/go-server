@@ -211,6 +211,15 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 			ldap.Router = router
 		}
 
+		// HACK
+		ldap.UserSchema.RDN = "cn=users,cn=accounts"
+		ldap.UserSchema.Field = "uid"
+		ldap.UserSchema.ObjectClasses = "top,inetOrgPerson,person,posixAccount"
+
+		ldap.GroupSchema.RDN = "cn=groups,cn=accounts"
+		ldap.GroupSchema.Field = "cn"
+		ldap.GroupSchema.ObjectClasses = "top,groupOfNames,nestedGroup,posixGroup"
+
 		return nil
 	}))
 

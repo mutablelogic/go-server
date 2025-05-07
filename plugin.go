@@ -5,11 +5,13 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
+	"net/url"
 	"time"
 
 	// Packages
 	pg "github.com/djthorpe/go-pg"
 	authschema "github.com/mutablelogic/go-server/pkg/auth/schema"
+	ldapschema "github.com/mutablelogic/go-server/pkg/ldap/schema"
 	pgschema "github.com/mutablelogic/go-server/pkg/pgqueue/schema"
 )
 
@@ -116,8 +118,7 @@ type PGCallback func(context.Context, any) error
 
 // PGQueue defines methods for interacting with a PostgreSQL-backed task queue.
 type PGQueue interface {
-	// Conn returns the underlying connection pool object.
-	Conn() pg.PoolConn
+	PG
 
 	// Namespace returns the namespace of the queue.
 	Namespace() string
@@ -151,4 +152,40 @@ type Auth interface {
 	// Authorize checks if a given user has the necessary permissions (scopes)
 	// to perform an action.
 	Authorize(context.Context, *authschema.User, ...string) error
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// LDAP
+
+type LDAP interface {
+	// Introspection
+	ListObjectClasses(context.Context) ([]*ldapschema.ObjectClass, error)    // Return all classes
+	ListAttributeTypes(context.Context) ([]*ldapschema.AttributeType, error) // Return all attributes
+
+	// Objects
+	List(context.Context, ldapschema.ObjectListRequest) (*ldapschema.ObjectList, error) // List all objects in the directory
+	Get(context.Context, string) (*ldapschema.Object, error)                            // Get an object
+	Create(context.Context, string, url.Values) (*ldapschema.Object, error)             // Create a new object with attributes
+	Update(context.Context, string, url.Values) (*ldapschema.Object, error)             // Update an object with attributes
+	Delete(context.Context, string) (*ldapschema.Object, error)                         // Delete an object
+
+	// Users
+	ListUsers(context.Context, ldapschema.ObjectListRequest) (*ldapschema.ObjectList, error) // List users
+	GetUser(context.Context, string) (*ldapschema.Object, error)                             // Get a user
+	CreateUser(context.Context, string, url.Values) (*ldapschema.Object, error)              // Create a user with attributes
+	DeleteUser(context.Context, string) (*ldapschema.Object, error)                          // Delete a user
+	// UpdateUser(context.Context, string, url.Values) (*ldapschema.Object, error) // Update a user with attributes
+
+	// Groups
+	ListGroups(context.Context, ldapschema.ObjectListRequest) (*ldapschema.ObjectList, error) // List groups
+	GetGroup(context.Context, string) (*ldapschema.Object, error)                             // Get a group
+	CreateGroup(context.Context, string, url.Values) (*ldapschema.Object, error)              // Create a group with attributes
+	DeleteGroup(context.Context, string) (*ldapschema.Object, error)                          // Delete a group
+	// UpdateGroup(context.Context, string, url.Values) (*ldapschema.Object, error) // Update a group with attributes
+	// AddGroupUser(context.Context, string, string) (*ldapschema.Object, error)                   // Add a user to a group
+	// RemoveGroupUser(context.Context, string, string) (*ldapschema.Object, error)                // Remove a user from a group
+
+	// Auth
+	Bind(context.Context, string, string) (*ldapschema.Object, error)                    // Check credentials
+	ChangePassword(context.Context, string, string, *string) (*ldapschema.Object, error) // Change password for a user, and return the user object
 }

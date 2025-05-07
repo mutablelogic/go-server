@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"net/url"
+	"strings"
 
 	// Packages
 	server "github.com/mutablelogic/go-server"
@@ -15,10 +16,25 @@ import (
 // TYPES
 
 type Config struct {
-	Url      *url.URL          `env:"LDAP_URL" help:"LDAP connection URL"` // Connection URL
-	Password string            `env:"LDAP_PASSWORD" help:"Password"`       // Password
-	BaseDN   string            `env:"LDAP_BASE_DN" help:"Base DN"`         // Base DN
-	Router   server.HTTPRouter `kong:"-"`                                  // HTTP Router
+	Url        *url.URL `env:"LDAP_URL" help:"LDAP connection URL"`                // Connection URL
+	User       string   `env:"LDAP_USER" help:"User"`                              // User
+	Password   string   `env:"LDAP_PASSWORD" help:"Password"`                      // Password
+	BaseDN     string   `env:"LDAP_BASE_DN" help:"Base DN"`                        // Base DN
+	SkipVerify bool     `env:"LDAP_SKIPVERIFY" help:"Skip TLS certificate verify"` // Skip verify
+
+	Router server.HTTPRouter `kong:"-"` // HTTP Router
+
+	UserSchema struct {
+		RDN           string `default:"cn=users,cn=account" help:"User RDN"`
+		Field         string `default:"uid" help:"User field"`
+		ObjectClasses string `default:"top,person,inetOrgPerson,posixAccount" help:"User object classes"`
+	}
+
+	GroupSchema struct {
+		RDN           string `default:"cn=groups,cn=account" help:"Group RDN"`
+		Field         string `default:"cn" help:"Group field"`
+		ObjectClasses string `default:"top,groupOfNames,nestedGroup,posixGroup" help:"Group object classes"`
+	}
 }
 
 var _ server.Plugin = Config{}
@@ -28,15 +44,25 @@ var _ server.Plugin = Config{}
 
 func (c Config) New(ctx context.Context) (server.Task, error) {
 	// Add options
-	opts := []ldap.Opt{}
+	opts := []ldap.Opt{
+		ldap.WithUser(c.User),
+		ldap.WithPassword(c.Password),
+		ldap.WithBaseDN(c.BaseDN),
+	}
 	if c.Url != nil {
 		opts = append(opts, ldap.WithUrl(c.Url.String()))
 	}
-	if c.Password != "" {
-		opts = append(opts, ldap.WithPassword(c.Password))
-	}
 	if c.BaseDN != "" {
 		opts = append(opts, ldap.WithBaseDN(c.BaseDN))
+	}
+	if c.SkipVerify {
+		opts = append(opts, ldap.WithSkipVerify())
+	}
+	if c.UserSchema.RDN != "" {
+		opts = append(opts, ldap.WithUserSchema(c.UserSchema.RDN, c.UserSchema.Field, strings.Split(c.UserSchema.ObjectClasses, ",")...))
+	}
+	if c.GroupSchema.RDN != "" {
+		opts = append(opts, ldap.WithGroupSchema(c.GroupSchema.RDN, c.GroupSchema.Field, strings.Split(c.GroupSchema.ObjectClasses, ",")...))
 	}
 
 	// Create a new LDAP manager

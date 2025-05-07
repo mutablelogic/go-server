@@ -13,15 +13,15 @@ import (
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-func objectList(w http.ResponseWriter, r *http.Request, manager *ldap.Manager) error {
+func groupList(w http.ResponseWriter, r *http.Request, manager *ldap.Manager) error {
 	// Parse request
 	var req schema.ObjectListRequest
 	if err := httprequest.Query(r.URL.Query(), &req); err != nil {
 		return httpresponse.Error(w, err)
 	}
 
-	// List the objects
-	response, err := manager.List(r.Context(), req)
+	// List the groups
+	response, err := manager.ListGroups(r.Context(), req)
 	if err != nil {
 		return httpresponse.Error(w, err)
 	}
@@ -30,7 +30,7 @@ func objectList(w http.ResponseWriter, r *http.Request, manager *ldap.Manager) e
 	return httpresponse.JSON(w, http.StatusOK, httprequest.Indent(r), response)
 }
 
-func objectCreate(w http.ResponseWriter, r *http.Request, manager *ldap.Manager) error {
+func groupCreate(w http.ResponseWriter, r *http.Request, manager *ldap.Manager) error {
 	// Parse request
 	var req schema.Object
 	if err := httprequest.Read(r, &req); err != nil {
@@ -38,7 +38,7 @@ func objectCreate(w http.ResponseWriter, r *http.Request, manager *ldap.Manager)
 	}
 
 	// Create the object
-	response, err := manager.Create(r.Context(), req.DN, req.Values)
+	response, err := manager.CreateGroup(r.Context(), req.DN, req.Values)
 	if err != nil {
 		return httpresponse.Error(w, err)
 	}
@@ -47,9 +47,9 @@ func objectCreate(w http.ResponseWriter, r *http.Request, manager *ldap.Manager)
 	return httpresponse.JSON(w, http.StatusCreated, httprequest.Indent(r), response)
 }
 
-func objectGet(w http.ResponseWriter, r *http.Request, manager *ldap.Manager, dn string) error {
-	// Get the object
-	response, err := manager.Get(r.Context(), dn)
+func groupGet(w http.ResponseWriter, r *http.Request, manager *ldap.Manager, group string) error {
+	// Get the group
+	response, err := manager.GetGroup(r.Context(), group)
 	if err != nil {
 		return httpresponse.Error(w, err)
 	}
@@ -58,31 +58,13 @@ func objectGet(w http.ResponseWriter, r *http.Request, manager *ldap.Manager, dn
 	return httpresponse.JSON(w, http.StatusOK, httprequest.Indent(r), response)
 }
 
-func objectDelete(w http.ResponseWriter, r *http.Request, manager *ldap.Manager, dn string) error {
-	// Delete the object
-	_, err := manager.Delete(r.Context(), dn)
+func groupDelete(w http.ResponseWriter, r *http.Request, manager *ldap.Manager, group string) error {
+	// Delete the y=group
+	_, err := manager.DeleteGroup(r.Context(), group)
 	if err != nil {
 		return httpresponse.Error(w, err)
 	}
 
 	// Return success
 	return httpresponse.Empty(w, http.StatusOK)
-}
-
-func objectUpdate(w http.ResponseWriter, r *http.Request, manager *ldap.Manager, dn string) error {
-	// Parse request
-	var req schema.Object
-	if err := httprequest.Read(r, &req); err != nil {
-		return httpresponse.Error(w, err)
-	}
-
-	// Update the attributes
-	// TODO: Need to support adding and removing attributes, and changing the DN
-	response, err := manager.Update(r.Context(), dn, req.Values)
-	if err != nil {
-		return httpresponse.Error(w, err)
-	}
-
-	// Return success
-	return httpresponse.JSON(w, http.StatusOK, httprequest.Indent(r), response)
 }

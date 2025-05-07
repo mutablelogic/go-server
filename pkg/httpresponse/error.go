@@ -30,6 +30,7 @@ const (
 	ErrInternalError  = Err(http.StatusInternalServerError)
 	ErrNotAuthorized  = Err(http.StatusUnauthorized)
 	ErrForbidden      = Err(http.StatusForbidden)
+	ErrGatewayError   = Err(http.StatusBadGateway)
 )
 
 ///////////////////////////////////////////////////////////////////////////////

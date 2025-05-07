@@ -10,6 +10,7 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/mutablelogic/go-client v1.0.12
 	github.com/stretchr/testify v1.10.0
+	github.com/yinyin/go-ldap-schema-parser v0.0.0-20190716182935-542aadd3dcb5
 )
 
 require (
