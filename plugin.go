@@ -182,13 +182,10 @@ type LDAP interface {
 	CreateGroup(context.Context, string, url.Values) (*ldapschema.Object, error)              // Create a group with attributes
 	DeleteGroup(context.Context, string) (*ldapschema.Object, error)                          // Delete a group
 	// UpdateGroup(context.Context, string, url.Values) (*ldapschema.Object, error) // Update a group with attributes
+	// AddGroupUser(context.Context, string, string) (*ldapschema.Object, error)                   // Add a user to a group
+	// RemoveGroupUser(context.Context, string, string) (*ldapschema.Object, error)                // Remove a user from a group
 
-	/*
-		AddGroupUser(context.Context, string, string) (*ldapschema.Object, error)                   // Add a user to a group
-		RemoveGroupUser(context.Context, string, string) (*ldapschema.Object, error)                // Remove a user from a group
-
-		// Auth
-		Bind(context.Context, string, string) (*ldapschema.Object, error)                    // Check credentials
-		ChangePassword(context.Context, string, string, *string) (*ldapschema.Object, error) // Change password for a user, and return the user object
-	*/
+	// Auth
+	Bind(context.Context, string, string) (*ldapschema.Object, error)                    // Check credentials
+	ChangePassword(context.Context, string, string, *string) (*ldapschema.Object, error) // Change password for a user, and return the user object
 }
