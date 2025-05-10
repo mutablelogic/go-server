@@ -56,6 +56,8 @@ const (
 func (h *TermHandler) Handle(ctx context.Context, r slog.Record) error {
 	var parts []any
 
+	parts = append(parts, r.Time.Format(timeFormat))
+
 	level := r.Level.String()
 	switch r.Level {
 	case slog.LevelDebug:
@@ -136,5 +138,5 @@ func attrs(attrs []slog.Attr, r slog.Record) ([]byte, error) {
 		return true
 	})
 
-	return json.MarshalIndent(kv, "", "  ")
+	return json.Marshal(kv)
 }

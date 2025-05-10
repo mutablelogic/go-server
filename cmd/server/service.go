@@ -23,6 +23,7 @@ import (
 	httpserver "github.com/mutablelogic/go-server/pkg/httpserver/config"
 	ldap "github.com/mutablelogic/go-server/pkg/ldap/config"
 	logger "github.com/mutablelogic/go-server/pkg/logger/config"
+	metrics "github.com/mutablelogic/go-server/pkg/metrics/config"
 	pg "github.com/mutablelogic/go-server/pkg/pgmanager/config"
 	pgqueue "github.com/mutablelogic/go-server/pkg/pgqueue/config"
 )
@@ -216,6 +217,19 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 		ldap.GroupSchema.RDN = "cn=groups,cn=accounts"
 		ldap.GroupSchema.Field = "cn"
 		ldap.GroupSchema.ObjectClasses = "top,groupOfNames,nestedGroup,posixGroup"
+
+		return nil
+	}))
+
+	err = errors.Join(err, provider.Load("metrics", "main", func(ctx context.Context, label string, config server.Plugin) error {
+		metrics := config.(*metrics.Config)
+
+		// Set the router
+		if router, ok := ref.Provider(ctx).Task(ctx, "httprouter.main").(server.HTTPRouter); !ok || router == nil {
+			return httpresponse.ErrInternalError.With("Invalid router")
+		} else {
+			metrics.Router = router
+		}
 
 		return nil
 	}))

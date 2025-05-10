@@ -19,7 +19,7 @@ func Test_Sample_00(t *testing.T) {
 		}
 
 		var buf bytes.Buffer
-		if assert.NoError(sample.Write("family", &buf)) {
+		if assert.NoError(sample.Write(&buf, "family")) {
 			assert.Equal("family_test 13.14\n", buf.String())
 		}
 	})
@@ -31,7 +31,7 @@ func Test_Sample_00(t *testing.T) {
 		}
 
 		var buf bytes.Buffer
-		if assert.NoError(sample.Write("family", &buf)) {
+		if assert.NoError(sample.Write(&buf, "family")) {
 			assert.Equal("family_test 13\n", buf.String())
 		}
 	})
@@ -43,7 +43,7 @@ func Test_Sample_00(t *testing.T) {
 		}
 
 		var buf bytes.Buffer
-		if assert.NoError(sample.Write("family", &buf)) {
+		if assert.NoError(sample.Write(&buf, "family")) {
 			assert.Equal("family_test 0\n", buf.String())
 		}
 	})
@@ -55,7 +55,7 @@ func Test_Sample_00(t *testing.T) {
 		}
 
 		var buf bytes.Buffer
-		if assert.NoError(sample.Write("family", &buf)) {
+		if assert.NoError(sample.Write(&buf, "family")) {
 			assert.Equal("family_test 0\n", buf.String())
 		}
 	})
@@ -71,7 +71,7 @@ func Test_Sample_01(t *testing.T) {
 		}
 
 		var buf bytes.Buffer
-		if assert.NoError(sample.Write("family", &buf)) {
+		if assert.NoError(sample.Write(&buf, "family")) {
 			assert.Equal("family_test{a=\"b\"} 13.14\n", buf.String())
 		}
 	})
@@ -83,7 +83,7 @@ func Test_Sample_01(t *testing.T) {
 		}
 
 		var buf bytes.Buffer
-		if assert.NoError(sample.Write("family", &buf)) {
+		if assert.NoError(sample.Write(&buf, "family")) {
 			assert.Equal("family_test{a=\"b\",c=\"d\"} 13\n", buf.String())
 		}
 	})

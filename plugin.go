@@ -76,7 +76,7 @@ type HTTPMiddleware interface {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// LOGGER
+// LOGGING AND METRICS
 
 // Logger defines methods for logging messages and structured data.
 // It can also act as HTTP middleware for request logging.
@@ -98,6 +98,16 @@ type Logger interface {
 	// With returns a new Logger that includes the given key-value pairs
 	// in its structured log output.
 	With(...any) Logger
+}
+
+// Metrics defines methods for registering a family of metrics (with a name,
+// labels and either guage, counter or state)
+type Metrics interface {
+	Register(context.Context, metrics.FamilyMeta) (*metrics.Family, error)
+}
+
+type MetricsFamily interface {
+	Register(ctx context.Context, string, opts ...MetricsOpt) (MetricsFamily, error)
 }
 
 ///////////////////////////////////////////////////////////////////////////////

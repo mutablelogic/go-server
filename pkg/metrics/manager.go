@@ -15,6 +15,7 @@ import (
 // MetricManager allows a number of metric families to be registered
 type MetricManager struct {
 	sync.RWMutex
+	labels   []string
 	names    map[string]bool
 	families []*schema.Family
 }
@@ -22,11 +23,17 @@ type MetricManager struct {
 ////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func New() *MetricManager {
+func New(labels ...any) (*MetricManager, error) {
 	manager := new(MetricManager)
 	manager.names = make(map[string]bool, 10)
 	manager.families = make([]*schema.Family, 0, 10)
-	return manager
+	if labels, err := schema.LabelSet(labels...); err != nil {
+		return nil, err
+	} else {
+		manager.labels = labels
+	}
+
+	return manager, nil
 }
 
 ////////////////////////////////////////////////////////////////////////

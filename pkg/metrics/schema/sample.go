@@ -84,7 +84,7 @@ func newSample(name string, fv *float64, iv *int64, labels ...any) (*Sample, err
 		}
 	}
 
-	labelset, err := labelSet(labels...)
+	labelset, err := LabelSet(labels...)
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +100,7 @@ func newSample(name string, fv *float64, iv *int64, labels ...any) (*Sample, err
 /////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func (s *Sample) Write(prefix string, w io.Writer) error {
+func (s *Sample) Write(w io.Writer, prefix string) error {
 	var buf bytes.Buffer
 
 	buf.WriteString(prefix)
@@ -135,21 +135,4 @@ func (s *Sample) Write(prefix string, w io.Writer) error {
 	} else {
 		return nil
 	}
-}
-
-/////////////////////////////////////////////////////////////////////
-// PRIVATE METHODS
-
-func labelSet(labels ...any) ([]string, error) {
-	labelset := make([]string, 0, len(labels)>>1)
-	for i := 0; i < len(labels); i += 2 {
-		key, ok := labels[i].(string)
-		if !ok || key == "" {
-			return nil, httpresponse.ErrBadRequest.Withf("Invalid label: %q", labels[i])
-		} else if !reLabelName.MatchString(key) {
-			return nil, httpresponse.ErrBadRequest.Withf("Invalid label: %q", key)
-		}
-		labelset = append(labelset, fmt.Sprintf("%v=%q", key, labels[i+1]))
-	}
-	return labelset, nil
 }
