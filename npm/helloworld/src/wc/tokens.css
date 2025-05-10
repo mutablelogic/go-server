@@ -25,22 +25,28 @@ body {
   font-size: var(--font-size-default);
 }
 
+/* spacings */
+:root {
+  --space-default: 0.5em;
+  --space-small: calc(var(--space-default) / 2);
+}
+
 /* fonts */
 :root {
   --font-family-base: 'IBM Plex Sans', sans-serif;
   --font-family-mono: 'IBM Plex Mono', monospace;
-  --font-size-default: 0.9em;
-  --font-size-small: 0.8em;
-  --font-size-large: 1.2em;
-  --font-size-xlarge: 1.5em;
+  --font-size-default: calc(var(--space-default) * 2);
+  --font-size-small: calc(var(--font-size-default) * 0.8);
+  --font-size-large: calc(var(--font-size-default) * 1.2);
+  --font-size-xlarge: calc(var(--font-size-default) * 1.5);
   --font-weight-normal: 400;
   --font-weight-semibold: 600;
 }
 
 /* colors */
 :root {
-  --light-color: #fafafa;
-  --dark-color: #0f0f0f;
+  --light-color: #f7f7f7;
+  --dark-color: #555;
   --white-color: #fff;
   --black-color: #000;
 
@@ -50,6 +56,16 @@ body {
   --warning-color: #f72;
   --error-color: #f55;
   
+  --primary-opp-color: var(--light-color);
+  --secondary-opp-color: var(--light-color);
+  --success-opp-color: var(--light-color);
+  --warning-opp-color: var(--light-color);
+  --error-opp-color: var(--light-color);
+  --light-opp-color: var(--dark-color);
+  --dark-opp-color: var(--light-color);
+  --white-opp-color: var(--black-color);
+  --black-opp-color: var(--white-color);
+
   --grey-10-color: #EAEAEA;
   --grey-20-color: #D0D0D0;
   --grey-30-color: #B6B6B6;
@@ -61,17 +77,22 @@ body {
   --grey-90-color: #1A1A1A;  
 }
 
-/* space */
-:root {
-  --space-default: 0.5em;
-}
-
 /* icons */
 :root {
   --icon-size-small: 1.1em;
   --icon-size-medium: 1.5em;
   --icon-size-large: 2em;
   --icon-size-xlarge: 3em;
+}
+
+/* buttons */
+:root {
+  --button-margin: calc(var(--space-small) * 2) var(--space-small);
+  --button-padding: var(--space-default) var(--space-default);
+  --button-border: calc(var(--space-small) / 4) solid light-dark(var(--grey-50-color),var(--grey-50-color));
+  --button-border-radius: calc(var(--space-small) / 2);
+  --button-font-weight-active: var(--font-weight-semibold);
+  --button-opacity-disabled: 0.4;
 }
 
 /* navigation */

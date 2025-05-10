@@ -22,9 +22,7 @@ export class Icon extends LitElement {
 
   render() {
     return svg`
-        <div class=${this.className || nothing}>
-            <svg class=${this.className || nothing}><use href="${icons}#${this.name}"/></svg>
-        </div>
+      <svg class=${this.className || nothing}><use href="${icons}#${this.name}"/></svg>
     `;
   }
 

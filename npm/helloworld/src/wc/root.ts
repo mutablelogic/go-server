@@ -3,6 +3,7 @@
 import './tokens.css';
 
 // Web Components
+import './layout/Button'
 import './layout/Canvas'
 import './layout/Content'
 import './layout/Icon'
