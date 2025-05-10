@@ -4,8 +4,8 @@
     "description": "Static files",
     "main": "dist/index.js",
     "scripts": {
-        "dev": "esbuild src/index.ts src/index.html --bundle --loader:.html=copy --watch --outdir=dist --allow-overwrite --servedir=dist --banner:js=\"document.addEventListener('DOMContentLoaded', () => { new EventSource('/esbuild').addEventListener('change', () => location.reload()) });\"",
-        "dist": "rm -fr dist && install -d dist && esbuild src/index.ts src/index.html --bundle --sourcemap --loader:.html=copy --outdir=dist --allow-overwrite",
+        "dev": "esbuild src/index.ts src/index.html --bundle --loader:.html=copy --loader:.ttf=copy --watch --outdir=dist --allow-overwrite --servedir=dist --banner:js=\"document.addEventListener('DOMContentLoaded', () => { new EventSource('/esbuild').addEventListener('change', () => location.reload()) });\"",
+        "dist": "rm -fr dist && install -d dist && esbuild src/index.ts src/index.html --bundle --sourcemap --loader:.html=copy --loader:.ttf=copy --outdir=dist --allow-overwrite",
         "clean": "rm -fr dist"
     },
     "dependencies": {

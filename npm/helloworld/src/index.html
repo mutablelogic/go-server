@@ -6,12 +6,48 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Hello, World!</title>
   <script type="module" src="index.js" defer></script>
+  <link href="index.css" rel="stylesheet">
 </head>
 
 <body>
-  <wc-google-auth id="auth"></wc-google-auth>
-  <code><wc-provider origin="/" path="/pg/v1/schema" interval="5" id="databases"></wc-provider></code>
-  <wc-array provider="#databases" id="#database-array"></wc-array>
-  <wc-table array="#database-array"></wc-table>
+  <wc-canvas vertical>
+
+    <wc-nav>
+      <wc-navitem>NAV1</wc-navitem>
+      <wc-navitem>NAV2</wc-navitem>
+      <wc-navspace>Spacer</wc-navspace>
+      <wc-navitem>
+        <wc-google-auth id="auth"></wc-google-auth>
+      </wc-navitem>
+    </wc-nav>
+
+    <wc-content>
+      <wc-nav vertical>
+        <wc-navitem>NAV3</wc-navitem>
+        <wc-navitem>NAV4</wc-navitem>
+      </wc-nav>
+
+      <wc-content>
+        <wc-provider origin="http://192.168.86.14:7654/" path="/pg/v1/object" interval="5"
+          id="databases"></wc-provider></code>
+      </wc-content>
+      
+      <wc-content>
+        <wc-array provider="#databases" id="#database-array"></wc-array>
+      </wc-content>
+      
+      <wc-content vertical>
+        <wc-content>
+          TOP CONTENT
+        </wc-content>
+        <wc-content>
+          BOTTOM CONTENT
+        </wc-content>
+      </wc-content>
+
+    </wc-content>
+
+  </wc-canvas>
 </body>
+
 </html>

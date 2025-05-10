@@ -1,12 +1,13 @@
 
 // Import web components
-import './wc/GoogleAuth'
-import './wc/Provider'
-import './wc/Array'
-import './wc/Table'
+import './wc/root'
+import './wc/core/Provider'
+import './wc/core/Array'
+import './wc/layout/Table'
+import './wc/core/GoogleAuth'
 
 // Import classes
-import { GoogleAuth } from './wc/GoogleAuth';
+import { GoogleAuth } from './wc/core/GoogleAuth';
 
 // Initialize the app
 document.addEventListener("DOMContentLoaded", () => {

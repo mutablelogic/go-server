@@ -1,0 +1,75 @@
+/* Import fonts */
+@import url(../assets/font/ibmplexsans.css);
+@import url(../assets/font/ibmplexmono.css);
+
+:root {
+  color-scheme: light dark;
+}
+
+/* force light theme when this class is present */
+.light-mode {
+  color-scheme: only light;
+}
+
+/* force dark theme when this class is present */
+.dark-mode {
+  color-scheme: only dark;
+}
+
+body {
+  background-color: light-dark(var(--light-color), var(--dark-color));
+  color: light-dark(var(--dark-color), var(--light-color));
+  margin: 0;
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-default);
+}
+
+/* fonts */
+:root {
+  --font-family-base: 'IBM Plex Sans', sans-serif;
+  --font-family-mono: 'IBM Plex Mono', monospace;
+  --font-size-default: 1em;
+  --font-size-small: 0.8em;
+  --font-size-large: 1.2em;
+  --font-size-xlarge: 1.5em;
+  --font-weight-normal: 400;
+  --font-weight-semibold: 600;
+}
+
+/* colors */
+:root {
+  --light-color: #fafafa;
+  --dark-color: #0f0f0f;
+  --white-color: #fff;
+  --black-color: #000;
+
+  --primary-color: #16f;
+  --secondary-color: #aaa;
+  --success-color: #285;
+  --warning-color: #f72;
+  --error-color: #f55;
+  
+  --grey-10-color: #EAEAEA;
+  --grey-20-color: #D0D0D0;
+  --grey-30-color: #B6B6B6;
+  --grey-40-color: #9C9C9C;
+  --grey-50-color: #828282;
+  --grey-60-color: #6A6A6A;
+  --grey-70-color: #4E4E4E;
+  --grey-80-color: #343434;
+  --grey-90-color: #1A1A1A;  
+}
+
+/* space */
+:root {
+  --space-default: 0.5em;
+}
+
+/* navigation */
+:root {
+  --nav-background-color: light-dark(var(--grey-20-color),var(--grey-80-color));
+  --nav-background-color-hover: inherit;
+  --nav-text-color: light-dark(var(--light-color),var(--dark-color));
+  --nav-text-color-hover: inherit;
+  --nav-border: 0.05rem solid light-dark(var(--grey-50-color),var(--grey-50-color));
+}
