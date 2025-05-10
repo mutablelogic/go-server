@@ -109,7 +109,10 @@ body {
 
 /* toast */
 :root {
+  --toast-margin: calc(var(--space-small) * 2) var(--space-small);
+  --toast-padding: var(--space-default) var(--space-default);
+  --toast-border: calc(var(--space-small) / 4) solid light-dark(var(--grey-50-color),var(--grey-50-color));
+  --toast-border-radius: calc(var(--space-small) / 2);
   --toast-background-color: light-dark(var(--grey-20-color),var(--grey-80-color));
   --toast-text-color: light-dark(var(--light-color),var(--dark-color));
-  --toast-margin: var(--space-default);
 }

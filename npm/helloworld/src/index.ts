@@ -8,6 +8,8 @@ import './wc/core/GoogleAuth'
 
 // Import classes
 import { GoogleAuth } from './wc/core/GoogleAuth';
+import { Toast } from './wc/layout/Toast';
+import { Button } from './wc/layout/Button'
 
 // Initialize the app
 document.addEventListener("DOMContentLoaded", () => {
@@ -17,4 +19,17 @@ document.addEventListener("DOMContentLoaded", () => {
         Theme: 'outline',
         Size: 'small'
     };
+
+
+    const toast = document.querySelector('wc-toast') as Toast;
+    const buttons = document.querySelectorAll('wc-button');
+    buttons.forEach((button) => {
+        button.addEventListener('click', (evt) => {
+            const button = evt.target as Button;
+            toast.show(`Button clicked ${ button.textContent }`,{
+                duration: 3000,
+                color: button.color
+            });
+        });
+    });
 });

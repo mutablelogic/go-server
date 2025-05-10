@@ -11,3 +11,6 @@ import './layout/Nav'
 import './layout/NavItem'
 import './layout/NavSpace'
 import './layout/Toast'
+
+// Charts
+import './charts/PieChart'
