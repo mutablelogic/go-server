@@ -50,25 +50,40 @@ export class Nav extends LitElement {
         }
       }
 
-      ::slotted(*) {
+      /* Set cursor and flex for slotted elements */
+      ul ::slotted(*) {
         cursor: pointer;
         user-select: none;
         padding: var(--space-default);
-        background-color: var(--nav-background-color);
-        color: var(--nav-text-color);
+        align-items: center;
+        justify-content: center;
       }
 
-      ::slotted(:not(wc-navspace):hover) {
-          background-color: var(--nav-background-color-hover);
-          color: var(--nav-text-color-hover);
-      }
-
-
-      ::slotted(wc-navspace) {
+      ul ::slotted(wc-navspace) {
         cursor: default;
         flex: 1 0;
-        background-color: inherit;
-        color: inherit;
+      }
+
+      /* Hover */
+      ul.vertical ::slotted(wc-navitem) {
+        border-right: var(--nav-border-item);
+      }
+
+      ul.vertical ::slotted(wc-navitem:hover) {
+        border-right: var(--nav-border-item-hover);
+      }
+
+      ul:not(.vertical) ::slotted(wc-navitem) {
+        border-bottom: var(--nav-border-item);
+      }
+
+      ul:not(.vertical) ::slotted(wc-navitem:hover) {
+        border-bottom: var(--nav-border-item-hover);
+      }
+
+      /* Active */
+      ul ::slotted(wc-navitem:active) {
+        font-weight: var(--nav-font-weight-active);
       }
     `;
   }

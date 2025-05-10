@@ -13,9 +13,16 @@
   <wc-canvas vertical>
 
     <wc-nav>
-      <wc-navitem>NAV1</wc-navitem>
-      <wc-navitem>NAV2</wc-navitem>
-      <wc-navspace>Spacer</wc-navspace>
+      <wc-icon></wc-icon>
+      <wc-navitem>Postgres</wc-navitem>
+      <wc-navitem>Queue</wc-navitem>
+      <wc-navitem>Auth</wc-navitem>
+      <wc-navitem>LDAP</wc-navitem>
+      <wc-navitem>Cert</wc-navitem>
+      <wc-navspace></wc-navspace>
+      <wc-navitem>
+        <wc-icon>info-circle</wc-icon>
+      </wc-navitem>
       <wc-navitem>
         <wc-google-auth id="auth"></wc-google-auth>
       </wc-navitem>
@@ -23,8 +30,12 @@
 
     <wc-content>
       <wc-nav vertical>
-        <wc-navitem>NAV3</wc-navitem>
-        <wc-navitem>NAV4</wc-navitem>
+        <wc-navitem>Databases</wc-navitem>
+        <wc-navitem>Schemas</wc-navitem>
+        <wc-navitem>Objects</wc-navitem>
+        <wc-navitem>Roles</wc-navitem>
+        <wc-navitem>Tablespaces</wc-navitem>
+        <wc-navitem>Connections</wc-navitem>
       </wc-nav>
 
       <wc-content>
@@ -48,6 +59,8 @@
     </wc-content>
 
   </wc-canvas>
+
+  <wc-toast visible>HELLO</wc-toast>
 </body>
 
 </html>

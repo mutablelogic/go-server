@@ -1,6 +1,7 @@
 /* Import fonts */
 @import url(../assets/font/ibmplexsans.css);
 @import url(../assets/font/ibmplexmono.css);
+@import url(../assets/font/opensans.css);
 
 :root {
   color-scheme: light dark;
@@ -28,7 +29,7 @@ body {
 :root {
   --font-family-base: 'IBM Plex Sans', sans-serif;
   --font-family-mono: 'IBM Plex Mono', monospace;
-  --font-size-default: 1em;
+  --font-size-default: 0.9em;
   --font-size-small: 0.8em;
   --font-size-large: 1.2em;
   --font-size-xlarge: 1.5em;
@@ -65,11 +66,29 @@ body {
   --space-default: 0.5em;
 }
 
+/* icons */
+:root {
+  --icon-size-small: 1.1em;
+  --icon-size-medium: 1.5em;
+  --icon-size-large: 2em;
+  --icon-size-xlarge: 3em;
+}
+
 /* navigation */
 :root {
   --nav-background-color: light-dark(var(--grey-20-color),var(--grey-80-color));
   --nav-background-color-hover: inherit;
-  --nav-text-color: light-dark(var(--light-color),var(--dark-color));
+  --nav-text-color: light-dark(var(--dark-color), var(--light-color));
   --nav-text-color-hover: inherit;
   --nav-border: 0.05rem solid light-dark(var(--grey-50-color),var(--grey-50-color));
+  --nav-border-item: 0.25rem solid light-dark(var(--grey-20-color),var(--grey-80-color));
+  --nav-border-item-hover: 0.25rem solid red;
+  --nav-font-weight-active: var(--font-weight-semibold);
+}
+
+/* toast */
+:root {
+  --toast-background-color: light-dark(var(--grey-20-color),var(--grey-80-color));
+  --toast-text-color: light-dark(var(--light-color),var(--dark-color));
+  --toast-margin: var(--space-default);
 }
