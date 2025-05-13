@@ -53,7 +53,7 @@ export class Toast extends LitElement {
     return css`
       :host {
         position: fixed;
-        z-index: 1000;
+        z-index: 1001;
         right: 0;
         bottom: 0;
       }
@@ -64,7 +64,7 @@ export class Toast extends LitElement {
         padding: var(--toast-padding);
         border: var(--toast-border);
         border-radius: var(--toast-border-radius);
-        transition: visibility 0.2s, opacity 0.2s ease-in-out;
+        transition: var(--toast-transition); 
         cursor: pointer;
         user-select: none;
 

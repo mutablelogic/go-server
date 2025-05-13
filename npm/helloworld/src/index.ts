@@ -17,7 +17,7 @@ document.addEventListener("DOMContentLoaded", () => {
     googleAuth.opts = {
         ClientId: '121760808688-hbiibnih1trt2vrokhrta17jgeuagp4k.apps.googleusercontent.com',
         Theme: 'outline',
-        Size: 'small'
+        Size: 'large'
     };
 
 

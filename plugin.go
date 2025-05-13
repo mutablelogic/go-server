@@ -100,16 +100,6 @@ type Logger interface {
 	With(...any) Logger
 }
 
-// Metrics defines methods for registering a family of metrics (with a name,
-// labels and either guage, counter or state)
-type Metrics interface {
-	Register(context.Context, metrics.FamilyMeta) (*metrics.Family, error)
-}
-
-type MetricsFamily interface {
-	Register(ctx context.Context, string, opts ...MetricsOpt) (MetricsFamily, error)
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 // PGPOOL
 

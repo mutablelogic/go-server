@@ -22,7 +22,6 @@ type Config struct {
 	SSLMode  string            `env:"PG_SSLMODE" enum:"default,disable,allow,prefer,require,verify-ca,verify-full" help:"SSL mode"`
 	Trace    pg.TraceFn        `json:"-" kong:"-"`
 	Router   server.HTTPRouter `json:"-" kong:"-"` // Which HTTP router to use
-	Metrics  server.Metrics    `help:"Metrics module"`
 }
 
 var _ server.Plugin = Config{}

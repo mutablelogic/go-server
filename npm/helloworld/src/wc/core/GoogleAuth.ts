@@ -17,8 +17,7 @@ interface GoogleAuthOptions {
 export class GoogleAuth extends LitElement {
   private cookies: Cookies = new Cookies();
 
-  @property({ type: Object })
-  opts: GoogleAuthOptions = { ClientId: '' };
+  @property({ type: Object }) opts: GoogleAuthOptions = { ClientId: '' };
 
   protected firstUpdated(_changedProperties: PropertyValues): void {
     super.firstUpdated(_changedProperties);

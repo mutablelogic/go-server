@@ -23,9 +23,6 @@
       <wc-navitem>
         <wc-icon>info-circle</wc-icon>
       </wc-navitem>
-      <wc-navitem>
-        <wc-google-auth id="auth"></wc-google-auth>
-      </wc-navitem>
     </wc-nav>
 
     <wc-content>
@@ -49,7 +46,7 @@
       
       <wc-content vertical>
         <wc-content>
-          <wc-button color="primary">Primary</wc-button>
+          <wc-button color="primary" onclick="document.querySelector('#login').visible = true">Login</wc-button>
           <wc-button color="secondary">Secondary</wc-button>
           <wc-button color="light">Light</wc-button>
           <wc-button color="dark">Dark</wc-button>
@@ -60,14 +57,24 @@
           <wc-button color="error">Error</wc-button>
           <wc-button disabled>Disabled</wc-button>
         </wc-content>
-        <wc-content style="background-color: #f0f0f0;">
-          <wc-piechart></wc-piechart>
-        </wc-content>
       </wc-content>
 
     </wc-content>
 
   </wc-canvas>
+
+  <!-- Modal -->
+  <wc-modal id="login" visible>
+    <wc-form vertical>
+      <h1>Login</h1>
+      <wc-forminput name="email">Email</wc-forminput>
+      <wc-forminput name="password">Password</wc-forminput>
+      <wc-buttongroup>
+        <wc-button color="white" onclick="document.querySelector('#login').visible = false">Login</wc-button>
+        <wc-google-auth id="auth"></wc-google-auth>
+      </wc-buttongroup>
+    </wc-form>
+  </wc-modal>
 
   <!-- Place a toast at the bottom of the page -->
   <wc-toast></wc-toast>

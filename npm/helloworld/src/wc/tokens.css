@@ -31,6 +31,11 @@ body {
   --space-small: calc(var(--space-default) / 2);
 }
 
+/* timings */
+:root {
+  --transition-default: 0.3s;
+}
+
 /* fonts */
 :root {
   --font-family-base: 'IBM Plex Sans', sans-serif;
@@ -55,7 +60,7 @@ body {
   --success-color: #285;
   --warning-color: #f72;
   --error-color: #f55;
-  
+
   --primary-opp-color: var(--light-color);
   --secondary-opp-color: var(--light-color);
   --success-opp-color: var(--light-color);
@@ -74,7 +79,7 @@ body {
   --grey-60-color: #6A6A6A;
   --grey-70-color: #4E4E4E;
   --grey-80-color: #343434;
-  --grey-90-color: #1A1A1A;  
+  --grey-90-color: #1A1A1A;
 }
 
 /* icons */
@@ -89,7 +94,7 @@ body {
 :root {
   --button-margin: calc(var(--space-small) * 2) var(--space-small);
   --button-padding: var(--space-default) var(--space-default);
-  --button-border: calc(var(--space-small) / 4) solid light-dark(var(--grey-50-color),var(--grey-50-color));
+  --button-border: calc(var(--space-small) / 4) solid light-dark(var(--grey-50-color), var(--grey-50-color));
   --button-border-radius: calc(var(--space-small) / 2);
   --button-font-weight-active: var(--font-weight-semibold);
   --button-opacity-disabled: 0.4;
@@ -97,12 +102,12 @@ body {
 
 /* navigation */
 :root {
-  --nav-background-color: light-dark(var(--grey-20-color),var(--grey-80-color));
+  --nav-background-color: light-dark(var(--grey-20-color), var(--grey-80-color));
   --nav-background-color-hover: inherit;
   --nav-text-color: light-dark(var(--dark-color), var(--light-color));
   --nav-text-color-hover: inherit;
-  --nav-border: 0.05rem solid light-dark(var(--grey-50-color),var(--grey-50-color));
-  --nav-border-item: 0.25rem solid light-dark(var(--grey-20-color),var(--grey-80-color));
+  --nav-border: 0.05rem solid light-dark(var(--grey-50-color), var(--grey-50-color));
+  --nav-border-item: 0.25rem solid light-dark(var(--grey-20-color), var(--grey-80-color));
   --nav-border-item-hover: 0.25rem solid red;
   --nav-font-weight-active: var(--font-weight-semibold);
 }
@@ -111,8 +116,31 @@ body {
 :root {
   --toast-margin: calc(var(--space-small) * 2) var(--space-small);
   --toast-padding: var(--space-default) var(--space-default);
-  --toast-border: calc(var(--space-small) / 4) solid light-dark(var(--grey-50-color),var(--grey-50-color));
+  --toast-border: calc(var(--space-small) / 4) solid light-dark(var(--grey-50-color), var(--grey-50-color));
   --toast-border-radius: calc(var(--space-small) / 2);
-  --toast-background-color: light-dark(var(--grey-20-color),var(--grey-80-color));
-  --toast-text-color: light-dark(var(--light-color),var(--dark-color));
+  --toast-background-color: light-dark(var(--grey-20-color), var(--grey-80-color));
+  --toast-text-color: light-dark(var(--light-color), var(--dark-color));
+  --toast-transition: all var(----transition-default) ease-in-out;
+}
+
+/* modal */
+:root {
+  --modal-margin: 20vh 20vh;
+  --modal-border: calc(var(--space-small) / 4) solid light-dark(var(--grey-50-color), var(--grey-50-color));
+  --modal-border-radius: calc(var(--space-small));
+  --modal-transition: all var(----transition-default) ease-in-out;
+  --modal-background-color: light-dark(var(--light-color), var(--dark-color));
+  --modal-background-color-canvas: light-dark(var(--grey-80-color), var(--grey-20-color));
+  --modal-opacity-canvas: 0.5;
+}
+
+/* form */
+:root {
+  --form-input-font-size-label: var(--font-size-small);
+  --form-control-margin: calc(var(--space-default) * 2);
+  --form-input-margin: var(--space-default) 0;
+  --form-input-padding: calc(var(--space-small) * 2) var(--space-small);
+  --form-input-background-color: light-dark(var(--grey-10-color), var(--grey-90-color));
+  --form-input-border-width: 0 0 calc(var(--space-small) / 4) 0;
+  --form-input-border-color: light-dark(var(--grey-50-color), var(--grey-50-color));
 }
