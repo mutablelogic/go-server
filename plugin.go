@@ -43,6 +43,9 @@ type Provider interface {
 	// Write out the plugin configuration to a writer
 	WriteConfig(io.Writer) error
 
+	// Return the plugins registered with the provider
+	Plugins() []Plugin
+
 	// Load a plugin by name and label, and provide a resolver function
 	Load(string, string, PluginResolverFunc) error
 

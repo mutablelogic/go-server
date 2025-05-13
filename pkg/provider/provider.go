@@ -141,6 +141,15 @@ func (provider *provider) WriteConfig(w io.Writer) error {
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
+// Return all the plugins
+func (provider *provider) Plugins() []server.Plugin {
+	var result []server.Plugin
+	for _, meta := range provider.protos {
+		result = append(result, meta.New())
+	}
+	return result
+}
+
 // Return a task from a label
 func (provider *provider) Task(ctx context.Context, label string) server.Task {
 	provider.Debugf(ctx, "Called Task for %q", label)
