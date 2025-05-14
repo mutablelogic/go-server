@@ -3,7 +3,6 @@
 import './wc/root'
 import './wc/core/Provider'
 import './wc/core/Array'
-import './wc/layout/Table'
 import './wc/core/GoogleAuth'
 
 // Import classes

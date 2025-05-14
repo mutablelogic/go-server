@@ -17,3 +17,6 @@ import './layout/Toast'
 
 // Charts
 import './charts/PieChart'
+
+// Tables
+import './data/DataTable'

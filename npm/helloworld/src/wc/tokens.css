@@ -71,7 +71,10 @@ body {
   --white-opp-color: var(--black-color);
   --black-opp-color: var(--white-color);
 
+  --grey-05-color: #F2F2F2;
   --grey-10-color: #EAEAEA;
+  --grey-15-color: #E0E0E0;
+  --grey-25-color: #D7D7D7;
   --grey-20-color: #D0D0D0;
   --grey-30-color: #B6B6B6;
   --grey-40-color: #9C9C9C;
@@ -143,4 +146,29 @@ body {
   --form-input-background-color: light-dark(var(--grey-10-color), var(--grey-90-color));
   --form-input-border-width: 0 0 calc(var(--space-small) / 4) 0;
   --form-input-border-color: light-dark(var(--grey-50-color), var(--grey-50-color));
+}
+
+/* table */
+:root {
+  --table-border: none;
+  --table-border-radius: 0;
+  --table-color: light-dark(var(--dark-color), var(--light-color));
+  --table-background-color: light-dark(var(--grey-10-color), var(--grey-80-color));
+  --table-background-color-striped: light-dark(var(--grey-15-color), var(--grey-75-color));
+  --table-background-color-hover: light-dark(var(--grey-20-color), var(--grey-70-color));
+
+  /* header column */
+  --table-background-color-head: light-dark(var(--grey-50-color), var(--grey-50-color));
+  --table-color-head: light-dark(var(--light-color), var(--dark-color));
+  --table-font-size-head: var(--font-size-small);
+  --table-font-weight-head: var(--font-weight-normal);
+  --table-padding-head: var(--space-default) calc(var(--space-default) * 1.75);
+
+  /* row */
+  --table-font-size-row: var(--font-size-default);
+  --table-font-weight-row: var(--font-weight-normal);
+  --table-border-bottom-row: 1px solid var(--grey-50-color);
+  
+  /* cell */
+  --table-padding-cell: var(--space-default) calc(var(--space-default) * 1.75);
 }
