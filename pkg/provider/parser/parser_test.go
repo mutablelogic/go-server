@@ -29,7 +29,7 @@ func Test_Parser_002(t *testing.T) {
 		t.FailNow()
 	}
 
-	err = parser.Parse("testdata/log.json")
+	err = parser.Parse("jsonparser/testdata/log.json")
 	assert.NoError(err)
 }
 
@@ -42,6 +42,6 @@ func Test_Parser_003(t *testing.T) {
 		t.FailNow()
 	}
 
-	err = parser.Parse("testdata/httpserver.json")
+	err = parser.Parse("jsonparser/testdata/httpserver.json")
 	assert.NoError(err)
 }

@@ -3,8 +3,10 @@ package parser
 import "github.com/mutablelogic/go-server/pkg/provider/meta"
 
 const (
-	variable = "variable"
-	comment  = "//"
+	kwVariable    = "variable"
+	kwDescription = "description"
+	kwDefault     = "default"
+	kwComment     = "//"
 )
 
 type Resource struct {

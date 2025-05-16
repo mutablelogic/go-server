@@ -98,12 +98,12 @@ func (p *parser) jsonParse(root ast.Node) error {
 		}
 
 		// Ignore comments
-		if name == comment {
+		if name == kwComment {
 			continue
 		}
 
 		// Create variable
-		if name == variable && len(ident.Children()) > 0 {
+		if name == kwVariable && len(ident.Children()) > 0 {
 			if err := p.jsonVariablesParse(ident.Children()[0]); err != nil {
 				return httpresponse.ErrBadRequest.Withf("failed to parse %q: %s", name, err)
 			}
@@ -187,15 +187,66 @@ func (p *parser) jsonPluginsParse(meta *meta.Meta, root ast.Node) error {
 }
 
 func jsonVariableParse(name string, root ast.Node) (*Variable, error) {
+	if root.Type() != ast.Dict {
+		return nil, httpresponse.ErrBadRequest.Withf("expected object, got %s", root.Type())
+	}
+
+	// tree should contain "description" and "default" only
 	v := new(Variable)
 	v.Name = name
-	fmt.Println("jsonVariableParse", name, root)
+	for _, ident := range root.Children() {
+		if ident.Type() != ast.Ident {
+			return nil, httpresponse.ErrBadRequest.Withf("expected identifier, got %s", ident.Type())
+		} else if len(ident.Children()) == 0 {
+			continue
+		}
+
+		name, ok := ident.Value().(string)
+		if !ok || name == "" {
+			return nil, httpresponse.ErrBadRequest.Withf("expected identifier, got %q", ident.Value())
+		}
+		value := ident.Children()[0]
+
+		switch name {
+		case kwDescription:
+			if value.Type() != ast.String {
+				return nil, httpresponse.ErrBadRequest.Withf("expected string, got %s", value.Type())
+			} else {
+				v.Description = value.Value().(string)
+			}
+		case kwDefault:
+			v.Default = value.Value()
+		default:
+			return nil, httpresponse.ErrBadRequest.Withf("expected description or default, got %q", ident.Value())
+		}
+	}
 	return v, nil
 }
 
 func jsonResourceParse(meta *meta.Meta, root ast.Node) (*Resource, error) {
+	if root.Type() != ast.Dict {
+		return nil, httpresponse.ErrBadRequest.Withf("expected object, got %s", root.Type())
+	}
+
+	// tree should contain key/value pairs and objects which may be nested
 	r := new(Resource)
 	r.Meta = meta
-	fmt.Println("jsonResourceParse", r, root)
+
+	for _, ident := range root.Children() {
+		if ident.Type() != ast.Ident {
+			return nil, httpresponse.ErrBadRequest.Withf("expected identifier, got %s", ident.Type())
+		} else if len(ident.Children()) == 0 {
+			continue
+		}
+
+		name, ok := ident.Value().(string)
+		if !ok || name == "" {
+			return nil, httpresponse.ErrBadRequest.Withf("expected identifier, got %q", ident.Value())
+		}
+		value := ident.Children()[0]
+
+		fmt.Println("name:", name, "value:", value)
+
+	}
 	return r, nil
 }
