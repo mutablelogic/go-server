@@ -1,12 +1,11 @@
 package main
 
 import (
-	"fmt"
 
 	// Packages
 	server "github.com/mutablelogic/go-server"
-	"github.com/mutablelogic/go-server/pkg/parser"
 	provider "github.com/mutablelogic/go-server/pkg/provider"
+	parser "github.com/mutablelogic/go-server/pkg/provider/parser"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -44,8 +43,6 @@ func (cmd *Service2RunCommand) Run(app server.Cmd) error {
 			return err
 		}
 	}
-
-	fmt.Println(provider, parser)
 
 	return nil
 }

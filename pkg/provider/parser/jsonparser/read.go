@@ -7,7 +7,7 @@ import (
 	"io"
 
 	// Packages
-	ast "github.com/mutablelogic/go-server/pkg/parser/ast"
+	ast "github.com/mutablelogic/go-server/pkg/provider/parser/ast"
 )
 
 func Read(r io.Reader) (ast.Node, error) {

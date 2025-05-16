@@ -7,7 +7,7 @@ import (
 	httprouter "github.com/mutablelogic/go-server/pkg/httprouter/config"
 	httpserver "github.com/mutablelogic/go-server/pkg/httpserver/config"
 	log "github.com/mutablelogic/go-server/pkg/logger/config"
-	parser "github.com/mutablelogic/go-server/pkg/parser"
+	parser "github.com/mutablelogic/go-server/pkg/provider/parser"
 	assert "github.com/stretchr/testify/assert"
 )
 

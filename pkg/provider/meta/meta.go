@@ -2,18 +2,17 @@ package meta
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"net/url"
 	"os"
 	"reflect"
 	"strconv"
+	"strings"
 	"time"
 
 	// Packages
 	server "github.com/mutablelogic/go-server"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
-	ast "github.com/mutablelogic/go-server/pkg/parser/ast"
 	types "github.com/mutablelogic/go-server/pkg/types"
 )
 
@@ -27,7 +26,15 @@ type Meta struct {
 	Type        reflect.Type
 	Index       []int
 	Fields      []*Meta
+
+	// Private fields
+	label  []string
+	parent *Meta
 }
+
+const (
+	labelSeparator = "."
+)
 
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
@@ -46,6 +53,7 @@ func New(v server.Plugin) (*Meta, error) {
 		return nil, httpresponse.ErrInternalError.Withf("expected struct, got %T", v)
 	} else {
 		meta.Name = v.Name()
+		meta.label = []string{}
 		meta.Description = v.Description()
 		meta.Type = rt
 	}
@@ -54,7 +62,7 @@ func New(v server.Plugin) (*Meta, error) {
 	fields := reflect.VisibleFields(rt)
 	meta.Fields = make([]*Meta, 0, len(fields))
 	for _, field := range fields {
-		if field, err := newMetaField(field); err != nil {
+		if field, err := newMetaField(field, meta); err != nil {
 			return nil, httpresponse.ErrInternalError.With(err.Error())
 		} else if field != nil {
 			meta.Fields = append(meta.Fields, field)
@@ -63,6 +71,26 @@ func New(v server.Plugin) (*Meta, error) {
 
 	// Return success
 	return meta, nil
+}
+
+// Return a new metadata object, with a label
+func (m *Meta) WithLabel(label string) *Meta {
+	// Copy object
+	meta := new(Meta)
+	meta.Name = m.Name
+	meta.Description = m.Description
+	meta.Default = m.Default
+	meta.Type = m.Type
+	meta.Index = m.Index
+	meta.Fields = m.Fields
+
+	// Make a copy of the label
+	meta.label = make([]string, len(m.label))
+	copy(meta.label, m.label)
+	meta.label = append(meta.label, label)
+
+	// Return copy of meta
+	return meta
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -78,48 +106,57 @@ func (m *Meta) String() string {
 
 func (m *Meta) Write(w io.Writer) error {
 	var buf bytes.Buffer
+	m.writeBlock(&buf, 2)
+	_, err := w.Write(buf.Bytes())
+	return err
+}
 
+func (m *Meta) writeBlock(buf *bytes.Buffer, indent int) {
+	prefix := strings.Repeat(" ", indent)
 	if m.Description != "" {
-		buf.WriteString("// ")
-		buf.WriteString(m.Description)
-		buf.WriteString("\n")
+		buf.WriteString(prefix + "// " + m.Description + "\n")
 	}
-	buf.WriteString(m.Name)
-	buf.WriteString(" \"label\" {\n")
-
+	buf.WriteString(prefix + m.Name)
+	if label := m.Label(); label != "" {
+		buf.WriteString(" " + strconv.Quote(label))
+	}
+	buf.WriteString(" {\n")
 	for _, field := range m.Fields {
-		buf.WriteString("  ")
-		buf.WriteString(field.Name)
-		buf.WriteString(" = ")
-		buf.WriteString("<" + typeName(field.Type) + ">")
-
-		if field.Description != "" {
-			buf.WriteString("  // ")
-			buf.WriteString(field.Description)
+		// Block
+		if field.Type == nil {
+			buf.WriteString("\n")
+			field.writeBlock(buf, indent+2)
+			continue
 		}
+
+		// Field
+		buf.WriteString(prefix + prefix + field.Name + " = " + "<" + typeName(field.Type) + ">")
+		if field.Description != "" {
+			buf.WriteString("  // " + field.Description)
+		}
+		buf.WriteString(prefix + "// " + m.Label() + "\n")
 		if field.Default != "" {
 			buf.WriteString(" (default: " + types.Quote(field.Default) + ")")
 		}
-
 		buf.WriteString("\n")
 	}
-
-	buf.WriteString("}\n")
-	_, err := w.Write(buf.Bytes())
-	return err
+	buf.WriteString(prefix + "}\n")
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func (m *Meta) Validate(values any) error {
-	dict := values.(map[string]ast.Node)
-	for _, field := range m.Fields {
-		fmt.Println(field.Name, "=>", dict[field.Name])
+// Return the label
+func (m *Meta) Label() string {
+	var parts []string
+	for meta := m; meta != nil; meta = meta.parent {
+		parts = append(parts, meta.label...)
 	}
-	return nil
+	return strings.Join(parts, labelSeparator)
 }
 
+// Create a new plugin instance and set default values, then validate any
+// required fields
 func (m *Meta) New() server.Plugin {
 	obj := reflect.New(m.Type)
 	for _, field := range m.Fields {
@@ -129,10 +166,25 @@ func (m *Meta) New() server.Plugin {
 	return obj.Interface().(server.Plugin)
 }
 
+// Get a metadata field by name
+func (m *Meta) Get(label string) *Meta {
+	for _, field := range m.Fields {
+		if field.Label() == label {
+			return field
+		}
+		if field.Type == nil {
+			if field := field.Get(label); field != nil {
+				return field
+			}
+		}
+	}
+	return nil
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-func newMetaField(rf reflect.StructField) (*Meta, error) {
+func newMetaField(rf reflect.StructField, parent *Meta) (*Meta, error) {
 	meta := new(Meta)
 	meta.Index = rf.Index
 
@@ -142,14 +194,31 @@ func newMetaField(rf reflect.StructField) (*Meta, error) {
 		return nil, nil
 	} else {
 		meta.Name = name
+		meta.label = []string{name}
+		meta.parent = parent
 	}
 
 	// Description
-	if description, _ := valueForField(rf, "description", "help"); description != "" {
+	if description, _ := valueForField(rf, "description", "desc", "help"); description != "" {
 		meta.Description = description
 	}
 
-	// Env - needs to be an identififer
+	// Block type
+	if rf.Type.Kind() == reflect.Struct && rf.Type != timeType {
+		// Get visible fields
+		fields := reflect.VisibleFields(rf.Type)
+		meta.Fields = make([]*Meta, 0, len(fields))
+		for _, field := range fields {
+			if field, err := newMetaField(field, meta); err != nil {
+				return nil, httpresponse.ErrInternalError.With(err.Error())
+			} else if field != nil {
+				meta.Fields = append(meta.Fields, field)
+			}
+		}
+		return meta, nil
+	}
+
+	// Set default for the field
 	if env, _ := valueForField(rf, "env"); types.IsIdentifier(env) {
 		meta.Default = "${" + env + "}"
 	} else if def, _ := valueForField(rf, "default"); def != "" {
@@ -158,7 +227,7 @@ func newMetaField(rf reflect.StructField) (*Meta, error) {
 
 	// Type
 	if t := typeName(rf.Type); t == "" {
-		return nil, httpresponse.ErrInternalError.Withf("unsupported type: %s", rf.Type)
+		return nil, httpresponse.ErrInternalError.Withf("unsupported type: %v", rf.Type)
 	} else {
 		meta.Type = rf.Type
 	}
@@ -228,7 +297,7 @@ func setValue(rv reflect.Value, str string) error {
 		}
 		fallthrough
 	default:
-		// TODO: Datetime
+		// TODO: time.Time
 		return httpresponse.ErrBadRequest.Withf("invalid value for %s: %q", rv.Type(), str)
 	}
 

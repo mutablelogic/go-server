@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	// Packages
-	"github.com/mutablelogic/go-server/pkg/parser/jsonparser"
+	"github.com/mutablelogic/go-server/pkg/provider/parser/jsonparser"
 	"github.com/stretchr/testify/assert"
 )
 
