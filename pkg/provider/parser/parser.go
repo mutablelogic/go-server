@@ -26,6 +26,7 @@ type parser struct {
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
+// Create a new parser with the given plugins
 func New(plugins ...server.Plugin) (*parser, error) {
 	p := new(parser)
 	p.meta = make(map[string]*meta.Meta, len(plugins))
@@ -51,7 +52,7 @@ func New(plugins ...server.Plugin) (*parser, error) {
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-// Read a file and parse it
+// Read a configuration file and parse it, creating variables and resources
 func (p *parser) Parse(path string) error {
 	ext := strings.ToLower(filepath.Ext(path))
 	switch ext {
@@ -170,16 +171,16 @@ func (p *parser) jsonPluginsParse(meta *meta.Meta, root ast.Node) error {
 		if !ok || label == "" {
 			return httpresponse.ErrBadRequest.Withf("expected label, got %q", ident.Value())
 		} else {
-			meta = meta.WithLabel(label)
+			label = meta.Label(label)
 		}
 
-		if _, exists := p.resources[meta.Label()]; exists {
-			return httpresponse.ErrBadRequest.Withf("duplicate resource: %q", meta.Label())
+		if _, exists := p.resources[label]; exists {
+			return httpresponse.ErrBadRequest.Withf("duplicate resource: %q", label)
 		} else if len(ident.Children()) > 0 {
-			if resource, err := jsonResourceParse(meta, ident.Children()[0]); err != nil {
-				return httpresponse.ErrBadRequest.Withf("failed to parse %q: %s", meta.Label(), err)
+			if resource, err := jsonResourceParse(meta, label, ident.Children()[0]); err != nil {
+				return httpresponse.ErrBadRequest.Withf("failed to parse %q: %s", label, err)
 			} else {
-				p.resources[meta.Label()] = resource
+				p.resources[label] = resource
 			}
 		}
 	}
@@ -223,7 +224,7 @@ func jsonVariableParse(name string, root ast.Node) (*Variable, error) {
 	return v, nil
 }
 
-func jsonResourceParse(meta *meta.Meta, root ast.Node) (*Resource, error) {
+func jsonResourceParse(meta *meta.Meta, label string, root ast.Node) (*Resource, error) {
 	if root.Type() != ast.Dict {
 		return nil, httpresponse.ErrBadRequest.Withf("expected object, got %s", root.Type())
 	}
@@ -231,6 +232,7 @@ func jsonResourceParse(meta *meta.Meta, root ast.Node) (*Resource, error) {
 	// tree should contain key/value pairs and objects which may be nested
 	r := new(Resource)
 	r.Meta = meta
+	r.Label = label
 
 	for _, ident := range root.Children() {
 		if ident.Type() != ast.Ident {

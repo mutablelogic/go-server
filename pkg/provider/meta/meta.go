@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -28,7 +29,7 @@ type Meta struct {
 	Fields      []*Meta
 
 	// Private fields
-	label  []string
+	label  string
 	parent *Meta
 }
 
@@ -53,7 +54,6 @@ func New(v server.Plugin) (*Meta, error) {
 		return nil, httpresponse.ErrInternalError.Withf("expected struct, got %T", v)
 	} else {
 		meta.Name = v.Name()
-		meta.label = []string{}
 		meta.Description = v.Description()
 		meta.Type = rt
 	}
@@ -71,26 +71,6 @@ func New(v server.Plugin) (*Meta, error) {
 
 	// Return success
 	return meta, nil
-}
-
-// Return a new metadata object, with a label
-func (m *Meta) WithLabel(label string) *Meta {
-	// Copy object
-	meta := new(Meta)
-	meta.Name = m.Name
-	meta.Description = m.Description
-	meta.Default = m.Default
-	meta.Type = m.Type
-	meta.Index = m.Index
-	meta.Fields = m.Fields
-
-	// Make a copy of the label
-	meta.label = make([]string, len(m.label))
-	copy(meta.label, m.label)
-	meta.label = append(meta.label, label)
-
-	// Return copy of meta
-	return meta
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -117,8 +97,8 @@ func (m *Meta) writeBlock(buf *bytes.Buffer, indent int) {
 		buf.WriteString(prefix + "// " + m.Description + "\n")
 	}
 	buf.WriteString(prefix + m.Name)
-	if label := m.Label(); label != "" {
-		buf.WriteString(" " + strconv.Quote(label))
+	if m.label != "" {
+		buf.WriteString(" " + strconv.Quote(m.label))
 	}
 	buf.WriteString(" {\n")
 	for _, field := range m.Fields {
@@ -134,7 +114,6 @@ func (m *Meta) writeBlock(buf *bytes.Buffer, indent int) {
 		if field.Description != "" {
 			buf.WriteString("  // " + field.Description)
 		}
-		buf.WriteString(prefix + "// " + m.Label() + "\n")
 		if field.Default != "" {
 			buf.WriteString(" (default: " + types.Quote(field.Default) + ")")
 		}
@@ -150,8 +129,15 @@ func (m *Meta) writeBlock(buf *bytes.Buffer, indent int) {
 func (m *Meta) Label() string {
 	var parts []string
 	for meta := m; meta != nil; meta = meta.parent {
-		parts = append(parts, meta.label...)
+		parts = append(parts, meta.Name)
+		if m.label != "" {
+			parts = append(parts, meta.label)
+		}
 	}
+	// Needs to be reversed
+	slices.Reverse(parts)
+
+	// Return label parts
 	return strings.Join(parts, labelSeparator)
 }
 
@@ -194,7 +180,6 @@ func newMetaField(rf reflect.StructField, parent *Meta) (*Meta, error) {
 		return nil, nil
 	} else {
 		meta.Name = name
-		meta.label = []string{name}
 		meta.parent = parent
 	}
 

@@ -1,5 +1,7 @@
 {
     "log": {
-        "debug": true
+        "label": {
+            "debug": true
+        }
     }
 }

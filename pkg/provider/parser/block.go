@@ -10,7 +10,8 @@ const (
 )
 
 type Resource struct {
-	Meta *meta.Meta
+	Meta  *meta.Meta
+	Label string
 }
 
 type Variable struct {
