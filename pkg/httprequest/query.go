@@ -151,6 +151,12 @@ func setQueryValue(tag string, v reflect.Value, value []string) error {
 			return errBadRequest.Withf("%q: Parse error (expected a uint value)", tag)
 		}
 		v.SetUint(value)
+	case reflect.Float32, reflect.Float64:
+		value, err := strconv.ParseFloat(value[0], v.Type().Bits())
+		if err != nil {
+			return errBadRequest.Withf("%q: Parse error (expected a float value)", tag)
+		}
+		v.SetFloat(value)
 	case reflect.Struct:
 		switch v.Type() {
 		case typeTime:
