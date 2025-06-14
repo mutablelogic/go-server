@@ -10,6 +10,10 @@ const (
 	ContentTypeMetrics = "application/openmetrics-text; version=1.0.0; charset=utf-8"
 )
 
+const (
+	SchemaName = "metrics"
+)
+
 ////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 

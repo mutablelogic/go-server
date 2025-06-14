@@ -49,7 +49,7 @@ func NewMetricFamily(name string, opts ...Opt) (*Family, error) {
 /////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func (f *Family) Write(w io.Writer) error {
+func (f *Family) Write(w io.Writer, labels ...string) error {
 	var buf bytes.Buffer
 	buf.WriteString("# TYPE " + f.nameWithUnit() + " " + f.Type + "\n")
 	if f.Unit != "" {
@@ -61,7 +61,7 @@ func (f *Family) Write(w io.Writer) error {
 
 	// Write samples
 	for _, sample := range f.Samples {
-		if err := sample.Write(f.Name, &buf); err != nil {
+		if err := sample.Write(&buf, f.Name); err != nil {
 			return err
 		}
 	}

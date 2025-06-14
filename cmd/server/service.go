@@ -10,11 +10,7 @@ import (
 	// Packages
 	server "github.com/mutablelogic/go-server"
 	helloworld "github.com/mutablelogic/go-server/npm/helloworld"
-	auth_schema "github.com/mutablelogic/go-server/pkg/auth/schema"
-	cert_schema "github.com/mutablelogic/go-server/pkg/cert/schema"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
-	pgmanager_schema "github.com/mutablelogic/go-server/pkg/pgmanager/schema"
-	pgqueue_schema "github.com/mutablelogic/go-server/pkg/pgqueue/schema"
 	provider "github.com/mutablelogic/go-server/pkg/provider"
 	ref "github.com/mutablelogic/go-server/pkg/ref"
 	types "github.com/mutablelogic/go-server/pkg/types"
@@ -27,6 +23,7 @@ import (
 	httpserver "github.com/mutablelogic/go-server/pkg/httpserver/config"
 	ldap "github.com/mutablelogic/go-server/pkg/ldap/config"
 	logger "github.com/mutablelogic/go-server/pkg/logger/config"
+	metrics "github.com/mutablelogic/go-server/pkg/metrics/config"
 	pg "github.com/mutablelogic/go-server/pkg/pgmanager/config"
 	pgqueue "github.com/mutablelogic/go-server/pkg/pgqueue/config"
 )
@@ -116,7 +113,6 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 		pgpool := config.(*pg.Config)
 
 		// Set router
-		pgpool.Prefix = pgmanager_schema.APIPrefix
 		if router, ok := provider.Task(ctx, "httprouter.main").(server.HTTPRouter); !ok || router == nil {
 			return httpresponse.ErrInternalError.With("Invalid router")
 		} else {
@@ -141,7 +137,6 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 		auth := config.(*auth.Config)
 
 		// Set the router
-		auth.Prefix = auth_schema.APIPrefix
 		if router, ok := ref.Provider(ctx).Task(ctx, "httprouter.main").(server.HTTPRouter); !ok || router == nil {
 			return httpresponse.ErrInternalError.With("Invalid router")
 		} else {
@@ -162,7 +157,6 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 		pgqueue := config.(*pgqueue.Config)
 
 		// Set the router
-		pgqueue.Prefix = pgqueue_schema.APIPrefix
 		if router, ok := ref.Provider(ctx).Task(ctx, "httprouter.main").(server.HTTPRouter); !ok || router == nil {
 			return httpresponse.ErrInternalError.With("Invalid router")
 		} else {
@@ -182,7 +176,6 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 		certmanager := config.(*cert.Config)
 
 		// Set the router
-		certmanager.Prefix = cert_schema.APIPrefix
 		if router, ok := ref.Provider(ctx).Task(ctx, "httprouter.main").(server.HTTPRouter); !ok || router == nil {
 			return httpresponse.ErrInternalError.With("Invalid router")
 		} else {
@@ -224,6 +217,19 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 		ldap.GroupSchema.RDN = "cn=groups,cn=accounts"
 		ldap.GroupSchema.Field = "cn"
 		ldap.GroupSchema.ObjectClasses = "top,groupOfNames,nestedGroup,posixGroup"
+
+		return nil
+	}))
+
+	err = errors.Join(err, provider.Load("metrics", "main", func(ctx context.Context, label string, config server.Plugin) error {
+		metrics := config.(*metrics.Config)
+
+		// Set the router
+		if router, ok := ref.Provider(ctx).Task(ctx, "httprouter.main").(server.HTTPRouter); !ok || router == nil {
+			return httpresponse.ErrInternalError.With("Invalid router")
+		} else {
+			metrics.Router = router
+		}
 
 		return nil
 	}))

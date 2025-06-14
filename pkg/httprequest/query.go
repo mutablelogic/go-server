@@ -28,14 +28,9 @@ var (
 
 // Read the request query parameters into a structure
 func Query(q url.Values, v any) error {
-	rv := reflect.ValueOf(v)
-	if rv.Kind() != reflect.Ptr {
-		return errBadRequest.With("v must be a pointer")
-	} else {
-		rv = rv.Elem()
-	}
-	if rv.Kind() != reflect.Struct {
-		return errBadRequest.With("v must be a pointer to a struct")
+	rv, err := structValue(v)
+	if err != nil {
+		return err
 	}
 
 	// Enumerate fields
@@ -70,6 +65,22 @@ func Query(q url.Values, v any) error {
 	return nil
 }
 
+///////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+func structValue(v any) (reflect.Value, error) {
+	rv := reflect.ValueOf(v)
+	if rv.Kind() != reflect.Ptr {
+		return reflect.ValueOf(nil), errBadRequest.With("v must be a pointer")
+	} else {
+		rv = rv.Elem()
+	}
+	if rv.Kind() != reflect.Struct {
+		return reflect.ValueOf(nil), errBadRequest.With("v must be a pointer to a struct")
+	}
+	return rv, nil
+}
+
 func jsonName(field reflect.StructField) string {
 	tag := field.Tag.Get(tagName)
 	if tag == "-" {
@@ -79,6 +90,30 @@ func jsonName(field reflect.StructField) string {
 		return fields[0]
 	}
 	return field.Name
+}
+
+func writableFieldForName(v any, name string) (reflect.Value, error) {
+	rv, err := structValue(v)
+	if err != nil {
+		return reflect.ValueOf(nil), err
+	}
+
+	// Enumerate fields
+	for _, field := range reflect.VisibleFields(rv.Type()) {
+		tag := jsonName(field)
+		if tag == "" || tag != name {
+			continue
+		}
+
+		// Get the value - return success
+		v := rv.FieldByIndex(field.Index)
+		if v.CanSet() {
+			return v, nil
+		}
+	}
+
+	// Return failure
+	return reflect.ValueOf(nil), errBadRequest.With("field %q not found or not writable", name)
 }
 
 func setQueryValue(tag string, v reflect.Value, value []string) error {
@@ -116,6 +151,12 @@ func setQueryValue(tag string, v reflect.Value, value []string) error {
 			return errBadRequest.Withf("%q: Parse error (expected a uint value)", tag)
 		}
 		v.SetUint(value)
+	case reflect.Float32, reflect.Float64:
+		value, err := strconv.ParseFloat(value[0], v.Type().Bits())
+		if err != nil {
+			return errBadRequest.Withf("%q: Parse error (expected a float value)", tag)
+		}
+		v.SetFloat(value)
 	case reflect.Struct:
 		switch v.Type() {
 		case typeTime:

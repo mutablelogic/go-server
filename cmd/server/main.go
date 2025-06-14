@@ -18,6 +18,7 @@ import (
 
 type CLI struct {
 	ServiceCommands
+	Service2Commands
 
 	PG struct {
 		pgmanager.DatabaseCommands

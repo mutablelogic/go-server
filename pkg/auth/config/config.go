@@ -15,9 +15,8 @@ import (
 // TYPES
 
 type Config struct {
-	Pool   server.PG         `kong:"-"`                                    // Connection pool
-	Router server.HTTPRouter `kong:"-"`                                    // Which HTTP router to use
-	Prefix string            `default:"${AUTH_PREFIX}" help:"Path prefix"` // HTTP Path Prefix
+	Pool   server.PG         `kong:"-"` // Connection pool
+	Router server.HTTPRouter `kong:"-"` // Which HTTP router to use
 }
 
 var _ server.Plugin = Config{}
@@ -39,9 +38,9 @@ func (c Config) New(ctx context.Context) (server.Task, error) {
 
 	// Register HTTP handlers
 	if c.Router != nil {
-		handler.RegisterUser(ctx, c.Router, c.Prefix, manager)
-		handler.RegisterToken(ctx, c.Router, c.Prefix, manager)
-		handler.RegisterAuth(ctx, c.Router, c.Prefix, manager)
+		handler.RegisterUser(ctx, c.Router, schema.APIPrefix, manager)
+		handler.RegisterToken(ctx, c.Router, schema.APIPrefix, manager)
+		handler.RegisterAuth(ctx, c.Router, schema.APIPrefix, manager)
 	}
 
 	// Create a new task with the connection pool

@@ -13,7 +13,10 @@ import (
 func Test_Manager_00(t *testing.T) {
 	assert := assert.New(t)
 
-	manager := metrics.New()
+	manager, err := metrics.New()
+	if !assert.NoError(err) {
+		t.FailNow()
+	}
 	assert.NotNil(manager)
 
 	t.Run("00", func(t *testing.T) {

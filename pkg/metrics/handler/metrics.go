@@ -7,7 +7,8 @@ import (
 	// Packages
 	server "github.com/mutablelogic/go-server"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
-	"github.com/mutablelogic/go-server/pkg/metrics"
+	metrics "github.com/mutablelogic/go-server/pkg/metrics"
+	schema "github.com/mutablelogic/go-server/pkg/metrics/schema"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -21,9 +22,14 @@ func RegisterMetrics(ctx context.Context, router server.HTTPRouter, prefix strin
 		// Handle method
 		switch r.Method {
 		case http.MethodGet:
-			_ = manager.Write(w)
+			_ = writeMetrics(w, r, manager)
 		default:
 			_ = httpresponse.Error(w, httpresponse.Err(http.StatusMethodNotAllowed), r.Method)
 		}
 	})
+}
+
+func writeMetrics(w http.ResponseWriter, _ *http.Request, manager *metrics.MetricManager) error {
+	httpresponse.Write(w, http.StatusOK, schema.ContentTypeMetrics)
+	return manager.Write(w)
 }

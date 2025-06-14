@@ -1,0 +1,28 @@
+{
+    "variable": {
+        "listen_address": {
+            "description": "The address to listen on for HTTP requests.",
+            "default": "localhost:8080"
+        }
+    },
+    "httpserver": {
+        "main": {
+        "listen": "${var.listen_address}",
+        "router": "httprouter.main",
+        "read-timeout": "5m",
+        "write-timeout": "30s",
+        "tls": {
+            "name": "myserver",
+            "verify": true,
+            "cert": "/path/to/certfile",
+            "key": "/path/to/keyfile"
+        }
+    },
+    "httprouter": {
+        "main": {
+            "prefix": "/",
+            "origin": "*",
+            "middleware": [ "log", "auth"]
+        }
+    }
+}

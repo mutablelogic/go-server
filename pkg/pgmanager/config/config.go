@@ -8,6 +8,7 @@ import (
 	server "github.com/mutablelogic/go-server"
 	pgmanager "github.com/mutablelogic/go-server/pkg/pgmanager"
 	pghandler "github.com/mutablelogic/go-server/pkg/pgmanager/handler"
+	schema "github.com/mutablelogic/go-server/pkg/pgmanager/schema"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -20,8 +21,7 @@ type Config struct {
 	Database string            `env:"PG_DATABASE" help:"Database name, uses username if not set"`
 	SSLMode  string            `env:"PG_SSLMODE" enum:"default,disable,allow,prefer,require,verify-ca,verify-full" help:"SSL mode"`
 	Trace    pg.TraceFn        `json:"-" kong:"-"`
-	Router   server.HTTPRouter `json:"-" kong:"-"`  // Which HTTP router to use
-	Prefix   string            `help:"Path prefix"` // HTTP Path Prefix
+	Router   server.HTTPRouter `json:"-" kong:"-"` // Which HTTP router to use
 }
 
 var _ server.Plugin = Config{}
@@ -60,12 +60,12 @@ func (c Config) New(ctx context.Context) (server.Task, error) {
 		if manager, err := pgmanager.New(ctx, pool); err != nil {
 			return nil, err
 		} else {
-			pghandler.RegisterRole(ctx, c.Router, c.Prefix, manager)
-			pghandler.RegisterDatabase(ctx, c.Router, c.Prefix, manager)
-			pghandler.RegisterSchema(ctx, c.Router, c.Prefix, manager)
-			pghandler.RegisterObject(ctx, c.Router, c.Prefix, manager)
-			pghandler.RegisterConnection(ctx, c.Router, c.Prefix, manager)
-			pghandler.RegisterTablespace(ctx, c.Router, c.Prefix, manager)
+			pghandler.RegisterRole(ctx, c.Router, schema.APIPrefix, manager)
+			pghandler.RegisterDatabase(ctx, c.Router, schema.APIPrefix, manager)
+			pghandler.RegisterSchema(ctx, c.Router, schema.APIPrefix, manager)
+			pghandler.RegisterObject(ctx, c.Router, schema.APIPrefix, manager)
+			pghandler.RegisterConnection(ctx, c.Router, schema.APIPrefix, manager)
+			pghandler.RegisterTablespace(ctx, c.Router, schema.APIPrefix, manager)
 		}
 	}
 
