@@ -67,22 +67,36 @@ func (rw *responseWriter) Write(b []byte) (int, error) {
 		// The status will be StatusOK if WriteHeader has not been called yet
 		rw.WriteHeader(http.StatusOK)
 	}
-	size, err := rw.ResponseWriter.Write(b)
-	rw.size += size
-	return size, err
+	n, err := rw.ResponseWriter.Write(b)
+	rw.size += n
+
+	// Flush
+	if flusher, ok := rw.ResponseWriter.(http.Flusher); ok {
+		flusher.Flush()
+	}
+
+	// Return bytes written and any error encountered
+	return n, err
 }
 
 // ReadFrom exposes underlying http.ResponseWriter to io.Copy and if it implements
 // io.ReaderFrom, it can take advantage of optimizations such as sendfile, io.Copy
 // with sync.Pool's buffer which is in http.(*response).ReadFrom and so on.
-func (rw *responseWriter) ReadFrom(r io.Reader) (n int64, err error) {
+func (rw *responseWriter) ReadFrom(r io.Reader) (int64, error) {
 	if !rw.Written() {
 		// The status will be StatusOK if WriteHeader has not been called yet
 		rw.WriteHeader(http.StatusOK)
 	}
-	n, err = io.Copy(rw.ResponseWriter, r)
+	n, err := io.Copy(rw.ResponseWriter, r)
 	rw.size += int(n)
-	return
+
+	// Flush
+	if flusher, ok := rw.ResponseWriter.(http.Flusher); ok {
+		flusher.Flush()
+	}
+
+	// Return bytes written and any error encountered
+	return n, err
 }
 
 // Satisfy http.ResponseController support (Go 1.20+)
