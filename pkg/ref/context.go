@@ -54,11 +54,7 @@ func Label(ctx context.Context) string {
 }
 
 func Log(ctx context.Context) server.Logger {
-	if provider := ctx.Value(ctxProvider); provider == nil {
-		return nil
-	} else {
-		return provider.(server.Logger)
-	}
+	return ctx.Value(ctxLogger).(server.Logger)
 }
 
 func Auth(ctx context.Context) server.Auth {
@@ -99,6 +95,11 @@ func WithAuth(ctx context.Context, auth server.Auth) context.Context {
 
 func WithUser(ctx context.Context, user *auth.User) context.Context {
 	return context.WithValue(ctx, ctxUser, user)
+}
+
+// Set the logger in the context
+func WithLogger(parent context.Context, log server.Logger) context.Context {
+	return context.WithValue(parent, ctxLogger, log)
 }
 
 // Set the provider in the context
