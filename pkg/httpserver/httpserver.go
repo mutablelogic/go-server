@@ -112,7 +112,6 @@ func (server *server) Run(parent context.Context) error {
 	if errors.Is(result, http.ErrServerClosed) {
 		return nil
 	} else {
-		ref.Log(parent).Print(parent, result)
 		return result
 	}
 }
