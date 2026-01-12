@@ -23,9 +23,6 @@ import (
 	httpserver "github.com/mutablelogic/go-server/pkg/httpserver/config"
 	ldap "github.com/mutablelogic/go-server/pkg/ldap/config"
 	logger "github.com/mutablelogic/go-server/pkg/logger/config"
-	metrics "github.com/mutablelogic/go-server/pkg/metrics/config"
-	pg "github.com/mutablelogic/go-server/pkg/pgmanager/config"
-	pgqueue "github.com/mutablelogic/go-server/pkg/pgqueue/config"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -153,25 +150,7 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 		// Return success
 		return nil
 	}))
-	err = errors.Join(err, provider.Load("pgqueue", "main", func(ctx context.Context, label string, config server.Plugin) error {
-		pgqueue := config.(*pgqueue.Config)
 
-		// Set the router
-		if router, ok := ref.Provider(ctx).Task(ctx, "httprouter.main").(server.HTTPRouter); !ok || router == nil {
-			return httpresponse.ErrInternalError.With("Invalid router")
-		} else {
-			pgqueue.Router = router
-		}
-
-		// Set the connection pool
-		if pool, ok := ref.Provider(ctx).Task(ctx, "pgpool.main").(server.PG); !ok || pool == nil {
-			return httpresponse.ErrInternalError.With("Invalid connection pool")
-		} else {
-			pgqueue.Pool = pool
-		}
-
-		return nil
-	}))
 	err = errors.Join(err, provider.Load("certmanager", "main", func(ctx context.Context, label string, config server.Plugin) error {
 		certmanager := config.(*cert.Config)
 
@@ -217,19 +196,6 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 		ldap.GroupSchema.RDN = "cn=groups,cn=accounts"
 		ldap.GroupSchema.Field = "cn"
 		ldap.GroupSchema.ObjectClasses = "top,groupOfNames,nestedGroup,posixGroup"
-
-		return nil
-	}))
-
-	err = errors.Join(err, provider.Load("metrics", "main", func(ctx context.Context, label string, config server.Plugin) error {
-		metrics := config.(*metrics.Config)
-
-		// Set the router
-		if router, ok := ref.Provider(ctx).Task(ctx, "httprouter.main").(server.HTTPRouter); !ok || router == nil {
-			return httpresponse.ErrInternalError.With("Invalid router")
-		} else {
-			metrics.Router = router
-		}
 
 		return nil
 	}))
