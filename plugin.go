@@ -8,7 +8,7 @@ import (
 	"net/url"
 
 	// Packages
-	pg "github.com/djthorpe/go-pg"
+	pg "github.com/mutablelogic/go-pg"
 	authschema "github.com/mutablelogic/go-server/pkg/auth/schema"
 	ldapschema "github.com/mutablelogic/go-server/pkg/ldap/schema"
 )

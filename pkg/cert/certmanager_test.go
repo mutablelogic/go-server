@@ -6,7 +6,7 @@ import (
 	"time"
 
 	// Packages
-	test "github.com/djthorpe/go-pg/pkg/test"
+	test "github.com/mutablelogic/go-pg/pkg/test"
 	cert "github.com/mutablelogic/go-server/pkg/cert"
 	schema "github.com/mutablelogic/go-server/pkg/cert/schema"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"

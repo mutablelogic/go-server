@@ -4,7 +4,7 @@ import (
 	"context"
 
 	// Packages
-	pg "github.com/djthorpe/go-pg"
+	pg "github.com/mutablelogic/go-pg"
 	server "github.com/mutablelogic/go-server"
 )
 

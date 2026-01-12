@@ -6,10 +6,10 @@ toolchain go1.24.2
 
 require (
 	github.com/alecthomas/kong v1.13.0
-	github.com/djthorpe/go-pg v1.0.6
 	github.com/go-ldap/ldap/v3 v3.4.12
-	github.com/golang-jwt/jwt/v5 v5.2.2
+	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/mutablelogic/go-client v1.3.2
+	github.com/mutablelogic/go-pg v1.1.1
 	github.com/stretchr/testify v1.11.1
 	github.com/yinyin/go-ldap-schema-parser v0.0.0-20190716182935-542aadd3dcb5
 )
