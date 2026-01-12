@@ -10,9 +10,6 @@ import (
 	certhandler "github.com/mutablelogic/go-server/pkg/cert/handler"
 	schema "github.com/mutablelogic/go-server/pkg/cert/schema"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
-	pgqueue "github.com/mutablelogic/go-server/pkg/pgqueue/schema"
-	"github.com/mutablelogic/go-server/pkg/ref"
-	"github.com/mutablelogic/go-server/pkg/types"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,7 +27,6 @@ type Config struct {
 		StreetAddress string `name:"street" help:"Street address"`
 		PostalCode    string `name:"postal" help:"Postal code"`
 	} `embed:"" prefix:"root."`
-	Queue server.PGQueue `kong:"-"` // Connection to queue
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -68,16 +64,6 @@ func (c Config) New(ctx context.Context) (server.Task, error) {
 	if c.Router != nil {
 		certhandler.RegisterName(ctx, c.Router, schema.APIPrefix, certmanager)
 		certhandler.RegisterCert(ctx, c.Router, schema.APIPrefix, certmanager)
-	}
-
-	// Queue ticker and queue to check for SSL expiry
-	if c.Queue != nil {
-		if _, err := c.Queue.RegisterTicker(ctx, pgqueue.TickerMeta{Ticker: c.Name(), Interval: types.DurationPtr(time.Hour)}, func(ctx context.Context, _ any) error {
-			ref.Log(ctx).Print(ctx, "TODO: Checking for SSL expiry...")
-			return nil
-		}); err != nil {
-			return nil, err
-		}
 	}
 
 	// Return the task

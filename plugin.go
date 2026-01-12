@@ -6,13 +6,11 @@ import (
 	"io/fs"
 	"net/http"
 	"net/url"
-	"time"
 
 	// Packages
-	pg "github.com/djthorpe/go-pg"
+	pg "github.com/mutablelogic/go-pg"
 	authschema "github.com/mutablelogic/go-server/pkg/auth/schema"
 	ldapschema "github.com/mutablelogic/go-server/pkg/ldap/schema"
-	pgschema "github.com/mutablelogic/go-server/pkg/pgqueue/schema"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -110,36 +108,6 @@ type Logger interface {
 type PG interface {
 	// Conn returns the underlying connection pool object.
 	Conn() pg.PoolConn
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// PGQUEUE
-
-// PGCallback defines the function signature for handling tasks dequeued
-// from a PostgreSQL-backed queue.
-type PGCallback func(context.Context, any) error
-
-// PGQueue defines methods for interacting with a PostgreSQL-backed task queue.
-type PGQueue interface {
-	PG
-
-	// Namespace returns the namespace of the queue.
-	Namespace() string
-
-	// RegisterTicker registers a periodic task (ticker) with a callback function.
-	// It returns the metadata of the registered ticker.
-	RegisterTicker(context.Context, pgschema.TickerMeta, PGCallback) (*pgschema.Ticker, error)
-
-	// RegisterQueue registers a task queue with a callback function.
-	// It returns the metadata of the registered queue.
-	RegisterQueue(context.Context, pgschema.QueueMeta, PGCallback) (*pgschema.Queue, error)
-
-	// CreateTask adds a new task to a specified queue with a payload and optional delay.
-	// It returns the metadata of the created task.
-	CreateTask(context.Context, string, any, time.Duration) (*pgschema.Task, error)
-
-	// UnmarshalPayload unmarshals a payload into a destination object.
-	UnmarshalPayload(dest any, payload any) error
 }
 
 ///////////////////////////////////////////////////////////////////////////////

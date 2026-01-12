@@ -171,7 +171,7 @@ func (p *parser) jsonPluginsParse(meta *meta.Meta, root ast.Node) error {
 		if !ok || label == "" {
 			return httpresponse.ErrBadRequest.Withf("expected label, got %q", ident.Value())
 		} else {
-			label = meta.Label(label)
+			label = meta.Label()
 		}
 
 		if _, exists := p.resources[label]; exists {

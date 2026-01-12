@@ -1,13 +1,11 @@
 # Executables
 GO ?= $(shell which go 2>/dev/null)
 DOCKER ?= $(shell which docker 2>/dev/null)
-NPM ?= $(shell which npm 2>/dev/null)
 
 # Locations
 BUILD_DIR ?= build
 CMD_DIR := $(wildcard cmd/*)
 PLUGIN_DIR := $(wildcard plugin/*)
-NPM_DIR := $(wildcard npm/*)
 
 # VERBOSE=1
 ifneq ($(VERBOSE),)
@@ -44,9 +42,9 @@ all: clean build
 ###############################################################################
 # BUILD
 
-# Compile NPM and build the commands in the cmd directory
+# Compile and build the commands in the cmd directory
 .PHONY: build
-build: $(NPM_DIR) build-docker
+build: build-docker
 
 # Build the commands in the cmd directory
 .PHONY: build-docker
@@ -59,21 +57,16 @@ $(CMD_DIR): go-dep mkdir
 
 # Build the plugins
 .PHONY: plugins
-plugins: $(NPM_DIR) $(PLUGIN_DIR) 
+plugins: $(PLUGIN_DIR) 
 
 # Build the plugins
 $(PLUGIN_DIR): go-dep mkdir
 	@echo Build plugin $(notdir $@) GOOS=${OS} GOARCH=${ARCH}
 	@GOOS=${OS} GOARCH=${ARCH} ${GO} build -buildmode=plugin ${BUILD_FLAGS} -o ${BUILD_DIR}/$(notdir $@).plugin ./$@
 
-# Build the NPM packages
-$(NPM_DIR): npm-dep
-	@echo Build npm $(notdir $@)
-	@cd $@ && npm install && npm run dist	
-
 # Build the docker image
 .PHONY: docker
-docker: docker-dep ${NPM_DIR}
+docker: docker-dep 
 	@echo build docker image ${DOCKER_TAG} OS=${OS} ARCH=${ARCH} SOURCE=${DOCKER_SOURCE} VERSION=${VERSION}
 	@${DOCKER} build \
 		--tag ${DOCKER_TAG} \
@@ -126,11 +119,7 @@ mkdir:
 clean:
 	@echo Clean $(BUILD_DIR)
 	@rm -fr $(BUILD_DIR)
-	@${GO} clean
-	@for dir in $(NPM_DIR); do \
-		echo "Cleaning npm $$dir"; \
-		cd $$dir && ${NPM} run clean; \
-	done
+	@${GO} clean -modcache
 
 ###############################################################################
 # DEPENDENCIES
@@ -142,7 +131,3 @@ go-dep:
 .PHONY: docker-dep
 docker-dep:
 	@test -f "${DOCKER}" && test -x "${DOCKER}"  || (echo "Missing docker binary" && exit 1)
-
-.PHONY: npm-dep
-npm-dep:
-	@test -f "${NPM}" && test -x "${NPM}"  || (echo "Missing npm binary" && exit 1)

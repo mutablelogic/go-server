@@ -8,7 +8,6 @@ import (
 	// Packages
 	server "github.com/mutablelogic/go-server"
 	auth "github.com/mutablelogic/go-server/pkg/auth/schema"
-	pgqueue "github.com/mutablelogic/go-server/pkg/pgqueue/schema"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -73,22 +72,6 @@ func User(ctx context.Context) *auth.User {
 	}
 }
 
-func Ticker(ctx context.Context) *pgqueue.Ticker {
-	if value, ok := ctx.Value(ctxTicker).(*pgqueue.Ticker); !ok || value == nil {
-		return nil
-	} else {
-		return value
-	}
-}
-
-func Task(ctx context.Context) *pgqueue.Task {
-	if value, ok := ctx.Value(ctxTask).(*pgqueue.Task); !ok || value == nil {
-		return nil
-	} else {
-		return value
-	}
-}
-
 func WithAuth(ctx context.Context, auth server.Auth) context.Context {
 	return context.WithValue(ctx, ctxAuth, auth)
 }
@@ -112,24 +95,12 @@ func WithPath(parent context.Context, path ...string) context.Context {
 	return context.WithValue(parent, ctxPath, append(Path(parent), path...))
 }
 
-// Set the ticker in the context
-func WithTicker(parent context.Context, ticker *pgqueue.Ticker) context.Context {
-	return context.WithValue(parent, ctxTicker, ticker)
-}
-
-// Set the task in the context
-func WithTask(parent context.Context, task *pgqueue.Task) context.Context {
-	return context.WithValue(parent, ctxTask, task)
-}
-
 func DumpContext(w io.Writer, ctx context.Context) error {
 	type j struct {
 		Path     []string        `json:"path,omitempty"`
 		Provider server.Provider `json:"provider,omitempty"`
 		Auth     server.Auth     `json:"auth,omitempty"`
 		User     *auth.User      `json:"user,omitempty"`
-		Ticker   *pgqueue.Ticker `json:"ticker,omitempty"`
-		Task     *pgqueue.Task   `json:"task,omitempty"`
 	}
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
@@ -138,7 +109,5 @@ func DumpContext(w io.Writer, ctx context.Context) error {
 		Provider: Provider(ctx),
 		Auth:     Auth(ctx),
 		User:     User(ctx),
-		Ticker:   Ticker(ctx),
-		Task:     Task(ctx),
 	})
 }

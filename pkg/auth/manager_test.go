@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	// Packages
-	test "github.com/djthorpe/go-pg/pkg/test"
+	test "github.com/mutablelogic/go-pg/pkg/test"
 	auth "github.com/mutablelogic/go-server/pkg/auth"
 	schema "github.com/mutablelogic/go-server/pkg/auth/schema"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"

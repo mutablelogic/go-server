@@ -9,8 +9,6 @@ import (
 	certmanager "github.com/mutablelogic/go-server/pkg/cert/cmd"
 	cmd "github.com/mutablelogic/go-server/pkg/cmd"
 	ldap "github.com/mutablelogic/go-server/pkg/ldap/cmd"
-	pgmanager "github.com/mutablelogic/go-server/pkg/pgmanager/cmd"
-	pgqueue "github.com/mutablelogic/go-server/pkg/pgqueue/cmd"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -19,18 +17,6 @@ import (
 type CLI struct {
 	ServiceCommands
 	Service2Commands
-
-	PG struct {
-		pgmanager.DatabaseCommands
-		pgmanager.SchemaCommands
-		pgmanager.ObjectCommands
-		pgmanager.RoleCommands
-		pgmanager.ConnectionCommands
-		pgmanager.TablespaceCommands
-		pgqueue.QueueCommands
-		pgqueue.TaskCommands
-		pgqueue.TickerCommands
-	} `cmd:""`
 
 	Cert struct {
 		certmanager.NameCommands

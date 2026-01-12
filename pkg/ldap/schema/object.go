@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	// Packages
-	pg "github.com/djthorpe/go-pg"
 	ldap "github.com/go-ldap/ldap/v3"
+	pg "github.com/mutablelogic/go-pg"
 	"github.com/mutablelogic/go-server/pkg/types"
 )
 

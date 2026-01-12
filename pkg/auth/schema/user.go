@@ -8,7 +8,7 @@ import (
 	"time"
 
 	// Packages
-	pg "github.com/djthorpe/go-pg"
+	pg "github.com/mutablelogic/go-pg"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	types "github.com/mutablelogic/go-server/pkg/types"
 )
