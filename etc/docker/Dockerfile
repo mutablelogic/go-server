@@ -14,7 +14,7 @@ RUN \
     OS=${OS} ARCH=${ARCH} make build-docker 
 
 # Copy binaries to /usr/local/bin
-FROM --platform=${OS}/${ARCH} debian:bookworm-slim
+FROM --platform=${OS}/${ARCH} debian:trixie-slim
 ARG OS
 ARG ARCH
 ARG SOURCE
@@ -25,7 +25,6 @@ RUN apt update -y && apt install -y ca-certificates
 LABEL org.opencontainers.image.source=https://${SOURCE}
 
 # Entrypoint when running the server
-ENV PLUGIN_PATH="/usr/local/bin/*.plugin" \
-    ENDPOINT="http://:80/"
+ENV PLUGIN_PATH="/usr/local/bin/*.plugin" ENDPOINT="http://0.0.0.0:80/"
 EXPOSE 80 443
 ENTRYPOINT [ "/usr/local/bin/server" ]

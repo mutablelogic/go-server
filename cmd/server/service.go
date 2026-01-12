@@ -18,7 +18,6 @@ import (
 
 	// Plugins
 	auth "github.com/mutablelogic/go-server/pkg/auth/config"
-	cert "github.com/mutablelogic/go-server/pkg/cert/config"
 	httprouter "github.com/mutablelogic/go-server/pkg/httprouter/config"
 	httpserver "github.com/mutablelogic/go-server/pkg/httpserver/config"
 	ldap "github.com/mutablelogic/go-server/pkg/ldap/config"
@@ -106,30 +105,7 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 		// Return success
 		return nil
 	}))
-	err = errors.Join(err, provider.Load("pgpool", "main", func(ctx context.Context, label string, config server.Plugin) error {
-		pgpool := config.(*pg.Config)
 
-		// Set router
-		if router, ok := provider.Task(ctx, "httprouter.main").(server.HTTPRouter); !ok || router == nil {
-			return httpresponse.ErrInternalError.With("Invalid router")
-		} else {
-			pgpool.Router = router
-		}
-
-		// Set trace
-		if app.GetDebug() == server.Trace {
-			pgpool.Trace = func(ctx context.Context, query string, args any, err error) {
-				if err != nil {
-					ref.Log(ctx).With("args", args).Print(ctx, err, " ON ", query)
-				} else {
-					ref.Log(ctx).With("args", args).Debug(ctx, query)
-				}
-			}
-		}
-
-		// Return success
-		return nil
-	}))
 	err = errors.Join(err, provider.Load("auth", "main", func(ctx context.Context, label string, config server.Plugin) error {
 		auth := config.(*auth.Config)
 
@@ -148,33 +124,6 @@ func (cmd *ServiceRunCommand) Run(app server.Cmd) error {
 		}
 
 		// Return success
-		return nil
-	}))
-
-	err = errors.Join(err, provider.Load("certmanager", "main", func(ctx context.Context, label string, config server.Plugin) error {
-		certmanager := config.(*cert.Config)
-
-		// Set the router
-		if router, ok := ref.Provider(ctx).Task(ctx, "httprouter.main").(server.HTTPRouter); !ok || router == nil {
-			return httpresponse.ErrInternalError.With("Invalid router")
-		} else {
-			certmanager.Router = router
-		}
-
-		// Set the connection pool
-		if pool, ok := ref.Provider(ctx).Task(ctx, "pgpool.main").(server.PG); !ok || pool == nil {
-			return httpresponse.ErrInternalError.With("Invalid connection pool")
-		} else {
-			certmanager.Pool = pool
-		}
-
-		// Set the queue
-		if queue, ok := ref.Provider(ctx).Task(ctx, "pgqueue.main").(server.PGQueue); !ok || queue == nil {
-			return httpresponse.ErrInternalError.With("Invalid task queue")
-		} else {
-			certmanager.Queue = queue
-		}
-
 		return nil
 	}))
 
