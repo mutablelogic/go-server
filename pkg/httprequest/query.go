@@ -113,7 +113,7 @@ func writableFieldForName(v any, name string) (reflect.Value, error) {
 	}
 
 	// Return failure
-	return reflect.ValueOf(nil), errBadRequest.With("field %q not found or not writable", name)
+	return reflect.ValueOf(nil), errBadRequest.Withf("field %q not found or not writable", name)
 }
 
 func setQueryValue(tag string, v reflect.Value, value []string) error {
