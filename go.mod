@@ -3,7 +3,7 @@ module github.com/mutablelogic/go-server
 go 1.25.0
 
 require (
-	github.com/alecthomas/kong v1.13.0
+	github.com/alecthomas/kong v1.14.0
 	github.com/mutablelogic/go-client v1.3.5
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/otel/trace v1.40.0
