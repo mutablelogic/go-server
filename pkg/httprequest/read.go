@@ -94,6 +94,7 @@ func readFormData(r *http.Request, v any) error {
 	if err := Query(r.MultipartForm.Value, v); err != nil {
 		return err
 	}
+
 	// Set file fields - we only support one file per field
 	for key, values := range r.MultipartForm.File {
 		if len(values) == 0 {
