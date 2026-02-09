@@ -67,7 +67,7 @@ func (m *Manager) Close(ctx context.Context) error {
 		if !exists {
 			continue
 		}
-		if err := inst.instance.Destroy(ctx, inst.state); err != nil {
+		if err := inst.instance.Destroy(ctx); err != nil {
 			result = errors.Join(result, err)
 		}
 		delete(m.instances, name)
@@ -189,6 +189,7 @@ func (m *Manager) newInstance(name string) (schema.ResourceInstance, error) {
 	// Set the instance
 	m.instances[instanceName] = instance{
 		instance: resourceinstance,
+		state:    nil,
 	}
 
 	// Return the instance
@@ -325,7 +326,7 @@ func (m *Manager) UpdateResourceInstance(ctx context.Context, name string, req s
 	}
 
 	// Validate before planning/applying
-	if err := inst.instance.Validate(ctx, m, req.Attributes); err != nil {
+	if err := inst.instance.Validate(ctx, req.Attributes); err != nil {
 		return nil, err
 	}
 
@@ -341,8 +342,11 @@ func (m *Manager) UpdateResourceInstance(ctx context.Context, name string, req s
 		if err != nil {
 			return nil, err
 		}
-		inst.state = newState
-		m.instances[name] = inst
+		m.instances[name] = instance{
+			inst.instance,
+			newState,
+		}
+		inst = m.instances[name]
 	}
 
 	return &schema.UpdateResourceInstanceResponse{
@@ -369,7 +373,7 @@ func (m *Manager) DestroyResourceInstance(ctx context.Context, req schema.Destro
 	}
 
 	// Destroy the backing infrastructure
-	if err := inst.instance.Destroy(ctx, inst.state); err != nil {
+	if err := inst.instance.Destroy(ctx); err != nil {
 		return nil, err
 	}
 

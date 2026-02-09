@@ -89,7 +89,7 @@ func (r *ResourceInstance) Resource() schema.Resource {
 
 // Validate checks that the resource configuration is complete and
 // internally consistent. It is called before Plan or Apply.
-func (r *ResourceInstance) Validate(_ context.Context) error {
+func (r *ResourceInstance) Validate(_ context.Context, _ schema.State) error {
 	c := r.config
 
 	// Validate resource instance references (required + type constraints)
@@ -215,7 +215,7 @@ func (r *ResourceInstance) Apply(ctx context.Context, current schema.State) (sch
 // Destroy tears down the resource and releases its backing
 // infrastructure. It returns an error if the resource cannot be
 // cleanly removed.
-func (r *ResourceInstance) Destroy(_ context.Context, current schema.State) error {
+func (r *ResourceInstance) Destroy(_ context.Context) error {
 	return r.stop()
 }
 
