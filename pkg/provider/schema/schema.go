@@ -45,23 +45,23 @@ type ResourceInstance interface {
 	// Resource returns the resource type that created this instance.
 	Resource() Resource
 
-	// Validate checks that the resource configuration is complete and
-	// internally consistent. It is called before Plan or Apply.
-	Validate(context.Context) error
+	// Validate checks that the configuration is complete and
+	// consistent. It is called before Plan or Apply.
+	Validate(context.Context, State) error
 
 	// Plan computes the difference between the desired configuration and
 	// the current state, returning a set of planned changes without
 	// modifying anything. If current is nil the resource is being created.
-	Plan(ctx context.Context, current State) (Plan, error)
+	Plan(context.Context, State) (Plan, error)
 
 	// Apply materialises the resource, creating or updating it to match
 	// the desired configuration. It returns the new state.
-	Apply(ctx context.Context, current State) (State, error)
+	Apply(context.Context, State) (State, error)
 
 	// Destroy tears down the resource and releases its backing
 	// infrastructure. It returns an error if the resource cannot be
 	// cleanly removed.
-	Destroy(ctx context.Context, current State) error
+	Destroy(context.Context) error
 
 	// References returns the labels of other resources this resource
 	// depends on. The runtime must ensure those resources are applied
@@ -73,8 +73,6 @@ type ResourceInstance interface {
 // TYPES
 
 // State is an opaque snapshot of a resource after it has been applied.
-// It is stored between runs so that [Resource.Plan] can compute diffs
-// and [Resource.Destroy] can tear down the resource.
 type State map[string]any
 
 // Action describes the kind of change planned for a resource.

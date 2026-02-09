@@ -2,6 +2,7 @@ package schema
 
 import (
 	"net/url"
+	"strings"
 
 	// Packages
 	types "github.com/mutablelogic/go-server/pkg/types"
@@ -11,7 +12,9 @@ import (
 // LIST RESOURCES
 
 // ListResourcesRequest filters the set of resource types to return.
-type ListResourcesRequest struct{}
+type ListResourcesRequest struct {
+	Type *string `json:"type,omitempty" arg:"" optional:"" help:"Resource type name (e.g. \"httpserver\")"` // filter by type name
+}
 
 // ListResourcesResponse contains the resource types the provider can manage.
 type ListResourcesResponse struct {
@@ -23,22 +26,9 @@ type ListResourcesResponse struct {
 
 // ResourceMeta describes a resource type without exposing the full interface.
 type ResourceMeta struct {
-	Name       string      `json:"name"`
-	Attributes []Attribute `json:"attributes"`
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// LIST RESOURCE INSTANCES
-
-// ListResourceInstancesRequest filters the set of instances to return.
-// An empty Resource field returns all instances.
-type ListResourceInstancesRequest struct {
-	Resource string `json:"resource,omitempty"` // filter by resource type name
-}
-
-// ListResourceInstancesResponse contains the live resource instances.
-type ListResourceInstancesResponse struct {
-	Instances []InstanceMeta `json:"instances"`
+	Name       string         `json:"name"`
+	Attributes []Attribute    `json:"attributes"`
+	Instances  []InstanceMeta `json:"instances"`
 }
 
 // InstanceMeta describes a resource instance without exposing the full interface.
@@ -63,30 +53,30 @@ type CreateResourceInstanceResponse struct {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// PLAN RESOURCE INSTANCE
+// GET RESOURCE INSTANCE
 
-// PlanResourceInstanceRequest asks the manager to compute a plan for an instance.
-type PlanResourceInstanceRequest struct {
-	Name string `json:"name"` // instance name
-}
-
-// PlanResourceInstanceResponse contains the computed plan.
-type PlanResourceInstanceResponse struct {
+// GetResourceInstanceResponse contains the metadata for a single instance.
+type GetResourceInstanceResponse struct {
 	Instance InstanceMeta `json:"instance"`
-	Plan     Plan         `json:"plan"`
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// APPLY RESOURCE INSTANCE
+// UPDATE RESOURCE INSTANCE (PLAN / APPLY)
 
-// ApplyResourceInstanceRequest asks the manager to apply (create/update) an instance.
-type ApplyResourceInstanceRequest struct {
-	Name string `json:"name"` // instance name
+// UpdateResourceInstanceRequest is the unified request for plan or apply.
+// When Apply is false (the default), only a plan is computed. When true,
+// the planned changes are applied. Attributes contains the desired attribute
+// values keyed by attribute name.
+type UpdateResourceInstanceRequest struct {
+	Attributes State `json:"attributes,omitempty"` // desired attribute values
+	Apply      bool  `json:"apply"`                // false = plan only, true = apply changes
 }
 
-// ApplyResourceInstanceResponse contains the new state after apply.
-type ApplyResourceInstanceResponse struct {
+// UpdateResourceInstanceResponse contains the instance metadata, the computed
+// plan, and (when apply was requested) the resulting state.
+type UpdateResourceInstanceResponse struct {
 	Instance InstanceMeta `json:"instance"`
+	Plan     Plan         `json:"plan"`
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -105,13 +95,25 @@ type DestroyResourceInstanceResponse struct {
 ///////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
-func (req ListResourcesResponse) String() string {
-	return types.Stringify(req)
+func (r ListResourcesResponse) String() string {
+	return types.Stringify(r)
+}
+
+func (r CreateResourceInstanceResponse) String() string {
+	return types.Stringify(r)
+}
+
+func (r UpdateResourceInstanceResponse) String() string {
+	return types.Stringify(r)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
 func (r ListResourcesRequest) Query() url.Values {
-	return url.Values{}
+	v := url.Values{}
+	if t := strings.TrimSpace(types.Value(r.Type)); t != "" {
+		v.Set("type", t)
+	}
+	return v
 }

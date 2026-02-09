@@ -2,6 +2,7 @@ package httpclient
 
 import (
 	"context"
+	"net/http"
 
 	// Packages
 	client "github.com/mutablelogic/go-client"
@@ -37,6 +38,22 @@ func (c *Client) CreateResourceInstance(ctx context.Context, req schema.CreateRe
 	// Perform POST request
 	var response schema.CreateResourceInstanceResponse
 	if err := c.DoWithContext(ctx, request, &response, client.OptPath("resource")); err != nil {
+		return nil, err
+	}
+
+	// Return response
+	return &response, nil
+}
+
+func (c *Client) UpdateResourceInstance(ctx context.Context, name string, req schema.UpdateResourceInstanceRequest) (*schema.UpdateResourceInstanceResponse, error) {
+	request, err := client.NewJSONRequestEx(http.MethodPatch, req, "")
+	if err != nil {
+		return nil, err
+	}
+
+	// Perform PATCH request
+	var response schema.UpdateResourceInstanceResponse
+	if err := c.DoWithContext(ctx, request, &response, client.OptPath("resource", name)); err != nil {
 		return nil, err
 	}
 

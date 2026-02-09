@@ -3,11 +3,13 @@ package provider
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 
 	// Packages
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	schema "github.com/mutablelogic/go-server/pkg/provider/schema"
+	"github.com/mutablelogic/go-server/pkg/types"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -175,14 +177,17 @@ func (m *Manager) newInstance(name string) (schema.ResourceInstance, error) {
 	resourceinstance, err := resource.New()
 	if err != nil {
 		return nil, err
-	} else if name := resourceinstance.Name(); name == "" || resourceinstance == nil {
+	}
+
+	instanceName := resourceinstance.Name()
+	if instanceName == "" || resourceinstance == nil {
 		return nil, ErrBadRequest.With("resource instance is invalid")
-	} else if _, exists := m.instances[name]; exists {
-		return nil, ErrConflict.Withf("resource instance %q already exists", resourceinstance.Name())
+	} else if _, exists := m.instances[instanceName]; exists {
+		return nil, ErrConflict.Withf("resource instance %q already exists", instanceName)
 	}
 
 	// Set the instance
-	m.instances[name] = instance{
+	m.instances[instanceName] = instance{
 		instance: resourceinstance,
 	}
 
@@ -210,13 +215,42 @@ func (m *Manager) RegisterResource(r schema.Resource) error {
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS - RESOURCE QUERIES
 
-// ListResources returns metadata for every registered resource type.
-func (m *Manager) ListResources(_ context.Context, _ schema.ListResourcesRequest) (*schema.ListResourcesResponse, error) {
+// ListResources returns metadata for every registered resource type
+// (optionally filtered by type name) with their instances.
+func (m *Manager) ListResources(_ context.Context, req schema.ListResourcesRequest) (*schema.ListResourcesResponse, error) {
+	m.RLock()
+	defer m.RUnlock()
+
+	filter := strings.TrimSpace(types.Value(req.Type))
+	if filter != "" {
+		if _, exists := m.resources[filter]; !exists {
+			return nil, ErrBadRequest.Withf("resource type %q is not registered", filter)
+		}
+	}
 	resources := make([]schema.ResourceMeta, 0, len(m.resources))
 	for _, r := range m.resources {
+		if filter != "" && r.Name() != filter {
+			continue
+		}
+
+		// Collect instances for this resource type
+		instances := make([]schema.InstanceMeta, 0)
+		for _, inst := range m.instances {
+			if inst.instance.Resource().Name() != r.Name() {
+				continue
+			}
+			instances = append(instances, schema.InstanceMeta{
+				Name:       inst.instance.Name(),
+				Resource:   inst.instance.Resource().Name(),
+				State:      inst.state,
+				References: inst.instance.References(),
+			})
+		}
+
 		resources = append(resources, schema.ResourceMeta{
 			Name:       r.Name(),
 			Attributes: r.Schema(),
+			Instances:  instances,
 		})
 	}
 	return &schema.ListResourcesResponse{
@@ -227,48 +261,20 @@ func (m *Manager) ListResources(_ context.Context, _ schema.ListResourcesRequest
 	}, nil
 }
 
-// ListResourceInstances returns metadata for live instances, optionally
-// filtered by resource type.
-func (m *Manager) ListResourceInstances(_ context.Context, req schema.ListResourceInstancesRequest) (*schema.ListResourceInstancesResponse, error) {
-	m.RLock()
-	defer m.RUnlock()
-
-	instances := make([]schema.InstanceMeta, 0, len(m.instances))
-	for _, inst := range m.instances {
-		// Apply resource-type filter if specified
-		if req.Resource != "" && inst.instance.Resource().Name() != req.Resource {
-			continue
-		}
-		instances = append(instances, schema.InstanceMeta{
-			Name:       inst.instance.Name(),
-			Resource:   inst.instance.Resource().Name(),
-			State:      inst.state,
-			References: inst.instance.References(),
-		})
-	}
-	return &schema.ListResourceInstancesResponse{Instances: instances}, nil
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS - INSTANCE LIFECYCLE
 
-// CreateResourceInstance creates a new instance from the named resource type,
-// validates it, and stores it in the manager. The instance is not yet applied.
+// CreateResourceInstance creates a new instance from the named resource type
+// and stores it in the manager. The instance is not yet validated or applied;
+// call [UpdateResourceInstance] to plan or apply it.
 func (m *Manager) CreateResourceInstance(ctx context.Context, req schema.CreateResourceInstanceRequest) (*schema.CreateResourceInstanceResponse, error) {
 	m.Lock()
 	defer m.Unlock()
 
-	// Create a new instance
+	// Create and register the instance (newInstance stores it in m.instances)
 	inst, err := m.newInstance(req.Resource)
 	if err != nil {
 		return nil, err
-	} else if err := inst.Validate(ctx); err != nil {
-		return nil, err
-	}
-
-	// Store the instance
-	m.instances[inst.Name()] = instance{
-		instance: inst,
 	}
 
 	return &schema.CreateResourceInstanceResponse{
@@ -280,25 +286,66 @@ func (m *Manager) CreateResourceInstance(ctx context.Context, req schema.CreateR
 	}, nil
 }
 
-// PlanResourceInstance computes the changes needed to bring the named
-// instance to its desired state without modifying anything.
-func (m *Manager) PlanResourceInstance(ctx context.Context, req schema.PlanResourceInstanceRequest) (*schema.PlanResourceInstanceResponse, error) {
+// GetResourceInstance returns the metadata for a single named instance.
+func (m *Manager) GetResourceInstance(_ context.Context, name string) (*schema.GetResourceInstanceResponse, error) {
 	m.RLock()
 	defer m.RUnlock()
 
-	// Get an instance by name
-	inst, exists := m.instances[req.Name]
+	inst, exists := m.instances[name]
 	if !exists {
-		return nil, ErrNotFound.Withf("resource instance %q not found", req.Name)
+		return nil, ErrNotFound.Withf("resource instance %q not found", name)
 	}
 
-	// Plan the instance changes
-	plan, err := inst.instance.Plan(ctx, inst.state)
+	return &schema.GetResourceInstanceResponse{
+		Instance: schema.InstanceMeta{
+			Name:       inst.instance.Name(),
+			Resource:   inst.instance.Resource().Name(),
+			State:      inst.state,
+			References: inst.instance.References(),
+		},
+	}, nil
+}
+
+// UpdateResourceInstance validates and plans the named instance. When
+// req.Apply is true the plan is also applied and the resulting state stored.
+func (m *Manager) UpdateResourceInstance(ctx context.Context, name string, req schema.UpdateResourceInstanceRequest) (*schema.UpdateResourceInstanceResponse, error) {
+	// Apply needs a write lock; plan is read-only
+	if req.Apply {
+		m.Lock()
+		defer m.Unlock()
+	} else {
+		m.RLock()
+		defer m.RUnlock()
+	}
+
+	// Get the instance by name
+	inst, exists := m.instances[name]
+	if !exists {
+		return nil, ErrNotFound.Withf("resource instance %q not found", name)
+	}
+
+	// Validate before planning/applying
+	if err := inst.instance.Validate(ctx, m, req.Attributes); err != nil {
+		return nil, err
+	}
+
+	// Compute the plan
+	plan, err := inst.instance.Plan(ctx, req.Attributes)
 	if err != nil {
 		return nil, err
 	}
 
-	return &schema.PlanResourceInstanceResponse{
+	// Optionally apply the plan
+	if req.Apply {
+		newState, err := inst.instance.Apply(ctx, req.Attributes)
+		if err != nil {
+			return nil, err
+		}
+		inst.state = newState
+		m.instances[name] = inst
+	}
+
+	return &schema.UpdateResourceInstanceResponse{
 		Instance: schema.InstanceMeta{
 			Name:       inst.instance.Name(),
 			Resource:   inst.instance.Resource().Name(),
@@ -306,38 +353,6 @@ func (m *Manager) PlanResourceInstance(ctx context.Context, req schema.PlanResou
 			References: inst.instance.References(),
 		},
 		Plan: plan,
-	}, nil
-}
-
-// ApplyResourceInstance applies the named instance, creating or updating
-// its backing infrastructure and recording the resulting state.
-func (m *Manager) ApplyResourceInstance(ctx context.Context, req schema.ApplyResourceInstanceRequest) (*schema.ApplyResourceInstanceResponse, error) {
-	m.Lock()
-	defer m.Unlock()
-
-	// Get an instance by name
-	inst, exists := m.instances[req.Name]
-	if !exists {
-		return nil, ErrNotFound.Withf("resource instance %q not found", req.Name)
-	}
-
-	// Apply and capture the new state
-	newState, err := inst.instance.Apply(ctx, inst.state)
-	if err != nil {
-		return nil, err
-	}
-
-	// Update the stored state
-	inst.state = newState
-	m.instances[req.Name] = inst
-
-	return &schema.ApplyResourceInstanceResponse{
-		Instance: schema.InstanceMeta{
-			Name:       inst.instance.Name(),
-			Resource:   inst.instance.Resource().Name(),
-			State:      newState,
-			References: inst.instance.References(),
-		},
 	}, nil
 }
 
