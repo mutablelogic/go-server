@@ -1,6 +1,9 @@
 package version
 
-import "runtime"
+import (
+	"encoding/json"
+	"runtime"
+)
 
 ///////////////////////////////////////////////////////////////////////////////
 // GLOBALS
@@ -29,21 +32,19 @@ func Version() string {
 	return "dev"
 }
 
-func Map() map[string]any {
-	vars := map[string]any{}
-	if GitSource != "" {
-		vars["source"] = GitSource
+func JSON(execName string) []byte {
+	metadata := map[string]string{
+		"name":       execName,
+		"compiler":   runtime.Version(),
+		"source":     GitSource,
+		"tag":        GitTag,
+		"branch":     GitBranch,
+		"hash":       GitHash,
+		"build_time": GoBuildTime,
 	}
-	if GitTag != "" || GitBranch != "" {
-		vars["version"] = GitTag
-		vars["branch"] = GitBranch
-		vars["hash"] = GitHash
+	data, err := json.MarshalIndent(metadata, "", "  ")
+	if err != nil {
+		return []byte("{}")
 	}
-	if GoBuildTime != "" {
-		vars["build"] = GoBuildTime
-	}
-	vars["go"] = runtime.Version()
-	vars["os"] = runtime.GOOS
-	vars["arch"] = runtime.GOARCH
-	return vars
+	return data
 }

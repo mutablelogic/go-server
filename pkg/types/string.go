@@ -1,6 +1,7 @@
 package types
 
 import (
+	"encoding/json"
 	"strconv"
 	"strings"
 	"unicode"
@@ -62,4 +63,13 @@ func Unquote(s string) string {
 	} else {
 		return s
 	}
+}
+
+// Stringify returns a JSON representation of the input value
+func Stringify[T any](v T) string {
+	data, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return err.Error()
+	}
+	return string(data)
 }

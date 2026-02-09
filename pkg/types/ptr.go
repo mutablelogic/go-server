@@ -5,6 +5,20 @@ import (
 	"time"
 )
 
+// Ptr returns a pointer to a value
+func Ptr[T any](v T) *T {
+	return &v
+}
+
+// Value returns a value from a pointer, or a zero value if the pointer is nil
+func Value[T any](v *T) T {
+	var zero T
+	if v == nil {
+		return zero
+	}
+	return *v
+}
+
 // StringPtr returns a pointer to a string
 func StringPtr(s string) *string {
 	return &s

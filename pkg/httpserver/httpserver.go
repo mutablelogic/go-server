@@ -12,7 +12,6 @@ import (
 
 	// Packages
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
-	ref "github.com/mutablelogic/go-server/pkg/ref"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -75,6 +74,7 @@ func New(listen string, router http.Handler, cert *tls.Config, opts ...Opt) (*se
 // TASK
 
 func (server *server) Run(parent context.Context) error {
+	var result error
 	var wg sync.WaitGroup
 
 	// Make a cancelable context
@@ -90,16 +90,15 @@ func (server *server) Run(parent context.Context) error {
 
 		// Stop server, terminate connections after 30 seconds
 		if err := server.shutdown(); err != nil {
-			ref.Log(parent).Print(parent, err)
+			result = errors.Join(result, err)
 		}
 	}(ctx)
 
 	// Run server as a foreground process
-	var result error
 	if server.http.TLSConfig != nil {
-		result = server.http.ListenAndServeTLS("", "")
+		result = errors.Join(result, server.http.ListenAndServeTLS("", ""))
 	} else {
-		result = server.http.ListenAndServe()
+		result = errors.Join(result, server.http.ListenAndServe())
 	}
 
 	// Cancel waiting for CTRL+C, if not already cancelled

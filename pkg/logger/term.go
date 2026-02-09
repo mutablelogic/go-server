@@ -7,9 +7,6 @@ import (
 	"io"
 	"log/slog"
 	"strconv"
-
-	// Packages
-	ref "github.com/mutablelogic/go-server/pkg/ref"
 )
 
 /////////////////////////////////////////////////////////////////////////////////
@@ -71,10 +68,10 @@ func (h *TermHandler) Handle(ctx context.Context, r slog.Record) error {
 	}
 	parts = append(parts, level+":")
 
-	label := ref.Label(ctx)
-	if label != "" {
-		parts = append(parts, label+":")
-	}
+	//	label := ref.Label(ctx)
+	//	if label != "" {
+	//		parts = append(parts, label+":")
+	//	}
 
 	// Gather attributes
 	var data []byte
