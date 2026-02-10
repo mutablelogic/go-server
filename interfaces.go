@@ -6,7 +6,7 @@ import (
 )
 
 ///////////////////////////////////////////////////////////////////////////////
-// LOGGING AND METRICS
+// LOGGING
 
 // Logger defines methods for logging messages and structured data.
 // It can also act as HTTP middleware for request logging.
@@ -27,6 +27,9 @@ type Logger interface {
 	// in its structured log output.
 	With(...any) Logger
 }
+
+///////////////////////////////////////////////////////////////////////////////
+// MIDDLEWARE
 
 // Middleware defines methods for HTTP middleware
 type Middleware interface {

@@ -1,12 +1,12 @@
 package schema_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
 	// Packages
 	"github.com/mutablelogic/go-server/pkg/provider/schema"
+	"github.com/mutablelogic/go-server/pkg/provider/schema/schematest"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -15,6 +15,7 @@ type httpserverResource struct {
 	Router       schema.ResourceInstance `name:"router" type:"httprouter" required:"" help:"HTTP router"`
 	ReadTimeout  time.Duration           `name:"read-timeout" default:"5m" help:"Read timeout"`
 	WriteTimeout time.Duration           `name:"write-timeout" default:"5m" help:"Write timeout"`
+	IdleTimeout  time.Duration           `name:"idle-timeout" default:"5m" help:"Idle timeout for keep-alive connections"`
 	TLS          struct {
 		Name   string `name:"name" help:"TLS server name"`
 		Verify bool   `name:"verify" default:"true" help:"Verify client certificates"`
@@ -45,7 +46,7 @@ func Test_Attributes_002(t *testing.T) {
 func Test_Attributes_003(t *testing.T) {
 	assert := assert.New(t)
 	attrs := schema.AttributesOf(httpserverResource{})
-	assert.Len(attrs, 8)
+	assert.Len(attrs, 9)
 	names := make([]string, 0, len(attrs))
 	for _, a := range attrs {
 		names = append(names, a.Name)
@@ -54,6 +55,7 @@ func Test_Attributes_003(t *testing.T) {
 	assert.Contains(names, "router")
 	assert.Contains(names, "read-timeout")
 	assert.Contains(names, "write-timeout")
+	assert.Contains(names, "idle-timeout")
 	assert.Contains(names, "tls.name")
 	assert.Contains(names, "tls.verify")
 	assert.Contains(names, "tls.cert")
@@ -113,7 +115,7 @@ func Test_Attributes_006(t *testing.T) {
 func Test_Attributes_007(t *testing.T) {
 	assert := assert.New(t)
 	attrs := schema.AttributesOf(&httpserverResource{})
-	assert.Len(attrs, 8)
+	assert.Len(attrs, 9)
 }
 
 func Test_Attributes_008(t *testing.T) {
@@ -145,35 +147,6 @@ func Test_Attributes_009(t *testing.T) {
 ///////////////////////////////////////////////////////////////////////////////
 // ValidateRefs tests
 
-// mockResourceInstance is a minimal ResourceInstance for testing.
-type mockResourceInstance struct {
-	name         string
-	resourceName string
-}
-
-func (m *mockResourceInstance) Name() string              { return m.name }
-func (m *mockResourceInstance) Resource() schema.Resource { return &mockResource{name: m.resourceName} }
-func (m *mockResourceInstance) Validate(_ context.Context, _ schema.State, _ schema.Resolver) (any, error) {
-	return nil, nil
-}
-func (m *mockResourceInstance) Plan(_ context.Context, _ any) (schema.Plan, error) {
-	return schema.Plan{}, nil
-}
-func (m *mockResourceInstance) Apply(_ context.Context, _ any) error {
-	return nil
-}
-func (m *mockResourceInstance) Destroy(_ context.Context) error { return nil }
-func (m *mockResourceInstance) Read(_ context.Context) (schema.State, error) {
-	return nil, nil
-}
-func (m *mockResourceInstance) References() []string { return nil }
-
-type mockResource struct{ name string }
-
-func (m *mockResource) Name() string                          { return m.name }
-func (m *mockResource) Schema() []schema.Attribute            { return nil }
-func (m *mockResource) New() (schema.ResourceInstance, error) { return nil, nil }
-
 func Test_ValidateRefs_001(t *testing.T) {
 	assert := assert.New(t)
 	// No interface fields — no errors
@@ -201,7 +174,7 @@ func Test_ValidateRefs_003(t *testing.T) {
 		Router schema.ResourceInstance `name:"router" type:"httprouter" required:""`
 	}
 	err := schema.ValidateRefs(withRequired{
-		Router: &mockResourceInstance{name: "router-01", resourceName: "httprouter"},
+		Router: &schematest.ResourceInstance{N: "router-01", RN: "httprouter"},
 	})
 	assert.NoError(err)
 }
@@ -213,7 +186,7 @@ func Test_ValidateRefs_004(t *testing.T) {
 		Router schema.ResourceInstance `name:"router" type:"httprouter" required:""`
 	}
 	err := schema.ValidateRefs(withRequired{
-		Router: &mockResourceInstance{name: "router-01", resourceName: "wrongtype"},
+		Router: &schematest.ResourceInstance{N: "router-01", RN: "wrongtype"},
 	})
 	assert.Error(err)
 	assert.Contains(err.Error(), `must be of type "httprouter"`)
@@ -233,7 +206,7 @@ func Test_ValidateRefs_006(t *testing.T) {
 	assert := assert.New(t)
 	// Full httpserverResource with router set correctly
 	r := httpserverResource{
-		Router: &mockResourceInstance{name: "router-01", resourceName: "httprouter"},
+		Router: &schematest.ResourceInstance{N: "router-01", RN: "httprouter"},
 	}
 	assert.NoError(schema.ValidateRefs(r))
 }
@@ -274,7 +247,7 @@ func Test_ReferencesOf_003(t *testing.T) {
 		Router schema.ResourceInstance `name:"router"`
 	}
 	refs := schema.ReferencesOf(withRef{
-		Router: &mockResourceInstance{name: "router-01", resourceName: "httprouter"},
+		Router: &schematest.ResourceInstance{N: "router-01", RN: "httprouter"},
 	})
 	assert.Equal([]string{"router-01"}, refs)
 }
@@ -283,7 +256,7 @@ func Test_ReferencesOf_004(t *testing.T) {
 	assert := assert.New(t)
 	// Full httpserverResource with router
 	r := httpserverResource{
-		Router: &mockResourceInstance{name: "my-router", resourceName: "httprouter"},
+		Router: &schematest.ResourceInstance{N: "my-router", RN: "httprouter"},
 	}
 	refs := schema.ReferencesOf(r)
 	assert.Equal([]string{"my-router"}, refs)
@@ -299,7 +272,7 @@ func Test_ReferencesOf_006(t *testing.T) {
 	assert := assert.New(t)
 	// Pointer to struct works too
 	r := &httpserverResource{
-		Router: &mockResourceInstance{name: "ptr-router", resourceName: "httprouter"},
+		Router: &schematest.ResourceInstance{N: "ptr-router", RN: "httprouter"},
 	}
 	refs := schema.ReferencesOf(r)
 	assert.Equal([]string{"ptr-router"}, refs)

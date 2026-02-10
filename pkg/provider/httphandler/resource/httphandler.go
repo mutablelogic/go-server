@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	// Packages
-	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	httprouter "github.com/mutablelogic/go-server/pkg/httprouter"
 	openapi "github.com/mutablelogic/go-server/pkg/openapi/schema"
 	provider "github.com/mutablelogic/go-server/pkg/provider"
@@ -162,9 +161,9 @@ func (r *ResourceInstance) Read(ctx context.Context) (schema.State, error) {
 // Apply stores the configuration. The actual route registration is
 // performed by the router during its own Apply.
 func (r *ResourceInstance) Apply(_ context.Context, v any) error {
-	c, ok := v.(*Resource)
-	if !ok {
-		return httpresponse.ErrInternalError.With("apply: unexpected config type")
+	c, err := r.ValidateConfig(v)
+	if err != nil {
+		return err
 	}
 	r.middleware = c.Middleware
 	r.SetStateAndNotify(c, r)

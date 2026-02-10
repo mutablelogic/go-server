@@ -18,6 +18,7 @@ import (
 	// Packages
 	resource "github.com/mutablelogic/go-server/pkg/httpserver/resource"
 	schema "github.com/mutablelogic/go-server/pkg/provider/schema"
+	"github.com/mutablelogic/go-server/pkg/provider/schema/schematest"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -26,61 +27,12 @@ import (
 
 // mockRouter implements both schema.ResourceInstance and http.Handler.
 type mockRouter struct {
-	name         string
-	resourceName string
+	schematest.ResourceInstance
 }
 
-func (m *mockRouter) Name() string              { return m.name }
-func (m *mockRouter) Resource() schema.Resource { return &mockResource{name: m.resourceName} }
-func (m *mockRouter) Validate(_ context.Context, _ schema.State, _ schema.Resolver) (any, error) {
-	return nil, nil
-}
-func (m *mockRouter) Plan(_ context.Context, _ any) (schema.Plan, error) {
-	return schema.Plan{}, nil
-}
-func (m *mockRouter) Apply(_ context.Context, _ any) error {
-	return nil
-}
-func (m *mockRouter) Destroy(_ context.Context) error { return nil }
-func (m *mockRouter) Read(_ context.Context) (schema.State, error) {
-	return nil, nil
-}
-func (m *mockRouter) References() []string { return nil }
 func (m *mockRouter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
-
-// mockResource is a minimal schema.Resource for the mock router.
-type mockResource struct {
-	name string
-}
-
-func (m *mockResource) Name() string                          { return m.name }
-func (m *mockResource) Schema() []schema.Attribute            { return nil }
-func (m *mockResource) New() (schema.ResourceInstance, error) { return nil, nil }
-
-// mockNonHandler implements schema.ResourceInstance but NOT http.Handler.
-type mockNonHandler struct {
-	name         string
-	resourceName string
-}
-
-func (m *mockNonHandler) Name() string              { return m.name }
-func (m *mockNonHandler) Resource() schema.Resource { return &mockResource{name: m.resourceName} }
-func (m *mockNonHandler) Validate(_ context.Context, _ schema.State, _ schema.Resolver) (any, error) {
-	return nil, nil
-}
-func (m *mockNonHandler) Plan(_ context.Context, _ any) (schema.Plan, error) {
-	return schema.Plan{}, nil
-}
-func (m *mockNonHandler) Apply(_ context.Context, _ any) error {
-	return nil
-}
-func (m *mockNonHandler) Destroy(_ context.Context) error { return nil }
-func (m *mockNonHandler) Read(_ context.Context) (schema.State, error) {
-	return nil, nil
-}
-func (m *mockNonHandler) References() []string { return nil }
 
 ///////////////////////////////////////////////////////////////////////////////
 // HELPERS
@@ -120,17 +72,17 @@ func Test_Resource_001(t *testing.T) {
 }
 
 func Test_Resource_002(t *testing.T) {
-	// Schema returns 9 attributes
+	// Schema returns 10 attributes
 	assert := assert.New(t)
 	var r resource.Resource
 	attrs := r.Schema()
-	assert.Len(attrs, 9)
+	assert.Len(attrs, 10)
 
 	names := make(map[string]bool, len(attrs))
 	for _, a := range attrs {
 		names[a.Name] = true
 	}
-	for _, want := range []string{"listen", "endpoint", "router", "read-timeout", "write-timeout", "tls.name", "tls.verify", "tls.cert", "tls.key"} {
+	for _, want := range []string{"listen", "endpoint", "router", "read-timeout", "write-timeout", "idle-timeout", "tls.name", "tls.verify", "tls.cert", "tls.key"} {
 		assert.True(names[want], "missing attribute %q", want)
 	}
 
@@ -147,7 +99,7 @@ func Test_Resource_003(t *testing.T) {
 	assert := assert.New(t)
 	r := resource.Resource{
 		Listen: "localhost:8080",
-		Router: &mockRouter{name: "r1", resourceName: "httprouter"},
+		Router: &mockRouter{ResourceInstance: schematest.ResourceInstance{N: "r1", RN: "httprouter"}},
 	}
 	inst1, err := r.New()
 	assert.NoError(err)
@@ -174,7 +126,7 @@ func Test_Resource_004(t *testing.T) {
 func Test_Validate_001(t *testing.T) {
 	// Valid config - no error
 	assert := assert.New(t)
-	router := &mockRouter{name: "r1", resourceName: "httprouter"}
+	router := &mockRouter{ResourceInstance: schematest.ResourceInstance{N: "r1", RN: "httprouter"}}
 	r := resource.Resource{
 		Listen: "localhost:8080",
 		Router: router,
@@ -200,7 +152,7 @@ func Test_Validate_002(t *testing.T) {
 func Test_Validate_003(t *testing.T) {
 	// Wrong router type - error
 	assert := assert.New(t)
-	router := &mockRouter{name: "r1", resourceName: "wrongtype"}
+	router := &mockRouter{ResourceInstance: schematest.ResourceInstance{N: "r1", RN: "wrongtype"}}
 	r := resource.Resource{
 		Listen: "localhost:8080",
 		Router: router,
@@ -215,7 +167,7 @@ func Test_Validate_003(t *testing.T) {
 func Test_Validate_004(t *testing.T) {
 	// Negative read timeout - error
 	assert := assert.New(t)
-	router := &mockRouter{name: "r1", resourceName: "httprouter"}
+	router := &mockRouter{ResourceInstance: schematest.ResourceInstance{N: "r1", RN: "httprouter"}}
 	r := resource.Resource{
 		Listen:      "localhost:8080",
 		Router:      router,
@@ -231,7 +183,7 @@ func Test_Validate_004(t *testing.T) {
 func Test_Validate_005(t *testing.T) {
 	// Negative write timeout - error
 	assert := assert.New(t)
-	router := &mockRouter{name: "r1", resourceName: "httprouter"}
+	router := &mockRouter{ResourceInstance: schematest.ResourceInstance{N: "r1", RN: "httprouter"}}
 	r := resource.Resource{
 		Listen:       "localhost:8080",
 		Router:       router,
@@ -247,7 +199,7 @@ func Test_Validate_005(t *testing.T) {
 func Test_Validate_006(t *testing.T) {
 	// TLS cert only passes Validate (checked at Plan time)
 	assert := assert.New(t)
-	router := &mockRouter{name: "r1", resourceName: "httprouter"}
+	router := &mockRouter{ResourceInstance: schematest.ResourceInstance{N: "r1", RN: "httprouter"}}
 	r := resource.Resource{
 		Listen: "localhost:8080",
 		Router: router,
@@ -262,7 +214,7 @@ func Test_Validate_006(t *testing.T) {
 func Test_Validate_007(t *testing.T) {
 	// TLS key only passes Validate (checked at Plan time)
 	assert := assert.New(t)
-	router := &mockRouter{name: "r1", resourceName: "httprouter"}
+	router := &mockRouter{ResourceInstance: schematest.ResourceInstance{N: "r1", RN: "httprouter"}}
 	r := resource.Resource{
 		Listen: "localhost:8080",
 		Router: router,
@@ -277,7 +229,7 @@ func Test_Validate_007(t *testing.T) {
 func Test_Validate_008(t *testing.T) {
 	// Both TLS cert and key provided - no validation error
 	assert := assert.New(t)
-	router := &mockRouter{name: "r1", resourceName: "httprouter"}
+	router := &mockRouter{ResourceInstance: schematest.ResourceInstance{N: "r1", RN: "httprouter"}}
 	r := resource.Resource{
 		Listen: "localhost:8080",
 		Router: router,
@@ -293,7 +245,7 @@ func Test_Validate_008(t *testing.T) {
 func Test_Validate_009(t *testing.T) {
 	// Zero timeouts are fine (no error)
 	assert := assert.New(t)
-	router := &mockRouter{name: "r1", resourceName: "httprouter"}
+	router := &mockRouter{ResourceInstance: schematest.ResourceInstance{N: "r1", RN: "httprouter"}}
 	r := resource.Resource{
 		Listen:       "localhost:8080",
 		Router:       router,
@@ -314,7 +266,7 @@ func Test_Plan_001(t *testing.T) {
 	assert := assert.New(t)
 	r := &resource.Resource{
 		Listen:      "localhost:8080",
-		Router:      &mockRouter{name: "r1", resourceName: "httprouter"},
+		Router:      &mockRouter{ResourceInstance: schematest.ResourceInstance{N: "r1", RN: "httprouter"}},
 		ReadTimeout: 5 * time.Minute,
 	}
 	inst, err := r.New()
@@ -331,7 +283,7 @@ func Test_Plan_002(t *testing.T) {
 	addr := freePort(t)
 	r := &resource.Resource{
 		Listen:       addr,
-		Router:       &mockRouter{name: "r1", resourceName: "httprouter"},
+		Router:       &mockRouter{ResourceInstance: schematest.ResourceInstance{N: "r1", RN: "httprouter"}},
 		ReadTimeout:  5 * time.Minute,
 		WriteTimeout: 5 * time.Minute,
 	}
@@ -353,7 +305,7 @@ func Test_Plan_003(t *testing.T) {
 	// Plan with different config after Apply produces ActionUpdate
 	assert := assert.New(t)
 	addr := freePort(t)
-	router := &mockRouter{name: "r1", resourceName: "httprouter"}
+	router := &mockRouter{ResourceInstance: schematest.ResourceInstance{N: "r1", RN: "httprouter"}}
 	old := &resource.Resource{
 		Listen:       addr,
 		Router:       router,
@@ -395,7 +347,7 @@ func Test_Plan_004(t *testing.T) {
 	assert := assert.New(t)
 	r := &resource.Resource{
 		Listen: "localhost:8080",
-		Router: &mockRouter{name: "r1", resourceName: "httprouter"},
+		Router: &mockRouter{ResourceInstance: schematest.ResourceInstance{N: "r1", RN: "httprouter"}},
 	}
 	inst, err := r.New()
 	assert.NoError(err)
@@ -413,7 +365,7 @@ func Test_Apply_001(t *testing.T) {
 	addr := freePort(t)
 	r := &resource.Resource{
 		Listen:       addr,
-		Router:       &mockRouter{name: "r1", resourceName: "httprouter"},
+		Router:       &mockRouter{ResourceInstance: schematest.ResourceInstance{N: "r1", RN: "httprouter"}},
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}
@@ -448,7 +400,7 @@ func Test_Apply_002(t *testing.T) {
 	assert := assert.New(t)
 	r := &resource.Resource{
 		Listen: freePort(t),
-		Router: &mockNonHandler{name: "r1", resourceName: "httprouter"},
+		Router: &schematest.ResourceInstance{N: "r1", RN: "httprouter"},
 	}
 	inst, err := r.New()
 	assert.NoError(err)
@@ -464,7 +416,7 @@ func Test_Apply_003(t *testing.T) {
 	addr := freePort(t)
 	r := &resource.Resource{
 		Listen:       addr,
-		Router:       &mockRouter{name: "r1", resourceName: "httprouter"},
+		Router:       &mockRouter{ResourceInstance: schematest.ResourceInstance{N: "r1", RN: "httprouter"}},
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}
@@ -498,7 +450,7 @@ func Test_Destroy_001(t *testing.T) {
 	assert := assert.New(t)
 	r := resource.Resource{
 		Listen: "localhost:8080",
-		Router: &mockRouter{name: "r1", resourceName: "httprouter"},
+		Router: &mockRouter{ResourceInstance: schematest.ResourceInstance{N: "r1", RN: "httprouter"}},
 	}
 	inst, err := r.New()
 	assert.NoError(err)
@@ -514,7 +466,7 @@ func Test_References_001(t *testing.T) {
 	addr := freePort(t)
 	r := &resource.Resource{
 		Listen:       addr,
-		Router:       &mockRouter{name: "my-router", resourceName: "httprouter"},
+		Router:       &mockRouter{ResourceInstance: schematest.ResourceInstance{N: "my-router", RN: "httprouter"}},
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}
@@ -574,7 +526,7 @@ func Test_Plan_TLS_001(t *testing.T) {
 	assert := assert.New(t)
 	r := &resource.Resource{
 		Listen: "localhost:8080",
-		Router: &mockRouter{name: "r1", resourceName: "httprouter"},
+		Router: &mockRouter{ResourceInstance: schematest.ResourceInstance{N: "r1", RN: "httprouter"}},
 	}
 	r.TLS.Cert = []byte("not valid pem")
 	r.TLS.Key = []byte("not valid pem")
@@ -594,7 +546,7 @@ func Test_Plan_TLS_002(t *testing.T) {
 
 	r := &resource.Resource{
 		Listen: "localhost:8080",
-		Router: &mockRouter{name: "r1", resourceName: "httprouter"},
+		Router: &mockRouter{ResourceInstance: schematest.ResourceInstance{N: "r1", RN: "httprouter"}},
 	}
 	r.TLS.Cert = certPEM
 	r.TLS.Key = keyPEM
@@ -614,7 +566,7 @@ func Test_Plan_TLS_003(t *testing.T) {
 
 	r := &resource.Resource{
 		Listen: "localhost:8080",
-		Router: &mockRouter{name: "r1", resourceName: "httprouter"},
+		Router: &mockRouter{ResourceInstance: schematest.ResourceInstance{N: "r1", RN: "httprouter"}},
 	}
 	r.TLS.Cert = certPEM
 	r.TLS.Key = keyPEM
@@ -635,7 +587,7 @@ func Test_Plan_TLS_004(t *testing.T) {
 
 	r := &resource.Resource{
 		Listen: "localhost:8080",
-		Router: &mockRouter{name: "r1", resourceName: "httprouter"},
+		Router: &mockRouter{ResourceInstance: schematest.ResourceInstance{N: "r1", RN: "httprouter"}},
 	}
 	r.TLS.Cert = certPEM
 	r.TLS.Key = keyPEM
@@ -656,7 +608,7 @@ func Test_Plan_TLS_005(t *testing.T) {
 	combined := append(append([]byte{}, certPEM...), keyPEM...)
 	r := &resource.Resource{
 		Listen: "localhost:8080",
-		Router: &mockRouter{name: "r1", resourceName: "httprouter"},
+		Router: &mockRouter{ResourceInstance: schematest.ResourceInstance{N: "r1", RN: "httprouter"}},
 	}
 	r.TLS.Cert = combined
 	// r.TLS.Key is nil
@@ -677,7 +629,7 @@ func Test_Plan_TLS_006(t *testing.T) {
 	combined := append(append([]byte{}, certPEM...), keyPEM...)
 	r := &resource.Resource{
 		Listen: "localhost:8080",
-		Router: &mockRouter{name: "r1", resourceName: "httprouter"},
+		Router: &mockRouter{ResourceInstance: schematest.ResourceInstance{N: "r1", RN: "httprouter"}},
 	}
 	// r.TLS.Cert is nil
 	r.TLS.Key = combined
@@ -697,7 +649,7 @@ func Test_Plan_TLS_007(t *testing.T) {
 
 	r := &resource.Resource{
 		Listen: "localhost:8080",
-		Router: &mockRouter{name: "r1", resourceName: "httprouter"},
+		Router: &mockRouter{ResourceInstance: schematest.ResourceInstance{N: "r1", RN: "httprouter"}},
 	}
 	r.TLS.Cert = certPEM
 	// r.TLS.Key is nil — no key anywhere, readPemBlocks will fail
@@ -717,7 +669,7 @@ func Test_Plan_TLS_008(t *testing.T) {
 
 	r := &resource.Resource{
 		Listen: "localhost:8080",
-		Router: &mockRouter{name: "r1", resourceName: "httprouter"},
+		Router: &mockRouter{ResourceInstance: schematest.ResourceInstance{N: "r1", RN: "httprouter"}},
 	}
 	// r.TLS.Cert is nil — no cert anywhere
 	r.TLS.Key = keyPEM

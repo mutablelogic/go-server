@@ -90,9 +90,9 @@ func (r *ResourceInstance) Validate(ctx context.Context, state schema.State, res
 // It creates the router, attaches middleware in order, registers
 // handlers, and adds default endpoints (404 and OpenAPI).
 func (r *ResourceInstance) Apply(ctx context.Context, v any) error {
-	c, ok := v.(*Resource)
-	if !ok {
-		return httpresponse.ErrInternalError.With("apply: unexpected config type")
+	c, err := r.ValidateConfig(v)
+	if err != nil {
+		return err
 	}
 
 	// Create a new router (no middleware passed to constructor — they come

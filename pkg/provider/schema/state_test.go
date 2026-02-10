@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/mutablelogic/go-server/pkg/provider/schema"
+	"github.com/mutablelogic/go-server/pkg/provider/schema/schematest"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -458,7 +459,7 @@ func Test_Decode_029(t *testing.T) {
 	assert := assert.New(t)
 
 	// Resolver resolves a reference by name
-	mock := &mockResourceInstance{name: "router-01", resourceName: "httprouter"}
+	mock := &schematest.ResourceInstance{N: "router-01", RN: "httprouter"}
 	resolver := func(name string) schema.ResourceInstance {
 		if name == "router-01" {
 			return mock
@@ -530,7 +531,7 @@ func Test_Decode_033(t *testing.T) {
 	assert := assert.New(t)
 
 	// Round-trip: StateOf serialises reference name, Decode restores it
-	mock := &mockResourceInstance{name: "my-router", resourceName: "httprouter"}
+	mock := &schematest.ResourceInstance{N: "my-router", RN: "httprouter"}
 	original := httpserverResource{
 		Listen: ":443",
 		Router: mock,

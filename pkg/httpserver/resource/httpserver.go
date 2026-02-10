@@ -25,6 +25,7 @@ type Resource struct {
 	Router       schema.ResourceInstance `name:"router" type:"httprouter" required:"" help:"HTTP router"`
 	ReadTimeout  time.Duration           `name:"read-timeout" default:"5m" help:"Read timeout"`
 	WriteTimeout time.Duration           `name:"write-timeout" default:"5m" help:"Write timeout"`
+	IdleTimeout  time.Duration           `name:"idle-timeout" default:"5m" help:"Idle timeout for keep-alive connections"`
 	TLS struct {
 		Name   string `name:"name" help:"TLS server name"`
 		Verify bool   `name:"verify" default:"true" help:"Verify client certificates"`
@@ -82,6 +83,9 @@ func (r *ResourceInstance) Validate(ctx context.Context, state schema.State, res
 	if desired.WriteTimeout < 0 {
 		return nil, httpresponse.ErrBadRequest.With("negative write timeout")
 	}
+	if desired.IdleTimeout < 0 {
+		return nil, httpresponse.ErrBadRequest.With("negative idle timeout")
+	}
 
 	return desired, nil
 }
@@ -134,9 +138,9 @@ func (r *ResourceInstance) Plan(ctx context.Context, v any) (schema.Plan, error)
 
 // Apply materialises the resource using the validated configuration.
 func (r *ResourceInstance) Apply(ctx context.Context, v any) error {
-	c, ok := v.(*Resource)
-	if !ok {
-		return httpresponse.ErrInternalError.With("apply: unexpected config type")
+	c, err := r.ValidateConfig(v)
+	if err != nil {
+		return err
 	}
 
 	// Stop the existing server if running
@@ -164,6 +168,7 @@ func (r *ResourceInstance) Apply(ctx context.Context, v any) error {
 	srv, err := httpserver.New(c.Listen, router, cert,
 		httpserver.WithReadTimeout(c.ReadTimeout),
 		httpserver.WithWriteTimeout(c.WriteTimeout),
+		httpserver.WithIdleTimeout(c.IdleTimeout),
 	)
 	if err != nil {
 		return err

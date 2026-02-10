@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	// Packages
-	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	httprouter "github.com/mutablelogic/go-server/pkg/httprouter"
 	provider "github.com/mutablelogic/go-server/pkg/provider"
 	schema "github.com/mutablelogic/go-server/pkg/provider/schema"
@@ -77,9 +76,9 @@ func (r *ResourceInstance) MiddlewareFunc() httprouter.HTTPMiddlewareFunc {
 // Apply stores the configuration. The actual middleware attachment is
 // performed by the router during its own Apply.
 func (r *ResourceInstance) Apply(_ context.Context, v any) error {
-	c, ok := v.(*Resource)
-	if !ok {
-		return httpresponse.ErrInternalError.With("apply: unexpected config type")
+	c, err := r.ValidateConfig(v)
+	if err != nil {
+		return err
 	}
 	r.SetStateAndNotify(c, r)
 	return nil

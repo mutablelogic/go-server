@@ -32,6 +32,7 @@ const (
 	defaultShutdownTimeout = 30 * time.Second
 	defaultReadTimeout     = 5 * time.Minute
 	defaultWriteTimeout    = 5 * time.Minute
+	defaultIdleTimeout     = 5 * time.Minute
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -72,6 +73,7 @@ func New(listen string, router http.Handler, cert *tls.Config, opts ...Opt) (*se
 	server.http.Handler = router
 	server.http.WriteTimeout = opt.w
 	server.http.ReadTimeout = opt.r
+	server.http.IdleTimeout = opt.i
 
 	// Return success
 	return server, nil

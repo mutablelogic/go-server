@@ -99,6 +99,17 @@ func (b *ResourceInstance[C]) SetState(c *C) {
 	b.state.Store(c)
 }
 
+// ValidateConfig asserts that v is a *C and returns it. Use this at
+// the top of Apply methods to replace the duplicated type-assertion
+// boilerplate.
+func (b *ResourceInstance[C]) ValidateConfig(v any) (*C, error) {
+	c, ok := v.(*C)
+	if !ok {
+		return nil, httpresponse.ErrInternalError.With("apply: unexpected config type")
+	}
+	return c, nil
+}
+
 // SetStateAndNotify stores the applied configuration and notifies
 // all registered observers. The source parameter should be the
 // outermost [schema.ResourceInstance] (typically the concrete type
@@ -130,11 +141,17 @@ func (b *ResourceInstance[C]) RemoveObserver(id string) {
 }
 
 // NotifyObservers calls all registered observer callbacks with the
-// given source instance.
+// given source instance. The observer map is copied under the lock
+// so callbacks are free to call AddObserver/RemoveObserver without
+// deadlocking.
 func (b *ResourceInstance[C]) NotifyObservers(source schema.ResourceInstance) {
 	b.mu.RLock()
-	defer b.mu.RUnlock()
+	snapshot := make([]ObserverFunc, 0, len(b.observers))
 	for _, fn := range b.observers {
+		snapshot = append(snapshot, fn)
+	}
+	b.mu.RUnlock()
+	for _, fn := range snapshot {
 		fn(source)
 	}
 }
