@@ -74,6 +74,7 @@ func (m *Manager) Close(ctx context.Context) error {
 		if !exists {
 			continue
 		}
+		m.notifyRemovals(inst.instance)
 		m.unwireObservers(inst.instance)
 		if err := inst.instance.Destroy(ctx); err != nil {
 			result = errors.Join(result, err)
@@ -438,6 +439,7 @@ func (m *Manager) DestroyResourceInstance(ctx context.Context, req schema.Destro
 		// Capture metadata before destruction
 		meta := m.instanceMeta(ctx, inst)
 
+		m.notifyRemovals(inst.instance)
 		m.unwireObservers(inst.instance)
 		if err := inst.instance.Destroy(ctx); err != nil {
 			return nil, err
@@ -638,6 +640,24 @@ func (m *Manager) wireAndNotify(inst schema.ResourceInstance) {
 			OnStateChange(schema.ResourceInstance)
 		}); ok {
 			h.OnStateChange(inst)
+		}
+	}
+}
+
+// notifyRemovals tells each referenced (dependency) instance that the
+// given instance is being removed. This is the inverse of the initial
+// OnStateChange notification in wireAndNotify.
+// The caller must hold m.Lock().
+func (m *Manager) notifyRemovals(inst schema.ResourceInstance) {
+	for _, refName := range inst.References() {
+		dep, exists := m.instances[refName]
+		if !exists {
+			continue
+		}
+		if h, ok := dep.instance.(interface {
+			OnStateRemove(schema.ResourceInstance)
+		}); ok {
+			h.OnStateRemove(inst)
 		}
 	}
 }

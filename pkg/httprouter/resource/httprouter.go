@@ -3,6 +3,8 @@ package resource
 import (
 	"context"
 	"net/http"
+	"sort"
+	"sync"
 
 	// Packages
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
@@ -20,7 +22,7 @@ type Resource struct {
 	Origin     string                    `name:"origin" default:"" help:"Trusted origin for cross-origin requests (CSRF protection). Empty string means same-origin only, '*' allows all origins, or specify a scheme://host[:port]"`
 	Title      string                    `name:"title" required:"" help:"OpenAPI spec title"`
 	Version    string                    `name:"version" required:"" help:"OpenAPI spec version"`
-	Endpoint   string                    `name:"endpoint" readonly:"" help:"Base URL of the router (set by the server after Apply)"`
+	Endpoints  []string                  `name:"endpoints" readonly:"" help:"Base URLs of the router (one per attached server)"`
 	NotFound   bool                      `name:"notfound" default:"true" help:"Register a default JSON 404 handler"`
 	OpenAPI    bool                      `name:"openapi" default:"true" help:"Serve OpenAPI spec at {prefix}/openapi.json"`
 	Middleware []schema.ResourceInstance `name:"middleware" help:"Ordered middleware instances to attach to the router"`
@@ -29,8 +31,9 @@ type Resource struct {
 
 type ResourceInstance struct {
 	provider.ResourceInstance[Resource]
-	router *httprouter.Router
-	server schema.ResourceInstance // set via OnStateChange observer
+	router  *httprouter.Router
+	mu      sync.RWMutex
+	servers map[string]schema.ResourceInstance // keyed by server instance name
 }
 
 var _ schema.Resource = (*Resource)(nil)
@@ -145,28 +148,54 @@ func (r *ResourceInstance) Router() *httprouter.Router {
 // OnStateChange is called by the observer system when an instance
 // that references this router has its state changed. If the source
 // is an httpserver, the reference is stored so [Read] can compute
-// the endpoint dynamically.
+// the endpoints dynamically. Multiple servers can reference the
+// same router, so they are stored in a map keyed by instance name.
 func (r *ResourceInstance) OnStateChange(source schema.ResourceInstance) {
 	if source.Resource().Name() == "httpserver" {
-		r.server = source
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		if r.servers == nil {
+			r.servers = make(map[string]schema.ResourceInstance)
+		}
+		r.servers[source.Name()] = source
 	}
 }
 
-// Read returns the live state of the router, computing the endpoint
-// dynamically from the server's current state.
+// OnStateRemove is called by the observer system when an instance
+// that references this router is being destroyed. If the source
+// is an httpserver, its reference is removed.
+func (r *ResourceInstance) OnStateRemove(source schema.ResourceInstance) {
+	if source.Resource().Name() == "httpserver" {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		delete(r.servers, source.Name())
+	}
+}
+
+// Read returns the live state of the router, computing the endpoints
+// dynamically from all attached servers' current state.
 func (r *ResourceInstance) Read(ctx context.Context) (schema.State, error) {
 	state, err := r.ResourceInstance.Read(ctx)
 	if err != nil || state == nil {
 		return state, err
 	}
-	if r.server != nil {
-		if serverState, err := r.server.Read(ctx); err == nil && serverState != nil {
-			if endpoint, ok := serverState["endpoint"].(string); ok {
-				if c := r.State(); c != nil {
-					state["endpoint"] = endpoint + c.Prefix
-				}
+	c := r.State()
+	if c == nil {
+		return state, nil
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var endpoints []string
+	for _, srv := range r.servers {
+		if srvState, err := srv.Read(ctx); err == nil && srvState != nil {
+			if ep, ok := srvState["endpoint"].(string); ok {
+				endpoints = append(endpoints, ep+c.Prefix)
 			}
 		}
+	}
+	sort.Strings(endpoints)
+	if len(endpoints) > 0 {
+		state["endpoints"] = endpoints
 	}
 	return state, nil
 }

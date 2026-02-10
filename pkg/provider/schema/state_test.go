@@ -393,8 +393,8 @@ func Test_StateOf_003(t *testing.T) {
 	}
 	r.TLS.Name = "myserver"
 	r.TLS.Verify = true
-	r.TLS.Cert = "/tmp/cert.pem"
-	r.TLS.Key = "/tmp/key.pem"
+	r.TLS.Cert = []byte("-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----")
+	r.TLS.Key = []byte("-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----")
 
 	s := schema.StateOf(r)
 
@@ -410,8 +410,8 @@ func Test_StateOf_003(t *testing.T) {
 	// Embedded TLS fields with prefix
 	assert.Equal("myserver", s["tls.name"])
 	assert.Equal(true, s["tls.verify"])
-	assert.Equal("/tmp/cert.pem", s["tls.cert"])
-	assert.Equal("/tmp/key.pem", s["tls.key"])
+	assert.Equal([]byte("-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----"), s["tls.cert"])
+	assert.Equal([]byte("-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----"), s["tls.key"])
 }
 
 func Test_StateOf_004(t *testing.T) {

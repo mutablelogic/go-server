@@ -63,7 +63,7 @@ func Test_Resource_002(t *testing.T) {
 	for _, a := range attrs {
 		names[a.Name] = true
 	}
-	for _, want := range []string{"prefix", "origin", "title", "version", "endpoint", "notfound", "openapi", "middleware", "handlers"} {
+	for _, want := range []string{"prefix", "origin", "title", "version", "endpoints", "notfound", "openapi", "middleware", "handlers"} {
 		assert.True(names[want], "missing attribute %q", want)
 	}
 }

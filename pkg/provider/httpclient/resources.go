@@ -98,9 +98,13 @@ func (c *Client) GetOpenAPI(ctx context.Context, routerName string) (json.RawMes
 	if err != nil {
 		return nil, fmt.Errorf("router %q: %w", routerName, err)
 	}
-	endpoint, ok := router.Instance.State["endpoint"].(string)
+	endpoints, ok := router.Instance.State["endpoints"].([]any)
+	if !ok || len(endpoints) == 0 {
+		return nil, fmt.Errorf("router %q has no endpoints (is the server running?)", routerName)
+	}
+	endpoint, ok := endpoints[0].(string)
 	if !ok || endpoint == "" {
-		return nil, fmt.Errorf("router %q has no endpoint (is the server running?)", routerName)
+		return nil, fmt.Errorf("router %q has no valid endpoint", routerName)
 	}
 
 	// Fetch the OpenAPI spec from the router's endpoint

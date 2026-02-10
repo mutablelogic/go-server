@@ -18,8 +18,8 @@ type httpserverResource struct {
 	TLS          struct {
 		Name   string `name:"name" help:"TLS server name"`
 		Verify bool   `name:"verify" default:"true" help:"Verify client certificates"`
-		Cert   string `name:"cert" type:"file" default:"" help:"TLS certificate PEM file"`
-		Key    string `name:"key" type:"file" default:"" help:"TLS key PEM file"`
+		Cert   []byte `name:"cert" sensitive:"" help:"TLS certificate PEM data"`
+		Key    []byte `name:"key" sensitive:"" help:"TLS key PEM data"`
 	} `embed:"" prefix:"tls."`
 }
 
@@ -88,8 +88,9 @@ func Test_Attributes_005(t *testing.T) {
 		}
 	}
 	if assert.NotNil(cert) {
-		assert.Equal("file", cert.Type)
-		assert.Equal("TLS certificate PEM file", cert.Description)
+		assert.Equal("[]uint", cert.Type)
+		assert.True(cert.Sensitive)
+		assert.Equal("TLS certificate PEM data", cert.Description)
 	}
 }
 

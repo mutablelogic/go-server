@@ -2,7 +2,14 @@ package resource_test
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
 	"fmt"
+	"math/big"
 	"net"
 	"net/http"
 	"testing"
@@ -238,52 +245,49 @@ func Test_Validate_005(t *testing.T) {
 }
 
 func Test_Validate_006(t *testing.T) {
-	// TLS cert without key - error
+	// TLS cert only passes Validate (checked at Plan time)
 	assert := assert.New(t)
 	router := &mockRouter{name: "r1", resourceName: "httprouter"}
 	r := resource.Resource{
 		Listen: "localhost:8080",
 		Router: router,
 	}
-	r.TLS.Cert = "/some/cert.pem"
+	r.TLS.Cert = []byte("some-cert-data")
 	inst, err := r.New()
 	assert.NoError(err)
 	_, err = inst.Validate(context.Background(), schema.StateOf(r), mockResolver(router))
-	assert.Error(err)
-	assert.Contains(err.Error(), "tls.cert and tls.key must both be set")
+	assert.NoError(err)
 }
 
 func Test_Validate_007(t *testing.T) {
-	// TLS key without cert - error
+	// TLS key only passes Validate (checked at Plan time)
 	assert := assert.New(t)
 	router := &mockRouter{name: "r1", resourceName: "httprouter"}
 	r := resource.Resource{
 		Listen: "localhost:8080",
 		Router: router,
 	}
-	r.TLS.Key = "/some/key.pem"
+	r.TLS.Key = []byte("some-key-data")
 	inst, err := r.New()
 	assert.NoError(err)
 	_, err = inst.Validate(context.Background(), schema.StateOf(r), mockResolver(router))
-	assert.Error(err)
-	assert.Contains(err.Error(), "tls.cert and tls.key must both be set")
+	assert.NoError(err)
 }
 
 func Test_Validate_008(t *testing.T) {
-	// TLS cert file does not exist - error
+	// Both TLS cert and key provided - no validation error
 	assert := assert.New(t)
 	router := &mockRouter{name: "r1", resourceName: "httprouter"}
 	r := resource.Resource{
 		Listen: "localhost:8080",
 		Router: router,
 	}
-	r.TLS.Cert = "/nonexistent/cert.pem"
-	r.TLS.Key = "/nonexistent/key.pem"
+	r.TLS.Cert = []byte("some-cert-data")
+	r.TLS.Key = []byte("some-key-data")
 	inst, err := r.New()
 	assert.NoError(err)
 	_, err = inst.Validate(context.Background(), schema.StateOf(r), mockResolver(router))
-	assert.Error(err)
-	assert.Contains(err.Error(), "tls.cert")
+	assert.NoError(err)
 }
 
 func Test_Validate_009(t *testing.T) {
@@ -529,4 +533,198 @@ func Test_References_002(t *testing.T) {
 	inst, err := r.New()
 	assert.NoError(err)
 	assert.Nil(inst.References())
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// HELPERS - TLS CERTIFICATE GENERATION
+
+// generateTestCert creates a self-signed ECDSA certificate and key pair
+// as PEM-encoded byte slices. The certificate is valid from notBefore
+// to notAfter.
+func generateTestCert(t *testing.T, notBefore, notAfter time.Time) (certPEM, keyPEM []byte) {
+	t.Helper()
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{CommonName: "test"},
+		NotBefore:    notBefore,
+		NotAfter:     notAfter,
+	}
+	certDER, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	certPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
+	keyDER, err := x509.MarshalPKCS8PrivateKey(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyPEM = pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: keyDER})
+	return
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// TESTS - PLAN TLS VALIDATION
+
+func Test_Plan_TLS_001(t *testing.T) {
+	// Plan with invalid PEM data - error
+	assert := assert.New(t)
+	r := &resource.Resource{
+		Listen: "localhost:8080",
+		Router: &mockRouter{name: "r1", resourceName: "httprouter"},
+	}
+	r.TLS.Cert = []byte("not valid pem")
+	r.TLS.Key = []byte("not valid pem")
+	inst, err := r.New()
+	assert.NoError(err)
+
+	_, err = inst.Plan(context.Background(), r)
+	assert.Error(err)
+	assert.Contains(err.Error(), "tls")
+}
+
+func Test_Plan_TLS_002(t *testing.T) {
+	// Plan with expired certificate - error
+	assert := assert.New(t)
+	expired := time.Now().Add(-48 * time.Hour)
+	certPEM, keyPEM := generateTestCert(t, expired.Add(-24*time.Hour), expired)
+
+	r := &resource.Resource{
+		Listen: "localhost:8080",
+		Router: &mockRouter{name: "r1", resourceName: "httprouter"},
+	}
+	r.TLS.Cert = certPEM
+	r.TLS.Key = keyPEM
+	inst, err := r.New()
+	assert.NoError(err)
+
+	_, err = inst.Plan(context.Background(), r)
+	assert.Error(err)
+	assert.Contains(err.Error(), "expired")
+}
+
+func Test_Plan_TLS_003(t *testing.T) {
+	// Plan with valid certificate - no error
+	assert := assert.New(t)
+	now := time.Now()
+	certPEM, keyPEM := generateTestCert(t, now.Add(-1*time.Hour), now.Add(24*time.Hour))
+
+	r := &resource.Resource{
+		Listen: "localhost:8080",
+		Router: &mockRouter{name: "r1", resourceName: "httprouter"},
+	}
+	r.TLS.Cert = certPEM
+	r.TLS.Key = keyPEM
+	inst, err := r.New()
+	assert.NoError(err)
+
+	plan, err := inst.Plan(context.Background(), r)
+	assert.NoError(err)
+	assert.Equal(schema.ActionCreate, plan.Action)
+}
+
+func Test_Plan_TLS_004(t *testing.T) {
+	// Plan with mismatched cert and key - error
+	assert := assert.New(t)
+	now := time.Now()
+	certPEM, _ := generateTestCert(t, now.Add(-1*time.Hour), now.Add(24*time.Hour))
+	_, keyPEM := generateTestCert(t, now.Add(-1*time.Hour), now.Add(24*time.Hour))
+
+	r := &resource.Resource{
+		Listen: "localhost:8080",
+		Router: &mockRouter{name: "r1", resourceName: "httprouter"},
+	}
+	r.TLS.Cert = certPEM
+	r.TLS.Key = keyPEM
+	inst, err := r.New()
+	assert.NoError(err)
+
+	_, err = inst.Plan(context.Background(), r)
+	assert.Error(err)
+	assert.Contains(err.Error(), "tls")
+}
+
+func Test_Plan_TLS_005(t *testing.T) {
+	// Plan with cert+key concatenated in Cert field, Key nil - no error
+	assert := assert.New(t)
+	now := time.Now()
+	certPEM, keyPEM := generateTestCert(t, now.Add(-1*time.Hour), now.Add(24*time.Hour))
+
+	combined := append(append([]byte{}, certPEM...), keyPEM...)
+	r := &resource.Resource{
+		Listen: "localhost:8080",
+		Router: &mockRouter{name: "r1", resourceName: "httprouter"},
+	}
+	r.TLS.Cert = combined
+	// r.TLS.Key is nil
+	inst, err := r.New()
+	assert.NoError(err)
+
+	plan, err := inst.Plan(context.Background(), r)
+	assert.NoError(err)
+	assert.Equal(schema.ActionCreate, plan.Action)
+}
+
+func Test_Plan_TLS_006(t *testing.T) {
+	// Plan with cert+key concatenated in Key field, Cert nil - no error
+	assert := assert.New(t)
+	now := time.Now()
+	certPEM, keyPEM := generateTestCert(t, now.Add(-1*time.Hour), now.Add(24*time.Hour))
+
+	combined := append(append([]byte{}, certPEM...), keyPEM...)
+	r := &resource.Resource{
+		Listen: "localhost:8080",
+		Router: &mockRouter{name: "r1", resourceName: "httprouter"},
+	}
+	// r.TLS.Cert is nil
+	r.TLS.Key = combined
+	inst, err := r.New()
+	assert.NoError(err)
+
+	plan, err := inst.Plan(context.Background(), r)
+	assert.NoError(err)
+	assert.Equal(schema.ActionCreate, plan.Action)
+}
+
+func Test_Plan_TLS_007(t *testing.T) {
+	// Plan with only cert (no key anywhere) - error
+	assert := assert.New(t)
+	now := time.Now()
+	certPEM, _ := generateTestCert(t, now.Add(-1*time.Hour), now.Add(24*time.Hour))
+
+	r := &resource.Resource{
+		Listen: "localhost:8080",
+		Router: &mockRouter{name: "r1", resourceName: "httprouter"},
+	}
+	r.TLS.Cert = certPEM
+	// r.TLS.Key is nil — no key anywhere, readPemBlocks will fail
+	inst, err := r.New()
+	assert.NoError(err)
+
+	_, err = inst.Plan(context.Background(), r)
+	assert.Error(err)
+	assert.Contains(err.Error(), "tls")
+}
+
+func Test_Plan_TLS_008(t *testing.T) {
+	// Plan with only key (no cert anywhere) - error
+	assert := assert.New(t)
+	now := time.Now()
+	_, keyPEM := generateTestCert(t, now.Add(-1*time.Hour), now.Add(24*time.Hour))
+
+	r := &resource.Resource{
+		Listen: "localhost:8080",
+		Router: &mockRouter{name: "r1", resourceName: "httprouter"},
+	}
+	// r.TLS.Cert is nil — no cert anywhere
+	r.TLS.Key = keyPEM
+	inst, err := r.New()
+	assert.NoError(err)
+
+	_, err = inst.Plan(context.Background(), r)
+	assert.Error(err)
+	assert.Contains(err.Error(), "tls")
 }

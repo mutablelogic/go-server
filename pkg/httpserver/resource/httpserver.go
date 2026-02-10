@@ -4,8 +4,8 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"net"
 	"net/http"
-	"os"
 	"sync"
 	"time"
 
@@ -25,11 +25,11 @@ type Resource struct {
 	Router       schema.ResourceInstance `name:"router" type:"httprouter" required:"" help:"HTTP router"`
 	ReadTimeout  time.Duration           `name:"read-timeout" default:"5m" help:"Read timeout"`
 	WriteTimeout time.Duration           `name:"write-timeout" default:"5m" help:"Write timeout"`
-	TLS          struct {
+	TLS struct {
 		Name   string `name:"name" help:"TLS server name"`
 		Verify bool   `name:"verify" default:"true" help:"Verify client certificates"`
-		Cert   string `name:"cert" type:"file" default:"" help:"TLS certificate PEM file"`
-		Key    string `name:"key" type:"file" default:"" help:"TLS key PEM file"`
+		Cert   []byte `name:"cert" sensitive:"" help:"TLS certificate PEM data"`
+		Key    []byte `name:"key" sensitive:"" help:"TLS key PEM data"`
 	} `embed:"" prefix:"tls."`
 }
 
@@ -83,24 +83,53 @@ func (r *ResourceInstance) Validate(ctx context.Context, state schema.State, res
 		return nil, httpresponse.ErrBadRequest.With("negative write timeout")
 	}
 
-	// TLS: cert and key must both be provided or both be absent
-	if (desired.TLS.Cert == "") != (desired.TLS.Key == "") {
-		return nil, httpresponse.ErrBadRequest.With("tls.cert and tls.key must both be set or both be empty")
-	}
-
-	// TLS: if provided, cert and key files must be readable
-	if desired.TLS.Cert != "" {
-		if _, err := os.Stat(desired.TLS.Cert); err != nil {
-			return nil, httpresponse.ErrBadRequest.Withf("tls.cert: %v", err)
-		}
-	}
-	if desired.TLS.Key != "" {
-		if _, err := os.Stat(desired.TLS.Key); err != nil {
-			return nil, httpresponse.ErrBadRequest.Withf("tls.key: %v", err)
-		}
-	}
-
 	return desired, nil
+}
+
+// Plan computes the diff and performs pre-flight checks on changed
+// fields: probing the listen address for availability and validating
+// TLS certificates (PEM parsing, key-pair match, expiry).
+func (r *ResourceInstance) Plan(ctx context.Context, v any) (schema.Plan, error) {
+	plan, err := r.ResourceInstance.Plan(ctx, v)
+	if err != nil {
+		return plan, err
+	}
+
+	// Scan the changes for fields we need to pre-flight check
+	var newAddr string
+	var tlsChanging bool
+	for _, ch := range plan.Changes {
+		switch ch.Field {
+		case "listen":
+			if s, ok := ch.New.(string); ok {
+				newAddr = s
+			}
+		case "tls.cert", "tls.key":
+			tlsChanging = true
+		}
+	}
+
+	// Probe the listen address if it's changing
+	if newAddr != "" {
+		addr := httpserver.ListenAddr(newAddr, false)
+		ln, err := net.Listen("tcp", addr)
+		if err != nil {
+			return plan, httpresponse.ErrBadRequest.Withf("listen: %v", err)
+		}
+		ln.Close()
+	}
+
+	// Validate TLS certificate and key if either is changing
+	if tlsChanging {
+		desired, ok := v.(*Resource)
+		if ok && (len(desired.TLS.Cert) > 0 || len(desired.TLS.Key) > 0) {
+			if err := httpserver.ValidateCert(desired.TLS.Cert, desired.TLS.Key); err != nil {
+				return plan, httpresponse.ErrBadRequest.Withf("tls: %v", err)
+			}
+		}
+	}
+
+	return plan, nil
 }
 
 // Apply materialises the resource using the validated configuration.
@@ -121,9 +150,9 @@ func (r *ResourceInstance) Apply(ctx context.Context, v any) error {
 		return httpresponse.ErrBadRequest.With("router does not implement http.Handler")
 	}
 
-	// Build TLS config if cert and key are provided
+	// Build TLS config if any TLS data is provided
 	var cert *tls.Config
-	if c.TLS.Cert != "" && c.TLS.Key != "" {
+	if len(c.TLS.Cert) > 0 || len(c.TLS.Key) > 0 {
 		var err error
 		cert, err = httpserver.TLSConfig(c.TLS.Name, c.TLS.Verify, c.TLS.Cert, c.TLS.Key)
 		if err != nil {
@@ -140,7 +169,13 @@ func (r *ResourceInstance) Apply(ctx context.Context, v any) error {
 		return err
 	}
 
-	// Compute the endpoint URL
+	// Bind the port synchronously so callers get an immediate error
+	// (e.g. "address already in use") instead of a silent goroutine failure.
+	if err := srv.Listen(); err != nil {
+		return err
+	}
+
+	// Compute the endpoint URL from the actual bound address
 	scheme := "http"
 	if cert != nil {
 		scheme = "https"

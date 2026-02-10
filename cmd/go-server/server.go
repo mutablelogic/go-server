@@ -3,6 +3,9 @@
 package main
 
 import (
+	"fmt"
+	"os"
+
 	// Packages
 	server "github.com/mutablelogic/go-server"
 	httprouter_resource "github.com/mutablelogic/go-server/pkg/httprouter/resource"
@@ -123,8 +126,16 @@ func (cmd *RunServer) Run(ctx *Globals) error {
 		"router": routerInst.Name(),
 	}
 	if cmd.TLS.CertFile != "" || cmd.TLS.KeyFile != "" {
-		serverState["tls.cert"] = cmd.TLS.CertFile
-		serverState["tls.key"] = cmd.TLS.KeyFile
+		certPEM, err := os.ReadFile(cmd.TLS.CertFile)
+		if err != nil {
+			return fmt.Errorf("tls.cert: %w", err)
+		}
+		keyPEM, err := os.ReadFile(cmd.TLS.KeyFile)
+		if err != nil {
+			return fmt.Errorf("tls.key: %w", err)
+		}
+		serverState["tls.cert"] = certPEM
+		serverState["tls.key"] = keyPEM
 		serverState["tls.name"] = cmd.TLS.ServerName
 	}
 	if ctx.HTTP.Timeout > 0 {

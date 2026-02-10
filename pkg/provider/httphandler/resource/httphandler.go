@@ -3,6 +3,8 @@ package resource
 import (
 	"context"
 	"net/http"
+	"sort"
+	"sync"
 
 	// Packages
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
@@ -21,8 +23,8 @@ import (
 // its [Apply] simply stores the configuration. The router pulls the handler
 // via the [httprouter.HandlerProvider] interface during its own Apply.
 type Resource struct {
-	Middleware bool   `name:"middleware" help:"Whether the router middleware chain wraps this handler" default:"true"`
-	Endpoint   string `name:"endpoint" readonly:"" help:"Full URL endpoint for this handler (set by the router after Apply)"`
+	Middleware bool     `name:"middleware" help:"Whether the router middleware chain wraps this handler" default:"true"`
+	Endpoints  []string `name:"endpoints" readonly:"" help:"Full URL endpoints for this handler"`
 	name       string
 	fn         http.HandlerFunc
 	path       string
@@ -36,7 +38,8 @@ type ResourceInstance struct {
 	path       string
 	spec       *openapi.PathItem
 	middleware bool
-	router     schema.ResourceInstance // set via OnStateChange observer
+	mu         sync.RWMutex
+	routers    map[string]schema.ResourceInstance // keyed by router instance name
 }
 
 var _ schema.Resource = Resource{}
@@ -106,26 +109,52 @@ func (r *ResourceInstance) HandlerSpec() *openapi.PathItem {
 // OnStateChange is called by the observer system when an instance
 // that references this handler has its state changed. If the source
 // is an httprouter, the reference is stored so [Read] can compute
-// the endpoint dynamically.
+// the endpoints dynamically. Multiple routers can reference the
+// same handler, so they are stored in a map keyed by instance name.
 func (r *ResourceInstance) OnStateChange(source schema.ResourceInstance) {
 	if source.Resource().Name() == "httprouter" {
-		r.router = source
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		if r.routers == nil {
+			r.routers = make(map[string]schema.ResourceInstance)
+		}
+		r.routers[source.Name()] = source
 	}
 }
 
-// Read returns the live state of the handler, computing the endpoint
-// dynamically from the router's current state.
+// OnStateRemove is called by the observer system when an instance
+// that references this handler is being destroyed. If the source
+// is an httprouter, its reference is removed.
+func (r *ResourceInstance) OnStateRemove(source schema.ResourceInstance) {
+	if source.Resource().Name() == "httprouter" {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		delete(r.routers, source.Name())
+	}
+}
+
+// Read returns the live state of the handler, computing the endpoints
+// dynamically from all attached routers' current state.
 func (r *ResourceInstance) Read(ctx context.Context) (schema.State, error) {
 	state, err := r.ResourceInstance.Read(ctx)
 	if err != nil || state == nil {
 		return state, err
 	}
-	if r.router != nil {
-		if routerState, err := r.router.Read(ctx); err == nil && routerState != nil {
-			if endpoint, ok := routerState["endpoint"].(string); ok {
-				state["endpoint"] = endpoint + "/" + r.path
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var endpoints []string
+	for _, rtr := range r.routers {
+		if rtrState, err := rtr.Read(ctx); err == nil && rtrState != nil {
+			if eps, ok := rtrState["endpoints"].([]string); ok {
+				for _, ep := range eps {
+					endpoints = append(endpoints, ep+"/"+r.path)
+				}
 			}
 		}
+	}
+	sort.Strings(endpoints)
+	if len(endpoints) > 0 {
+		state["endpoints"] = endpoints
 	}
 	return state, nil
 }
