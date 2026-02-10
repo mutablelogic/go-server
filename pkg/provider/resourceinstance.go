@@ -3,12 +3,30 @@ package provider
 import (
 	"context"
 	"fmt"
+	"reflect"
+	"sync"
 	"sync/atomic"
 
 	// Packages
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	schema "github.com/mutablelogic/go-server/pkg/provider/schema"
 )
+
+///////////////////////////////////////////////////////////////////////////////
+// OBSERVER TYPES
+
+// ObserverFunc is called when the instance's state changes.
+// The source parameter is the concrete [schema.ResourceInstance]
+// whose state was updated.
+type ObserverFunc func(source schema.ResourceInstance)
+
+// Observable is optionally satisfied by resource instances that
+// support state-change observer registration. All types that embed
+// [ResourceInstance] automatically implement this interface.
+type Observable interface {
+	AddObserver(id string, fn ObserverFunc)
+	RemoveObserver(id string)
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
@@ -22,9 +40,11 @@ import (
 // of the [schema.ResourceInstance] interface.  Concrete types must
 // still implement [Validate], [Apply], and [Destroy].
 type ResourceInstance[C schema.Resource] struct {
-	name     string
-	resource C
-	state    *C
+	name      string
+	resource  C
+	state     *C
+	mu        sync.RWMutex
+	observers map[string]ObserverFunc
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -73,10 +93,50 @@ func (b *ResourceInstance[C]) State() *C {
 	return b.state
 }
 
-// SetState stores the applied configuration. Call this at the end
-// of a successful [Apply].
+// SetState stores the applied configuration without notifying
+// observers. Prefer [SetStateAndNotify] in Apply methods.
 func (b *ResourceInstance[C]) SetState(c *C) {
 	b.state = c
+}
+
+// SetStateAndNotify stores the applied configuration and notifies
+// all registered observers. The source parameter should be the
+// outermost [schema.ResourceInstance] (typically the concrete type
+// that embeds ResourceInstance). Call this at the end of a
+// successful [Apply].
+func (b *ResourceInstance[C]) SetStateAndNotify(c *C, source schema.ResourceInstance) {
+	b.state = c
+	b.NotifyObservers(source)
+}
+
+// AddObserver registers a callback that will be invoked when this
+// instance's state changes via [SetStateAndNotify]. The id is
+// typically the name of the observing instance; calling AddObserver
+// with an existing id replaces the previous callback.
+func (b *ResourceInstance[C]) AddObserver(id string, fn ObserverFunc) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.observers == nil {
+		b.observers = make(map[string]ObserverFunc)
+	}
+	b.observers[id] = fn
+}
+
+// RemoveObserver unregisters the observer with the given id.
+func (b *ResourceInstance[C]) RemoveObserver(id string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	delete(b.observers, id)
+}
+
+// NotifyObservers calls all registered observer callbacks with the
+// given source instance.
+func (b *ResourceInstance[C]) NotifyObservers(source schema.ResourceInstance) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	for _, fn := range b.observers {
+		fn(source)
+	}
 }
 
 // Validate decodes incoming [schema.State] into a *C, resolves
@@ -124,7 +184,7 @@ func (b *ResourceInstance[C]) Plan(_ context.Context, v any) (schema.Plan, error
 	var changes []schema.Change
 	for field, newVal := range newState {
 		oldVal := oldState[field]
-		if fmt.Sprint(oldVal) != fmt.Sprint(newVal) {
+		if !reflect.DeepEqual(oldVal, newVal) {
 			changes = append(changes, schema.Change{
 				Field: field,
 				Old:   oldVal,

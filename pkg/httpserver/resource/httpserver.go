@@ -147,12 +147,6 @@ func (r *ResourceInstance) Apply(ctx context.Context, v any) error {
 	}
 	c.Endpoint = scheme + "://" + srv.Addr()
 
-	// Store a reference to this server on the router so it can
-	// compute its endpoint (and handler endpoints) dynamically.
-	if s, ok := c.Router.(interface{ SetServer(schema.ResourceInstance) }); ok {
-		s.SetServer(r)
-	}
-
 	// Run the server in the background – use Background() as the parent
 	// so the server outlives the HTTP request that triggered Apply.
 	srvCtx, cancel := context.WithCancel(context.Background())
@@ -166,8 +160,8 @@ func (r *ResourceInstance) Apply(ctx context.Context, v any) error {
 		}
 	}()
 
-	// Store the applied config
-	r.SetState(c)
+	// Store the applied config and notify observers
+	r.SetStateAndNotify(c, r)
 
 	return nil
 }

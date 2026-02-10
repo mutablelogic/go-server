@@ -44,7 +44,7 @@ func ResourceListHandler(manager *provider.Manager) http.HandlerFunc {
 				_ = httpresponse.Error(w, err)
 				return
 			}
-			_ = httpresponse.JSON(w, http.StatusOK, httprequest.Indent(r), resp)
+			_ = httpresponse.JSON(w, http.StatusCreated, httprequest.Indent(r), resp)
 		default:
 			_ = httpresponse.Error(w, httpresponse.Err(http.StatusMethodNotAllowed), r.Method)
 		}
@@ -67,9 +67,14 @@ func ResourceListSpec() *openapi.PathItem {
 // (PATCH), and destroy (DELETE) of a single resource instance.
 func ResourceInstanceHandler(manager *provider.Manager) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		if id == "" {
+			_ = httpresponse.Error(w, httpresponse.ErrBadRequest.With("missing resource id"))
+			return
+		}
 		switch r.Method {
 		case http.MethodGet:
-			resp, err := manager.GetResourceInstance(r.Context(), r.PathValue("id"))
+			resp, err := manager.GetResourceInstance(r.Context(), id)
 			if err != nil {
 				_ = httpresponse.Error(w, err)
 				return
@@ -81,7 +86,7 @@ func ResourceInstanceHandler(manager *provider.Manager) http.HandlerFunc {
 				_ = httpresponse.Error(w, err)
 				return
 			}
-			resp, err := manager.UpdateResourceInstance(r.Context(), r.PathValue("id"), req)
+			resp, err := manager.UpdateResourceInstance(r.Context(), id, req)
 			if err != nil {
 				_ = httpresponse.Error(w, err)
 				return
@@ -89,7 +94,7 @@ func ResourceInstanceHandler(manager *provider.Manager) http.HandlerFunc {
 			_ = httpresponse.JSON(w, http.StatusOK, httprequest.Indent(r), resp)
 		case http.MethodDelete:
 			resp, err := manager.DestroyResourceInstance(r.Context(), schema.DestroyResourceInstanceRequest{
-				Name:    r.PathValue("id"),
+				Name:    id,
 				Cascade: r.URL.Query().Get("cascade") == "true",
 			})
 			if err != nil {

@@ -30,7 +30,7 @@ type Resource struct {
 type ResourceInstance struct {
 	provider.ResourceInstance[Resource]
 	router *httprouter.Router
-	server schema.ResourceInstance // set by httpserver during Apply
+	server schema.ResourceInstance // set via OnStateChange observer
 }
 
 var _ schema.Resource = (*Resource)(nil)
@@ -112,17 +112,13 @@ func (r *ResourceInstance) Apply(ctx context.Context, v any) error {
 	}
 
 	// Register handlers. Each referenced instance must implement
-	// [httprouter.HandlerProvider].  We also pass ourselves to each handler
-	// so it can compute its endpoint dynamically via Read().
+	// [httprouter.HandlerProvider].
 	for i, h := range c.Handlers {
 		hp, ok := h.(httprouter.HandlerProvider)
 		if !ok {
 			return httpresponse.ErrBadRequest.Withf("apply: handlers[%d] (%s) does not implement HandlerProvider", i, h.Name())
 		}
 		router.RegisterFunc(hp.HandlerPath(), hp.HandlerFunc(), hp.HandlerMiddleware(), hp.HandlerSpec())
-		if s, ok := h.(interface{ SetRouter(schema.ResourceInstance) }); ok {
-			s.SetRouter(r)
-		}
 	}
 
 	// Register default endpoints
@@ -133,9 +129,9 @@ func (r *ResourceInstance) Apply(ctx context.Context, v any) error {
 		router.RegisterOpenAPI(OpenAPIPath, true)
 	}
 
-	// Store the router and the applied config
+	// Store the router and the applied config, notify observers
 	r.router = router
-	r.SetState(c)
+	r.SetStateAndNotify(c, r)
 
 	return nil
 }
@@ -146,10 +142,14 @@ func (r *ResourceInstance) Router() *httprouter.Router {
 	return r.router
 }
 
-// SetServer stores a reference to the httpserver resource instance.
-// The router uses this to compute its endpoint dynamically in [Read].
-func (r *ResourceInstance) SetServer(server schema.ResourceInstance) {
-	r.server = server
+// OnStateChange is called by the observer system when an instance
+// that references this router has its state changed. If the source
+// is an httpserver, the reference is stored so [Read] can compute
+// the endpoint dynamically.
+func (r *ResourceInstance) OnStateChange(source schema.ResourceInstance) {
+	if source.Resource().Name() == "httpserver" {
+		r.server = source
+	}
 }
 
 // Read returns the live state of the router, computing the endpoint

@@ -91,8 +91,8 @@ func (r *ResourceInstance) Apply(_ context.Context, v any) error {
 		r.debug(c.Debug)
 	}
 
-	// Set the state
-	r.SetState(c)
+	// Set the state and notify observers
+	r.SetStateAndNotify(c, r)
 
 	// Return success
 	return nil

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 
 	// Packages
 	client "github.com/mutablelogic/go-client"
@@ -103,7 +104,15 @@ func (c *Client) GetOpenAPI(ctx context.Context, routerName string) (json.RawMes
 	}
 
 	// Fetch the OpenAPI spec from the router's endpoint
-	resp, err := http.Get(endpoint + "/openapi.json")
+	specURL, err := url.JoinPath(endpoint, "openapi.json")
+	if err != nil {
+		return nil, fmt.Errorf("openapi: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, specURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("openapi: %w", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}

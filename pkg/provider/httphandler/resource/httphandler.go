@@ -36,7 +36,7 @@ type ResourceInstance struct {
 	path       string
 	spec       *openapi.PathItem
 	middleware bool
-	router     schema.ResourceInstance // set by httprouter during Apply
+	router     schema.ResourceInstance // set via OnStateChange observer
 }
 
 var _ schema.Resource = Resource{}
@@ -103,10 +103,14 @@ func (r *ResourceInstance) HandlerSpec() *openapi.PathItem {
 	return r.spec
 }
 
-// SetRouter stores a reference to the httprouter resource instance.
-// The handler uses this to compute its endpoint dynamically in [Read].
-func (r *ResourceInstance) SetRouter(router schema.ResourceInstance) {
-	r.router = router
+// OnStateChange is called by the observer system when an instance
+// that references this handler has its state changed. If the source
+// is an httprouter, the reference is stored so [Read] can compute
+// the endpoint dynamically.
+func (r *ResourceInstance) OnStateChange(source schema.ResourceInstance) {
+	if source.Resource().Name() == "httprouter" {
+		r.router = source
+	}
 }
 
 // Read returns the live state of the handler, computing the endpoint
@@ -134,7 +138,7 @@ func (r *ResourceInstance) Apply(_ context.Context, v any) error {
 		return httpresponse.ErrInternalError.With("apply: unexpected config type")
 	}
 	r.middleware = c.Middleware
-	r.SetState(c)
+	r.SetStateAndNotify(c, r)
 	return nil
 }
 

@@ -353,12 +353,6 @@ func validateRefs(rv reflect.Value, prefix string) error {
 					}
 				}
 			}
-			continue
-		}
-
-		// Skip non-interface fields
-		if field.Type.Kind() != reflect.Interface && !(field.Type.Kind() == reflect.Slice && field.Type.Elem().Kind() == reflect.Interface) {
-			continue
 		}
 	}
 

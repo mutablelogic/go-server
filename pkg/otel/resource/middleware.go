@@ -81,7 +81,7 @@ func (r *ResourceInstance) Apply(_ context.Context, v any) error {
 	if !ok {
 		return httpresponse.ErrInternalError.With("apply: unexpected config type")
 	}
-	r.SetState(c)
+	r.SetStateAndNotify(c, r)
 	return nil
 }
 

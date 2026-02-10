@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 
@@ -73,6 +74,7 @@ func (m *Manager) Close(ctx context.Context) error {
 		if !exists {
 			continue
 		}
+		m.unwireObservers(inst.instance)
 		if err := inst.instance.Destroy(ctx); err != nil {
 			result = errors.Join(result, err)
 		}
@@ -128,7 +130,7 @@ func (m *Manager) newInstance(name string) (schema.ResourceInstance, error) {
 	// Create a new resource instance
 	resourceinstance, err := resource.New()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("resource %q: %w", name, err)
 	}
 
 	instanceName := resourceinstance.Name()
@@ -184,7 +186,7 @@ func (m *Manager) RegisterReadonlyInstance(ctx context.Context, resource schema.
 	// Create a new instance
 	inst, err := resource.New()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("resource %q: %w", name, err)
 	}
 
 	// Override the auto-generated name with {resource}-{label}
@@ -206,13 +208,13 @@ func (m *Manager) RegisterReadonlyInstance(ctx context.Context, resource schema.
 	config, err := inst.Validate(ctx, state, m.resolver())
 	if err != nil {
 		delete(m.instances, instanceName)
-		return nil, err
+		return nil, fmt.Errorf("instance %q: validate: %w", instanceName, err)
 	}
 
 	// Apply the state
 	if err := inst.Apply(ctx, config); err != nil {
 		delete(m.instances, instanceName)
-		return nil, err
+		return nil, fmt.Errorf("instance %q: apply: %w", instanceName, err)
 	}
 
 	// Store with read-only flag
@@ -220,6 +222,9 @@ func (m *Manager) RegisterReadonlyInstance(ctx context.Context, resource schema.
 		instance: inst,
 		readOnly: true,
 	}
+
+	// Wire observers so referenced instances are notified on state changes
+	m.wireAndNotify(inst)
 
 	return inst, nil
 }
@@ -257,7 +262,7 @@ func (m *Manager) ListResources(ctx context.Context, req schema.ListResourcesReq
 			if inst.instance.Resource().Name() != r.Name() {
 				continue
 			}
-			instances = append(instances, m.instanceMeta(inst))
+			instances = append(instances, m.instanceMeta(ctx, inst))
 		}
 
 		resources = append(resources, schema.ResourceMeta{
@@ -296,7 +301,7 @@ func (m *Manager) CreateResourceInstance(ctx context.Context, req schema.CreateR
 	}
 
 	return &schema.CreateResourceInstanceResponse{
-		Instance: m.instanceMeta(m.instances[inst.Name()]),
+		Instance: m.instanceMeta(ctx, m.instances[inst.Name()]),
 	}, nil
 }
 
@@ -315,7 +320,7 @@ func (m *Manager) GetResourceInstance(ctx context.Context, name string) (*schema
 		return nil, ErrNotFound.Withf("resource instance %q not found", name)
 	} else {
 		return &schema.GetResourceInstanceResponse{
-			Instance: m.instanceMeta(inst),
+			Instance: m.instanceMeta(ctx, inst),
 		}, nil
 	}
 }
@@ -351,7 +356,7 @@ func (m *Manager) UpdateResourceInstance(ctx context.Context, name string, req s
 	// Validate before planning/applying — returns the decoded config
 	config, err := inst.instance.Validate(ctx, req.Attributes, m.resolver())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("instance %q: validate: %w", name, err)
 	}
 
 	// Reject circular dependencies
@@ -362,23 +367,24 @@ func (m *Manager) UpdateResourceInstance(ctx context.Context, name string, req s
 	// Compute the plan
 	plan, err := inst.instance.Plan(ctx, config)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("instance %q: plan: %w", name, err)
 	}
 
 	// Optionally apply the plan
 	if req.Apply {
 		if err := inst.instance.Apply(ctx, config); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("instance %q: apply: %w", name, err)
 		}
 		m.instances[name] = instance{
 			instance: inst.instance,
 			readOnly: inst.readOnly,
 		}
 		inst = m.instances[name]
+		m.wireAndNotify(inst.instance)
 	}
 
 	return &schema.UpdateResourceInstanceResponse{
-		Instance: m.instanceMeta(inst),
+		Instance: m.instanceMeta(ctx, inst),
 		Plan:     plan,
 	}, nil
 }
@@ -430,8 +436,9 @@ func (m *Manager) DestroyResourceInstance(ctx context.Context, req schema.Destro
 		}
 
 		// Capture metadata before destruction
-		meta := m.instanceMeta(inst)
+		meta := m.instanceMeta(ctx, inst)
 
+		m.unwireObservers(inst.instance)
 		if err := inst.instance.Destroy(ctx); err != nil {
 			return nil, err
 		}
@@ -450,9 +457,9 @@ func (m *Manager) DestroyResourceInstance(ctx context.Context, req schema.Destro
 // instanceMeta builds an [schema.InstanceMeta] from a live instance.
 // It calls Read() on the instance to get the current state.
 // The caller must hold at least m.RLock().
-func (m *Manager) instanceMeta(inst instance) schema.InstanceMeta {
+func (m *Manager) instanceMeta(ctx context.Context, inst instance) schema.InstanceMeta {
 	var state schema.State
-	if s, err := inst.instance.Read(context.Background()); err == nil {
+	if s, err := inst.instance.Read(ctx); err == nil {
 		state = s
 	}
 	return schema.InstanceMeta{
@@ -600,6 +607,56 @@ func (m *Manager) checkCycles(instanceName string, attrs []schema.Attribute, sta
 		}
 	}
 	return nil
+}
+
+// wireAndNotify registers observers on the applied instance so that
+// its referenced (dependency) instances are notified when the applied
+// instance's state changes in the future. It also fires an initial
+// notification for each reference, since SetState already ran during
+// Apply before the observers were wired.
+// The caller must hold m.Lock().
+func (m *Manager) wireAndNotify(inst schema.ResourceInstance) {
+	obs, ok := inst.(Observable)
+	if !ok {
+		return
+	}
+	for _, refName := range inst.References() {
+		dep, exists := m.instances[refName]
+		if !exists {
+			continue
+		}
+		depInst := dep.instance
+		obs.AddObserver(refName, func(source schema.ResourceInstance) {
+			if h, ok := depInst.(interface {
+				OnStateChange(schema.ResourceInstance)
+			}); ok {
+				h.OnStateChange(source)
+			}
+		})
+		// Fire initial notification
+		if h, ok := depInst.(interface {
+			OnStateChange(schema.ResourceInstance)
+		}); ok {
+			h.OnStateChange(inst)
+		}
+	}
+}
+
+// unwireObservers removes observers that reference the given instance.
+// For each depender (an instance that references this one), the observer
+// with the destroyed instance's name is removed.
+// The caller must hold m.Lock().
+func (m *Manager) unwireObservers(inst schema.ResourceInstance) {
+	name := inst.Name()
+	for _, dependerName := range m.directDependents(name) {
+		depender, ok := m.instances[dependerName]
+		if !ok {
+			continue
+		}
+		if obs, ok := depender.instance.(Observable); ok {
+			obs.RemoveObserver(name)
+		}
+	}
 }
 
 // checkDependents returns an error if any live instance depends on the
