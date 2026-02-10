@@ -71,6 +71,14 @@ func New(listen string, router http.Handler, cert *tls.Config, opts ...Opt) (*se
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS
+
+// Addr returns the listen address the server is configured to bind to.
+func (server *server) Addr() string {
+	return server.http.Addr
+}
+
+///////////////////////////////////////////////////////////////////////////////
 // TASK
 
 func (server *server) Run(parent context.Context) error {

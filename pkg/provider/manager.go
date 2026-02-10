@@ -9,7 +9,7 @@ import (
 	// Packages
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	schema "github.com/mutablelogic/go-server/pkg/provider/schema"
-	"github.com/mutablelogic/go-server/pkg/types"
+	types "github.com/mutablelogic/go-server/pkg/types"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -35,7 +35,7 @@ type Manager struct {
 
 type instance struct {
 	instance schema.ResourceInstance
-	state    schema.State
+	readOnly bool // manager-level override (e.g. RegisterReadonlyInstance)
 }
 
 var _ schema.Provider = (*Manager)(nil)
@@ -61,8 +61,14 @@ func (m *Manager) Close(ctx context.Context) error {
 	m.Lock()
 	defer m.Unlock()
 
+	// Build the set of all instance names
+	all := make(map[string]bool, len(m.instances))
+	for name := range m.instances {
+		all[name] = true
+	}
+
 	var result error
-	for _, name := range m.destroyOrder() {
+	for _, name := range m.safeDestroyOrder(all) {
 		inst, exists := m.instances[name]
 		if !exists {
 			continue
@@ -73,60 +79,6 @@ func (m *Manager) Close(ctx context.Context) error {
 		delete(m.instances, name)
 	}
 	return result
-}
-
-// destroyOrder returns instance names in reverse-dependency order: instances
-// that depend on others come first so they are torn down before their
-// dependencies. The caller must hold at least m.RLock().
-func (m *Manager) destroyOrder() []string {
-	// Build an adjacency set: for each instance, which other instances
-	// depend on it (i.e. its "dependents").
-	dependents := make(map[string][]string, len(m.instances))
-	inDegree := make(map[string]int, len(m.instances))
-	for name := range m.instances {
-		inDegree[name] = 0
-	}
-	for name, inst := range m.instances {
-		for _, ref := range inst.instance.References() {
-			if _, exists := m.instances[ref]; exists {
-				dependents[ref] = append(dependents[ref], name)
-				inDegree[name]++
-			}
-		}
-	}
-
-	// Kahn's algorithm — start with instances that have no dependencies
-	// (leaves), which means they are dependents of others and should be
-	// destroyed first.
-	queue := make([]string, 0, len(m.instances))
-	for name, deg := range inDegree {
-		if deg == 0 {
-			queue = append(queue, name)
-		}
-	}
-
-	order := make([]string, 0, len(m.instances))
-	for len(queue) > 0 {
-		name := queue[0]
-		queue = queue[1:]
-		order = append(order, name)
-		for _, dep := range dependents[name] {
-			inDegree[dep]--
-			if inDegree[dep] == 0 {
-				queue = append(queue, dep)
-			}
-		}
-	}
-
-	// Any remaining instances form a cycle — append them anyway so they
-	// still get destroyed.
-	for name := range m.instances {
-		if inDegree[name] > 0 {
-			order = append(order, name)
-		}
-	}
-
-	return order
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -189,7 +141,6 @@ func (m *Manager) newInstance(name string) (schema.ResourceInstance, error) {
 	// Set the instance
 	m.instances[instanceName] = instance{
 		instance: resourceinstance,
-		state:    nil,
 	}
 
 	// Return the instance
@@ -201,16 +152,76 @@ func (m *Manager) newInstance(name string) (schema.ResourceInstance, error) {
 func (m *Manager) RegisterResource(r schema.Resource) error {
 	if r == nil {
 		return ErrBadRequest.With("resource is nil")
-	}
-	name := r.Name()
-	if name == "" {
+	} else if name := r.Name(); name == "" {
 		return ErrBadRequest.With("resource name is empty")
-	}
-	if _, exists := m.resources[name]; exists {
+	} else if _, exists := m.resources[name]; exists {
 		return ErrConflict.Withf("resource %q is already registered", name)
+	} else {
+		m.resources[name] = r
 	}
-	m.resources[name] = r
+
+	// Return success
 	return nil
+}
+
+// RegisterReadonlyInstance creates a new instance of the given resource
+// type with a deterministic label, validates and applies the given
+// state, and stores the result as a read-only (data) instance. The
+// instance name is "{resource}-{label}". If the resource type is not
+// yet registered it is registered automatically. It returns the created
+// [schema.ResourceInstance] so the caller can type-assert to the
+// concrete object (e.g. *httpserver.Server).
+func (m *Manager) RegisterReadonlyInstance(ctx context.Context, resource schema.Resource, label string, state schema.State) (schema.ResourceInstance, error) {
+	m.Lock()
+	defer m.Unlock()
+
+	// Auto-register the resource type if not already registered
+	name := resource.Name()
+	if _, exists := m.resources[name]; !exists {
+		m.resources[name] = resource
+	}
+
+	// Create a new instance
+	inst, err := resource.New()
+	if err != nil {
+		return nil, err
+	}
+
+	// Override the auto-generated name with {resource}-{label}
+	instanceName := name + "-" + label
+	if nameable, ok := inst.(interface{ SetName(string) }); ok {
+		nameable.SetName(instanceName)
+	}
+	if inst.Name() != instanceName {
+		return nil, ErrBadRequest.Withf("instance does not support SetName")
+	}
+	if _, exists := m.instances[instanceName]; exists {
+		return nil, ErrConflict.Withf("instance %q already exists", instanceName)
+	}
+
+	// Store temporarily so the resolver can find it during Validate
+	m.instances[instanceName] = instance{instance: inst}
+
+	// Validate the state
+	config, err := inst.Validate(ctx, state, m.resolver())
+	if err != nil {
+		delete(m.instances, instanceName)
+		return nil, err
+	}
+
+	// Apply the state
+	if err := inst.Apply(ctx, config); err != nil {
+		delete(m.instances, instanceName)
+		return nil, err
+	}
+
+	// Store with read-only flag
+	m.instances[instanceName] = instance{
+		instance: inst,
+		readOnly: true,
+	}
+
+	return inst, nil
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -218,10 +229,16 @@ func (m *Manager) RegisterResource(r schema.Resource) error {
 
 // ListResources returns metadata for every registered resource type
 // (optionally filtered by type name) with their instances.
-func (m *Manager) ListResources(_ context.Context, req schema.ListResourcesRequest) (*schema.ListResourcesResponse, error) {
+func (m *Manager) ListResources(ctx context.Context, req schema.ListResourcesRequest) (*schema.ListResourcesResponse, error) {
 	m.RLock()
 	defer m.RUnlock()
 
+	// Check context
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	// Get the filter for the resource type
 	filter := strings.TrimSpace(types.Value(req.Type))
 	if filter != "" {
 		if _, exists := m.resources[filter]; !exists {
@@ -240,12 +257,7 @@ func (m *Manager) ListResources(_ context.Context, req schema.ListResourcesReque
 			if inst.instance.Resource().Name() != r.Name() {
 				continue
 			}
-			instances = append(instances, schema.InstanceMeta{
-				Name:       inst.instance.Name(),
-				Resource:   inst.instance.Resource().Name(),
-				State:      inst.state,
-				References: inst.instance.References(),
-			})
+			instances = append(instances, m.instanceMeta(inst))
 		}
 
 		resources = append(resources, schema.ResourceMeta{
@@ -272,6 +284,11 @@ func (m *Manager) CreateResourceInstance(ctx context.Context, req schema.CreateR
 	m.Lock()
 	defer m.Unlock()
 
+	// Check context
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	// Create and register the instance (newInstance stores it in m.instances)
 	inst, err := m.newInstance(req.Resource)
 	if err != nil {
@@ -279,32 +296,28 @@ func (m *Manager) CreateResourceInstance(ctx context.Context, req schema.CreateR
 	}
 
 	return &schema.CreateResourceInstanceResponse{
-		Instance: schema.InstanceMeta{
-			Name:       inst.Name(),
-			Resource:   inst.Resource().Name(),
-			References: inst.References(),
-		},
+		Instance: m.instanceMeta(m.instances[inst.Name()]),
 	}, nil
 }
 
 // GetResourceInstance returns the metadata for a single named instance.
-func (m *Manager) GetResourceInstance(_ context.Context, name string) (*schema.GetResourceInstanceResponse, error) {
+func (m *Manager) GetResourceInstance(ctx context.Context, name string) (*schema.GetResourceInstanceResponse, error) {
 	m.RLock()
 	defer m.RUnlock()
 
-	inst, exists := m.instances[name]
-	if !exists {
-		return nil, ErrNotFound.Withf("resource instance %q not found", name)
+	// Check context
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 
-	return &schema.GetResourceInstanceResponse{
-		Instance: schema.InstanceMeta{
-			Name:       inst.instance.Name(),
-			Resource:   inst.instance.Resource().Name(),
-			State:      inst.state,
-			References: inst.instance.References(),
-		},
-	}, nil
+	// Check instance, return its metadata
+	if inst, exists := m.instances[name]; !exists {
+		return nil, ErrNotFound.Withf("resource instance %q not found", name)
+	} else {
+		return &schema.GetResourceInstanceResponse{
+			Instance: m.instanceMeta(inst),
+		}, nil
+	}
 }
 
 // UpdateResourceInstance validates and plans the named instance. When
@@ -319,68 +332,281 @@ func (m *Manager) UpdateResourceInstance(ctx context.Context, name string, req s
 		defer m.RUnlock()
 	}
 
+	// Check context
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	// Get the instance by name
 	inst, exists := m.instances[name]
 	if !exists {
 		return nil, ErrNotFound.Withf("resource instance %q not found", name)
 	}
 
-	// Validate before planning/applying
-	if err := inst.instance.Validate(ctx, req.Attributes); err != nil {
+	// Reject updates to read-only (data) instances
+	if inst.readOnly {
+		return nil, ErrConflict.Withf("cannot update %q: instance is read-only", name)
+	}
+
+	// Validate before planning/applying — returns the decoded config
+	config, err := inst.instance.Validate(ctx, req.Attributes, m.resolver())
+	if err != nil {
+		return nil, err
+	}
+
+	// Reject circular dependencies
+	if err := m.checkCycles(name, inst.instance.Resource().Schema(), req.Attributes); err != nil {
 		return nil, err
 	}
 
 	// Compute the plan
-	plan, err := inst.instance.Plan(ctx, req.Attributes)
+	plan, err := inst.instance.Plan(ctx, config)
 	if err != nil {
 		return nil, err
 	}
 
 	// Optionally apply the plan
 	if req.Apply {
-		newState, err := inst.instance.Apply(ctx, req.Attributes)
-		if err != nil {
+		if err := inst.instance.Apply(ctx, config); err != nil {
 			return nil, err
 		}
 		m.instances[name] = instance{
-			inst.instance,
-			newState,
+			instance: inst.instance,
+			readOnly: inst.readOnly,
 		}
 		inst = m.instances[name]
 	}
 
 	return &schema.UpdateResourceInstanceResponse{
-		Instance: schema.InstanceMeta{
-			Name:       inst.instance.Name(),
-			Resource:   inst.instance.Resource().Name(),
-			State:      inst.state,
-			References: inst.instance.References(),
-		},
-		Plan: plan,
+		Instance: m.instanceMeta(inst),
+		Plan:     plan,
 	}, nil
 }
 
 // DestroyResourceInstance tears down the named instance and removes it
-// from the manager.
+// from the manager. When req.Cascade is true, all instances that
+// (transitively) depend on the target are destroyed first, in
+// topological order.
 func (m *Manager) DestroyResourceInstance(ctx context.Context, req schema.DestroyResourceInstanceRequest) (*schema.DestroyResourceInstanceResponse, error) {
 	m.Lock()
 	defer m.Unlock()
 
-	// Get the instance by name
-	inst, exists := m.instances[req.Name]
-	if !exists {
-		return nil, ErrNotFound.Withf("resource instance %q not found", req.Name)
-	}
-
-	// Destroy the backing infrastructure
-	if err := inst.instance.Destroy(ctx); err != nil {
+	// Check context
+	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
-	// Remove from the manager
-	delete(m.instances, req.Name)
+	// Check the target exists
+	if _, exists := m.instances[req.Name]; !exists {
+		return nil, ErrNotFound.Withf("resource instance %q not found", req.Name)
+	}
+
+	// Reject destruction of read-only (data) instances
+	inst := m.instances[req.Name]
+	if inst.readOnly {
+		return nil, ErrConflict.Withf("cannot destroy %q: instance is read-only", req.Name)
+	}
+
+	// Build the ordered list of instances to destroy
+	var order []string
+	if req.Cascade {
+		subgraph := make(map[string]bool)
+		m.collectDependents(req.Name, subgraph)
+		order = m.safeDestroyOrder(subgraph)
+	} else {
+		// Without cascade, refuse if anything depends on this instance
+		if err := m.checkDependents(req.Name); err != nil {
+			return nil, err
+		}
+		order = []string{req.Name}
+	}
+
+	// Destroy each instance in order, collecting metadata
+	destroyed := make([]schema.InstanceMeta, 0, len(order))
+	for _, name := range order {
+		inst, exists := m.instances[name]
+		if !exists {
+			continue
+		}
+
+		// Capture metadata before destruction
+		meta := m.instanceMeta(inst)
+
+		if err := inst.instance.Destroy(ctx); err != nil {
+			return nil, err
+		}
+		delete(m.instances, name)
+		destroyed = append(destroyed, meta)
+	}
 
 	return &schema.DestroyResourceInstanceResponse{
-		Name: req.Name,
+		Instances: destroyed,
 	}, nil
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+// instanceMeta builds an [schema.InstanceMeta] from a live instance.
+// It calls Read() on the instance to get the current state.
+// The caller must hold at least m.RLock().
+func (m *Manager) instanceMeta(inst instance) schema.InstanceMeta {
+	var state schema.State
+	if s, err := inst.instance.Read(context.Background()); err == nil {
+		state = s
+	}
+	return schema.InstanceMeta{
+		Name:       inst.instance.Name(),
+		Resource:   inst.instance.Resource().Name(),
+		ReadOnly:   inst.readOnly,
+		State:      state,
+		References: inst.instance.References(),
+	}
+}
+
+// directDependents returns the names of all live instances that
+// directly reference the given instance name. The caller must hold
+// at least m.RLock().
+func (m *Manager) directDependents(name string) []string {
+	var deps []string
+	for instName, inst := range m.instances {
+		if instName == name {
+			continue
+		}
+		for _, ref := range inst.instance.References() {
+			if ref == name {
+				deps = append(deps, instName)
+				break
+			}
+		}
+	}
+	return deps
+}
+
+// collectDependents recursively adds name and every instance that
+// (transitively) depends on it to the set. The caller must hold at
+// least m.RLock().
+func (m *Manager) collectDependents(name string, set map[string]bool) {
+	if set[name] {
+		return
+	}
+	set[name] = true
+	for _, dep := range m.directDependents(name) {
+		m.collectDependents(dep, set)
+	}
+}
+
+// safeDestroyOrder returns the given set of instance names in
+// safe-to-destroy order: instances that nothing else (within the set)
+// depends on come first, working inward to the foundations. Any
+// instances involved in cycles are appended at the end so they are
+// still destroyed. The caller must hold at least m.RLock().
+func (m *Manager) safeDestroyOrder(names map[string]bool) []string {
+	// Build adjacency within the set.
+	// dependsOn[X] = refs X makes to other set members.
+	// inDegree[X]  = how many set members depend on X.
+	dependsOn := make(map[string][]string, len(names))
+	inDegree := make(map[string]int, len(names))
+	for name := range names {
+		inDegree[name] = 0
+	}
+	for name := range names {
+		inst := m.instances[name]
+		for _, ref := range inst.instance.References() {
+			if names[ref] {
+				dependsOn[name] = append(dependsOn[name], ref)
+				inDegree[ref]++
+			}
+		}
+	}
+
+	// Kahn's algorithm — nodes that nothing depends on are safe to
+	// destroy first, working inward.
+	queue := make([]string, 0, len(names))
+	for name, deg := range inDegree {
+		if deg == 0 {
+			queue = append(queue, name)
+		}
+	}
+	order := make([]string, 0, len(names))
+	for len(queue) > 0 {
+		name := queue[0]
+		queue = queue[1:]
+		order = append(order, name)
+		for _, ref := range dependsOn[name] {
+			inDegree[ref]--
+			if inDegree[ref] == 0 {
+				queue = append(queue, ref)
+			}
+		}
+	}
+
+	// Any remaining instances form a cycle — append them so they
+	// still get destroyed.
+	for name := range names {
+		if inDegree[name] > 0 {
+			order = append(order, name)
+		}
+	}
+
+	return order
+}
+
+// resolver returns a [schema.Resolver] that looks up instances by name.
+// The caller must hold at least m.RLock().
+func (m *Manager) resolver() schema.Resolver {
+	return func(name string) schema.ResourceInstance {
+		if inst, ok := m.instances[name]; ok {
+			return inst.instance
+		}
+		return nil
+	}
+}
+
+// checkCycles returns an error if the prospective references in state would
+// create a circular dependency through instanceName. It extracts reference
+// names from the state using the resource schema, then walks the existing
+// dependency graph via DFS to see if any path leads back to instanceName.
+// The caller must hold at least m.RLock().
+func (m *Manager) checkCycles(instanceName string, attrs []schema.Attribute, state schema.State) error {
+	newRefs := schema.ReferencesFromState(attrs, state)
+	if len(newRefs) == 0 {
+		return nil
+	}
+
+	visited := make(map[string]bool, len(m.instances))
+	var walk func(string) bool
+	walk = func(current string) bool {
+		if current == instanceName {
+			return true
+		}
+		if visited[current] {
+			return false
+		}
+		visited[current] = true
+		if inst, ok := m.instances[current]; ok {
+			for _, ref := range inst.instance.References() {
+				if walk(ref) {
+					return true
+				}
+			}
+		}
+		return false
+	}
+
+	for _, ref := range newRefs {
+		if walk(ref) {
+			return ErrBadRequest.Withf("circular dependency: %q references %q which leads back to %q", instanceName, ref, instanceName)
+		}
+	}
+	return nil
+}
+
+// checkDependents returns an error if any live instance depends on the
+// given instance name. The caller must hold at least m.RLock().
+func (m *Manager) checkDependents(name string) error {
+	if deps := m.directDependents(name); len(deps) > 0 {
+		return ErrConflict.Withf("cannot destroy %q: instance %q depends on it", name, deps[0])
+	}
+	return nil
 }

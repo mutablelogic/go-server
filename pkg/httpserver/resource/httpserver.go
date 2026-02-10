@@ -4,18 +4,16 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
-	"fmt"
 	"net/http"
 	"os"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	// Packages
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	httpserver "github.com/mutablelogic/go-server/pkg/httpserver"
+	provider "github.com/mutablelogic/go-server/pkg/provider"
 	schema "github.com/mutablelogic/go-server/pkg/provider/schema"
-	types "github.com/mutablelogic/go-server/pkg/types"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -23,6 +21,7 @@ import (
 
 type Resource struct {
 	Listen       string                  `name:"listen" help:"Listen address (e.g. localhost:8080)"`
+	Endpoint     string                  `name:"endpoint" readonly:"" help:"Base URL of the running server"`
 	Router       schema.ResourceInstance `name:"router" type:"httprouter" required:"" help:"HTTP router"`
 	ReadTimeout  time.Duration           `name:"read-timeout" default:"5m" help:"Read timeout"`
 	WriteTimeout time.Duration           `name:"write-timeout" default:"5m" help:"Write timeout"`
@@ -35,8 +34,7 @@ type Resource struct {
 }
 
 type ResourceInstance struct {
-	name   string
-	config Resource
+	provider.ResourceInstance[Resource]
 
 	// runtime state
 	cancel context.CancelFunc
@@ -47,19 +45,11 @@ var _ schema.Resource = (*Resource)(nil)
 var _ schema.ResourceInstance = (*ResourceInstance)(nil)
 
 ///////////////////////////////////////////////////////////////////////////////
-// GLOBALS
-
-var (
-	counter = atomic.Int64{}
-)
-
-///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
 func (r Resource) New() (schema.ResourceInstance, error) {
 	return &ResourceInstance{
-		name:   fmt.Sprintf("%s-%02d", r.Name(), counter.Add(1)),
-		config: r,
+		ResourceInstance: provider.NewResourceInstance[Resource](r),
 	}, nil
 }
 
@@ -71,111 +61,64 @@ func (Resource) Name() string {
 }
 
 func (Resource) Schema() []schema.Attribute {
-	return schema.Attributes(Resource{})
+	return schema.AttributesOf(Resource{})
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS - RESOURCE INSTANCE
 
-// Return a unique name for this resource instance
-func (r *ResourceInstance) Name() string {
-	return r.name
-}
-
-// Resource returns the resource type that created this instance.
-func (r *ResourceInstance) Resource() schema.Resource {
-	return types.Ptr(r.config)
-}
-
-// Validate checks that the resource configuration is complete and
-// internally consistent. It is called before Plan or Apply.
-func (r *ResourceInstance) Validate(_ context.Context, _ schema.State) error {
-	c := r.config
-
-	// Validate resource instance references (required + type constraints)
-	if err := schema.ValidateRefs(c); err != nil {
-		return httpresponse.ErrBadRequest.With(err.Error())
+// Validate decodes the incoming state, resolves references, and returns
+// the validated *Resource configuration for use by Plan and Apply.
+func (r *ResourceInstance) Validate(ctx context.Context, state schema.State, resolve schema.Resolver) (any, error) {
+	desired, err := r.ResourceInstance.Validate(ctx, state, resolve)
+	if err != nil {
+		return nil, err
 	}
 
 	// Timeouts must be non-negative
-	if c.ReadTimeout < 0 {
-		return httpresponse.ErrBadRequest.With("negative read timeout")
+	if desired.ReadTimeout < 0 {
+		return nil, httpresponse.ErrBadRequest.With("negative read timeout")
 	}
-	if c.WriteTimeout < 0 {
-		return httpresponse.ErrBadRequest.With("negative write timeout")
+	if desired.WriteTimeout < 0 {
+		return nil, httpresponse.ErrBadRequest.With("negative write timeout")
 	}
 
 	// TLS: cert and key must both be provided or both be absent
-	if (c.TLS.Cert == "") != (c.TLS.Key == "") {
-		return httpresponse.ErrBadRequest.With("tls.cert and tls.key must both be set or both be empty")
+	if (desired.TLS.Cert == "") != (desired.TLS.Key == "") {
+		return nil, httpresponse.ErrBadRequest.With("tls.cert and tls.key must both be set or both be empty")
 	}
 
 	// TLS: if provided, cert and key files must be readable
-	if c.TLS.Cert != "" {
-		if _, err := os.Stat(c.TLS.Cert); err != nil {
-			return httpresponse.ErrBadRequest.Withf("tls.cert: %v", err)
+	if desired.TLS.Cert != "" {
+		if _, err := os.Stat(desired.TLS.Cert); err != nil {
+			return nil, httpresponse.ErrBadRequest.Withf("tls.cert: %v", err)
 		}
 	}
-	if c.TLS.Key != "" {
-		if _, err := os.Stat(c.TLS.Key); err != nil {
-			return httpresponse.ErrBadRequest.Withf("tls.key: %v", err)
+	if desired.TLS.Key != "" {
+		if _, err := os.Stat(desired.TLS.Key); err != nil {
+			return nil, httpresponse.ErrBadRequest.Withf("tls.key: %v", err)
 		}
 	}
 
-	return nil
+	return desired, nil
 }
 
-// Plan computes the difference between the desired configuration and
-// the current state, returning a set of planned changes without
-// modifying anything. If current is nil the resource is being created.
-func (r *ResourceInstance) Plan(_ context.Context, current schema.State) (schema.Plan, error) {
-	desired := schema.StateOf(r.config)
-
-	// No current state means this is a new resource
-	if len(current) == 0 {
-		changes := make([]schema.Change, 0, len(desired))
-		for field, val := range desired {
-			changes = append(changes, schema.Change{
-				Field: field,
-				New:   val,
-			})
-		}
-		return schema.Plan{Action: schema.ActionCreate, Changes: changes}, nil
+// Apply materialises the resource using the validated configuration.
+func (r *ResourceInstance) Apply(ctx context.Context, v any) error {
+	c, ok := v.(*Resource)
+	if !ok {
+		return httpresponse.ErrInternalError.With("apply: unexpected config type")
 	}
-
-	// Compare each desired field against the current state
-	var changes []schema.Change
-	for field, newVal := range desired {
-		oldVal := current[field]
-		if fmt.Sprint(oldVal) != fmt.Sprint(newVal) {
-			changes = append(changes, schema.Change{
-				Field: field,
-				Old:   oldVal,
-				New:   newVal,
-			})
-		}
-	}
-
-	if len(changes) == 0 {
-		return schema.Plan{Action: schema.ActionNoop}, nil
-	}
-	return schema.Plan{Action: schema.ActionUpdate, Changes: changes}, nil
-}
-
-// Apply materialises the resource, creating or updating it to match
-// the desired configuration. It returns the new state.
-func (r *ResourceInstance) Apply(ctx context.Context, current schema.State) (schema.State, error) {
-	c := r.config
 
 	// Stop the existing server if running
 	if err := r.stop(); err != nil {
-		return nil, err
+		return err
 	}
 
 	// The router must implement http.Handler
 	router, ok := c.Router.(http.Handler)
 	if !ok {
-		return nil, httpresponse.ErrBadRequest.With("router does not implement http.Handler")
+		return httpresponse.ErrBadRequest.With("router does not implement http.Handler")
 	}
 
 	// Build TLS config if cert and key are provided
@@ -184,7 +127,7 @@ func (r *ResourceInstance) Apply(ctx context.Context, current schema.State) (sch
 		var err error
 		cert, err = httpserver.TLSConfig(c.TLS.Name, c.TLS.Verify, c.TLS.Cert, c.TLS.Key)
 		if err != nil {
-			return nil, httpresponse.ErrBadRequest.Withf("tls: %v", err)
+			return httpresponse.ErrBadRequest.Withf("tls: %v", err)
 		}
 	}
 
@@ -194,11 +137,25 @@ func (r *ResourceInstance) Apply(ctx context.Context, current schema.State) (sch
 		httpserver.WithWriteTimeout(c.WriteTimeout),
 	)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	// Run the server in the background
-	srvCtx, cancel := context.WithCancel(ctx)
+	// Compute the endpoint URL
+	scheme := "http"
+	if cert != nil {
+		scheme = "https"
+	}
+	c.Endpoint = scheme + "://" + srv.Addr()
+
+	// Store a reference to this server on the router so it can
+	// compute its endpoint (and handler endpoints) dynamically.
+	if s, ok := c.Router.(interface{ SetServer(schema.ResourceInstance) }); ok {
+		s.SetServer(r)
+	}
+
+	// Run the server in the background – use Background() as the parent
+	// so the server outlives the HTTP request that triggered Apply.
+	srvCtx, cancel := context.WithCancel(context.Background())
 	r.cancel = cancel
 	r.wg.Add(1)
 	go func() {
@@ -209,7 +166,10 @@ func (r *ResourceInstance) Apply(ctx context.Context, current schema.State) (sch
 		}
 	}()
 
-	return schema.StateOf(c), nil
+	// Store the applied config
+	r.SetState(c)
+
+	return nil
 }
 
 // Destroy tears down the resource and releases its backing
@@ -227,11 +187,4 @@ func (r *ResourceInstance) stop() error {
 	}
 	r.wg.Wait()
 	return nil
-}
-
-// References returns the labels of other resources this resource
-// depends on. The runtime must ensure those resources are applied
-// first and destroyed last.
-func (r *ResourceInstance) References() []string {
-	return schema.ReferencesOf(r.config)
 }

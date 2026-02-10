@@ -35,6 +35,7 @@ type ResourceMeta struct {
 type InstanceMeta struct {
 	Name       string   `json:"name"`
 	Resource   string   `json:"resource"`
+	ReadOnly   bool     `json:"readonly,omitempty"`
 	State      State    `json:"state,omitempty"`
 	References []string `json:"references,omitempty"`
 }
@@ -84,12 +85,14 @@ type UpdateResourceInstanceResponse struct {
 
 // DestroyResourceInstanceRequest asks the manager to tear down an instance.
 type DestroyResourceInstanceRequest struct {
-	Name string `json:"name"` // instance name
+	Name    string `json:"name"`              // instance name
+	Cascade bool   `json:"cascade,omitempty"` // also destroy dependents in topological order
 }
 
-// DestroyResourceInstanceResponse confirms destruction.
+// DestroyResourceInstanceResponse confirms destruction and returns the
+// metadata of every destroyed instance (in destruction order).
 type DestroyResourceInstanceResponse struct {
-	Name string `json:"name"`
+	Instances []InstanceMeta `json:"instances"`
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -103,7 +106,15 @@ func (r CreateResourceInstanceResponse) String() string {
 	return types.Stringify(r)
 }
 
+func (r GetResourceInstanceResponse) String() string {
+	return types.Stringify(r)
+}
+
 func (r UpdateResourceInstanceResponse) String() string {
+	return types.Stringify(r)
+}
+
+func (r DestroyResourceInstanceResponse) String() string {
 	return types.Stringify(r)
 }
 

@@ -45,23 +45,32 @@ type ResourceInstance interface {
 	// Resource returns the resource type that created this instance.
 	Resource() Resource
 
-	// Validate checks that the configuration is complete and
-	// consistent. It is called before Plan or Apply.
-	Validate(context.Context, State) error
+	// Validate decodes the incoming [State] using the given [Resolver],
+	// checks that the resulting configuration is complete and consistent,
+	// and returns the typed configuration value (as any) for use by
+	// [Plan] and [Apply].
+	Validate(context.Context, State, Resolver) (any, error)
 
-	// Plan computes the difference between the desired configuration and
-	// the current state, returning a set of planned changes without
-	// modifying anything. If current is nil the resource is being created.
-	Plan(context.Context, State) (Plan, error)
+	// Plan computes the difference between the validated configuration
+	// (returned by [Validate]) and the instance's current state,
+	// returning a set of planned changes without modifying anything.
+	Plan(context.Context, any) (Plan, error)
 
-	// Apply materialises the resource, creating or updating it to match
-	// the desired configuration. It returns the new state.
-	Apply(context.Context, State) (State, error)
+	// Apply materialises the resource using the validated configuration
+	// (returned by [Validate]), creating or updating it to match the
+	// desired state.
+	Apply(context.Context, any) error
 
 	// Destroy tears down the resource and releases its backing
 	// infrastructure. It returns an error if the resource cannot be
 	// cleanly removed.
 	Destroy(context.Context) error
+
+	// Read returns the current live state of the instance. This is
+	// used to refresh the manager's cached state and to detect drift
+	// from the desired configuration. Implementations may re-read
+	// computed fields (e.g. endpoint URLs) from the running infra.
+	Read(context.Context) (State, error)
 
 	// References returns the labels of other resources this resource
 	// depends on. The runtime must ensure those resources are applied
@@ -71,9 +80,6 @@ type ResourceInstance interface {
 
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
-
-// State is an opaque snapshot of a resource after it has been applied.
-type State map[string]any
 
 // Action describes the kind of change planned for a resource.
 type Action string

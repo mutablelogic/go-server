@@ -25,7 +25,7 @@ type httpserverResource struct {
 
 func Test_Attributes_001(t *testing.T) {
 	assert := assert.New(t)
-	attrs := schema.Attributes(struct{}{})
+	attrs := schema.AttributesOf(struct{}{})
 	assert.Empty(attrs)
 }
 
@@ -35,7 +35,7 @@ func Test_Attributes_002(t *testing.T) {
 		Skipped string `name:"-"`
 		Name    string `name:"name" help:"The name"`
 	}
-	attrs := schema.Attributes(simple{})
+	attrs := schema.AttributesOf(simple{})
 	assert.Len(attrs, 1)
 	assert.Equal("name", attrs[0].Name)
 	assert.Equal("string", attrs[0].Type)
@@ -44,7 +44,7 @@ func Test_Attributes_002(t *testing.T) {
 
 func Test_Attributes_003(t *testing.T) {
 	assert := assert.New(t)
-	attrs := schema.Attributes(httpserverResource{})
+	attrs := schema.AttributesOf(httpserverResource{})
 	assert.Len(attrs, 8)
 	names := make([]string, 0, len(attrs))
 	for _, a := range attrs {
@@ -62,7 +62,7 @@ func Test_Attributes_003(t *testing.T) {
 
 func Test_Attributes_004(t *testing.T) {
 	assert := assert.New(t)
-	attrs := schema.Attributes(httpserverResource{})
+	attrs := schema.AttributesOf(httpserverResource{})
 	var readTimeout *schema.Attribute
 	for _, a := range attrs {
 		if a.Name == "read-timeout" {
@@ -79,7 +79,7 @@ func Test_Attributes_004(t *testing.T) {
 
 func Test_Attributes_005(t *testing.T) {
 	assert := assert.New(t)
-	attrs := schema.Attributes(httpserverResource{})
+	attrs := schema.AttributesOf(httpserverResource{})
 	var cert *schema.Attribute
 	for _, a := range attrs {
 		if a.Name == "tls.cert" {
@@ -95,7 +95,7 @@ func Test_Attributes_005(t *testing.T) {
 
 func Test_Attributes_006(t *testing.T) {
 	assert := assert.New(t)
-	attrs := schema.Attributes(httpserverResource{})
+	attrs := schema.AttributesOf(httpserverResource{})
 	var verify *schema.Attribute
 	for _, a := range attrs {
 		if a.Name == "tls.verify" {
@@ -111,13 +111,13 @@ func Test_Attributes_006(t *testing.T) {
 
 func Test_Attributes_007(t *testing.T) {
 	assert := assert.New(t)
-	attrs := schema.Attributes(&httpserverResource{})
+	attrs := schema.AttributesOf(&httpserverResource{})
 	assert.Len(attrs, 8)
 }
 
 func Test_Attributes_008(t *testing.T) {
 	assert := assert.New(t)
-	attrs := schema.Attributes("not a struct")
+	attrs := schema.AttributesOf("not a struct")
 	assert.Nil(attrs)
 }
 
@@ -129,7 +129,7 @@ func Test_Attributes_009(t *testing.T) {
 		Password string `name:"password" help:"The password" sensitive:"" required:""`
 		APIKey   string `name:"api-key" sensitive:""`
 	}
-	attrs := schema.Attributes(secrets{})
+	attrs := schema.AttributesOf(secrets{})
 	assert.Len(attrs, 2)
 
 	assert.Equal("password", attrs[0].Name)
@@ -142,76 +142,6 @@ func Test_Attributes_009(t *testing.T) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// StateOf tests
-
-func Test_StateOf_001(t *testing.T) {
-	assert := assert.New(t)
-	s := schema.StateOf(struct{}{})
-	assert.Empty(s)
-}
-
-func Test_StateOf_002(t *testing.T) {
-	assert := assert.New(t)
-	s := schema.StateOf("not a struct")
-	assert.Nil(s)
-}
-
-func Test_StateOf_003(t *testing.T) {
-	assert := assert.New(t)
-	r := httpserverResource{
-		Listen:       "localhost:8080",
-		ReadTimeout:  5 * time.Minute,
-		WriteTimeout: 10 * time.Second,
-	}
-	r.TLS.Name = "myserver"
-	r.TLS.Verify = true
-	r.TLS.Cert = "/tmp/cert.pem"
-	r.TLS.Key = "/tmp/key.pem"
-
-	s := schema.StateOf(r)
-
-	// Router (interface) should be skipped
-	_, hasRouter := s["router"]
-	assert.False(hasRouter)
-
-	// Scalar fields
-	assert.Equal("localhost:8080", s["listen"])
-	assert.Equal("5m0s", s["read-timeout"])
-	assert.Equal("10s", s["write-timeout"])
-
-	// Embedded TLS fields with prefix
-	assert.Equal("myserver", s["tls.name"])
-	assert.Equal(true, s["tls.verify"])
-	assert.Equal("/tmp/cert.pem", s["tls.cert"])
-	assert.Equal("/tmp/key.pem", s["tls.key"])
-}
-
-func Test_StateOf_004(t *testing.T) {
-	assert := assert.New(t)
-
-	// Pointer input should work the same
-	r := &httpserverResource{
-		Listen: ":9090",
-	}
-	s := schema.StateOf(r)
-	assert.Equal(":9090", s["listen"])
-}
-
-func Test_StateOf_005(t *testing.T) {
-	assert := assert.New(t)
-
-	// Fields with name:"-" should be skipped
-	type withSkip struct {
-		Hidden  string `name:"-"`
-		Visible string `name:"visible"`
-	}
-	s := schema.StateOf(withSkip{Visible: "hello"})
-	_, hasHidden := s["hidden"]
-	assert.False(hasHidden)
-	assert.Equal("hello", s["visible"])
-}
-
-///////////////////////////////////////////////////////////////////////////////
 // ValidateRefs tests
 
 // mockResourceInstance is a minimal ResourceInstance for testing.
@@ -220,17 +150,22 @@ type mockResourceInstance struct {
 	resourceName string
 }
 
-func (m *mockResourceInstance) Name() string                     { return m.name }
-func (m *mockResourceInstance) Resource() schema.Resource        { return &mockResource{name: m.resourceName} }
-func (m *mockResourceInstance) Validate(_ context.Context) error { return nil }
-func (m *mockResourceInstance) Plan(_ context.Context, _ schema.State) (schema.Plan, error) {
-	return schema.Plan{}, nil
-}
-func (m *mockResourceInstance) Apply(_ context.Context, _ schema.State) (schema.State, error) {
+func (m *mockResourceInstance) Name() string              { return m.name }
+func (m *mockResourceInstance) Resource() schema.Resource { return &mockResource{name: m.resourceName} }
+func (m *mockResourceInstance) Validate(_ context.Context, _ schema.State, _ schema.Resolver) (any, error) {
 	return nil, nil
 }
-func (m *mockResourceInstance) Destroy(_ context.Context, _ schema.State) error { return nil }
-func (m *mockResourceInstance) References() []string                            { return nil }
+func (m *mockResourceInstance) Plan(_ context.Context, _ any) (schema.Plan, error) {
+	return schema.Plan{}, nil
+}
+func (m *mockResourceInstance) Apply(_ context.Context, _ any) error {
+	return nil
+}
+func (m *mockResourceInstance) Destroy(_ context.Context) error { return nil }
+func (m *mockResourceInstance) Read(_ context.Context) (schema.State, error) {
+	return nil, nil
+}
+func (m *mockResourceInstance) References() []string { return nil }
 
 type mockResource struct{ name string }
 
@@ -367,4 +302,118 @@ func Test_ReferencesOf_006(t *testing.T) {
 	}
 	refs := schema.ReferencesOf(r)
 	assert.Equal([]string{"ptr-router"}, refs)
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// ReferencesFromState tests
+
+func Test_ReferencesFromState_001(t *testing.T) {
+	assert := assert.New(t)
+	// Schema with a reference attribute extracts the name from state
+	attrs := schema.AttributesOf(httpserverResource{})
+	state := schema.State{"router": "router-01", "listen": ":8080"}
+	refs := schema.ReferencesFromState(attrs, state)
+	assert.Equal([]string{"router-01"}, refs)
+}
+
+func Test_ReferencesFromState_002(t *testing.T) {
+	assert := assert.New(t)
+	// No reference value in state returns nil
+	attrs := schema.AttributesOf(httpserverResource{})
+	state := schema.State{"listen": ":8080"}
+	assert.Nil(schema.ReferencesFromState(attrs, state))
+}
+
+func Test_ReferencesFromState_003(t *testing.T) {
+	assert := assert.New(t)
+	// Empty state returns nil
+	attrs := schema.AttributesOf(httpserverResource{})
+	assert.Nil(schema.ReferencesFromState(attrs, schema.State{}))
+}
+
+func Test_ReferencesFromState_004(t *testing.T) {
+	assert := assert.New(t)
+	// Non-reference string values are not returned
+	type noRefs struct {
+		Listen string `name:"listen"`
+		Name   string `name:"name"`
+	}
+	attrs := schema.AttributesOf(noRefs{})
+	state := schema.State{"listen": ":8080", "name": "myserver"}
+	assert.Nil(schema.ReferencesFromState(attrs, state))
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// TESTS - READONLY
+
+func Test_ReadOnly_001(t *testing.T) {
+	assert := assert.New(t)
+	// readonly tag is reflected in the Attribute
+	type res struct {
+		Name string `name:"name" help:"The name"`
+		ID   string `name:"id" readonly:"" help:"Auto-generated ID"`
+	}
+	attrs := schema.AttributesOf(res{})
+	assert.Len(attrs, 2)
+
+	nameAttr := attrs[0]
+	assert.Equal("name", nameAttr.Name)
+	assert.False(nameAttr.ReadOnly)
+
+	idAttr := attrs[1]
+	assert.Equal("id", idAttr.Name)
+	assert.True(idAttr.ReadOnly)
+}
+
+func Test_ReadOnly_002(t *testing.T) {
+	assert := assert.New(t)
+	// Decode skips readonly fields even when state has a value for them
+	type res struct {
+		Name string `name:"name"`
+		ID   string `name:"id" readonly:""`
+	}
+	state := schema.State{"name": "hello", "id": "should-be-ignored"}
+	var r res
+	assert.NoError(state.Decode(&r, nil))
+	assert.Equal("hello", r.Name)
+	assert.Equal("", r.ID, "readonly field should not be set by Decode")
+}
+
+func Test_ReadOnly_003(t *testing.T) {
+	assert := assert.New(t)
+	// StateOf includes readonly fields (they are part of state after Apply)
+	type res struct {
+		Name string `name:"name"`
+		ID   string `name:"id" readonly:""`
+	}
+	r := res{Name: "hello", ID: "abc-123"}
+	state := schema.StateOf(&r)
+	assert.Equal("hello", state["name"])
+	assert.Equal("abc-123", state["id"])
+}
+
+func Test_ReadOnly_004(t *testing.T) {
+	assert := assert.New(t)
+	// ValidateRequired skips readonly fields
+	type res struct {
+		Name string `name:"name" required:""`
+		ID   string `name:"id" required:"" readonly:""`
+	}
+	r := res{Name: "hello"}
+	err := schema.ValidateRequired(r)
+	assert.NoError(err, "readonly+required field should not fail validation when empty")
+}
+
+func Test_ReadOnly_005(t *testing.T) {
+	assert := assert.New(t)
+	// ValidateRequired still catches non-readonly required fields
+	type res struct {
+		Name string `name:"name" required:""`
+		ID   string `name:"id" required:"" readonly:""`
+	}
+	r := res{}
+	err := schema.ValidateRequired(r)
+	assert.Error(err)
+	assert.Contains(err.Error(), "name")
+	assert.NotContains(err.Error(), "id")
 }

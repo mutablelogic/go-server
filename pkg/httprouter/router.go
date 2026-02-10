@@ -75,6 +75,15 @@ func NewRouter(ctx context.Context, prefix, origin, title, version string, middl
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
+// AddMiddleware appends fn to the router's middleware chain. Middleware is
+// applied in order: the first added becomes the outermost wrapper and
+// executes first when a request arrives.  This method must be called before
+// any routes are registered, because routes capture the chain at
+// registration time.
+func (r *Router) AddMiddleware(fn HTTPMiddlewareFunc) {
+	r.middleware = append(r.middleware, fn)
+}
+
 // Origin returns the trusted origin configured for cross-origin protection.
 // It returns an empty string when only same-origin requests are allowed,
 // "*" when all origins are trusted, or a specific "scheme://host[:port]" value.

@@ -3,20 +3,17 @@
 package main
 
 import (
-	"context"
-	"crypto/tls"
-	"errors"
-	"fmt"
-	"sync"
-
 	// Packages
-	otel "github.com/mutablelogic/go-client/pkg/otel"
 	server "github.com/mutablelogic/go-server"
-	httprouter "github.com/mutablelogic/go-server/pkg/httprouter"
-	httpserver "github.com/mutablelogic/go-server/pkg/httpserver"
+	httprouter_resource "github.com/mutablelogic/go-server/pkg/httprouter/resource"
 	httpserver_resource "github.com/mutablelogic/go-server/pkg/httpserver/resource"
+	log_resource "github.com/mutablelogic/go-server/pkg/logger/resource"
+	otel "github.com/mutablelogic/go-server/pkg/otel"
+	otel_resource "github.com/mutablelogic/go-server/pkg/otel/resource"
 	provider "github.com/mutablelogic/go-server/pkg/provider"
 	httphandler "github.com/mutablelogic/go-server/pkg/provider/httphandler"
+	handler_resource "github.com/mutablelogic/go-server/pkg/provider/httphandler/resource"
+	schema "github.com/mutablelogic/go-server/pkg/provider/schema"
 	version "github.com/mutablelogic/go-server/pkg/version"
 )
 
@@ -28,6 +25,8 @@ type ServerCommands struct {
 }
 
 type RunServer struct {
+	OpenAPI bool `name:"openapi" help:"Serve OpenAPI spec at {prefix}/openapi.json" default:"true" negatable:""`
+
 	// TLS server options
 	TLS struct {
 		ServerName string `name:"name" help:"TLS server name"`
@@ -40,103 +39,123 @@ type RunServer struct {
 // COMMANDS
 
 func (cmd *RunServer) Run(ctx *Globals) error {
-	var result error
-
-	// Create the  manager
-	manager, err := provider.New("go-server", "A generic server for running providers", version.GitTag)
+	// Create the manager
+	manager, err := provider.New(ctx.execName, "A generic server for running providers", version.GitTag)
 	if err != nil {
 		return err
 	}
-	defer func() {
-		if err := manager.Close(ctx.ctx); err != nil {
-			ctx.logger.Print(ctx.ctx, "error closing manager: ", err)
+
+	// Compute a version string (ldflags may not be set in dev builds)
+	versionTag := version.GitTag
+	if versionTag == "" && version.GitHash != "" {
+		versionTag = version.GitHash[:8]
+	} else if versionTag == "" {
+		versionTag = "dev"
+	}
+
+	// Build ordered middleware and handler name lists for the router state
+	var middlewareNames []string
+
+	// Create a read-only log middleware instance (passive — no dependencies)
+	if mw, ok := ctx.logger.(server.Middleware); ok {
+		type debugSetter interface{ SetDebug(bool) }
+		var debugFn func(bool)
+		if ds, ok := ctx.logger.(debugSetter); ok {
+			debugFn = ds.SetDebug
 		}
-	}()
-
-	// Register providers with the manager here
-	manager.RegisterResource(httpserver_resource.Resource{})
-
-	// Middleware
-	middleware := []httprouter.HTTPMiddlewareFunc{}
-
-	// Add logging middleware if the logger implements the Middleware interface
-	if logger, ok := ctx.logger.(server.Middleware); ok {
-		middleware = append(middleware, logger.HTTPHandlerFunc)
-	}
-
-	// If we have an OTEL tracer, add tracing middleware
-	if ctx.tracer != nil {
-		middleware = append(middleware, otel.HTTPHandlerFunc(ctx.tracer))
-	}
-
-	// Create a router
-	router, err := httprouter.NewRouter(ctx.ctx, ctx.HTTP.Prefix, ctx.HTTP.Origin, ctx.execName, version.GitTag, middleware...)
-	if err != nil {
-		return err
-	}
-
-	// Add handlers to the router
-	httphandler.RegisterHandlers(router, "", true, manager)
-	router.RegisterNotFound("/", false)
-	router.RegisterOpenAPI("/openapi.json", false)
-
-	// Create a TLS config
-	var tlsconfig *tls.Config
-	if cmd.TLS.CertFile != "" || cmd.TLS.KeyFile != "" {
-		tlsconfig, err = httpserver.TLSConfig(cmd.TLS.ServerName, true, cmd.TLS.CertFile, cmd.TLS.KeyFile)
+		logInst, err := manager.RegisterReadonlyInstance(ctx.ctx, log_resource.NewResource(mw.HTTPHandlerFunc, debugFn), "main", schema.State{
+			"debug": ctx.Debug,
+		})
 		if err != nil {
 			return err
 		}
+		middlewareNames = append(middlewareNames, logInst.Name())
 	}
 
-	// Create a HTTP server with timeouts
-	httpopts := []httpserver.Opt{}
-	if ctx.HTTP.Timeout > 0 {
-		httpopts = append(httpopts, httpserver.WithReadTimeout(ctx.HTTP.Timeout))
-		httpopts = append(httpopts, httpserver.WithWriteTimeout(ctx.HTTP.Timeout))
+	// Create a read-only otel middleware instance (passive — no dependencies)
+	if ctx.tracer != nil {
+		otelInst, err := manager.RegisterReadonlyInstance(ctx.ctx, otel_resource.NewResource(otel.HTTPHandlerFunc(ctx.tracer)), "main", schema.State{})
+		if err != nil {
+			return err
+		}
+		middlewareNames = append(middlewareNames, otelInst.Name())
 	}
-	server, err := httpserver.New(ctx.HTTP.Addr, router, tlsconfig, httpopts...)
+
+	// Create read-only handler instances (passive — no dependencies)
+	handlerResources := []handler_resource.Resource{
+		handler_resource.NewResource(
+			"provider-api", "resource",
+			httphandler.ResourceListHandler(manager),
+			httphandler.ResourceListSpec(),
+		),
+		handler_resource.NewResource(
+			"provider-api-item", "resource/{id}",
+			httphandler.ResourceInstanceHandler(manager),
+			httphandler.ResourceInstanceSpec(),
+		),
+	}
+	handlerNames := make([]string, 0, len(handlerResources))
+	for _, r := range handlerResources {
+		inst, err := manager.RegisterReadonlyInstance(ctx.ctx, r, "main", schema.State{})
+		if err != nil {
+			return err
+		}
+		handlerNames = append(handlerNames, inst.Name())
+	}
+
+	// Create a read-only httprouter instance — references middleware and handlers
+	routerInst, err := manager.RegisterReadonlyInstance(ctx.ctx, httprouter_resource.Resource{}, "main", schema.State{
+		"prefix":     ctx.HTTP.Prefix,
+		"origin":     ctx.HTTP.Origin,
+		"title":      ctx.execName,
+		"version":    versionTag,
+		"openapi":    cmd.OpenAPI,
+		"middleware": middlewareNames,
+		"handlers":   handlerNames,
+	})
+	if err != nil {
+		return err
+	}
+
+	// Create a read-only httpserver instance
+	serverState := schema.State{
+		"listen": ctx.HTTP.Addr,
+		"router": routerInst.Name(),
+	}
+	if cmd.TLS.CertFile != "" || cmd.TLS.KeyFile != "" {
+		serverState["tls.cert"] = cmd.TLS.CertFile
+		serverState["tls.key"] = cmd.TLS.KeyFile
+		serverState["tls.name"] = cmd.TLS.ServerName
+	}
+	if ctx.HTTP.Timeout > 0 {
+		serverState["read-timeout"] = ctx.HTTP.Timeout.String()
+		serverState["write-timeout"] = ctx.HTTP.Timeout.String()
+	}
+
+	// Create the read-only httpserver instance, which starts the server and serves requests
+	httpserver, err := manager.RegisterReadonlyInstance(ctx.ctx, httpserver_resource.Resource{}, "main", serverState)
 	if err != nil {
 		return err
 	}
 
 	// Output the version
-	if version.GitTag != "" {
-		ctx.logger.Printf(ctx.ctx, "%s@%s", ctx.execName, version.GitTag)
-	} else if version.GitHash != "" {
-		ctx.logger.Printf(ctx.ctx, "%s@%s", ctx.execName, version.GitHash[:8])
-	} else {
-		ctx.logger.Printf(ctx.ctx, "%s@dev", ctx.execName)
+	ctx.logger.Printf(ctx.ctx, "%s@%s", ctx.execName, versionTag)
+	if state, err := httpserver.Read(ctx.ctx); err == nil {
+		ctx.logger.Printf(ctx.ctx, "Listening on %v", state["endpoint"])
 	}
 
-	// Run the HTTP server
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	// Wait for context cancellation (e.g. signal), then close all resources
+	<-ctx.ctx.Done()
 
-		// Output listening information
-		ctx.logger.With("addr", ctx.HTTP.Addr).Print(ctx.ctx, "http server starting")
-
-		// Run the server
-		if err := server.Run(ctx.ctx); err != nil {
-			if !errors.Is(err, context.Canceled) {
-				result = errors.Join(result, fmt.Errorf("http server error: %w", err))
-			}
-			ctx.cancel()
-		}
-	}()
-
-	// Wait for goroutine to finish
-	wg.Wait()
+	// Close the manager, destroying all resources in dependency order
+	// (httpserver stops first, then httprouter is torn down)
+	if err := manager.Close(ctx.ctx); err != nil {
+		return err
+	}
 
 	// Terminated message
-	if result == nil {
-		ctx.logger.Print(ctx.ctx, "terminated gracefully")
-	} else {
-		ctx.logger.Print(ctx.ctx, result)
-	}
+	ctx.logger.Print(ctx.ctx, "terminated gracefully")
 
 	// Return any error
-	return result
+	return nil
 }

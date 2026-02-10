@@ -20,10 +20,10 @@ type Attribute struct {
 	Type string `json:"type"`
 
 	// Description is a human-readable explanation of the field.
-	Description string `json:"description"`
+	Description string `json:"description,omitempty"`
 
 	// Required indicates the field must be set by the caller.
-	Required bool `json:"required"`
+	Required bool `json:"required,omitempty"`
 
 	// Default is the value used when the caller does not set the field.
 	// It must be assignable to Type.
@@ -31,7 +31,15 @@ type Attribute struct {
 
 	// Sensitive marks the field as containing secrets that should not
 	// appear in logs or plan output.
-	Sensitive bool `json:"sensitive"`
+	Sensitive bool `json:"sensitive,omitempty"`
+
+	// ReadOnly marks the field as computed by the provider. It is not
+	// settable by the caller and is populated during [Apply].
+	ReadOnly bool `json:"readonly,omitempty"`
+
+	// Reference indicates this attribute is a dependency on another
+	// resource instance, resolved by name at decode time.
+	Reference bool `json:"reference,omitempty"`
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -49,7 +57,7 @@ type Attribute struct {
 //     in plan output, logs and state serialisation
 //   - embed:"" with prefix:"<prefix>" — flatten nested struct, prepending prefix
 //     to all child attribute names
-func Attributes(resource any) []Attribute {
+func AttributesOf(resource any) []Attribute {
 	rv := reflect.ValueOf(resource)
 	if rv.Kind() == reflect.Ptr {
 		rv = rv.Elem()
@@ -103,7 +111,9 @@ func structAttributes(t reflect.Type, prefix string) []Attribute {
 			Type:        typeName,
 			Description: field.Tag.Get("help"),
 			Required:    !hasDef && hasTag(field.Tag, "required"),
+			ReadOnly:    hasTag(field.Tag, "readonly"),
 			Sensitive:   hasTag(field.Tag, "sensitive"),
+			Reference:   field.Type.Kind() == reflect.Interface || (field.Type.Kind() == reflect.Slice && field.Type.Elem().Kind() == reflect.Interface),
 		}
 		if hasDef {
 			attr.Default = def
@@ -118,7 +128,7 @@ func structAttributes(t reflect.Type, prefix string) []Attribute {
 func goTypeString(t reflect.Type) string {
 	// Check for well-known types
 	switch t {
-	case reflect.TypeOf(time.Duration(0)):
+	case durationType:
 		return "duration"
 	case reflect.TypeOf((*time.Time)(nil)).Elem():
 		return "time"
@@ -142,19 +152,13 @@ func goTypeString(t reflect.Type) string {
 		return "float"
 	case reflect.Slice:
 		return "[]" + goTypeString(t.Elem())
+	case reflect.Map:
+		return "map[" + goTypeString(t.Key()) + "]" + goTypeString(t.Elem())
 	case reflect.Interface:
-		return t.String()
+		return "ref"
 	default:
 		return t.String()
 	}
-}
-
-// tagDefault returns the default value from a struct tag, or nil if empty.
-func tagDefault(v string) any {
-	if v == "" {
-		return nil
-	}
-	return v
 }
 
 // hasTag reports whether the struct tag contains the named key,
@@ -162,97 +166,6 @@ func tagDefault(v string) any {
 func hasTag(tag reflect.StructTag, key string) bool {
 	_, ok := tag.Lookup(key)
 	return ok
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// STATE
-
-// StateOf uses reflection to extract the current field values from a struct
-// and return them as a [State] map keyed by attribute name. It follows the
-// same struct-tag rules as [Attributes]: fields without a name tag or with
-// name:"-" are skipped, and embedded structs are flattened with their prefix.
-//
-// Interface fields that implement [ResourceInstance] (or any interface with
-// a Name() string method) are stored by name. Other interface fields are
-// skipped.
-//
-// Duration values are stored as their string representation (e.g. "5m0s").
-func StateOf(resource any) State {
-	rv := reflect.ValueOf(resource)
-	if rv.Kind() == reflect.Ptr {
-		rv = rv.Elem()
-	}
-	if rv.Kind() != reflect.Struct {
-		return nil
-	}
-	s := make(State)
-	structState(rv, "", s)
-	return s
-}
-
-func structState(rv reflect.Value, prefix string, s State) {
-	t := rv.Type()
-	for i := range t.NumField() {
-		field := t.Field(i)
-
-		// Skip unexported fields
-		if !field.IsExported() {
-			continue
-		}
-
-		// Handle structs with embed:"" tag — flatten with prefix
-		if field.Type.Kind() == reflect.Struct && hasTag(field.Tag, "embed") {
-			childPrefix := prefix + field.Tag.Get("prefix")
-			structState(rv.Field(i), childPrefix, s)
-			continue
-		}
-
-		// Skip fields tagged name:"-" or with no name tag
-		name, hasName := field.Tag.Lookup("name")
-		if !hasName || name == "-" {
-			continue
-		}
-
-		// Interface fields: if the value implements ResourceInstance, store
-		// the instance name as a reference; otherwise skip (not serialisable)
-		if field.Type.Kind() == reflect.Interface {
-			v := rv.Field(i)
-			if v.IsNil() {
-				continue
-			}
-			if ri, ok := v.Interface().(ResourceInstance); ok {
-				name = prefix + name
-				s[name] = ri.Name()
-			}
-			continue
-		}
-
-		// Prepend the prefix to the key
-		name = prefix + name
-
-		// Extract the value, handling pointers and well-known types
-		val := rv.Field(i)
-		s[name] = stateValue(val)
-	}
-}
-
-// stateValue converts a reflect.Value to a plain Go value suitable for
-// storage in a [State] map.
-func stateValue(v reflect.Value) any {
-	// Dereference pointer
-	if v.Kind() == reflect.Ptr {
-		if v.IsNil() {
-			return nil
-		}
-		v = v.Elem()
-	}
-
-	// Duration → string
-	if v.Type() == reflect.TypeOf(time.Duration(0)) {
-		return v.Interface().(time.Duration).String()
-	}
-
-	return v.Interface()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -310,22 +223,65 @@ func referencesOf(rv reflect.Value, refs *[]string) {
 			referencesOf(rv.Field(i), refs)
 			continue
 		}
-		// Only check interface fields with a name
-		if field.Type.Kind() != reflect.Interface {
-			continue
-		}
+
 		name, hasName := field.Tag.Lookup("name")
 		if !hasName || name == "-" {
 			continue
 		}
-		v := rv.Field(i)
-		if v.IsNil() {
+
+		// Single interface field — one reference
+		if field.Type.Kind() == reflect.Interface {
+			v := rv.Field(i)
+			if v.IsNil() {
+				continue
+			}
+			if ri, ok := v.Interface().(ResourceInstance); ok {
+				*refs = append(*refs, ri.Name())
+			}
 			continue
 		}
-		if ri, ok := v.Interface().(ResourceInstance); ok {
-			*refs = append(*refs, ri.Name())
+
+		// Slice-of-interface field — multiple references
+		if field.Type.Kind() == reflect.Slice && field.Type.Elem().Kind() == reflect.Interface {
+			slice := rv.Field(i)
+			for j := range slice.Len() {
+				if ri, ok := slice.Index(j).Interface().(ResourceInstance); ok {
+					*refs = append(*refs, ri.Name())
+				}
+			}
 		}
 	}
+}
+
+// ReferencesFromState returns the instance names stored as references in the
+// state, by matching reference attributes from the schema against state keys.
+// Unlike [ReferencesOf], this works from serialised state without needing the
+// live struct with populated interface fields.
+func ReferencesFromState(attrs []Attribute, state State) []string {
+	var refs []string
+	for _, attr := range attrs {
+		if !attr.Reference {
+			continue
+		}
+		switch v := state[attr.Name].(type) {
+		case string:
+			if v != "" {
+				refs = append(refs, v)
+			}
+		case []string:
+			refs = append(refs, v...)
+		case []any:
+			for _, elem := range v {
+				if s, ok := elem.(string); ok && s != "" {
+					refs = append(refs, s)
+				}
+			}
+		}
+	}
+	if len(refs) == 0 {
+		return nil
+	}
+	return refs
 }
 
 func validateRefs(rv reflect.Value, prefix string) error {
@@ -349,8 +305,106 @@ func validateRefs(rv reflect.Value, prefix string) error {
 			continue
 		}
 
-		// Only check interface fields
-		if field.Type.Kind() != reflect.Interface {
+		// Skip fields tagged name:"-" or with no name tag
+		name, hasName := field.Tag.Lookup("name")
+		if !hasName || name == "-" {
+			continue
+		}
+		name = prefix + name
+
+		// Single interface field
+		if field.Type.Kind() == reflect.Interface {
+			v := rv.Field(i)
+			if v.IsNil() {
+				if hasTag(field.Tag, "required") {
+					errs = append(errs, fmt.Errorf("%s: required", name))
+				}
+				continue
+			}
+			wantType := field.Tag.Get("type")
+			if wantType == "" {
+				continue
+			}
+			if ri, ok := v.Interface().(ResourceInstance); ok {
+				if gotType := ri.Resource().Name(); gotType != wantType {
+					errs = append(errs, fmt.Errorf("%s: must be of type %q, got %q", name, wantType, gotType))
+				}
+			}
+			continue
+		}
+
+		// Slice-of-interface field
+		if field.Type.Kind() == reflect.Slice && field.Type.Elem().Kind() == reflect.Interface {
+			slice := rv.Field(i)
+			if slice.Len() == 0 {
+				if hasTag(field.Tag, "required") {
+					errs = append(errs, fmt.Errorf("%s: required", name))
+				}
+				continue
+			}
+			wantType := field.Tag.Get("type")
+			if wantType == "" {
+				continue
+			}
+			for j := range slice.Len() {
+				if ri, ok := slice.Index(j).Interface().(ResourceInstance); ok {
+					if gotType := ri.Resource().Name(); gotType != wantType {
+						errs = append(errs, fmt.Errorf("%s[%d]: must be of type %q, got %q", name, j, wantType, gotType))
+					}
+				}
+			}
+			continue
+		}
+
+		// Skip non-interface fields
+		if field.Type.Kind() != reflect.Interface && !(field.Type.Kind() == reflect.Slice && field.Type.Elem().Kind() == reflect.Interface) {
+			continue
+		}
+	}
+
+	return errors.Join(errs...)
+}
+
+// ValidateRequired checks that every field tagged required:"" (without a
+// default:"" tag) has a non-zero value.  Reference (interface) fields are
+// skipped — those are handled by [ValidateRefs].
+func ValidateRequired(resource any) error {
+	rv := reflect.ValueOf(resource)
+	if rv.Kind() == reflect.Ptr {
+		rv = rv.Elem()
+	}
+	if rv.Kind() != reflect.Struct {
+		return nil
+	}
+	return validateRequired(rv, "")
+}
+
+func validateRequired(rv reflect.Value, prefix string) error {
+	t := rv.Type()
+	var errs []error
+
+	for i := range t.NumField() {
+		field := t.Field(i)
+
+		// Skip unexported fields
+		if !field.IsExported() {
+			continue
+		}
+
+		// Handle structs with embed:"" tag — recurse with prefix
+		if field.Type.Kind() == reflect.Struct && hasTag(field.Tag, "embed") {
+			childPrefix := prefix + field.Tag.Get("prefix")
+			if err := validateRequired(rv.Field(i), childPrefix); err != nil {
+				errs = append(errs, err)
+			}
+			continue
+		}
+
+		// Skip interface fields (handled by ValidateRefs)
+		if field.Type.Kind() == reflect.Interface {
+			continue
+		}
+		if field.Type.Kind() == reflect.Slice && field.Type.Elem().Kind() == reflect.Interface {
 			continue
 		}
 
@@ -361,25 +415,19 @@ func validateRefs(rv reflect.Value, prefix string) error {
 		}
 		name = prefix + name
 
-		v := rv.Field(i)
+		// Skip readonly fields (set by the provider, not the caller)
+		if hasTag(field.Tag, "readonly") {
+			continue
+		}
+
+		// Skip fields with a default (they always have a value)
+		if _, hasDef := field.Tag.Lookup("default"); hasDef {
+			continue
+		}
 
 		// Check required
-		if v.IsNil() {
-			if hasTag(field.Tag, "required") {
-				errs = append(errs, fmt.Errorf("%s: required", name))
-			}
-			continue
-		}
-
-		// Check type constraint against Resource().Name()
-		wantType := field.Tag.Get("type")
-		if wantType == "" {
-			continue
-		}
-		if ri, ok := v.Interface().(ResourceInstance); ok {
-			if gotType := ri.Resource().Name(); gotType != wantType {
-				errs = append(errs, fmt.Errorf("%s: must be of type %q, got %q", name, wantType, gotType))
-			}
+		if hasTag(field.Tag, "required") && rv.Field(i).IsZero() {
+			errs = append(errs, fmt.Errorf("%s: required", name))
 		}
 	}
 

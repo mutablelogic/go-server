@@ -15,6 +15,7 @@ import (
 
 type Logger struct {
 	*slog.Logger
+	level slog.LevelVar
 }
 
 var _ server.Logger = (*Logger)(nil)
@@ -34,30 +35,36 @@ const (
 // LIFECYCLE
 
 func New(w io.Writer, f Format, debug bool) *Logger {
-	level := func() slog.Level {
-		if debug {
-			return slog.LevelDebug
-		}
-		return slog.LevelInfo
+	l := &Logger{}
+	if debug {
+		l.level.Set(slog.LevelDebug)
 	}
 	var handler slog.Handler
 	switch f {
 	case JSON:
 		handler = slog.NewJSONHandler(w, &slog.HandlerOptions{
-			Level: level(),
+			Level: &l.level,
 		})
 	case Text:
 		handler = slog.NewTextHandler(w, &slog.HandlerOptions{
-			Level: level(),
+			Level: &l.level,
 		})
 	case Term:
 		handler = &TermHandler{
 			Writer: w,
-			Level:  level(),
+			level:  &l.level,
 		}
 	}
-	return &Logger{
-		Logger: slog.New(handler),
+	l.Logger = slog.New(handler)
+	return l
+}
+
+// SetDebug dynamically switches the log level between debug and info.
+func (t *Logger) SetDebug(v bool) {
+	if v {
+		t.level.Set(slog.LevelDebug)
+	} else {
+		t.level.Set(slog.LevelInfo)
 	}
 }
 
