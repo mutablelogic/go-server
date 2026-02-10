@@ -42,7 +42,7 @@ type Observable interface {
 type ResourceInstance[C schema.Resource] struct {
 	name      string
 	resource  C
-	state     *C
+	state     atomic.Pointer[C]
 	mu        sync.RWMutex
 	observers map[string]ObserverFunc
 }
@@ -90,13 +90,13 @@ func (b *ResourceInstance[C]) Resource() schema.Resource {
 // State returns the last-applied configuration, or nil if the
 // resource has not yet been applied.
 func (b *ResourceInstance[C]) State() *C {
-	return b.state
+	return b.state.Load()
 }
 
 // SetState stores the applied configuration without notifying
 // observers. Prefer [SetStateAndNotify] in Apply methods.
 func (b *ResourceInstance[C]) SetState(c *C) {
-	b.state = c
+	b.state.Store(c)
 }
 
 // SetStateAndNotify stores the applied configuration and notifies
@@ -105,7 +105,7 @@ func (b *ResourceInstance[C]) SetState(c *C) {
 // that embeds ResourceInstance). Call this at the end of a
 // successful [Apply].
 func (b *ResourceInstance[C]) SetStateAndNotify(c *C, source schema.ResourceInstance) {
-	b.state = c
+	b.state.Store(c)
 	b.NotifyObservers(source)
 }
 
@@ -168,7 +168,8 @@ func (b *ResourceInstance[C]) Plan(_ context.Context, v any) (schema.Plan, error
 	newState := schema.StateOf(desired)
 
 	// No current config means this is a new resource
-	if b.state == nil {
+	current := b.state.Load()
+	if current == nil {
 		changes := make([]schema.Change, 0, len(newState))
 		for field, val := range newState {
 			changes = append(changes, schema.Change{
@@ -180,7 +181,7 @@ func (b *ResourceInstance[C]) Plan(_ context.Context, v any) (schema.Plan, error
 	}
 
 	// Compare each desired field against the current state
-	oldState := schema.StateOf(b.state)
+	oldState := schema.StateOf(current)
 	var changes []schema.Change
 	for field, newVal := range newState {
 		oldVal := oldState[field]
@@ -203,17 +204,19 @@ func (b *ResourceInstance[C]) Plan(_ context.Context, v any) (schema.Plan, error
 // of the instance by reflecting over the current applied configuration.
 // Concrete types may override this to include computed fields.
 func (b *ResourceInstance[C]) Read(_ context.Context) (schema.State, error) {
-	if b.state == nil {
+	current := b.state.Load()
+	if current == nil {
 		return nil, nil
 	}
-	return schema.StateOf(b.state), nil
+	return schema.StateOf(current), nil
 }
 
 // References satisfies [schema.ResourceInstance].  It returns the labels
 // of other resources this instance depends on.
 func (b *ResourceInstance[C]) References() []string {
-	if b.state == nil {
+	current := b.state.Load()
+	if current == nil {
 		return nil
 	}
-	return schema.ReferencesOf(*b.state)
+	return schema.ReferencesOf(*current)
 }

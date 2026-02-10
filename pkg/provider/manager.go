@@ -104,6 +104,8 @@ func (m *Manager) Version() string {
 
 // Resources returns the set of resources this provider can manage
 func (m *Manager) Resources() []schema.Resource {
+	m.RLock()
+	defer m.RUnlock()
 	resources := make([]schema.Resource, 0, len(m.resources))
 	for _, r := range m.resources {
 		resources = append(resources, r)
@@ -133,10 +135,13 @@ func (m *Manager) newInstance(name string) (schema.ResourceInstance, error) {
 	if err != nil {
 		return nil, fmt.Errorf("resource %q: %w", name, err)
 	}
+	if resourceinstance == nil {
+		return nil, ErrBadRequest.With("resource instance is nil")
+	}
 
 	instanceName := resourceinstance.Name()
-	if instanceName == "" || resourceinstance == nil {
-		return nil, ErrBadRequest.With("resource instance is invalid")
+	if instanceName == "" {
+		return nil, ErrBadRequest.With("resource instance name is empty")
 	} else if _, exists := m.instances[instanceName]; exists {
 		return nil, ErrConflict.Withf("resource instance %q already exists", instanceName)
 	}
@@ -153,6 +158,8 @@ func (m *Manager) newInstance(name string) (schema.ResourceInstance, error) {
 // RegisterResource registers a resource type with the provider. It returns
 // an error if a resource with the same name is already registered.
 func (m *Manager) RegisterResource(r schema.Resource) error {
+	m.Lock()
+	defer m.Unlock()
 	if r == nil {
 		return ErrBadRequest.With("resource is nil")
 	} else if name := r.Name(); name == "" {
@@ -434,6 +441,11 @@ func (m *Manager) DestroyResourceInstance(ctx context.Context, req schema.Destro
 		inst, exists := m.instances[name]
 		if !exists {
 			continue
+		}
+
+		// Read-only instances cannot be destroyed via cascade
+		if inst.readOnly {
+			return nil, ErrConflict.Withf("cannot destroy %q: instance is read-only", name)
 		}
 
 		// Capture metadata before destruction

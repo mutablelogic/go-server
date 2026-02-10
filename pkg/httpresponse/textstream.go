@@ -72,8 +72,8 @@ func NewTextStream(w http.ResponseWriter, tuples ...string) *TextStream {
 		w.Header().Set(tuples[i], tuples[i+1])
 	}
 
-	// Write the response, don't know is this is the right one
-	w.WriteHeader(http.StatusContinue)
+	// SSE streams use 200 OK
+	w.WriteHeader(http.StatusOK)
 
 	// goroutine will write to the response writer until the channel is closed
 	self.wg.Add(1)

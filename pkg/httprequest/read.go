@@ -59,12 +59,12 @@ func readJson(r *http.Request, v any) error {
 
 func readString(r *http.Request, v any) error {
 	switch v := v.(type) {
-	case []byte:
+	case *[]byte:
 		data, err := io.ReadAll(r.Body)
 		if err != nil {
 			return httpresponse.ErrBadRequest.With(err.Error())
 		}
-		copy(v, data)
+		*v = data
 		return nil
 	case *string:
 		data, err := io.ReadAll(r.Body)

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/url"
 
 	// Packages
 	client "github.com/mutablelogic/go-client"
@@ -107,28 +106,14 @@ func (c *Client) GetOpenAPI(ctx context.Context, routerName string) (json.RawMes
 		return nil, fmt.Errorf("router %q has no valid endpoint", routerName)
 	}
 
-	// Fetch the OpenAPI spec from the router's endpoint
-	specURL, err := url.JoinPath(endpoint, "openapi.json")
-	if err != nil {
-		return nil, fmt.Errorf("openapi: %w", err)
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, specURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("openapi: %w", err)
-	}
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("openapi: %s", resp.Status)
-	}
-
+	// Fetch the OpenAPI spec from the router's endpoint using the
+	// existing client (inherits timeout, TLS, tracing, etc.)
 	var spec json.RawMessage
-	if err := json.NewDecoder(resp.Body).Decode(&spec); err != nil {
-		return nil, err
+	if err := c.DoWithContext(ctx, nil, &spec,
+		client.OptReqEndpoint(endpoint),
+		client.OptPath("openapi.json"),
+	); err != nil {
+		return nil, fmt.Errorf("openapi: %w", err)
 	}
 	return spec, nil
 }

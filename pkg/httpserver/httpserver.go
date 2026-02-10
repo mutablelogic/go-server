@@ -121,13 +121,14 @@ func (server *server) Run(parent context.Context) error {
 		}
 	}
 
-	var result error
 	var wg sync.WaitGroup
 
 	// Make a cancelable context
 	ctx, cancel := context.WithCancel(parent)
 
-	// Wait for cancel in a background process
+	// Wait for cancel in a background process — capture the shutdown
+	// error in its own variable to avoid a data race with Serve.
+	var shutdownErr error
 	wg.Add(1)
 	go func(ctx context.Context) {
 		defer wg.Done()
@@ -136,19 +137,20 @@ func (server *server) Run(parent context.Context) error {
 		<-ctx.Done()
 
 		// Stop server, terminate connections after 30 seconds
-		if err := server.shutdown(); err != nil {
-			result = errors.Join(result, err)
-		}
+		shutdownErr = server.shutdown()
 	}(ctx)
 
 	// Serve on the already-bound listener
-	result = errors.Join(result, server.http.Serve(server.listener))
+	serveErr := server.http.Serve(server.listener)
 
 	// Cancel waiting for CTRL+C, if not already cancelled
 	cancel()
 
-	// Wait for the goroutine to complete
+	// Wait for the shutdown goroutine to complete
 	wg.Wait()
+
+	// Join errors — safe now because both goroutines have finished
+	result := errors.Join(serveErr, shutdownErr)
 
 	// If result is http.ErrServerClosed, return nil
 	if errors.Is(result, http.ErrServerClosed) {
