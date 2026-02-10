@@ -488,6 +488,49 @@ func Test_References_002(t *testing.T) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+// TESTS - READ
+
+func Test_Read_001(t *testing.T) {
+	// Read returns endpoint after Apply
+	assert := assert.New(t)
+	addr := freePort(t)
+	r := &resource.Resource{
+		Listen:       addr,
+		Router:       &mockRouter{ResourceInstance: schematest.ResourceInstance{N: "r1", RN: "httprouter"}},
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+	}
+	inst, err := r.New()
+	assert.NoError(err)
+	assert.NoError(inst.Apply(context.Background(), r))
+	defer inst.Destroy(context.Background())
+
+	state, err := inst.Read(context.Background())
+	assert.NoError(err)
+	assert.NotNil(state)
+
+	ep, ok := state["endpoint"].(string)
+	assert.True(ok, "endpoint should be a string")
+	assert.Contains(ep, "http://")
+	// The bound address may resolve localhost to 127.0.0.1,
+	// so just check the port is present.
+	_, port, _ := net.SplitHostPort(addr)
+	assert.Contains(ep, port)
+}
+
+func Test_Read_002(t *testing.T) {
+	// Read before Apply returns nil
+	assert := assert.New(t)
+	r := resource.Resource{}
+	inst, err := r.New()
+	assert.NoError(err)
+
+	state, err := inst.Read(context.Background())
+	assert.NoError(err)
+	assert.Nil(state)
+}
+
+///////////////////////////////////////////////////////////////////////////////
 // HELPERS - TLS CERTIFICATE GENERATION
 
 // generateTestCert creates a self-signed ECDSA certificate and key pair

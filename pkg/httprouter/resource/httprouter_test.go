@@ -8,10 +8,29 @@ import (
 	"testing"
 
 	// Packages
+	httprouter "github.com/mutablelogic/go-server/pkg/httprouter"
 	resource "github.com/mutablelogic/go-server/pkg/httprouter/resource"
+	openapi "github.com/mutablelogic/go-server/pkg/openapi/schema"
 	schema "github.com/mutablelogic/go-server/pkg/provider/schema"
+	"github.com/mutablelogic/go-server/pkg/provider/schema/schematest"
 	"github.com/stretchr/testify/assert"
 )
+
+///////////////////////////////////////////////////////////////////////////////
+// MOCK TYPES
+
+// mockHandler implements schema.ResourceInstance and httprouter.HandlerProvider.
+type mockHandler struct {
+	schematest.ResourceInstance
+	path string
+}
+
+var _ httprouter.HandlerProvider = (*mockHandler)(nil)
+
+func (m *mockHandler) HandlerPath() string                    { return m.path }
+func (m *mockHandler) HandlerFunc() http.HandlerFunc          { return func(w http.ResponseWriter, r *http.Request) {} }
+func (m *mockHandler) HandlerMiddleware() bool                { return true }
+func (m *mockHandler) HandlerSpec() *openapi.PathItem         { return nil }
 
 ///////////////////////////////////////////////////////////////////////////////
 // HELPERS
@@ -455,4 +474,56 @@ func Test_References_002(t *testing.T) {
 	}
 	assert.NoError(inst.Apply(context.Background(), config))
 	assert.Nil(inst.References())
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// TESTS - DUPLICATE HANDLER PATHS
+
+func Test_Apply_004(t *testing.T) {
+	// Apply with duplicate handler paths returns error
+	assert := assert.New(t)
+	inst := newInstance(t)
+
+	h1 := &mockHandler{
+		ResourceInstance: schematest.ResourceInstance{N: "handler-1", RN: "httphandler"},
+		path:             "resource/{id}",
+	}
+	h2 := &mockHandler{
+		ResourceInstance: schematest.ResourceInstance{N: "handler-2", RN: "httphandler"},
+		path:             "resource/{id}",
+	}
+
+	config := &resource.Resource{
+		Prefix:   "/",
+		Title:    "Test",
+		Version:  "1.0.0",
+		Handlers: []schema.ResourceInstance{h1, h2},
+	}
+	err := inst.Apply(context.Background(), config)
+	assert.Error(err)
+	assert.Contains(err.Error(), "duplicate handler path")
+	assert.Contains(err.Error(), "resource/{id}")
+}
+
+func Test_Apply_005(t *testing.T) {
+	// Apply with distinct handler paths succeeds
+	assert := assert.New(t)
+	inst := newInstance(t)
+
+	h1 := &mockHandler{
+		ResourceInstance: schematest.ResourceInstance{N: "handler-1", RN: "httphandler"},
+		path:             "resource",
+	}
+	h2 := &mockHandler{
+		ResourceInstance: schematest.ResourceInstance{N: "handler-2", RN: "httphandler"},
+		path:             "resource/{id}",
+	}
+
+	config := &resource.Resource{
+		Prefix:   "/",
+		Title:    "Test",
+		Version:  "1.0.0",
+		Handlers: []schema.ResourceInstance{h1, h2},
+	}
+	assert.NoError(inst.Apply(context.Background(), config))
 }

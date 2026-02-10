@@ -115,13 +115,19 @@ func (r *ResourceInstance) Apply(ctx context.Context, v any) error {
 	}
 
 	// Register handlers. Each referenced instance must implement
-	// [httprouter.HandlerProvider].
+	// [httprouter.HandlerProvider]. Duplicate paths are rejected.
+	seen := make(map[string]string, len(c.Handlers)) // path -> handler name
 	for i, h := range c.Handlers {
 		hp, ok := h.(httprouter.HandlerProvider)
 		if !ok {
 			return httpresponse.ErrBadRequest.Withf("apply: handlers[%d] (%s) does not implement HandlerProvider", i, h.Name())
 		}
-		router.RegisterFunc(hp.HandlerPath(), hp.HandlerFunc(), hp.HandlerMiddleware(), hp.HandlerSpec())
+		path := hp.HandlerPath()
+		if prev, dup := seen[path]; dup {
+			return httpresponse.ErrBadRequest.Withf("apply: duplicate handler path %q (handlers %s and %s)", path, prev, h.Name())
+		}
+		seen[path] = h.Name()
+		router.RegisterFunc(path, hp.HandlerFunc(), hp.HandlerMiddleware(), hp.HandlerSpec())
 	}
 
 	// Register default endpoints

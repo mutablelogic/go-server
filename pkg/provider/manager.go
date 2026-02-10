@@ -380,7 +380,15 @@ func (m *Manager) UpdateResourceInstance(ctx context.Context, name string, req s
 
 	// Optionally apply the plan
 	if req.Apply {
+		// Remove stale observers and notify old references before
+		// applying the new config, since Apply will overwrite the
+		// instance's references.
+		m.notifyRemovals(inst.instance)
+		m.unwireObservers(inst.instance)
+
 		if err := inst.instance.Apply(ctx, config); err != nil {
+			// Re-wire old observers on failure so state stays consistent
+			m.wireAndNotify(inst.instance)
 			return nil, fmt.Errorf("instance %q: apply: %w", name, err)
 		}
 		m.instances[name] = instance{
