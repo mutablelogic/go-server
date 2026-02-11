@@ -119,7 +119,7 @@ func Test_RegisterFS_001(t *testing.T) {
 			Data: []byte("Hello"),
 		},
 	}
-	router.RegisterFS("/", fs.FS(fsys), false)
+	router.RegisterFS("/", fs.FS(fsys), false, nil)
 
 	// Request the file from the root-served filesystem
 	req := httptest.NewRequest(http.MethodGet, "/test.txt", nil)

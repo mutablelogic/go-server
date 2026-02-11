@@ -3,7 +3,8 @@ package schema
 import (
 	"encoding/json"
 
-	"github.com/mutablelogic/go-server/pkg/types"
+	// Packages
+	types "github.com/mutablelogic/go-server/pkg/types"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -56,8 +57,7 @@ type Operation struct {
 // GLOBALS
 
 const (
-	// https://swagger.io/specification/
-	Version = "3.1.1"
+	Version = "3.1.1" // https://swagger.io/specification/
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -95,4 +95,9 @@ func (s *Spec) AddPath(path string, item *PathItem) {
 	if item != nil {
 		s.Paths.MapOfPathItemValues[path] = *item
 	}
+}
+
+// SetServers replaces the servers list in the spec.
+func (s *Spec) SetServers(servers []Server) {
+	s.Servers = servers
 }

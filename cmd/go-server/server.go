@@ -10,6 +10,7 @@ import (
 	server "github.com/mutablelogic/go-server"
 	httprouter_resource "github.com/mutablelogic/go-server/pkg/httprouter/resource"
 	httpserver_resource "github.com/mutablelogic/go-server/pkg/httpserver/resource"
+	httpstatic_resource "github.com/mutablelogic/go-server/pkg/httpstatic/resource"
 	log_resource "github.com/mutablelogic/go-server/pkg/logger/resource"
 	otel "github.com/mutablelogic/go-server/pkg/otel"
 	otel_resource "github.com/mutablelogic/go-server/pkg/otel/resource"
@@ -29,6 +30,12 @@ type ServerCommands struct {
 
 type RunServer struct {
 	OpenAPI bool `name:"openapi" help:"Serve OpenAPI spec at {prefix}/openapi.json" default:"true" negatable:""`
+
+	// Static file serving options
+	Static struct {
+		Path string `name:"path" help:"URL path for static files (relative to prefix)" default:""`
+		Dir  string `name:"dir" help:"Directory on disk to serve as static files" default:""`
+	} `embed:"" prefix:"static."`
 
 	// TLS server options
 	TLS struct {
@@ -60,13 +67,13 @@ func (cmd *RunServer) Run(ctx *Globals) error {
 	var middlewareNames []string
 
 	// Create a read-only log middleware instance (passive — no dependencies)
-	if mw, ok := ctx.logger.(server.Middleware); ok {
+	if mw, ok := ctx.logger.(server.HTTPMiddleware); ok {
 		type debugSetter interface{ SetDebug(bool) }
 		var debugFn func(bool)
 		if ds, ok := ctx.logger.(debugSetter); ok {
 			debugFn = ds.SetDebug
 		}
-		logInst, err := manager.RegisterReadonlyInstance(ctx.ctx, log_resource.NewResource(mw.HTTPHandlerFunc, debugFn), "main", schema.State{
+		logInst, err := manager.RegisterReadonlyInstance(ctx.ctx, log_resource.NewResource(mw.WrapFunc, debugFn), "main", schema.State{
 			"debug": ctx.Debug,
 		})
 		if err != nil {
@@ -104,6 +111,23 @@ func (cmd *RunServer) Run(ctx *Globals) error {
 			return err
 		}
 		handlerNames = append(handlerNames, inst.Name())
+	}
+
+	// Register the httpstatic resource type so it can be created dynamically
+	// via the API, and optionally create a read-only instance if a static
+	// directory is configured on the command line.
+	if err := manager.RegisterResource(httpstatic_resource.Resource{}); err != nil {
+		return err
+	}
+	if cmd.Static.Dir != "" {
+		staticInst, err := manager.RegisterReadonlyInstance(ctx.ctx, httpstatic_resource.Resource{}, "main", schema.State{
+			"path": cmd.Static.Path,
+			"dir":  cmd.Static.Dir,
+		})
+		if err != nil {
+			return err
+		}
+		handlerNames = append(handlerNames, staticInst.Name())
 	}
 
 	// Create a read-only httprouter instance — references middleware and handlers

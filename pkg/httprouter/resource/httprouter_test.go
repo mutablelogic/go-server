@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	// Packages
-	httprouter "github.com/mutablelogic/go-server/pkg/httprouter"
+	server "github.com/mutablelogic/go-server"
 	resource "github.com/mutablelogic/go-server/pkg/httprouter/resource"
 	openapi "github.com/mutablelogic/go-server/pkg/openapi/schema"
 	schema "github.com/mutablelogic/go-server/pkg/provider/schema"
@@ -19,18 +19,19 @@ import (
 ///////////////////////////////////////////////////////////////////////////////
 // MOCK TYPES
 
-// mockHandler implements schema.ResourceInstance and httprouter.HandlerProvider.
+// mockHandler implements schema.ResourceInstance and server.HTTPHandler.
 type mockHandler struct {
 	schematest.ResourceInstance
 	path string
 }
 
-var _ httprouter.HandlerProvider = (*mockHandler)(nil)
+var _ server.HTTPHandler = (*mockHandler)(nil)
 
-func (m *mockHandler) HandlerPath() string                    { return m.path }
-func (m *mockHandler) HandlerFunc() http.HandlerFunc          { return func(w http.ResponseWriter, r *http.Request) {} }
-func (m *mockHandler) HandlerMiddleware() bool                { return true }
-func (m *mockHandler) HandlerSpec() *openapi.PathItem         { return nil }
+func (m *mockHandler) HandlerPath() string { return m.path }
+func (m *mockHandler) HandlerFunc() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {}
+}
+func (m *mockHandler) Spec() *openapi.PathItem { return nil }
 
 ///////////////////////////////////////////////////////////////////////////////
 // HELPERS
@@ -88,16 +89,16 @@ func Test_Resource_002(t *testing.T) {
 }
 
 func Test_Resource_003(t *testing.T) {
-	// New creates instances with unique counter-based names
+	// New creates instances with empty names (manager assigns type.label)
 	assert := assert.New(t)
 	var r resource.Resource
 	inst1, err := r.New()
 	assert.NoError(err)
-	assert.Contains(inst1.Name(), "httprouter-")
+	assert.Empty(inst1.Name())
 
 	inst2, err := r.New()
 	assert.NoError(err)
-	assert.NotEqual(inst1.Name(), inst2.Name(), "names must be unique")
+	assert.Empty(inst2.Name())
 }
 
 func Test_Resource_004(t *testing.T) {

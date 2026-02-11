@@ -44,7 +44,7 @@ func JSON(execName string) []byte {
 	}
 	data, err := json.MarshalIndent(metadata, "", "  ")
 	if err != nil {
-		return []byte("{}")
+		panic(err)
 	}
 	return data
 }

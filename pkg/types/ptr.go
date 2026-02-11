@@ -19,7 +19,9 @@ func Value[T any](v *T) T {
 	return *v
 }
 
-// StringPtr returns a pointer to a string
+// StringPtr returns a pointer to a string.
+//
+// Deprecated: Use [Ptr] instead.
 func StringPtr(s string) *string {
 	return &s
 }
@@ -36,7 +38,9 @@ func TrimStringPtr(s *string) *string {
 	}
 }
 
-// PtrString returns a string from a pointer
+// PtrString returns a string from a pointer.
+//
+// Deprecated: Use [Value] instead.
 func PtrString(s *string) string {
 	if s == nil {
 		return ""
@@ -44,17 +48,23 @@ func PtrString(s *string) string {
 	return *s
 }
 
-// BoolPtr returns a pointer to a bool
+// BoolPtr returns a pointer to a bool.
+//
+// Deprecated: Use [Ptr] instead.
 func BoolPtr(v bool) *bool {
 	return &v
 }
 
-// Int32Ptr returns a pointer to a int32
+// Int32Ptr returns a pointer to an int32.
+//
+// Deprecated: Use [Ptr] instead.
 func Int32Ptr(v int32) *int32 {
 	return &v
 }
 
-// PtrInt32 returns a int32 from a pointer
+// PtrInt32 returns an int32 from a pointer.
+//
+// Deprecated: Use [Value] instead.
 func PtrInt32(v *int32) int32 {
 	if v == nil {
 		return 0
@@ -62,12 +72,16 @@ func PtrInt32(v *int32) int32 {
 	return *v
 }
 
-// Uint64Ptr returns a pointer to a uint64
+// Uint64Ptr returns a pointer to a uint64.
+//
+// Deprecated: Use [Ptr] instead.
 func Uint64Ptr(v uint64) *uint64 {
 	return &v
 }
 
-// PtrUint64 returns a uint64 from a pointer
+// PtrUint64 returns a uint64 from a pointer.
+//
+// Deprecated: Use [Value] instead.
 func PtrUint64(v *uint64) uint64 {
 	if v == nil {
 		return 0
@@ -75,12 +89,16 @@ func PtrUint64(v *uint64) uint64 {
 	return *v
 }
 
-// Int64Ptr returns a pointer to a int64
+// Int64Ptr returns a pointer to an int64.
+//
+// Deprecated: Use [Ptr] instead.
 func Int64Ptr(v int64) *int64 {
 	return &v
 }
 
-// PtrInt64 returns a int64 from a pointer
+// PtrInt64 returns an int64 from a pointer.
+//
+// Deprecated: Use [Value] instead.
 func PtrInt64(v *int64) int64 {
 	if v == nil {
 		return 0
@@ -88,7 +106,9 @@ func PtrInt64(v *int64) int64 {
 	return *v
 }
 
-// PtrBool returns a bool from a pointer
+// PtrBool returns a bool from a pointer.
+//
+// Deprecated: Use [Value] instead.
 func PtrBool(v *bool) bool {
 	if v == nil {
 		return false
@@ -96,7 +116,9 @@ func PtrBool(v *bool) bool {
 	return *v
 }
 
-// PtrTime returns a pointer to a time.Time
+// TimePtr returns a pointer to a time.Time, or nil if zero.
+//
+// Deprecated: Use [Ptr] instead (note: Ptr does not nil-on-zero).
 func TimePtr(t time.Time) *time.Time {
 	if t.IsZero() {
 		return nil
@@ -104,7 +126,9 @@ func TimePtr(t time.Time) *time.Time {
 	return &t
 }
 
-// PtrTime returns a time.Time from a pointer
+// PtrTime returns a time.Time from a pointer.
+//
+// Deprecated: Use [Value] instead.
 func PtrTime(t *time.Time) time.Time {
 	if t == nil {
 		return time.Time{}
@@ -112,12 +136,16 @@ func PtrTime(t *time.Time) time.Time {
 	return *t
 }
 
-// DurationPtr returns a pointer to a time.Duration
+// DurationPtr returns a pointer to a time.Duration.
+//
+// Deprecated: Use [Ptr] instead.
 func DurationPtr(v time.Duration) *time.Duration {
 	return &v
 }
 
-// PtrDuration returns a duration from a pointer
+// PtrDuration returns a duration from a pointer.
+//
+// Deprecated: Use [Value] instead.
 func PtrDuration(v *time.Duration) time.Duration {
 	if v == nil {
 		return 0
@@ -125,12 +153,16 @@ func PtrDuration(v *time.Duration) time.Duration {
 	return *v
 }
 
-// Float64Ptr returns a pointer to a float64
+// Float64Ptr returns a pointer to a float64.
+//
+// Deprecated: Use [Ptr] instead.
 func Float64Ptr(v float64) *float64 {
 	return &v
 }
 
-// PtrFloat64 returns a float64 from a pointer
+// PtrFloat64 returns a float64 from a pointer.
+//
+// Deprecated: Use [Value] instead.
 func PtrFloat64(v *float64) float64 {
 	if v == nil {
 		return 0

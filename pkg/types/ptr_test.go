@@ -12,21 +12,21 @@ func Test_Ptr_001(t *testing.T) {
 	assert := assert.New(t)
 
 	t.Run("StringPtr", func(t *testing.T) {
-		ptr1 := types.StringPtr("")
+		ptr1 := types.Ptr("")
 		assert.NotNil(ptr1)
 		assert.Equal(*ptr1, "")
 
-		ptr2 := types.StringPtr("hello")
+		ptr2 := types.Ptr("hello")
 		assert.NotNil(ptr2)
 		assert.Equal(*ptr2, "hello")
 	})
 
 	t.Run("PtrString", func(t *testing.T) {
-		str1 := types.PtrString(nil)
+		str1 := types.Value[string](nil)
 		assert.Equal(str1, "")
 
 		str2 := "hello world"
-		str3 := types.PtrString(&str2)
+		str3 := types.Value(&str2)
 		assert.Equal(str2, str3)
 	})
 

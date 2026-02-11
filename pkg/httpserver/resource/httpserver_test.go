@@ -72,17 +72,17 @@ func Test_Resource_001(t *testing.T) {
 }
 
 func Test_Resource_002(t *testing.T) {
-	// Schema returns 10 attributes
+	// Schema returns 11 attributes
 	assert := assert.New(t)
 	var r resource.Resource
 	attrs := r.Schema()
-	assert.Len(attrs, 10)
+	assert.Len(attrs, 11)
 
 	names := make(map[string]bool, len(attrs))
 	for _, a := range attrs {
 		names[a.Name] = true
 	}
-	for _, want := range []string{"listen", "endpoint", "router", "read-timeout", "write-timeout", "idle-timeout", "tls.name", "tls.verify", "tls.cert", "tls.key"} {
+	for _, want := range []string{"listen", "description", "endpoint", "router", "read-timeout", "write-timeout", "idle-timeout", "tls.name", "tls.verify", "tls.cert", "tls.key"} {
 		assert.True(names[want], "missing attribute %q", want)
 	}
 
@@ -95,7 +95,7 @@ func Test_Resource_002(t *testing.T) {
 }
 
 func Test_Resource_003(t *testing.T) {
-	// New creates a ResourceInstance with unique counter-based names
+	// New creates instances with empty names (manager assigns type.label)
 	assert := assert.New(t)
 	r := resource.Resource{
 		Listen: "localhost:8080",
@@ -104,11 +104,11 @@ func Test_Resource_003(t *testing.T) {
 	inst1, err := r.New()
 	assert.NoError(err)
 	assert.NotNil(inst1)
-	assert.Contains(inst1.Name(), "httpserver-")
+	assert.Empty(inst1.Name())
 
 	inst2, err := r.New()
 	assert.NoError(err)
-	assert.NotEqual(inst1.Name(), inst2.Name(), "names must be unique")
+	assert.Empty(inst2.Name())
 }
 
 func Test_Resource_004(t *testing.T) {

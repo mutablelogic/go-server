@@ -7,8 +7,10 @@ import (
 	"sync"
 
 	// Packages
+	server "github.com/mutablelogic/go-server"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	httprouter "github.com/mutablelogic/go-server/pkg/httprouter"
+	openapi "github.com/mutablelogic/go-server/pkg/openapi/schema"
 	provider "github.com/mutablelogic/go-server/pkg/provider"
 	schema "github.com/mutablelogic/go-server/pkg/provider/schema"
 	types "github.com/mutablelogic/go-server/pkg/types"
@@ -31,20 +33,22 @@ type Resource struct {
 
 type ResourceInstance struct {
 	provider.ResourceInstance[Resource]
-	router  *httprouter.Router
-	mu      sync.RWMutex
-	servers map[string]schema.ResourceInstance // keyed by server instance name
+	router    *httprouter.Router
+	mu        sync.RWMutex
+	endpoints map[string]openapi.Server // server instance name -> OpenAPI server entry
 }
 
 var _ schema.Resource = (*Resource)(nil)
 var _ schema.ResourceInstance = (*ResourceInstance)(nil)
 var _ http.Handler = (*ResourceInstance)(nil)
+var _ server.HTTPRouter = (*ResourceInstance)(nil)
 
 ///////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 
 const (
-	OpenAPIPath = "/openapi.json"
+	OpenAPIPath  = "/openapi.json"
+	ResourceType = "httprouter"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -60,7 +64,7 @@ func (r Resource) New() (schema.ResourceInstance, error) {
 // PUBLIC METHODS - RESOURCE
 
 func (Resource) Name() string {
-	return "httprouter"
+	return ResourceType
 }
 
 func (Resource) Schema() []schema.Attribute {
@@ -103,31 +107,38 @@ func (r *ResourceInstance) Apply(ctx context.Context, v any) error {
 	}
 
 	// Attach middleware in the order specified by the middleware attribute.
-	// Each referenced instance must implement [httprouter.MiddlewareProvider].
+	// Each referenced instance must implement [server.HTTPMiddleware].
 	for i, mw := range c.Middleware {
-		mp, ok := mw.(httprouter.MiddlewareProvider)
+		mp, ok := mw.(server.HTTPMiddleware)
 		if !ok {
-			return httpresponse.ErrBadRequest.Withf("apply: middleware[%d] (%s) does not implement MiddlewareProvider", i, mw.Name())
+			return httpresponse.ErrBadRequest.Withf("apply: middleware[%d] (%s) does not implement HTTPMiddleware", i, mw.Name())
 		}
-		if fn := mp.MiddlewareFunc(); fn != nil {
-			router.AddMiddleware(fn)
-		}
+		router.AddMiddleware(mp.WrapFunc)
 	}
 
 	// Register handlers. Each referenced instance must implement
-	// [httprouter.HandlerProvider]. Duplicate paths are rejected.
+	// [server.HTTPHandler] or [server.HTTPFileServer]. Duplicate paths are rejected.
 	seen := make(map[string]string, len(c.Handlers)) // path -> handler name
 	for i, h := range c.Handlers {
-		hp, ok := h.(httprouter.HandlerProvider)
-		if !ok {
-			return httpresponse.ErrBadRequest.Withf("apply: handlers[%d] (%s) does not implement HandlerProvider", i, h.Name())
+		var path string
+		switch hp := h.(type) {
+		case server.HTTPFileServer:
+			path = hp.HandlerPath()
+			if prev, dup := seen[path]; dup {
+				return httpresponse.ErrBadRequest.Withf("apply: duplicate handler path %q (handlers %s and %s)", path, prev, h.Name())
+			}
+			seen[path] = h.Name()
+			router.RegisterFS(path, hp.HandlerFS(), true, hp.Spec())
+		case server.HTTPHandler:
+			path = hp.HandlerPath()
+			if prev, dup := seen[path]; dup {
+				return httpresponse.ErrBadRequest.Withf("apply: duplicate handler path %q (handlers %s and %s)", path, prev, h.Name())
+			}
+			seen[path] = h.Name()
+			router.RegisterFunc(path, hp.HandlerFunc(), true, hp.Spec())
+		default:
+			return httpresponse.ErrBadRequest.Withf("apply: handlers[%d] (%s) does not implement HTTPHandler or HTTPFileServer", i, h.Name())
 		}
-		path := hp.HandlerPath()
-		if prev, dup := seen[path]; dup {
-			return httpresponse.ErrBadRequest.Withf("apply: duplicate handler path %q (handlers %s and %s)", path, prev, h.Name())
-		}
-		seen[path] = h.Name()
-		router.RegisterFunc(path, hp.HandlerFunc(), hp.HandlerMiddleware(), hp.HandlerSpec())
 	}
 
 	// Register default endpoints
@@ -145,43 +156,73 @@ func (r *ResourceInstance) Apply(ctx context.Context, v any) error {
 	return nil
 }
 
-// Router returns the underlying [httprouter.Router] so callers can
-// register additional handlers after Apply.
-func (r *ResourceInstance) Router() *httprouter.Router {
-	return r.router
+// Spec returns the OpenAPI specification for this router, or nil if
+// the router has not been initialised yet.
+func (r *ResourceInstance) Spec() *openapi.Spec {
+	if r.router == nil {
+		return nil
+	}
+	return r.router.Spec()
 }
 
 // OnStateChange is called by the observer system when an instance
 // that references this router has its state changed. If the source
-// is an httpserver, the reference is stored so [Read] can compute
-// the endpoints dynamically. Multiple servers can reference the
-// same router, so they are stored in a map keyed by instance name.
+// implements [server.HTTPServer], its spec is stored and the OpenAPI
+// spec's servers list is updated.
 func (r *ResourceInstance) OnStateChange(source schema.ResourceInstance) {
-	if source.Resource().Name() == "httpserver" {
-		r.mu.Lock()
-		defer r.mu.Unlock()
-		if r.servers == nil {
-			r.servers = make(map[string]schema.ResourceInstance)
-		}
-		r.servers[source.Name()] = source
+	srv, ok := source.(server.HTTPServer)
+	if !ok {
+		return
 	}
+	spec := srv.Spec()
+	if spec == nil {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.endpoints == nil {
+		r.endpoints = make(map[string]openapi.Server)
+	}
+	r.endpoints[source.Name()] = *spec
+	r.syncServers()
 }
 
 // OnStateRemove is called by the observer system when an instance
 // that references this router is being destroyed. If the source
-// is an httpserver, its reference is removed.
+// implements [server.HTTPServer], its entry is removed.
 func (r *ResourceInstance) OnStateRemove(source schema.ResourceInstance) {
-	if source.Resource().Name() == "httpserver" {
+	if _, ok := source.(server.HTTPServer); ok {
 		r.mu.Lock()
 		defer r.mu.Unlock()
-		delete(r.servers, source.Name())
+		delete(r.endpoints, source.Name())
+		r.syncServers()
 	}
 }
 
-// Read returns the live state of the router, computing the endpoints
-// dynamically from all attached servers' current state.
-func (r *ResourceInstance) Read(ctx context.Context) (schema.State, error) {
-	state, err := r.ResourceInstance.Read(ctx)
+// syncServers rebuilds the OpenAPI spec's servers list from the
+// current endpoints map. Must be called with r.mu held.
+func (r *ResourceInstance) syncServers() {
+	if r.router == nil {
+		return
+	}
+	c := r.State()
+	if c == nil {
+		return
+	}
+	servers := make([]openapi.Server, 0, len(r.endpoints))
+	for _, srv := range r.endpoints {
+		servers = append(servers, openapi.Server{URL: srv.URL + c.Prefix, Description: srv.Description})
+	}
+	sort.Slice(servers, func(i, j int) bool {
+		return servers[i].URL < servers[j].URL
+	})
+	r.router.Spec().SetServers(servers)
+}
+
+// Read returns the live state of the router, including the endpoints
+// collected from attached servers.
+func (r *ResourceInstance) Read(_ context.Context) (schema.State, error) {
+	state, err := r.ResourceInstance.Read(context.Background())
 	if err != nil || state == nil {
 		return state, err
 	}
@@ -191,16 +232,12 @@ func (r *ResourceInstance) Read(ctx context.Context) (schema.State, error) {
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	var endpoints []string
-	for _, srv := range r.servers {
-		if srvState, err := srv.Read(ctx); err == nil && srvState != nil {
-			if ep, ok := srvState["endpoint"].(string); ok {
-				endpoints = append(endpoints, ep+c.Prefix)
-			}
+	if len(r.endpoints) > 0 {
+		endpoints := make([]string, 0, len(r.endpoints))
+		for _, srv := range r.endpoints {
+			endpoints = append(endpoints, srv.URL+c.Prefix)
 		}
-	}
-	sort.Strings(endpoints)
-	if len(endpoints) > 0 {
+		sort.Strings(endpoints)
 		state["endpoints"] = endpoints
 	}
 	return state, nil

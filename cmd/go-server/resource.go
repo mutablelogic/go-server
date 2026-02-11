@@ -21,7 +21,7 @@ type ResourcesCommands struct {
 }
 
 type DestroyResourceInstanceCommand struct {
-	Name    string `arg:"" help:"Instance name (e.g. \"httpserver-01\")"`
+	Name    string `arg:"" help:"Instance name (e.g. \"httpserver.main\")"`
 	Cascade bool   `flag:"" help:"Also destroy all instances that depend on this one." default:"false"`
 }
 
@@ -34,17 +34,17 @@ type CreateResourceInstanceCommand struct {
 }
 
 type GetResourceInstanceCommand struct {
-	Name string `arg:"" help:"Instance name (e.g. \"httpserver-01\")"`
+	Name string `arg:"" help:"Instance name (e.g. \"httpserver.main\")"`
 }
 
 type UpdateResourceInstanceCommand struct {
-	Name  string            `arg:"" help:"Instance name (e.g. \"httpserver-01\")"` // instance name
+	Name  string            `arg:"" help:"Instance name (e.g. \"httpserver.main\")"` // instance name
 	Set   map[string]string `flag:"" help:"Set attribute values (e.g. --set port=8080)." optional:""`
 	Apply bool              `flag:"" help:"Apply the planned changes." default:"false"`
 }
 
 type OpenAPICommand struct {
-	Router string `arg:"" optional:"" default:"httprouter-main" help:"Router instance name (default: httprouter-main)"`
+	Router string `arg:"" optional:"" default:"httprouter.main" help:"Router instance name (default: httprouter.main)"`
 }
 
 ///////////////////////////////////////////////////////////////////////////////

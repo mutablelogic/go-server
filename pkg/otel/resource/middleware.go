@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	// Packages
+	server "github.com/mutablelogic/go-server"
 	httprouter "github.com/mutablelogic/go-server/pkg/httprouter"
 	provider "github.com/mutablelogic/go-server/pkg/provider"
 	schema "github.com/mutablelogic/go-server/pkg/provider/schema"
@@ -28,7 +29,7 @@ type ResourceInstance struct {
 
 var _ schema.Resource = Resource{}
 var _ schema.ResourceInstance = (*ResourceInstance)(nil)
-var _ httprouter.MiddlewareProvider = (*ResourceInstance)(nil)
+var _ server.HTTPMiddleware = (*ResourceInstance)(nil)
 
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
@@ -67,10 +68,10 @@ func (r *ResourceInstance) Validate(ctx context.Context, state schema.State, res
 	return r.ResourceInstance.Validate(ctx, state, resolve)
 }
 
-// MiddlewareFunc returns the captured middleware function. The router
-// calls this during its own Apply to build the middleware chain.
-func (r *ResourceInstance) MiddlewareFunc() httprouter.HTTPMiddlewareFunc {
-	return r.fn
+// WrapFunc wraps next with the captured middleware function.
+// The router calls this during its own Apply to build the middleware chain.
+func (r *ResourceInstance) WrapFunc(next http.HandlerFunc) http.HandlerFunc {
+	return r.fn(next)
 }
 
 // Apply stores the configuration. The actual middleware attachment is

@@ -10,8 +10,10 @@ import (
 	"time"
 
 	// Packages
+	server "github.com/mutablelogic/go-server"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	httpserver "github.com/mutablelogic/go-server/pkg/httpserver"
+	openapi "github.com/mutablelogic/go-server/pkg/openapi/schema"
 	provider "github.com/mutablelogic/go-server/pkg/provider"
 	schema "github.com/mutablelogic/go-server/pkg/provider/schema"
 )
@@ -21,12 +23,13 @@ import (
 
 type Resource struct {
 	Listen       string                  `name:"listen" help:"Listen address (e.g. localhost:8080)"`
+	Description  string                  `name:"description" help:"Server description for OpenAPI spec"`
 	Endpoint     string                  `name:"endpoint" readonly:"" help:"Base URL of the running server"`
 	Router       schema.ResourceInstance `name:"router" type:"httprouter" required:"" help:"HTTP router"`
 	ReadTimeout  time.Duration           `name:"read-timeout" default:"5m" help:"Read timeout"`
 	WriteTimeout time.Duration           `name:"write-timeout" default:"5m" help:"Write timeout"`
 	IdleTimeout  time.Duration           `name:"idle-timeout" default:"5m" help:"Idle timeout for keep-alive connections"`
-	TLS struct {
+	TLS          struct {
 		Name   string `name:"name" help:"TLS server name"`
 		Verify bool   `name:"verify" default:"true" help:"Verify client certificates"`
 		Cert   []byte `name:"cert" sensitive:"" help:"TLS certificate PEM data"`
@@ -44,6 +47,24 @@ type ResourceInstance struct {
 
 var _ schema.Resource = (*Resource)(nil)
 var _ schema.ResourceInstance = (*ResourceInstance)(nil)
+var _ server.HTTPServer = (*ResourceInstance)(nil)
+
+///////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS - HTTP SERVER
+
+// Spec returns the OpenAPI server entry for this instance, or nil if
+// the server has not started yet.
+func (r *ResourceInstance) Spec() *openapi.Server {
+	c := r.State()
+	if c == nil || c.Endpoint == "" {
+		return nil
+	}
+	var desc *string
+	if c.Description != "" {
+		desc = &c.Description
+	}
+	return &openapi.Server{URL: c.Endpoint, Description: desc}
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE

@@ -78,7 +78,7 @@ func main() {
 	cli := new(CLI)
 	ctx := kong.Parse(cli,
 		kong.Name(execName),
-		kong.Description("go-server command line interface"),
+		kong.Description(execName+" command line interface"),
 		kong.Vars{
 			"version":         string(version.JSON(execName)),
 			"EXECUTABLE_NAME": execName,

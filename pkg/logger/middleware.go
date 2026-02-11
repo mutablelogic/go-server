@@ -17,7 +17,7 @@ var (
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS - MIDDLEWARE
 
-func (t *Logger) HTTPHandlerFunc(next http.HandlerFunc) http.HandlerFunc {
+func (t *Logger) WrapFunc(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		now := time.Now()
 		nw := NewResponseWriter(w)

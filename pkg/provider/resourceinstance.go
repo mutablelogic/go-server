@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"sync"
 	"sync/atomic"
@@ -48,21 +47,13 @@ type ResourceInstance[C schema.Resource] struct {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// GLOBALS
-
-var counter atomic.Int64
-
-///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-// NewResourceInstance returns a ResourceInstance with an auto-generated
-// instance name derived from the given resource type and a global
-// monotonic counter. The resource value is stored so that [Resource]
-// returns the actual type (including unexported fields such as the name
-// on handler resources).
+// NewResourceInstance returns a ResourceInstance for the given resource
+// type. The name is initially empty; the manager assigns the final
+// "type.label" name via [SetName] after creation.
 func NewResourceInstance[C schema.Resource](resource C) ResourceInstance[C] {
 	return ResourceInstance[C]{
-		name:     fmt.Sprintf("%s-%02d", resource.Name(), counter.Add(1)),
 		resource: resource,
 	}
 }

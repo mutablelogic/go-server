@@ -2,8 +2,6 @@ package provider_test
 
 import (
 	"context"
-	"fmt"
-	"sync"
 	"testing"
 
 	"github.com/mutablelogic/go-server/pkg/provider"
@@ -15,19 +13,13 @@ import (
 // MOCK TYPES
 
 type mockResource struct {
-	sync.Mutex
-	name    string
-	counter int
+	name string
 }
 
 func (m *mockResource) Name() string               { return m.name }
 func (m *mockResource) Schema() []schema.Attribute { return schema.AttributesOf(nodeConfig{}) }
 func (m *mockResource) New() (schema.ResourceInstance, error) {
-	m.Lock()
-	defer m.Unlock()
-	m.counter++
 	return &mockInstance{
-		name:     fmt.Sprintf("%s-%02d", m.name, m.counter),
 		resource: m,
 	}, nil
 }
@@ -72,9 +64,9 @@ func Test_Manager_Cycle_001(t *testing.T) {
 	assert.NoError(err)
 	assert.NoError(mgr.RegisterResource(&mockResource{name: "node"}))
 
-	a, err := mgr.New("node")
+	a, err := mgr.New("node", "a")
 	assert.NoError(err)
-	b, err := mgr.New("node")
+	b, err := mgr.New("node", "b")
 	assert.NoError(err)
 
 	// Update A to depend on B — should succeed
@@ -93,9 +85,9 @@ func Test_Manager_Cycle_002(t *testing.T) {
 	assert.NoError(err)
 	assert.NoError(mgr.RegisterResource(&mockResource{name: "node"}))
 
-	a, err := mgr.New("node")
+	a, err := mgr.New("node", "a")
 	assert.NoError(err)
-	b, err := mgr.New("node")
+	b, err := mgr.New("node", "b")
 	assert.NoError(err)
 
 	// A depends on B
@@ -118,7 +110,7 @@ func Test_Manager_Cycle_003(t *testing.T) {
 	assert.NoError(err)
 	assert.NoError(mgr.RegisterResource(&mockResource{name: "node"}))
 
-	a, err := mgr.New("node")
+	a, err := mgr.New("node", "a")
 	assert.NoError(err)
 
 	_, err = mgr.UpdateResourceInstance(context.Background(), a.Name(), schema.UpdateResourceInstanceRequest{
@@ -137,11 +129,11 @@ func Test_Manager_Cycle_004(t *testing.T) {
 	assert.NoError(err)
 	assert.NoError(mgr.RegisterResource(&mockResource{name: "node"}))
 
-	a, err := mgr.New("node")
+	a, err := mgr.New("node", "a")
 	assert.NoError(err)
-	b, err := mgr.New("node")
+	b, err := mgr.New("node", "b")
 	assert.NoError(err)
-	c, err := mgr.New("node")
+	c, err := mgr.New("node", "c")
 	assert.NoError(err)
 
 	// A -> B and B -> C
@@ -165,7 +157,7 @@ func Test_Manager_Cycle_005(t *testing.T) {
 	assert.NoError(err)
 	assert.NoError(mgr.RegisterResource(&mockResource{name: "node"}))
 
-	a, err := mgr.New("node")
+	a, err := mgr.New("node", "a")
 	assert.NoError(err)
 
 	_, err = mgr.UpdateResourceInstance(context.Background(), a.Name(), schema.UpdateResourceInstanceRequest{
@@ -183,13 +175,13 @@ func Test_Manager_Cycle_006(t *testing.T) {
 	assert.NoError(err)
 	assert.NoError(mgr.RegisterResource(&mockResource{name: "node"}))
 
-	a, err := mgr.New("node")
+	a, err := mgr.New("node", "a")
 	assert.NoError(err)
-	b, err := mgr.New("node")
+	b, err := mgr.New("node", "b")
 	assert.NoError(err)
-	_, err = mgr.New("node") // c
+	_, err = mgr.New("node", "c") // c
 	assert.NoError(err)
-	d, err := mgr.New("node")
+	d, err := mgr.New("node", "d")
 	assert.NoError(err)
 
 	// B -> D
@@ -214,9 +206,9 @@ func Test_Manager_Destroy_001(t *testing.T) {
 	assert.NoError(err)
 	assert.NoError(mgr.RegisterResource(&mockResource{name: "node"}))
 
-	a, err := mgr.New("node")
+	a, err := mgr.New("node", "a")
 	assert.NoError(err)
-	b, err := mgr.New("node")
+	b, err := mgr.New("node", "b")
 	assert.NoError(err)
 
 	// A depends on B
@@ -235,9 +227,9 @@ func Test_Manager_Destroy_002(t *testing.T) {
 	assert.NoError(err)
 	assert.NoError(mgr.RegisterResource(&mockResource{name: "node"}))
 
-	a, err := mgr.New("node")
+	a, err := mgr.New("node", "a")
 	assert.NoError(err)
-	b, err := mgr.New("node")
+	b, err := mgr.New("node", "b")
 	assert.NoError(err)
 
 	// A depends on B
@@ -258,9 +250,9 @@ func Test_Manager_Destroy_003(t *testing.T) {
 	assert.NoError(err)
 	assert.NoError(mgr.RegisterResource(&mockResource{name: "node"}))
 
-	a, err := mgr.New("node")
+	a, err := mgr.New("node", "a")
 	assert.NoError(err)
-	b, err := mgr.New("node")
+	b, err := mgr.New("node", "b")
 	assert.NoError(err)
 
 	// A depends on B
@@ -283,11 +275,11 @@ func Test_Manager_Destroy_004(t *testing.T) {
 	assert.NoError(err)
 	assert.NoError(mgr.RegisterResource(&mockResource{name: "node"}))
 
-	a, err := mgr.New("node")
+	a, err := mgr.New("node", "a")
 	assert.NoError(err)
-	b, err := mgr.New("node")
+	b, err := mgr.New("node", "b")
 	assert.NoError(err)
-	c, err := mgr.New("node")
+	c, err := mgr.New("node", "c")
 	assert.NoError(err)
 
 	a.(*mockInstance).refs = []string{b.Name()}
@@ -320,7 +312,7 @@ func Test_Manager_Destroy_005(t *testing.T) {
 	assert.NoError(err)
 	assert.NoError(mgr.RegisterResource(&mockResource{name: "node"}))
 
-	a, err := mgr.New("node")
+	a, err := mgr.New("node", "a")
 	assert.NoError(err)
 
 	resp, err := mgr.DestroyResourceInstance(context.Background(), schema.DestroyResourceInstanceRequest{Name: a.Name()})
@@ -339,9 +331,9 @@ func Test_Manager_Cascade_001(t *testing.T) {
 	assert.NoError(err)
 	assert.NoError(mgr.RegisterResource(&mockResource{name: "node"}))
 
-	a, err := mgr.New("node")
+	a, err := mgr.New("node", "a")
 	assert.NoError(err)
-	b, err := mgr.New("node")
+	b, err := mgr.New("node", "b")
 	assert.NoError(err)
 
 	a.(*mockInstance).refs = []string{b.Name()}
@@ -365,11 +357,11 @@ func Test_Manager_Cascade_002(t *testing.T) {
 	assert.NoError(err)
 	assert.NoError(mgr.RegisterResource(&mockResource{name: "node"}))
 
-	a, err := mgr.New("node")
+	a, err := mgr.New("node", "a")
 	assert.NoError(err)
-	b, err := mgr.New("node")
+	b, err := mgr.New("node", "b")
 	assert.NoError(err)
-	c, err := mgr.New("node")
+	c, err := mgr.New("node", "c")
 	assert.NoError(err)
 
 	a.(*mockInstance).refs = []string{b.Name()}
@@ -395,7 +387,7 @@ func Test_Manager_Cascade_003(t *testing.T) {
 	assert.NoError(err)
 	assert.NoError(mgr.RegisterResource(&mockResource{name: "node"}))
 
-	a, err := mgr.New("node")
+	a, err := mgr.New("node", "a")
 	assert.NoError(err)
 
 	resp, err := mgr.DestroyResourceInstance(context.Background(), schema.DestroyResourceInstanceRequest{
@@ -416,11 +408,11 @@ func Test_Manager_Cascade_004(t *testing.T) {
 	assert.NoError(err)
 	assert.NoError(mgr.RegisterResource(&mockResource{name: "node"}))
 
-	a, err := mgr.New("node")
+	a, err := mgr.New("node", "a")
 	assert.NoError(err)
-	b, err := mgr.New("node")
+	b, err := mgr.New("node", "b")
 	assert.NoError(err)
-	c, err := mgr.New("node")
+	c, err := mgr.New("node", "c")
 	assert.NoError(err)
 
 	a.(*mockInstance).refs = []string{b.Name()}
@@ -445,11 +437,11 @@ func Test_Manager_Cascade_005(t *testing.T) {
 	assert.NoError(err)
 	assert.NoError(mgr.RegisterResource(&mockResource{name: "node"}))
 
-	a, err := mgr.New("node")
+	a, err := mgr.New("node", "a")
 	assert.NoError(err)
-	b, err := mgr.New("node")
+	b, err := mgr.New("node", "b")
 	assert.NoError(err)
-	c, err := mgr.New("node")
+	c, err := mgr.New("node", "c")
 	assert.NoError(err)
 
 	a.(*mockInstance).refs = []string{c.Name()}
@@ -508,9 +500,9 @@ func Test_Manager_Lifecycle_003(t *testing.T) {
 	assert.NoError(err)
 	assert.NoError(mgr.RegisterResource(&mockResource{name: "node"}))
 
-	a, err := mgr.New("node")
+	a, err := mgr.New("node", "a")
 	assert.NoError(err)
-	b, err := mgr.New("node")
+	b, err := mgr.New("node", "b")
 	assert.NoError(err)
 
 	// A depends on B
@@ -580,12 +572,12 @@ func Test_Manager_RegisterReadonlyInstance_001(t *testing.T) {
 	inst, err := mgr.RegisterReadonlyInstance(context.Background(), &mockResource{name: "node"}, "main", nil)
 	assert.NoError(err)
 	assert.NotNil(inst)
-	assert.Equal("node-main", inst.Name())
+	assert.Equal("node.main", inst.Name())
 
 	// Verify the instance is retrievable and marked read-only
-	got, err := mgr.GetResourceInstance(context.Background(), "node-main")
+	got, err := mgr.GetResourceInstance(context.Background(), "node.main")
 	assert.NoError(err)
-	assert.Equal("node-main", got.Instance.Name)
+	assert.Equal("node.main", got.Instance.Name)
 	assert.True(got.Instance.ReadOnly)
 }
 
@@ -716,9 +708,9 @@ func Test_Manager_List_004(t *testing.T) {
 	assert.NoError(err)
 	assert.NoError(mgr.RegisterResource(&mockResource{name: "node"}))
 
-	_, err = mgr.New("node")
+	_, err = mgr.New("node", "a")
 	assert.NoError(err)
-	_, err = mgr.New("node")
+	_, err = mgr.New("node", "b")
 	assert.NoError(err)
 
 	resp, err := mgr.ListResources(context.Background(), schema.ListResourcesRequest{})
@@ -740,10 +732,11 @@ func Test_Manager_Create_001(t *testing.T) {
 
 	resp, err := mgr.CreateResourceInstance(context.Background(), schema.CreateResourceInstanceRequest{
 		Resource: "node",
+		Label:    "x",
 	})
 	assert.NoError(err)
 	assert.Equal("node", resp.Instance.Resource)
-	assert.NotEmpty(resp.Instance.Name)
+	assert.Equal("node.x", resp.Instance.Name)
 }
 
 func Test_Manager_Create_002(t *testing.T) {
@@ -755,6 +748,7 @@ func Test_Manager_Create_002(t *testing.T) {
 
 	_, err = mgr.CreateResourceInstance(context.Background(), schema.CreateResourceInstanceRequest{
 		Resource: "nosuch",
+		Label:    "x",
 	})
 	assert.Error(err)
 }
@@ -796,7 +790,7 @@ func Test_Manager_Update_002(t *testing.T) {
 	assert.NoError(err)
 	assert.NoError(mgr.RegisterResource(&mockResource{name: "node"}))
 
-	a, err := mgr.New("node")
+	a, err := mgr.New("node", "a")
 	assert.NoError(err)
 
 	resp, err := mgr.UpdateResourceInstance(context.Background(), a.Name(), schema.UpdateResourceInstanceRequest{
@@ -831,7 +825,7 @@ func Test_Manager_New_001(t *testing.T) {
 	mgr, err := provider.New("test", "test provider", "0.0.1")
 	assert.NoError(err)
 
-	_, err = mgr.New("nosuch")
+	_, err = mgr.New("nosuch", "a")
 	assert.Error(err)
 }
 

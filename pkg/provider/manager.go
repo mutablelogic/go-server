@@ -113,36 +113,47 @@ func (m *Manager) Resources() []schema.Resource {
 	return resources
 }
 
-// New creates a resource instance from the given configuration.
+// New creates a resource instance from the given resource type with the
+// specified label. The instance name will be "resource.label".
 // The returned resource is not yet applied; call [ResourceInstance.Apply] to
 // materialise it.
-func (m *Manager) New(name string) (schema.ResourceInstance, error) {
+func (m *Manager) New(resource, label string) (schema.ResourceInstance, error) {
 	m.Lock()
 	defer m.Unlock()
-	return m.newInstance(name)
+	return m.newInstance(resource, label)
 }
 
 // newInstance is the lock-free core of [New]. The caller must hold m.Lock().
-func (m *Manager) newInstance(name string) (schema.ResourceInstance, error) {
+func (m *Manager) newInstance(resource, label string) (schema.ResourceInstance, error) {
+	// Validate the label
+	if !types.IsIdentifier(label) {
+		return nil, ErrBadRequest.Withf("invalid label %q: must match [a-zA-Z][a-zA-Z0-9_-]{0,63}", label)
+	}
+
 	// Look up the resource type
-	resource, exists := m.resources[name]
+	res, exists := m.resources[resource]
 	if !exists {
-		return nil, ErrBadRequest.Withf("resource %q is not registered", name)
+		return nil, ErrBadRequest.Withf("resource %q is not registered", resource)
 	}
 
 	// Create a new resource instance
-	resourceinstance, err := resource.New()
+	resourceinstance, err := res.New()
 	if err != nil {
-		return nil, fmt.Errorf("resource %q: %w", name, err)
+		return nil, fmt.Errorf("resource %q: %w", resource, err)
 	}
 	if resourceinstance == nil {
 		return nil, ErrBadRequest.With("resource instance is nil")
 	}
 
-	instanceName := resourceinstance.Name()
-	if instanceName == "" {
-		return nil, ErrBadRequest.With("resource instance name is empty")
-	} else if _, exists := m.instances[instanceName]; exists {
+	// Assign the name as resource.label
+	instanceName := resource + "." + label
+	if nameable, ok := resourceinstance.(interface{ SetName(string) }); ok {
+		nameable.SetName(instanceName)
+	}
+	if resourceinstance.Name() != instanceName {
+		return nil, ErrBadRequest.With("resource instance does not support SetName")
+	}
+	if _, exists := m.instances[instanceName]; exists {
 		return nil, ErrConflict.Withf("resource instance %q already exists", instanceName)
 	}
 
@@ -177,13 +188,18 @@ func (m *Manager) RegisterResource(r schema.Resource) error {
 // RegisterReadonlyInstance creates a new instance of the given resource
 // type with a deterministic label, validates and applies the given
 // state, and stores the result as a read-only (data) instance. The
-// instance name is "{resource}-{label}". If the resource type is not
+// instance name is "{resource}.{label}". If the resource type is not
 // yet registered it is registered automatically. It returns the created
 // [schema.ResourceInstance] so the caller can type-assert to the
 // concrete object (e.g. *httpserver.Server).
 func (m *Manager) RegisterReadonlyInstance(ctx context.Context, resource schema.Resource, label string, state schema.State) (schema.ResourceInstance, error) {
 	m.Lock()
 	defer m.Unlock()
+
+	// Validate the label
+	if !types.IsIdentifier(label) {
+		return nil, ErrBadRequest.Withf("invalid label %q: must match [a-zA-Z][a-zA-Z0-9_-]{0,63}", label)
+	}
 
 	// Auto-register the resource type if not already registered
 	name := resource.Name()
@@ -197,8 +213,8 @@ func (m *Manager) RegisterReadonlyInstance(ctx context.Context, resource schema.
 		return nil, fmt.Errorf("resource %q: %w", name, err)
 	}
 
-	// Override the auto-generated name with {resource}-{label}
-	instanceName := name + "-" + label
+	// Override the name with {resource}.{label}
+	instanceName := name + "." + label
 	if nameable, ok := inst.(interface{ SetName(string) }); ok {
 		nameable.SetName(instanceName)
 	}
@@ -303,7 +319,7 @@ func (m *Manager) CreateResourceInstance(ctx context.Context, req schema.CreateR
 	}
 
 	// Create and register the instance (newInstance stores it in m.instances)
-	inst, err := m.newInstance(req.Resource)
+	inst, err := m.newInstance(req.Resource, req.Label)
 	if err != nil {
 		return nil, err
 	}

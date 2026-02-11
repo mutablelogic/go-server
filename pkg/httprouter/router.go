@@ -137,15 +137,27 @@ func (r *Router) RegisterOpenAPI(path string, middleware bool) {
 }
 
 // RegisterFS registers a file server at path that serves static assets from
-// the given [fs.FS]. The router prefix is prepended to path and stripped from
-// incoming requests before the file lookup. When middleware is true the
-// handler is wrapped by the router's middleware chain.
-func (r *Router) RegisterFS(path string, fs fs.FS, middleware bool) {
-	handler := http.StripPrefix(types.JoinPath(r.prefix, path), http.FileServer(http.FS(fs))).ServeHTTP
+// the given [fs.FS]. The router prefix is prepended to path and the combined
+// prefix is stripped from incoming requests before the file lookup. A trailing
+// slash is ensured so that [http.ServeMux] treats it as a subtree pattern,
+// matching all sub-paths.
+//
+// When spec is non-nil the corresponding [openapi.PathItem] is added to the
+// router's OpenAPI specification under the resolved path. When middleware is
+// true the handler is wrapped by the router's middleware chain.
+func (r *Router) RegisterFS(path string, fs fs.FS, middleware bool, spec *openapi.PathItem) {
+	prefix := types.JoinPath(r.prefix, path)
+	if prefix != "/" {
+		prefix += "/"
+	}
+	if spec != nil {
+		r.spec.AddPath(types.JoinPath(r.prefix, path), spec)
+	}
+	handler := http.StripPrefix(prefix, http.FileServer(http.FS(fs))).ServeHTTP
 	if middleware {
 		handler = r.middleware.Wrap(handler)
 	}
-	r.mux.HandleFunc(types.JoinPath(r.prefix, path), handler)
+	r.mux.HandleFunc(prefix, handler)
 }
 
 // RegisterFunc registers handler at path. The path should not include an HTTP

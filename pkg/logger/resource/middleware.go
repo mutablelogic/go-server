@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	// Packages
+	server "github.com/mutablelogic/go-server"
 	httprouter "github.com/mutablelogic/go-server/pkg/httprouter"
 	provider "github.com/mutablelogic/go-server/pkg/provider"
 	schema "github.com/mutablelogic/go-server/pkg/provider/schema"
@@ -31,14 +32,14 @@ type ResourceInstance struct {
 
 var _ schema.Resource = Resource{}
 var _ schema.ResourceInstance = (*ResourceInstance)(nil)
-var _ httprouter.MiddlewareProvider = (*ResourceInstance)(nil)
+var _ server.HTTPMiddleware = (*ResourceInstance)(nil)
 
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
 // NewResource creates a log middleware resource type that wraps every
 // request with the given middleware function. The function is typically
-// [logger.Logger.HTTPHandlerFunc]. The debug callback, when non-nil,
+// [logger.Logger.WrapFunc]. The debug callback, when non-nil,
 // is invoked during [Apply] to switch debug logging on or off.
 func NewResource(fn func(http.HandlerFunc) http.HandlerFunc, debug func(bool)) Resource {
 	return Resource{fn: httprouter.HTTPMiddlewareFunc(fn), debug: debug}
@@ -72,10 +73,10 @@ func (r *ResourceInstance) Validate(ctx context.Context, state schema.State, res
 	return r.ResourceInstance.Validate(ctx, state, resolve)
 }
 
-// MiddlewareFunc returns the captured middleware function. The router
-// calls this during its own Apply to build the middleware chain.
-func (r *ResourceInstance) MiddlewareFunc() httprouter.HTTPMiddlewareFunc {
-	return r.fn
+// WrapFunc wraps next with the captured middleware function.
+// The router calls this during its own Apply to build the middleware chain.
+func (r *ResourceInstance) WrapFunc(next http.HandlerFunc) http.HandlerFunc {
+	return r.fn(next)
 }
 
 // Apply stores the configuration and switches debug logging on or off.

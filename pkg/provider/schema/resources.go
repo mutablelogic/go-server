@@ -45,7 +45,8 @@ type InstanceMeta struct {
 
 // CreateResourceInstanceRequest asks the manager to instantiate a resource.
 type CreateResourceInstanceRequest struct {
-	Resource string `json:"resource" arg:"" help:"Resource type name (e.g. \"httpserver\")"` // resource type name (e.g. "httpserver")
+	Resource string `json:"resource" arg:"" help:"Resource type name (e.g. \"httpserver\")"`
+	Label    string `json:"label" arg:"" help:"Instance label (e.g. \"main\")"`
 }
 
 // CreateResourceInstanceResponse contains the newly created instance metadata.

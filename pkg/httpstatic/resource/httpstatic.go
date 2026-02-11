@@ -2,77 +2,71 @@ package resource
 
 import (
 	"context"
-	"net/http"
+	"io/fs"
+	"os"
 	"sort"
 	"sync"
 
 	// Packages
 	server "github.com/mutablelogic/go-server"
+	httpstatic "github.com/mutablelogic/go-server/pkg/httpstatic"
 	openapi "github.com/mutablelogic/go-server/pkg/openapi/schema"
 	provider "github.com/mutablelogic/go-server/pkg/provider"
 	schema "github.com/mutablelogic/go-server/pkg/provider/schema"
+	types "github.com/mutablelogic/go-server/pkg/types"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-// Resource describes an HTTP handler resource type. Each resource type is
-// created via [NewResource] with a unique name, a hard-coded path, the
-// handler function, and an optional OpenAPI spec. The handler is passive:
-// its [Apply] simply stores the configuration. The router pulls the handler
-// via the [server.HTTPHandler] interface during its own Apply.
+// Resource describes a static file server resource type. The Dir field
+// specifies the directory on disk to serve. The Path field determines the
+// URL path relative to the router prefix. Summary and Description are
+// surfaced via the OpenAPI specification.
 type Resource struct {
-	Middleware bool     `name:"middleware" help:"Whether the router middleware chain wraps this handler" default:"true"`
-	Endpoints  []string `name:"endpoints" readonly:"" help:"Full URL endpoints for this handler"`
-	name       string
-	fn         http.HandlerFunc
-	path       string
-	spec       *openapi.PathItem
+	Path        string   `name:"path" required:"" help:"URL path relative to the router prefix"`
+	Dir         string   `name:"dir" required:"" help:"Directory on disk to serve"`
+	Summary     string   `name:"summary" default:"" help:"Short summary for the OpenAPI spec"`
+	Description string   `name:"description" default:"" help:"Description for the OpenAPI spec"`
+	Endpoints   []string `name:"endpoints" readonly:"" help:"Full URL endpoints for this handler"`
 }
 
-// ResourceInstance is a live instance of an HTTP handler resource.
+// ResourceInstance is a live instance of a static file server resource.
 type ResourceInstance struct {
 	provider.ResourceInstance[Resource]
-	fn         http.HandlerFunc
-	path       string
-	spec       *openapi.PathItem
-	middleware bool
-	mu         sync.RWMutex
-	routers    map[string]schema.ResourceInstance // keyed by router instance name
+	static  server.HTTPFileServer
+	mu      sync.RWMutex
+	routers map[string]schema.ResourceInstance // keyed by router instance name
 }
 
-var _ schema.Resource = Resource{}
+var _ schema.Resource = (*Resource)(nil)
 var _ schema.ResourceInstance = (*ResourceInstance)(nil)
-var _ server.HTTPHandler = (*ResourceInstance)(nil)
+var _ server.HTTPFileServer = (*ResourceInstance)(nil)
+
+///////////////////////////////////////////////////////////////////////////////
+// GLOBALS
+
+const (
+	resourceType = "httpstatic"
+)
 
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-// NewResource creates a handler resource type with the given unique name,
-// path pattern (relative to the router prefix, e.g. "resource/{id}"),
-// handler function, and optional OpenAPI path-item spec.
-func NewResource(name, path string, fn http.HandlerFunc, spec *openapi.PathItem) Resource {
-	return Resource{name: name, fn: fn, path: path, spec: spec}
-}
-
 func (r Resource) New() (schema.ResourceInstance, error) {
 	return &ResourceInstance{
 		ResourceInstance: provider.NewResourceInstance[Resource](r),
-		fn:               r.fn,
-		path:             r.path,
-		spec:             r.spec,
-		middleware:       true,
 	}, nil
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS - RESOURCE
 
-func (r Resource) Name() string {
-	return r.name
+func (Resource) Name() string {
+	return resourceType
 }
 
-func (r Resource) Schema() []schema.Attribute {
+func (Resource) Schema() []schema.Attribute {
 	return schema.AttributesOf(Resource{})
 }
 
@@ -82,34 +76,22 @@ func (r Resource) Schema() []schema.Attribute {
 // Validate decodes the incoming state, resolves references, and returns
 // the validated *Resource configuration for use by Plan and Apply.
 func (r *ResourceInstance) Validate(ctx context.Context, state schema.State, resolve schema.Resolver) (any, error) {
-	return r.ResourceInstance.Validate(ctx, state, resolve)
-}
+	desired, err := r.ResourceInstance.Validate(ctx, state, resolve)
+	if err != nil {
+		return nil, err
+	}
 
-// HandlerPath returns the route path relative to the router prefix.
-func (r *ResourceInstance) HandlerPath() string {
-	return r.path
-}
+	// Normalise the path
+	desired.Path = types.NormalisePath(desired.Path)
 
-// HandlerFunc returns the captured HTTP handler function.
-func (r *ResourceInstance) HandlerFunc() http.HandlerFunc {
-	return r.fn
-}
-
-// HandlerMiddleware reports whether middleware should wrap this handler.
-func (r *ResourceInstance) HandlerMiddleware() bool {
-	return r.middleware
-}
-
-// HandlerSpec returns the OpenAPI path-item for this handler, or nil.
-func (r *ResourceInstance) Spec() *openapi.PathItem {
-	return r.spec
+	// Return the validated configuration
+	return desired, nil
 }
 
 // OnStateChange is called by the observer system when an instance
 // that references this handler has its state changed. If the source
 // is an httprouter, the reference is stored so [Read] can compute
-// the endpoints dynamically. Multiple routers can reference the
-// same handler, so they are stored in a map keyed by instance name.
+// the endpoints dynamically.
 func (r *ResourceInstance) OnStateChange(source schema.ResourceInstance) {
 	if source.Resource().Name() == "httprouter" {
 		r.mu.Lock()
@@ -145,8 +127,9 @@ func (r *ResourceInstance) Read(ctx context.Context) (schema.State, error) {
 	for _, rtr := range r.routers {
 		if rtrState, err := rtr.Read(ctx); err == nil && rtrState != nil {
 			if eps, ok := rtrState["endpoints"].([]string); ok {
+				path := r.HandlerPath()
 				for _, ep := range eps {
-					endpoints = append(endpoints, ep+"/"+r.path)
+					endpoints = append(endpoints, ep+"/"+path)
 				}
 			}
 		}
@@ -158,19 +141,47 @@ func (r *ResourceInstance) Read(ctx context.Context) (schema.State, error) {
 	return state, nil
 }
 
-// Apply stores the configuration. The actual route registration is
-// performed by the router during its own Apply.
+// Apply materialises the resource using the validated configuration.
+// It creates an [httpstatic.Static] backed by [os.DirFS] for the
+// configured directory.
 func (r *ResourceInstance) Apply(_ context.Context, v any) error {
 	c, err := r.ValidateConfig(v)
 	if err != nil {
 		return err
 	}
-	r.middleware = c.Middleware
+
+	// Create the static file server from the directory on disk
+	static, err := httpstatic.New(c.Path, os.DirFS(c.Dir), c.Summary, c.Description)
+	if err != nil {
+		return err
+	}
+	r.static = static
+
+	// Store the state and notify observers
 	r.SetStateAndNotify(c, r)
+
 	return nil
 }
 
 // Destroy is a no-op.
 func (r *ResourceInstance) Destroy(_ context.Context) error {
 	return nil
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS - HTTP HANDLER
+
+// HandlerPath returns the route path relative to the router prefix.
+func (r *ResourceInstance) HandlerPath() string {
+	return r.static.HandlerPath()
+}
+
+// HandlerFS returns the filesystem to serve.
+func (r *ResourceInstance) HandlerFS() fs.FS {
+	return r.static.HandlerFS()
+}
+
+// HandlerSpec returns the OpenAPI path-item for this handler, or nil.
+func (r *ResourceInstance) Spec() *openapi.PathItem {
+	return r.static.Spec()
 }
