@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	// Packages
@@ -41,8 +42,9 @@ type ResourceInstance struct {
 	provider.ResourceInstance[Resource]
 
 	// runtime state
-	cancel context.CancelFunc
-	wg     sync.WaitGroup
+	cancel     context.CancelFunc
+	wg         sync.WaitGroup
+	runtimeErr atomic.Pointer[error] // error from the background server goroutine
 }
 
 var _ schema.Resource = (*Resource)(nil)
@@ -208,12 +210,12 @@ func (r *ResourceInstance) Apply(ctx context.Context, v any) error {
 	// so the server outlives the HTTP request that triggered Apply.
 	srvCtx, cancel := context.WithCancel(context.Background())
 	r.cancel = cancel
+	r.runtimeErr.Store(nil)
 	r.wg.Add(1)
 	go func() {
 		defer r.wg.Done()
 		if err := srv.Run(srvCtx); err != nil && !errors.Is(err, context.Canceled) {
-			// TODO: surface runtime errors through the provider
-			_ = err
+			r.runtimeErr.Store(&err)
 		}
 	}()
 
@@ -228,6 +230,28 @@ func (r *ResourceInstance) Apply(ctx context.Context, v any) error {
 // cleanly removed.
 func (r *ResourceInstance) Destroy(_ context.Context) error {
 	return r.stop()
+}
+
+// RuntimeErr returns the error from the background server goroutine,
+// or nil if the server is running normally.
+func (r *ResourceInstance) RuntimeErr() error {
+	if p := r.runtimeErr.Load(); p != nil {
+		return *p
+	}
+	return nil
+}
+
+// Read returns the current state of the server instance. If the
+// background server has exited with an error, it is returned.
+func (r *ResourceInstance) Read(ctx context.Context) (schema.State, error) {
+	state, err := r.ResourceInstance.Read(ctx)
+	if err != nil {
+		return state, err
+	}
+	if runtimeErr := r.RuntimeErr(); runtimeErr != nil {
+		return state, runtimeErr
+	}
+	return state, nil
 }
 
 // stop cancels the running server and waits for it to exit.

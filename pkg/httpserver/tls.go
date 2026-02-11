@@ -47,8 +47,17 @@ func TLSConfig(name string, verify bool, data ...[]byte) (*tls.Config, error) {
 		return nil, err
 	}
 
-	// Return success
-	return &tls.Config{ServerName: name, InsecureSkipVerify: !verify, Certificates: []tls.Certificate{certificate}}, nil
+	// Build the TLS config. When verify is true, require and validate
+	// client certificates; otherwise accept any client.
+	clientAuth := tls.NoClientCert
+	if verify {
+		clientAuth = tls.RequireAndVerifyClientCert
+	}
+	return &tls.Config{
+		ServerName:   name,
+		ClientAuth:   clientAuth,
+		Certificates: []tls.Certificate{certificate},
+	}, nil
 }
 
 // ValidateCert checks that the given PEM-encoded certificate and key

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"sort"
 	"sync"
+	"sync/atomic"
 
 	// Packages
 	server "github.com/mutablelogic/go-server"
@@ -32,8 +33,8 @@ type Resource struct {
 
 type ResourceInstance struct {
 	provider.ResourceInstance[Resource]
-	router    *httprouter.Router
-	mu        sync.RWMutex
+	router    atomic.Pointer[httprouter.Router]
+	mu        sync.Mutex
 	endpoints map[string]openapi.Server // server instance name -> OpenAPI server entry
 }
 
@@ -157,7 +158,7 @@ func (r *ResourceInstance) Apply(ctx context.Context, v any) error {
 	}
 
 	// Store the router and the applied config, notify observers
-	r.router = router
+	r.router.Store(router)
 	r.SetStateAndNotify(c, r)
 
 	return nil
@@ -166,10 +167,11 @@ func (r *ResourceInstance) Apply(ctx context.Context, v any) error {
 // Spec returns the OpenAPI specification for this router, or nil if
 // the router has not been initialised yet.
 func (r *ResourceInstance) Spec() *openapi.Spec {
-	if r.router == nil {
+	router := r.router.Load()
+	if router == nil {
 		return nil
 	}
-	return r.router.Spec()
+	return router.Spec()
 }
 
 // OnStateChange is called by the observer system when an instance
@@ -209,7 +211,8 @@ func (r *ResourceInstance) OnStateRemove(source schema.ResourceInstance) {
 // syncServers rebuilds the OpenAPI spec's servers list from the
 // current endpoints map. Must be called with r.mu held.
 func (r *ResourceInstance) syncServers() {
-	if r.router == nil {
+	router := r.router.Load()
+	if router == nil {
 		return
 	}
 	c := r.State()
@@ -223,7 +226,7 @@ func (r *ResourceInstance) syncServers() {
 	sort.Slice(servers, func(i, j int) bool {
 		return servers[i].URL < servers[j].URL
 	})
-	r.router.Spec().SetServers(servers)
+	router.Spec().SetServers(servers)
 }
 
 // Read returns the live state of the router, including the endpoints
@@ -237,8 +240,8 @@ func (r *ResourceInstance) Read(_ context.Context) (schema.State, error) {
 	if c == nil {
 		return state, nil
 	}
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if len(r.endpoints) > 0 {
 		endpoints := make([]string, 0, len(r.endpoints))
 		for _, srv := range r.endpoints {
@@ -253,8 +256,8 @@ func (r *ResourceInstance) Read(_ context.Context) (schema.State, error) {
 // ServeHTTP delegates to the underlying router. This allows the
 // resource instance to be used as an [http.Handler] by the httpserver.
 func (r *ResourceInstance) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	if r.router != nil {
-		r.router.ServeHTTP(w, req)
+	if router := r.router.Load(); router != nil {
+		router.ServeHTTP(w, req)
 	} else {
 		httpresponse.Error(w, httpresponse.ErrServiceUnavailable.With("router not initialised"))
 	}
@@ -264,6 +267,6 @@ func (r *ResourceInstance) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 // infrastructure. It returns an error if the resource cannot be
 // cleanly removed.
 func (r *ResourceInstance) Destroy(_ context.Context) error {
-	r.router = nil
+	r.router.Store(nil)
 	return nil
 }

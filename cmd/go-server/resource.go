@@ -180,17 +180,19 @@ func (cmd *OpenAPICommand) Run(ctx *Globals) (err error) {
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-// parseValue attempts to interpret a string as JSON (arrays, objects,
-// numbers, booleans, null). If it isn't valid JSON, the original
-// string is returned as-is.
+// parseValue attempts to interpret a string as a JSON value (arrays,
+// objects, numbers, booleans, null). If it isn't valid JSON or is a
+// JSON string, the original string is returned as-is.
 func parseValue(s string) any {
 	if len(s) == 0 {
 		return s
 	}
-	switch s[0] {
-	case '[', '{':
-		var v any
-		if json.Unmarshal([]byte(s), &v) == nil {
+	var v any
+	if json.Unmarshal([]byte(s), &v) == nil {
+		// Only use the parsed value when it is NOT a string —
+		// bare strings should stay as Go strings, not go through
+		// JSON round-tripping.
+		if _, isStr := v.(string); !isStr {
 			return v
 		}
 	}

@@ -267,21 +267,21 @@ func Test_TLSConfig_006(t *testing.T) {
 func Test_TLSConfig_007(t *testing.T) {
 	assert := assert.New(t)
 
-	// verify=true sets InsecureSkipVerify=false
+	// verify=true sets ClientAuth=RequireAndVerifyClientCert
 	certPEM, keyPEM := selfSignedPEM(t)
 	cfg, err := httpserver.TLSConfig("localhost", true, certPEM, keyPEM)
 	assert.NoError(err)
-	assert.False(cfg.InsecureSkipVerify)
+	assert.Equal(tls.RequireAndVerifyClientCert, cfg.ClientAuth)
 }
 
 func Test_TLSConfig_008(t *testing.T) {
 	assert := assert.New(t)
 
-	// verify=false sets InsecureSkipVerify=true
+	// verify=false sets ClientAuth=NoClientCert
 	certPEM, keyPEM := selfSignedPEM(t)
 	cfg, err := httpserver.TLSConfig("localhost", false, certPEM, keyPEM)
 	assert.NoError(err)
-	assert.True(cfg.InsecureSkipVerify)
+	assert.Equal(tls.NoClientCert, cfg.ClientAuth)
 }
 
 ///////////////////////////////////////////////////////////////////////////////

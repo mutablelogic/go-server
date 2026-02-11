@@ -61,7 +61,9 @@ func HTTPHandlerFunc(tracer trace.Tracer) func(http.HandlerFunc) http.HandlerFun
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE TYPES
 
-// statusWriter wraps http.ResponseWriter to capture the status code
+// statusWriter wraps http.ResponseWriter to capture the status code.
+// It implements [http.Flusher] and Unwrap so that downstream middleware
+// (such as the logger) and streaming responses (SSE) work correctly.
 type statusWriter struct {
 	http.ResponseWriter
 	status int
@@ -70,4 +72,18 @@ type statusWriter struct {
 func (w *statusWriter) WriteHeader(code int) {
 	w.status = code
 	w.ResponseWriter.WriteHeader(code)
+}
+
+// Unwrap returns the underlying [http.ResponseWriter], allowing
+// [http.ResponseController] and type assertions to reach it.
+func (w *statusWriter) Unwrap() http.ResponseWriter {
+	return w.ResponseWriter
+}
+
+// Flush sends any buffered data to the client. It delegates to the
+// underlying writer when it implements [http.Flusher].
+func (w *statusWriter) Flush() {
+	if f, ok := w.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
 }

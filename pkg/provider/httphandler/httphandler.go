@@ -6,7 +6,6 @@ import (
 	// Packages
 	httprequest "github.com/mutablelogic/go-server/pkg/httprequest"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
-	httprouter "github.com/mutablelogic/go-server/pkg/httprouter"
 	openapi "github.com/mutablelogic/go-server/pkg/openapi/schema"
 	provider "github.com/mutablelogic/go-server/pkg/provider"
 	schema "github.com/mutablelogic/go-server/pkg/provider/schema"
@@ -121,26 +120,4 @@ func ResourceInstanceSpec() *openapi.PathItem {
 			Description: "Destroy a resource instance",
 		},
 	})
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// LEGACY
-
-// RegisterHandlers registers HTTP handlers for provider operations on the
-// given router under the given prefix.
-func RegisterHandlers(router *httprouter.Router, prefix string, middleware bool, manager *provider.Manager) error {
-	if err := router.RegisterFunc(
-		types.JoinPath(prefix, "resource"),
-		ResourceListHandler(manager),
-		middleware,
-		ResourceListSpec(),
-	); err != nil {
-		return err
-	}
-	return router.RegisterFunc(
-		types.JoinPath(prefix, "resource/{id}"),
-		ResourceInstanceHandler(manager),
-		middleware,
-		ResourceInstanceSpec(),
-	)
 }
