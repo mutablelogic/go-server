@@ -318,8 +318,14 @@ func (m *Manager) CreateResourceInstance(ctx context.Context, req schema.CreateR
 		return nil, err
 	}
 
+	// Split name into resource and label
+	parts := strings.SplitN(req.Name, ".", 2)
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return nil, httpresponse.ErrBadRequest.Withf("invalid instance name %q: expected resource.label", req.Name)
+	}
+
 	// Create and register the instance (newInstance stores it in m.instances)
-	inst, err := m.newInstance(req.Resource, req.Label)
+	inst, err := m.newInstance(parts[0], parts[1])
 	if err != nil {
 		return nil, err
 	}

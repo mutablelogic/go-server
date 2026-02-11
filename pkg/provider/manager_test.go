@@ -731,8 +731,7 @@ func Test_Manager_Create_001(t *testing.T) {
 	assert.NoError(mgr.RegisterResource(&mockResource{name: "node"}))
 
 	resp, err := mgr.CreateResourceInstance(context.Background(), schema.CreateResourceInstanceRequest{
-		Resource: "node",
-		Label:    "x",
+		Name: "node.x",
 	})
 	assert.NoError(err)
 	assert.Equal("node", resp.Instance.Resource)
@@ -747,8 +746,7 @@ func Test_Manager_Create_002(t *testing.T) {
 	assert.NoError(err)
 
 	_, err = mgr.CreateResourceInstance(context.Background(), schema.CreateResourceInstanceRequest{
-		Resource: "nosuch",
-		Label:    "x",
+		Name: "nosuch.x",
 	})
 	assert.Error(err)
 }
