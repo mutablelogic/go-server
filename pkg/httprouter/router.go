@@ -103,25 +103,37 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	r.handler.ServeHTTP(w, req)
 }
 
+// safeHandle registers a handler with the router's ServeMux, recovering from
+// panics caused by duplicate patterns. Returns an error instead of panicking.
+func (r *Router) safeHandle(pattern string, handler http.HandlerFunc) (err error) {
+	defer func() {
+		if v := recover(); v != nil {
+			err = httpresponse.ErrConflict.Withf("%v", v)
+		}
+	}()
+	r.mux.HandleFunc(pattern, handler)
+	return nil
+}
+
 // RegisterNotFound registers a catch-all handler at path that responds with
 // 404 Not Found. It is typically registered at "/" so that any request that
 // does not match a more specific route receives a structured error response.
 // When middleware is true the handler is wrapped by the router's middleware chain.
-func (r *Router) RegisterNotFound(path string, middleware bool) {
+func (r *Router) RegisterNotFound(path string, middleware bool) error {
 	handler := func(w http.ResponseWriter, req *http.Request) {
 		_ = httpresponse.Error(w, httpresponse.ErrNotFound, req.RequestURI)
 	}
 	if middleware {
 		handler = r.middleware.Wrap(handler)
 	}
-	r.mux.HandleFunc(types.JoinPath(r.prefix, path), handler)
+	return r.safeHandle(types.JoinPath(r.prefix, path), handler)
 }
 
 // RegisterOpenAPI registers a handler at path that serves the router's
 // [openapi.Spec] as JSON on GET requests and returns 405 Method Not Allowed
 // for all other HTTP methods. When middleware is true the handler is wrapped
 // by the router's middleware chain.
-func (r *Router) RegisterOpenAPI(path string, middleware bool) {
+func (r *Router) RegisterOpenAPI(path string, middleware bool) error {
 	handler := func(w http.ResponseWriter, req *http.Request) {
 		switch req.Method {
 		case http.MethodGet:
@@ -133,7 +145,7 @@ func (r *Router) RegisterOpenAPI(path string, middleware bool) {
 	if middleware {
 		handler = r.middleware.Wrap(handler)
 	}
-	r.mux.HandleFunc(types.JoinPath(r.prefix, path), handler)
+	return r.safeHandle(types.JoinPath(r.prefix, path), handler)
 }
 
 // RegisterFS registers a file server at path that serves static assets from
@@ -145,7 +157,7 @@ func (r *Router) RegisterOpenAPI(path string, middleware bool) {
 // When spec is non-nil the corresponding [openapi.PathItem] is added to the
 // router's OpenAPI specification under the resolved path. When middleware is
 // true the handler is wrapped by the router's middleware chain.
-func (r *Router) RegisterFS(path string, fs fs.FS, middleware bool, spec *openapi.PathItem) {
+func (r *Router) RegisterFS(path string, fs fs.FS, middleware bool, spec *openapi.PathItem) error {
 	prefix := types.JoinPath(r.prefix, path)
 	if prefix != "/" {
 		prefix += "/"
@@ -157,7 +169,7 @@ func (r *Router) RegisterFS(path string, fs fs.FS, middleware bool, spec *openap
 	if middleware {
 		handler = r.middleware.Wrap(handler)
 	}
-	r.mux.HandleFunc(prefix, handler)
+	return r.safeHandle(prefix, handler)
 }
 
 // RegisterFunc registers handler at path. The path should not include an HTTP
@@ -167,7 +179,7 @@ func (r *Router) RegisterFS(path string, fs fs.FS, middleware bool, spec *openap
 // When spec is non-nil the corresponding [openapi.PathItem] is added to the
 // router's OpenAPI specification under the resolved path. When middleware is
 // true the handler is wrapped by the router's middleware chain.
-func (r *Router) RegisterFunc(path string, handler http.HandlerFunc, middleware bool, spec *openapi.PathItem) {
+func (r *Router) RegisterFunc(path string, handler http.HandlerFunc, middleware bool, spec *openapi.PathItem) error {
 	// OpenAPI spec is optional, but if provided, add the path to the spec
 	path = types.JoinPath(r.prefix, path)
 	if spec != nil {
@@ -180,5 +192,5 @@ func (r *Router) RegisterFunc(path string, handler http.HandlerFunc, middleware 
 	}
 
 	// Register the handler
-	r.mux.HandleFunc(path, handler)
+	return r.safeHandle(path, handler)
 }

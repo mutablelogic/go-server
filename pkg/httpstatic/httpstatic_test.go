@@ -59,15 +59,11 @@ func Test_HandlerSpec_001(t *testing.T) {
 	assert.NoError(err)
 	spec := h.Spec()
 	assert.NotNil(spec)
-	assert.NotNil(spec.Summary)
-	assert.Equal("Documentation", *spec.Summary)
-	assert.NotNil(spec.Description)
-	assert.Equal("Serve documentation files", *spec.Description)
+	assert.Equal("Documentation", spec.Summary)
+	assert.Equal("Serve documentation files", spec.Description)
 	assert.NotNil(spec.Get)
-	assert.NotNil(spec.Get.Summary)
-	assert.Equal("Documentation", *spec.Get.Summary)
-	assert.NotNil(spec.Get.Description)
-	assert.Equal("Serve documentation files", *spec.Get.Description)
+	assert.Equal("Documentation", spec.Get.Summary)
+	assert.Equal("Serve documentation files", spec.Get.Description)
 }
 
 func Test_HandlerSpec_002(t *testing.T) {
@@ -76,7 +72,9 @@ func Test_HandlerSpec_002(t *testing.T) {
 	assert.NoError(err)
 	spec := h.Spec()
 	assert.NotNil(spec)
-	assert.NotNil(spec.Summary)
-	assert.Equal("", *spec.Summary)
+	assert.Empty(spec.Summary)
+	assert.Empty(spec.Description)
 	assert.NotNil(spec.Get)
+	assert.Empty(spec.Get.Summary)
+	assert.Empty(spec.Get.Description)
 }

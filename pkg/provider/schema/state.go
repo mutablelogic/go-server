@@ -41,7 +41,42 @@ func (s State) Decode(v any, resolve Resolver) error {
 	if rv.Kind() != reflect.Ptr || rv.Elem().Kind() != reflect.Struct {
 		return fmt.Errorf("Decode: expected pointer to struct, got %T", v)
 	}
-	return decodeStruct(s, rv.Elem(), "", resolve)
+	if err := decodeStruct(s, rv.Elem(), "", resolve); err != nil {
+		return err
+	}
+	// Reject unknown keys
+	known := knownFields(rv.Elem().Type(), "")
+	for key := range s {
+		if !known[key] {
+			return fmt.Errorf("Decode: unknown attribute %q", key)
+		}
+	}
+	return nil
+}
+
+// knownFields collects all valid state-map keys for a struct type,
+// respecting name tags, embedded structs with prefixes, and name:"-".
+func knownFields(t reflect.Type, prefix string) map[string]bool {
+	m := make(map[string]bool)
+	for i := range t.NumField() {
+		field := t.Field(i)
+		if !field.IsExported() {
+			continue
+		}
+		if field.Type.Kind() == reflect.Struct && hasTag(field.Tag, "embed") {
+			childPrefix := prefix + field.Tag.Get("prefix")
+			for k, v := range knownFields(field.Type, childPrefix) {
+				m[k] = v
+			}
+			continue
+		}
+		name, hasName := field.Tag.Lookup("name")
+		if !hasName || name == "-" {
+			continue
+		}
+		m[prefix+name] = true
+	}
+	return m
 }
 
 // StateOf uses reflection to extract the current field values from a struct
@@ -67,10 +102,33 @@ func StateOf(resource any) State {
 	return s
 }
 
+// WritableStateOf is like [StateOf] but excludes readonly fields.
+// It is intended for plan diffs where computed values should not appear.
+func WritableStateOf(resource any) State {
+	rv := reflect.ValueOf(resource)
+	if rv.Kind() == reflect.Ptr {
+		rv = rv.Elem()
+	}
+	if rv.Kind() != reflect.Struct {
+		return nil
+	}
+	s := make(State)
+	writableStructState(rv, "", s)
+	return s
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
 func structState(rv reflect.Value, prefix string, s State) {
+	collectState(rv, prefix, s, false)
+}
+
+func writableStructState(rv reflect.Value, prefix string, s State) {
+	collectState(rv, prefix, s, true)
+}
+
+func collectState(rv reflect.Value, prefix string, s State, skipReadOnly bool) {
 	t := rv.Type()
 	for i := range t.NumField() {
 		field := t.Field(i)
@@ -80,10 +138,15 @@ func structState(rv reflect.Value, prefix string, s State) {
 			continue
 		}
 
+		// Skip readonly fields when building writable state
+		if skipReadOnly && hasTag(field.Tag, "readonly") {
+			continue
+		}
+
 		// Handle structs with embed:"" tag — flatten with prefix
 		if field.Type.Kind() == reflect.Struct && hasTag(field.Tag, "embed") {
 			childPrefix := prefix + field.Tag.Get("prefix")
-			structState(rv.Field(i), childPrefix, s)
+			collectState(rv.Field(i), childPrefix, s, skipReadOnly)
 			continue
 		}
 

@@ -55,7 +55,7 @@ func Test_RegisterNotFound_001(t *testing.T) {
 
 	router, err := NewRouter(context.Background(), "/", "", "Test API", "1.0.0")
 	assert.NoError(err)
-	router.RegisterNotFound("/", false)
+	assert.NoError(router.RegisterNotFound("/", false))
 
 	// Request a path that doesn't match any specific handler
 	req := httptest.NewRequest(http.MethodGet, "/unknown-path", nil)
@@ -70,7 +70,7 @@ func Test_RegisterOpenAPI_001(t *testing.T) {
 
 	router, err := NewRouter(context.Background(), "/", "", "Test API", "1.0.0")
 	assert.NoError(err)
-	router.RegisterOpenAPI("/api/v1", false)
+	assert.NoError(router.RegisterOpenAPI("/api/v1", false))
 
 	// GET should return the OpenAPI spec as JSON
 	req := httptest.NewRequest(http.MethodGet, "/api/v1", nil)
@@ -97,7 +97,7 @@ func Test_RegisterOpenAPI_002(t *testing.T) {
 
 	router, err := NewRouter(context.Background(), "/", "", "Test API", "1.0.0")
 	assert.NoError(err)
-	router.RegisterOpenAPI("/api/v1", false)
+	assert.NoError(router.RegisterOpenAPI("/api/v1", false))
 
 	// POST should return method not allowed
 	req := httptest.NewRequest(http.MethodPost, "/api/v1", nil)
@@ -119,7 +119,7 @@ func Test_RegisterFS_001(t *testing.T) {
 			Data: []byte("Hello"),
 		},
 	}
-	router.RegisterFS("/", fs.FS(fsys), false, nil)
+	assert.NoError(router.RegisterFS("/", fs.FS(fsys), false, nil))
 
 	// Request the file from the root-served filesystem
 	req := httptest.NewRequest(http.MethodGet, "/test.txt", nil)
@@ -137,10 +137,10 @@ func Test_RegisterFunc_001(t *testing.T) {
 	assert.NoError(err)
 
 	// Register a custom handler
-	router.RegisterFunc("/hello", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	assert.NoError(router.RegisterFunc("/hello", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("hello world"))
-	}), false, nil)
+	}), false, nil))
 
 	// Request the handler
 	req := httptest.NewRequest(http.MethodGet, "/hello", nil)
@@ -166,9 +166,9 @@ func Test_RegisterFunc_002(t *testing.T) {
 	assert.NoError(err)
 
 	// Register a handler with middleware enabled
-	router.RegisterFunc("/hello", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	assert.NoError(router.RegisterFunc("/hello", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-	}), true, nil)
+	}), true, nil))
 
 	req := httptest.NewRequest(http.MethodGet, "/hello", nil)
 	rec := httptest.NewRecorder()
@@ -186,10 +186,10 @@ func Test_RegisterFunc_003(t *testing.T) {
 	assert.NoError(err)
 
 	// Register a handler under the prefix
-	router.RegisterFunc("/items", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	assert.NoError(router.RegisterFunc("/items", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("items"))
-	}), false, nil)
+	}), false, nil))
 
 	// Request using the full prefixed path
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/items", nil)

@@ -383,14 +383,28 @@ func (m *Manager) UpdateResourceInstance(ctx context.Context, name string, req s
 		return nil, ErrConflict.Withf("cannot update %q: instance is read-only", name)
 	}
 
+	// Merge incoming attributes on top of current state so that
+	// unspecified fields retain their applied values.
+	attrs := req.Attributes
+	if current, err := inst.instance.Read(ctx); err == nil && current != nil {
+		merged := make(schema.State, len(current))
+		for k, v := range current {
+			merged[k] = v
+		}
+		for k, v := range attrs {
+			merged[k] = v
+		}
+		attrs = merged
+	}
+
 	// Validate before planning/applying — returns the decoded config
-	config, err := inst.instance.Validate(ctx, req.Attributes, m.resolver())
+	config, err := inst.instance.Validate(ctx, attrs, m.resolver())
 	if err != nil {
 		return nil, fmt.Errorf("instance %q: validate: %w", name, err)
 	}
 
 	// Reject circular dependencies
-	if err := m.checkCycles(name, inst.instance.Resource().Schema(), req.Attributes); err != nil {
+	if err := m.checkCycles(name, inst.instance.Resource().Schema(), attrs); err != nil {
 		return nil, err
 	}
 

@@ -44,11 +44,10 @@ func mockResolver() schema.Resolver {
 // validState returns a minimal valid State for an httprouter resource.
 func validState() schema.State {
 	return schema.State{
-		"prefix":   "/",
-		"title":    "Test API",
-		"version":  "1.0.0",
-		"notfound": true,
-		"openapi":  true,
+		"prefix":  "/",
+		"title":   "Test API",
+		"version": "1.0.0",
+		"openapi": true,
 	}
 }
 
@@ -77,13 +76,13 @@ func Test_Resource_002(t *testing.T) {
 	assert := assert.New(t)
 	var r resource.Resource
 	attrs := r.Schema()
-	assert.Len(attrs, 9)
+	assert.Len(attrs, 8)
 
 	names := make(map[string]bool, len(attrs))
 	for _, a := range attrs {
 		names[a.Name] = true
 	}
-	for _, want := range []string{"prefix", "origin", "title", "version", "endpoints", "notfound", "openapi", "middleware", "handlers"} {
+	for _, want := range []string{"prefix", "origin", "title", "version", "endpoints", "openapi", "middleware", "handlers"} {
 		assert.True(names[want], "missing attribute %q", want)
 	}
 }
@@ -214,11 +213,10 @@ func Test_Plan_002(t *testing.T) {
 	assert := assert.New(t)
 	inst := newInstance(t)
 	config := &resource.Resource{
-		Prefix:   "/",
-		Title:    "Test",
-		Version:  "1.0.0",
-		NotFound: true,
-		OpenAPI:  true,
+		Prefix:  "/",
+		Title:   "Test",
+		Version: "1.0.0",
+		OpenAPI: true,
 	}
 	assert.NoError(inst.Apply(context.Background(), config))
 
@@ -233,20 +231,18 @@ func Test_Plan_003(t *testing.T) {
 	assert := assert.New(t)
 	inst := newInstance(t)
 	old := &resource.Resource{
-		Prefix:   "/",
-		Title:    "Old Title",
-		Version:  "1.0.0",
-		NotFound: true,
-		OpenAPI:  true,
+		Prefix:  "/",
+		Title:   "Old Title",
+		Version: "1.0.0",
+		OpenAPI: true,
 	}
 	assert.NoError(inst.Apply(context.Background(), old))
 
 	updated := &resource.Resource{
-		Prefix:   "/",
-		Title:    "New Title",
-		Version:  "1.0.0",
-		NotFound: true,
-		OpenAPI:  true,
+		Prefix:  "/",
+		Title:   "New Title",
+		Version: "1.0.0",
+		OpenAPI: true,
 	}
 	plan, err := inst.Plan(context.Background(), updated)
 	assert.NoError(err)
@@ -285,11 +281,10 @@ func Test_Apply_001(t *testing.T) {
 	assert := assert.New(t)
 	inst := newInstance(t)
 	config := &resource.Resource{
-		Prefix:   "/",
-		Title:    "Test",
-		Version:  "1.0.0",
-		NotFound: true,
-		OpenAPI:  true,
+		Prefix:  "/",
+		Title:   "Test",
+		Version: "1.0.0",
+		OpenAPI: true,
 	}
 	assert.NoError(inst.Apply(context.Background(), config))
 }
@@ -299,11 +294,10 @@ func Test_Apply_002(t *testing.T) {
 	assert := assert.New(t)
 	inst := newInstance(t)
 	config := &resource.Resource{
-		Prefix:   "/",
-		Title:    "Test",
-		Version:  "1.0.0",
-		NotFound: true,
-		OpenAPI:  true,
+		Prefix:  "/",
+		Title:   "Test",
+		Version: "1.0.0",
+		OpenAPI: true,
 	}
 	assert.NoError(inst.Apply(context.Background(), config))
 	assert.NoError(inst.Apply(context.Background(), config))
@@ -334,15 +328,14 @@ func Test_ServeHTTP_001(t *testing.T) {
 }
 
 func Test_ServeHTTP_002(t *testing.T) {
-	// After Apply with NotFound enabled, unknown path returns JSON 404
+	// After Apply, unknown path returns JSON 404
 	assert := assert.New(t)
 	inst := newInstance(t)
 	config := &resource.Resource{
-		Prefix:   "/",
-		Title:    "Test",
-		Version:  "1.0.0",
-		NotFound: true,
-		OpenAPI:  true,
+		Prefix:  "/",
+		Title:   "Test",
+		Version: "1.0.0",
+		OpenAPI: true,
 	}
 	assert.NoError(inst.Apply(context.Background(), config))
 
@@ -359,11 +352,10 @@ func Test_ServeHTTP_003(t *testing.T) {
 	assert := assert.New(t)
 	inst := newInstance(t)
 	config := &resource.Resource{
-		Prefix:   "/",
-		Title:    "My API",
-		Version:  "2.0.0",
-		NotFound: true,
-		OpenAPI:  true,
+		Prefix:  "/",
+		Title:   "My API",
+		Version: "2.0.0",
+		OpenAPI: true,
 	}
 	assert.NoError(inst.Apply(context.Background(), config))
 
@@ -386,11 +378,10 @@ func Test_ServeHTTP_004(t *testing.T) {
 	assert := assert.New(t)
 	inst := newInstance(t)
 	config := &resource.Resource{
-		Prefix:   "/",
-		Title:    "Test",
-		Version:  "1.0.0",
-		NotFound: true,
-		OpenAPI:  false,
+		Prefix:  "/",
+		Title:   "Test",
+		Version: "1.0.0",
+		OpenAPI: false,
 	}
 	assert.NoError(inst.Apply(context.Background(), config))
 
@@ -402,15 +393,14 @@ func Test_ServeHTTP_004(t *testing.T) {
 }
 
 func Test_ServeHTTP_005(t *testing.T) {
-	// With NotFound disabled, unknown paths return the default Go 404
+	// Unknown paths return JSON 404 from the default handler
 	assert := assert.New(t)
 	inst := newInstance(t)
 	config := &resource.Resource{
-		Prefix:   "/",
-		Title:    "Test",
-		Version:  "1.0.0",
-		NotFound: false,
-		OpenAPI:  false,
+		Prefix:  "/",
+		Title:   "Test",
+		Version: "1.0.0",
+		OpenAPI: false,
 	}
 	assert.NoError(inst.Apply(context.Background(), config))
 
@@ -436,11 +426,10 @@ func Test_Destroy_002(t *testing.T) {
 	assert := assert.New(t)
 	inst := newInstance(t)
 	config := &resource.Resource{
-		Prefix:   "/",
-		Title:    "Test",
-		Version:  "1.0.0",
-		NotFound: true,
-		OpenAPI:  true,
+		Prefix:  "/",
+		Title:   "Test",
+		Version: "1.0.0",
+		OpenAPI: true,
 	}
 	assert.NoError(inst.Apply(context.Background(), config))
 	assert.NoError(inst.Destroy(context.Background()))
@@ -467,11 +456,10 @@ func Test_References_002(t *testing.T) {
 	assert := assert.New(t)
 	inst := newInstance(t)
 	config := &resource.Resource{
-		Prefix:   "/",
-		Title:    "Test",
-		Version:  "1.0.0",
-		NotFound: true,
-		OpenAPI:  true,
+		Prefix:  "/",
+		Title:   "Test",
+		Version: "1.0.0",
+		OpenAPI: true,
 	}
 	assert.NoError(inst.Apply(context.Background(), config))
 	assert.Nil(inst.References())

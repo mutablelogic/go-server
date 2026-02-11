@@ -30,7 +30,7 @@ type ListResourcesCommand struct {
 }
 
 type CreateResourceInstanceCommand struct {
-	schema.CreateResourceInstanceRequest
+	Names []string `arg:"" help:"Instance names as resource.label (e.g. \"httpserver.main httprouter.files\")"`
 }
 
 type GetResourceInstanceCommand struct {
@@ -38,8 +38,9 @@ type GetResourceInstanceCommand struct {
 }
 
 type UpdateResourceInstanceCommand struct {
-	Name  string            `arg:"" help:"Instance name (e.g. \"httpserver.main\")"` // instance name
+	Name  string            `arg:"" help:"Instance name (e.g. \"httpserver.main\")"`
 	Set   map[string]string `flag:"" help:"Set attribute values (e.g. --set port=8080)." optional:""`
+	Del   []string          `flag:"" help:"Delete attributes (e.g. --del title)." optional:""`
 	Apply bool              `flag:"" help:"Apply the planned changes." default:"false"`
 }
 
@@ -88,14 +89,24 @@ func (cmd *CreateResourceInstanceCommand) Run(ctx *Globals) (err error) {
 		return err
 	}
 
-	// Get resources
-	result, err := client.CreateResourceInstance(ctx.ctx, cmd.CreateResourceInstanceRequest)
-	if err != nil {
-		return err
+	// Create each instance; on error, destroy the ones already created
+	var created []schema.CreateResourceInstanceResponse
+	for _, name := range cmd.Names {
+		result, err := client.CreateResourceInstance(ctx.ctx, schema.CreateResourceInstanceRequest{Name: name})
+		if err != nil {
+			// Roll back: destroy in reverse order
+			for i := len(created) - 1; i >= 0; i-- {
+				_, _ = client.DestroyResourceInstance(ctx.ctx, created[i].Instance.Name, false)
+			}
+			return err
+		}
+		created = append(created, *result)
 	}
 
-	// Print result
-	fmt.Println(result)
+	// Print results
+	for _, r := range created {
+		fmt.Println(r)
+	}
 	return nil
 }
 
@@ -120,12 +131,15 @@ func (cmd *UpdateResourceInstanceCommand) Run(ctx *Globals) (err error) {
 		return err
 	}
 
-	// Build attributes from --set flags
+	// Build attributes from --set and --del flags
 	var attrs schema.State
-	if len(cmd.Set) > 0 {
-		attrs = make(schema.State, len(cmd.Set))
+	if len(cmd.Set) > 0 || len(cmd.Del) > 0 {
+		attrs = make(schema.State, len(cmd.Set)+len(cmd.Del))
 		for k, v := range cmd.Set {
-			attrs[k] = v
+			attrs[k] = parseValue(v)
+		}
+		for _, k := range cmd.Del {
+			attrs[k] = nil
 		}
 	}
 
@@ -161,4 +175,24 @@ func (cmd *OpenAPICommand) Run(ctx *Globals) (err error) {
 	}
 	fmt.Println(string(indented))
 	return nil
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+// parseValue attempts to interpret a string as JSON (arrays, objects,
+// numbers, booleans, null). If it isn't valid JSON, the original
+// string is returned as-is.
+func parseValue(s string) any {
+	if len(s) == 0 {
+		return s
+	}
+	switch s[0] {
+	case '[', '{':
+		var v any
+		if json.Unmarshal([]byte(s), &v) == nil {
+			return v
+		}
+	}
+	return s
 }

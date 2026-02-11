@@ -55,10 +55,10 @@ func ResourceListHandler(manager *provider.Manager) http.HandlerFunc {
 func ResourceListSpec() *openapi.PathItem {
 	return types.Ptr(openapi.PathItem{
 		Get: &openapi.Operation{
-			Description: types.Ptr("List resource types, or instances when ?resource= is set"),
+			Description: "List resource types, or instances when ?resource= is set",
 		},
 		Post: &openapi.Operation{
-			Description: types.Ptr("Create a new resource instance of the specified type"),
+			Description: "Create a new resource instance of the specified type",
 		},
 	})
 }
@@ -112,13 +112,13 @@ func ResourceInstanceHandler(manager *provider.Manager) http.HandlerFunc {
 func ResourceInstanceSpec() *openapi.PathItem {
 	return types.Ptr(openapi.PathItem{
 		Get: &openapi.Operation{
-			Description: types.Ptr("Get a resource instance by ID"),
+			Description: "Get a resource instance by ID",
 		},
 		Patch: &openapi.Operation{
-			Description: types.Ptr("Plan or apply changes to a resource instance"),
+			Description: "Plan or apply changes to a resource instance",
 		},
 		Delete: &openapi.Operation{
-			Description: types.Ptr("Destroy a resource instance"),
+			Description: "Destroy a resource instance",
 		},
 	})
 }
@@ -128,14 +128,16 @@ func ResourceInstanceSpec() *openapi.PathItem {
 
 // RegisterHandlers registers HTTP handlers for provider operations on the
 // given router under the given prefix.
-func RegisterHandlers(router *httprouter.Router, prefix string, middleware bool, manager *provider.Manager) {
-	router.RegisterFunc(
+func RegisterHandlers(router *httprouter.Router, prefix string, middleware bool, manager *provider.Manager) error {
+	if err := router.RegisterFunc(
 		types.JoinPath(prefix, "resource"),
 		ResourceListHandler(manager),
 		middleware,
 		ResourceListSpec(),
-	)
-	router.RegisterFunc(
+	); err != nil {
+		return err
+	}
+	return router.RegisterFunc(
 		types.JoinPath(prefix, "resource/{id}"),
 		ResourceInstanceHandler(manager),
 		middleware,

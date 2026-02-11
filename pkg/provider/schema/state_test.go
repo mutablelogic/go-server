@@ -121,7 +121,7 @@ func Test_Decode_010(t *testing.T) {
 		Hidden  string `name:"-"`
 		Visible string `name:"visible"`
 	}
-	state := schema.State{"visible": "yes", "-": "no"}
+	state := schema.State{"visible": "yes"}
 	var v withSkip
 	assert.NoError(state.Decode(&v, nil))
 	assert.Equal("yes", v.Visible)
@@ -262,7 +262,7 @@ func Test_Decode_019(t *testing.T) {
 		hidden  string `name:"hidden"`
 		Visible string `name:"visible"`
 	}
-	state := schema.State{"visible": "yes", "hidden": "no"}
+	state := schema.State{"visible": "yes"}
 	var v withUnexported
 	assert.NoError(state.Decode(&v, nil))
 	assert.Equal("yes", v.Visible)

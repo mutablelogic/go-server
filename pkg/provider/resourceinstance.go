@@ -173,13 +173,17 @@ func (b *ResourceInstance[C]) Plan(_ context.Context, v any) (schema.Plan, error
 	if !ok {
 		return schema.Plan{}, httpresponse.ErrInternalError.With("plan: unexpected config type")
 	}
-	newState := schema.StateOf(desired)
+	newState := schema.WritableStateOf(desired)
 
 	// No current config means this is a new resource
 	current := b.state.Load()
 	if current == nil {
 		changes := make([]schema.Change, 0, len(newState))
 		for field, val := range newState {
+			// Skip fields that are nil — nil→nil is not a real change
+			if isNil(val) {
+				continue
+			}
 			changes = append(changes, schema.Change{
 				Field: field,
 				New:   val,
@@ -189,7 +193,7 @@ func (b *ResourceInstance[C]) Plan(_ context.Context, v any) (schema.Plan, error
 	}
 
 	// Compare each desired field against the current state
-	oldState := schema.StateOf(current)
+	oldState := schema.WritableStateOf(current)
 	var changes []schema.Change
 	for field, newVal := range newState {
 		oldVal := oldState[field]
@@ -227,4 +231,17 @@ func (b *ResourceInstance[C]) References() []string {
 		return nil
 	}
 	return schema.ReferencesOf(*current)
+}
+
+// isNil reports whether v is nil, including typed nils (e.g. []byte(nil)).
+func isNil(v any) bool {
+	if v == nil {
+		return true
+	}
+	rv := reflect.ValueOf(v)
+	switch rv.Kind() {
+	case reflect.Ptr, reflect.Interface, reflect.Slice, reflect.Map, reflect.Chan, reflect.Func:
+		return rv.IsNil()
+	}
+	return false
 }

@@ -46,11 +46,11 @@ func (h *httpstatic) HandlerFS() fs.FS {
 
 func (h *httpstatic) Spec() *openapi.PathItem {
 	return &openapi.PathItem{
-		Summary:     types.Ptr(h.summary),
-		Description: types.Ptr(h.description),
+		Summary:     h.summary,
+		Description: h.description,
 		Get: &openapi.Operation{
-			Summary:     types.Ptr(h.summary),
-			Description: types.Ptr(h.description),
+			Summary:     h.summary,
+			Description: h.description,
 		},
 	}
 }

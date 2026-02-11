@@ -23,14 +23,15 @@ type errjson struct {
 // GLOBALS
 
 const (
-	ErrBadRequest     = Err(http.StatusBadRequest)
-	ErrNotFound       = Err(http.StatusNotFound)
-	ErrConflict       = Err(http.StatusConflict)
-	ErrNotImplemented = Err(http.StatusNotImplemented)
-	ErrInternalError  = Err(http.StatusInternalServerError)
-	ErrNotAuthorized  = Err(http.StatusUnauthorized)
-	ErrForbidden      = Err(http.StatusForbidden)
-	ErrGatewayError   = Err(http.StatusBadGateway)
+	ErrBadRequest         = Err(http.StatusBadRequest)
+	ErrNotFound           = Err(http.StatusNotFound)
+	ErrConflict           = Err(http.StatusConflict)
+	ErrNotImplemented     = Err(http.StatusNotImplemented)
+	ErrInternalError      = Err(http.StatusInternalServerError)
+	ErrNotAuthorized      = Err(http.StatusUnauthorized)
+	ErrForbidden          = Err(http.StatusForbidden)
+	ErrServiceUnavailable = Err(http.StatusServiceUnavailable)
+	ErrGatewayError       = Err(http.StatusBadGateway)
 )
 
 ///////////////////////////////////////////////////////////////////////////////

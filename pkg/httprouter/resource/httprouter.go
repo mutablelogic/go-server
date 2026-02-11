@@ -25,7 +25,6 @@ type Resource struct {
 	Title      string                    `name:"title" required:"" help:"OpenAPI spec title"`
 	Version    string                    `name:"version" required:"" help:"OpenAPI spec version"`
 	Endpoints  []string                  `name:"endpoints" readonly:"" help:"Base URLs of the router (one per attached server)"`
-	NotFound   bool                      `name:"notfound" default:"true" help:"Register a default JSON 404 handler"`
 	OpenAPI    bool                      `name:"openapi" default:"true" help:"Serve OpenAPI spec at {prefix}/openapi.json"`
 	Middleware []schema.ResourceInstance `name:"middleware" help:"Ordered middleware instances to attach to the router"`
 	Handlers   []schema.ResourceInstance `name:"handlers" help:"Handler instances to register on the router"`
@@ -128,25 +127,33 @@ func (r *ResourceInstance) Apply(ctx context.Context, v any) error {
 				return httpresponse.ErrBadRequest.Withf("apply: duplicate handler path %q (handlers %s and %s)", path, prev, h.Name())
 			}
 			seen[path] = h.Name()
-			router.RegisterFS(path, hp.HandlerFS(), true, hp.Spec())
+			if err := router.RegisterFS(path, hp.HandlerFS(), true, hp.Spec()); err != nil {
+				return err
+			}
 		case server.HTTPHandler:
 			path = hp.HandlerPath()
 			if prev, dup := seen[path]; dup {
 				return httpresponse.ErrBadRequest.Withf("apply: duplicate handler path %q (handlers %s and %s)", path, prev, h.Name())
 			}
 			seen[path] = h.Name()
-			router.RegisterFunc(path, hp.HandlerFunc(), true, hp.Spec())
+			if err := router.RegisterFunc(path, hp.HandlerFunc(), true, hp.Spec()); err != nil {
+				return err
+			}
 		default:
 			return httpresponse.ErrBadRequest.Withf("apply: handlers[%d] (%s) does not implement HTTPHandler or HTTPFileServer", i, h.Name())
 		}
 	}
 
-	// Register default endpoints
-	if c.NotFound {
-		router.RegisterNotFound("/", true)
+	// Register default endpoints (skip if a handler already occupies the path)
+	if _, dup := seen["/"]; !dup {
+		if err := router.RegisterNotFound("/", true); err != nil {
+			return err
+		}
 	}
 	if c.OpenAPI {
-		router.RegisterOpenAPI(OpenAPIPath, true)
+		if err := router.RegisterOpenAPI(OpenAPIPath, true); err != nil {
+			return err
+		}
 	}
 
 	// Store the router and the applied config, notify observers
@@ -249,7 +256,7 @@ func (r *ResourceInstance) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if r.router != nil {
 		r.router.ServeHTTP(w, req)
 	} else {
-		http.Error(w, "router not initialised", http.StatusServiceUnavailable)
+		httpresponse.Error(w, httpresponse.ErrServiceUnavailable.With("router not initialised"))
 	}
 }
 

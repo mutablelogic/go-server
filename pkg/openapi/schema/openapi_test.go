@@ -6,7 +6,6 @@ import (
 
 	// Packages
 	schema "github.com/mutablelogic/go-server/pkg/openapi/schema"
-	types "github.com/mutablelogic/go-server/pkg/types"
 	assert "github.com/stretchr/testify/assert"
 )
 
@@ -27,14 +26,14 @@ func Test_AddPath_001(t *testing.T) {
 
 	spec := schema.NewSpec("test", "1.0")
 	spec.AddPath("/health", &schema.PathItem{
-		Get: &schema.Operation{Summary: types.Ptr("Health check")},
+		Get: &schema.Operation{Summary: "Health check"},
 	})
 	assert.NotNil(spec.Paths)
 	assert.Len(spec.Paths.MapOfPathItemValues, 1)
 	item, ok := spec.Paths.MapOfPathItemValues["/health"]
 	assert.True(ok)
 	assert.NotNil(item.Get)
-	assert.Equal("Health check", *item.Get.Summary)
+	assert.Equal("Health check", item.Get.Summary)
 }
 
 func Test_AddPath_002(t *testing.T) {
@@ -51,10 +50,10 @@ func Test_AddPath_003(t *testing.T) {
 
 	spec := schema.NewSpec("test", "1.0")
 	spec.AddPath("/a", &schema.PathItem{
-		Get: &schema.Operation{Summary: types.Ptr("A")},
+		Get: &schema.Operation{Summary: "A"},
 	})
 	spec.AddPath("/b", &schema.PathItem{
-		Post: &schema.Operation{Summary: types.Ptr("B")},
+		Post: &schema.Operation{Summary: "B"},
 	})
 	assert.Len(spec.Paths.MapOfPathItemValues, 2)
 }
@@ -64,13 +63,13 @@ func Test_AddPath_004(t *testing.T) {
 
 	spec := schema.NewSpec("test", "1.0")
 	spec.AddPath("/x", &schema.PathItem{
-		Get: &schema.Operation{Summary: types.Ptr("first")},
+		Get: &schema.Operation{Summary: "first"},
 	})
 	spec.AddPath("/x", &schema.PathItem{
-		Get: &schema.Operation{Summary: types.Ptr("second")},
+		Get: &schema.Operation{Summary: "second"},
 	})
 	assert.Len(spec.Paths.MapOfPathItemValues, 1)
-	assert.Equal("second", *spec.Paths.MapOfPathItemValues["/x"].Get.Summary)
+	assert.Equal("second", spec.Paths.MapOfPathItemValues["/x"].Get.Summary)
 }
 
 func Test_SetServers_001(t *testing.T) {
@@ -79,12 +78,12 @@ func Test_SetServers_001(t *testing.T) {
 	spec := schema.NewSpec("test", "1.0")
 	spec.SetServers([]schema.Server{
 		{URL: "http://localhost:8080"},
-		{URL: "https://api.example.com", Description: types.Ptr("Production")},
+		{URL: "https://api.example.com", Description: "Production"},
 	})
 	assert.Len(spec.Servers, 2)
 	assert.Equal("http://localhost:8080", spec.Servers[0].URL)
 	assert.Equal("https://api.example.com", spec.Servers[1].URL)
-	assert.Equal("Production", *spec.Servers[1].Description)
+	assert.Equal("Production", spec.Servers[1].Description)
 }
 
 func Test_SetServers_002(t *testing.T) {
@@ -111,7 +110,7 @@ func Test_Paths_MarshalJSON_001(t *testing.T) {
 
 	paths := schema.Paths{
 		MapOfPathItemValues: map[string]schema.PathItem{
-			"/health": {Get: &schema.Operation{Summary: types.Ptr("Health")}},
+			"/health": {Get: &schema.Operation{Summary: "Health"}},
 		},
 	}
 	data, err := json.Marshal(paths)
@@ -137,12 +136,12 @@ func Test_Paths_UnmarshalJSON_001(t *testing.T) {
 	users, ok := paths.MapOfPathItemValues["/users"]
 	assert.True(ok)
 	assert.NotNil(users.Get)
-	assert.Equal("List users", *users.Get.Summary)
+	assert.Equal("List users", users.Get.Summary)
 
 	items, ok := paths.MapOfPathItemValues["/items"]
 	assert.True(ok)
 	assert.NotNil(items.Post)
-	assert.Equal("Create item", *items.Post.Summary)
+	assert.Equal("Create item", items.Post.Summary)
 }
 
 func Test_Spec_RoundTrip_001(t *testing.T) {
@@ -153,7 +152,7 @@ func Test_Spec_RoundTrip_001(t *testing.T) {
 	spec.AddPath("/ping", &schema.PathItem{
 		Get: &schema.Operation{
 			Tags:    []string{"health"},
-			Summary: types.Ptr("Ping"),
+			Summary: "Ping",
 		},
 	})
 
@@ -173,7 +172,7 @@ func Test_Spec_RoundTrip_001(t *testing.T) {
 
 	ping := decoded.Paths.MapOfPathItemValues["/ping"]
 	assert.NotNil(ping.Get)
-	assert.Equal("Ping", *ping.Get.Summary)
+	assert.Equal("Ping", ping.Get.Summary)
 	assert.Equal([]string{"health"}, ping.Get.Tags)
 }
 
@@ -196,16 +195,16 @@ func Test_PathItem_AllMethods(t *testing.T) {
 	assert := assert.New(t)
 
 	item := schema.PathItem{
-		Summary:     types.Ptr("All methods"),
-		Description: types.Ptr("Test all ops"),
-		Get:         &schema.Operation{Summary: types.Ptr("get")},
-		Put:         &schema.Operation{Summary: types.Ptr("put")},
-		Post:        &schema.Operation{Summary: types.Ptr("post")},
-		Delete:      &schema.Operation{Summary: types.Ptr("delete")},
-		Options:     &schema.Operation{Summary: types.Ptr("options")},
-		Head:        &schema.Operation{Summary: types.Ptr("head")},
-		Patch:       &schema.Operation{Summary: types.Ptr("patch")},
-		Trace:       &schema.Operation{Summary: types.Ptr("trace")},
+		Summary:     "All methods",
+		Description: "Test all ops",
+		Get:         &schema.Operation{Summary: "get"},
+		Put:         &schema.Operation{Summary: "put"},
+		Post:        &schema.Operation{Summary: "post"},
+		Delete:      &schema.Operation{Summary: "delete"},
+		Options:     &schema.Operation{Summary: "options"},
+		Head:        &schema.Operation{Summary: "head"},
+		Patch:       &schema.Operation{Summary: "patch"},
+		Trace:       &schema.Operation{Summary: "trace"},
 	}
 
 	data, err := json.Marshal(item)
@@ -213,12 +212,12 @@ func Test_PathItem_AllMethods(t *testing.T) {
 
 	var decoded schema.PathItem
 	assert.NoError(json.Unmarshal(data, &decoded))
-	assert.Equal("get", *decoded.Get.Summary)
-	assert.Equal("put", *decoded.Put.Summary)
-	assert.Equal("post", *decoded.Post.Summary)
-	assert.Equal("delete", *decoded.Delete.Summary)
-	assert.Equal("options", *decoded.Options.Summary)
-	assert.Equal("head", *decoded.Head.Summary)
-	assert.Equal("patch", *decoded.Patch.Summary)
-	assert.Equal("trace", *decoded.Trace.Summary)
+	assert.Equal("get", decoded.Get.Summary)
+	assert.Equal("put", decoded.Put.Summary)
+	assert.Equal("post", decoded.Post.Summary)
+	assert.Equal("delete", decoded.Delete.Summary)
+	assert.Equal("options", decoded.Options.Summary)
+	assert.Equal("head", decoded.Head.Summary)
+	assert.Equal("patch", decoded.Patch.Summary)
+	assert.Equal("trace", decoded.Trace.Summary)
 }

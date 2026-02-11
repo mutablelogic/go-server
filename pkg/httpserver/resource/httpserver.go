@@ -59,11 +59,7 @@ func (r *ResourceInstance) Spec() *openapi.Server {
 	if c == nil || c.Endpoint == "" {
 		return nil
 	}
-	var desc *string
-	if c.Description != "" {
-		desc = &c.Description
-	}
-	return &openapi.Server{URL: c.Endpoint, Description: desc}
+	return &openapi.Server{URL: c.Endpoint, Description: c.Description}
 }
 
 ///////////////////////////////////////////////////////////////////////////////
