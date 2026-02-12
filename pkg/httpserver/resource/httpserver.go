@@ -67,9 +67,9 @@ func (r *ResourceInstance) Spec() *openapi.Server {
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func (r Resource) New() (schema.ResourceInstance, error) {
+func (r Resource) New(name string) (schema.ResourceInstance, error) {
 	return &ResourceInstance{
-		ResourceInstance: provider.NewResourceInstance[Resource](r),
+		ResourceInstance: provider.NewResourceInstance[Resource](r, name),
 	}, nil
 }
 
@@ -90,10 +90,11 @@ func (Resource) Schema() []schema.Attribute {
 // Validate decodes the incoming state, resolves references, and returns
 // the validated *Resource configuration for use by Plan and Apply.
 func (r *ResourceInstance) Validate(ctx context.Context, state schema.State, resolve schema.Resolver) (any, error) {
-	desired, err := r.ResourceInstance.Validate(ctx, state, resolve)
+	v, err := r.ResourceInstance.Validate(ctx, state, resolve)
 	if err != nil {
 		return nil, err
 	}
+	desired := v.(*Resource)
 
 	// Timeouts must be non-negative
 	if desired.ReadTimeout < 0 {
@@ -157,72 +158,68 @@ func (r *ResourceInstance) Plan(ctx context.Context, v any) (schema.Plan, error)
 
 // Apply materialises the resource using the validated configuration.
 func (r *ResourceInstance) Apply(ctx context.Context, v any) error {
-	c, err := r.ValidateConfig(v)
-	if err != nil {
-		return err
-	}
+	return r.ApplyConfig(ctx, v, func(ctx context.Context, c *Resource) error {
+		// Stop the existing server if running
+		if err := r.stop(); err != nil {
+			return err
+		}
 
-	// Stop the existing server if running
-	if err := r.stop(); err != nil {
-		return err
-	}
+		// The router must implement http.Handler
+		router, ok := c.Router.(interface {
+			ServeHTTP(http.ResponseWriter, *http.Request)
+		})
+		if !ok {
+			return httpresponse.ErrBadRequest.With("router does not implement http.Handler")
+		}
 
-	// The router must implement http.Handler
-	router, ok := c.Router.(http.Handler)
-	if !ok {
-		return httpresponse.ErrBadRequest.With("router does not implement http.Handler")
-	}
+		// Build TLS config if any TLS data is provided
+		var cert *tls.Config
+		if len(c.TLS.Cert) > 0 || len(c.TLS.Key) > 0 {
+			var err error
+			cert, err = httpserver.TLSConfig(c.TLS.Name, c.TLS.Verify, c.TLS.Cert, c.TLS.Key)
+			if err != nil {
+				return httpresponse.ErrBadRequest.Withf("tls: %v", err)
+			}
+		}
 
-	// Build TLS config if any TLS data is provided
-	var cert *tls.Config
-	if len(c.TLS.Cert) > 0 || len(c.TLS.Key) > 0 {
-		var err error
-		cert, err = httpserver.TLSConfig(c.TLS.Name, c.TLS.Verify, c.TLS.Cert, c.TLS.Key)
+		// Create the HTTP server
+		srv, err := httpserver.New(c.Listen, router, cert,
+			httpserver.WithReadTimeout(c.ReadTimeout),
+			httpserver.WithWriteTimeout(c.WriteTimeout),
+			httpserver.WithIdleTimeout(c.IdleTimeout),
+		)
 		if err != nil {
-			return httpresponse.ErrBadRequest.Withf("tls: %v", err)
+			return err
 		}
-	}
 
-	// Create the HTTP server
-	srv, err := httpserver.New(c.Listen, router, cert,
-		httpserver.WithReadTimeout(c.ReadTimeout),
-		httpserver.WithWriteTimeout(c.WriteTimeout),
-		httpserver.WithIdleTimeout(c.IdleTimeout),
-	)
-	if err != nil {
-		return err
-	}
-
-	// Bind the port synchronously so callers get an immediate error
-	// (e.g. "address already in use") instead of a silent goroutine failure.
-	if err := srv.Listen(); err != nil {
-		return err
-	}
-
-	// Compute the endpoint URL from the actual bound address
-	scheme := "http"
-	if cert != nil {
-		scheme = "https"
-	}
-	c.Endpoint = scheme + "://" + srv.Addr()
-
-	// Run the server in the background – use Background() as the parent
-	// so the server outlives the HTTP request that triggered Apply.
-	srvCtx, cancel := context.WithCancel(context.Background())
-	r.cancel = cancel
-	r.runtimeErr.Store(nil)
-	r.wg.Add(1)
-	go func() {
-		defer r.wg.Done()
-		if err := srv.Run(srvCtx); err != nil && !errors.Is(err, context.Canceled) {
-			r.runtimeErr.Store(&err)
+		// Bind the port synchronously so callers get an immediate error
+		// (e.g. "address already in use") instead of a silent goroutine failure.
+		if err := srv.Listen(); err != nil {
+			return err
 		}
-	}()
 
-	// Store the applied config and notify observers
-	r.SetStateAndNotify(c, r)
+		// Compute the endpoint URL from the actual bound address
+		scheme := "http"
+		if cert != nil {
+			scheme = "https"
+		}
+		c.Endpoint = scheme + "://" + srv.Addr()
 
-	return nil
+		// Run the server in the background – use Background() as the parent
+		// so the server outlives the HTTP request that triggered Apply.
+		srvCtx, cancel := context.WithCancel(context.Background())
+		r.cancel = cancel
+		r.runtimeErr.Store(nil)
+		r.wg.Add(1)
+		go func() {
+			defer r.wg.Done()
+			if err := srv.Run(srvCtx); err != nil && !errors.Is(err, context.Canceled) {
+				r.runtimeErr.Store(&err)
+			}
+		}()
+
+		return nil
+	})
 }
 
 // Destroy tears down the resource and releases its backing

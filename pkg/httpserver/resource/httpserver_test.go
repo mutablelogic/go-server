@@ -95,27 +95,27 @@ func Test_Resource_002(t *testing.T) {
 }
 
 func Test_Resource_003(t *testing.T) {
-	// New creates instances with empty names (manager assigns type.label)
+	// New creates instances with the given name
 	assert := assert.New(t)
 	r := resource.Resource{
 		Listen: "localhost:8080",
 		Router: &mockRouter{ResourceInstance: schematest.ResourceInstance{N: "r1", RN: "httprouter"}},
 	}
-	inst1, err := r.New()
+	inst1, err := r.New("test")
 	assert.NoError(err)
 	assert.NotNil(inst1)
-	assert.Empty(inst1.Name())
+	assert.Equal("test", inst1.Name())
 
-	inst2, err := r.New()
+	inst2, err := r.New("test")
 	assert.NoError(err)
-	assert.Empty(inst2.Name())
+	assert.Equal("test", inst2.Name())
 }
 
 func Test_Resource_004(t *testing.T) {
 	// Resource() on an instance returns the config
 	assert := assert.New(t)
 	r := resource.Resource{Listen: "localhost:8080"}
-	inst, err := r.New()
+	inst, err := r.New("test")
 	assert.NoError(err)
 	assert.Equal("httpserver", inst.Resource().Name())
 }
@@ -131,7 +131,7 @@ func Test_Validate_001(t *testing.T) {
 		Listen: "localhost:8080",
 		Router: router,
 	}
-	inst, err := r.New()
+	inst, err := r.New("test")
 	assert.NoError(err)
 	config, err := inst.Validate(context.Background(), schema.StateOf(r), mockResolver(router))
 	assert.NoError(err)
@@ -142,7 +142,7 @@ func Test_Validate_002(t *testing.T) {
 	// Missing required router - error
 	assert := assert.New(t)
 	r := resource.Resource{Listen: "localhost:8080"}
-	inst, err := r.New()
+	inst, err := r.New("test")
 	assert.NoError(err)
 	_, err = inst.Validate(context.Background(), schema.StateOf(r), mockResolver())
 	assert.Error(err)
@@ -157,7 +157,7 @@ func Test_Validate_003(t *testing.T) {
 		Listen: "localhost:8080",
 		Router: router,
 	}
-	inst, err := r.New()
+	inst, err := r.New("test")
 	assert.NoError(err)
 	_, err = inst.Validate(context.Background(), schema.StateOf(r), mockResolver(router))
 	assert.Error(err)
@@ -173,7 +173,7 @@ func Test_Validate_004(t *testing.T) {
 		Router:      router,
 		ReadTimeout: -1 * time.Second,
 	}
-	inst, err := r.New()
+	inst, err := r.New("test")
 	assert.NoError(err)
 	_, err = inst.Validate(context.Background(), schema.StateOf(r), mockResolver(router))
 	assert.Error(err)
@@ -189,7 +189,7 @@ func Test_Validate_005(t *testing.T) {
 		Router:       router,
 		WriteTimeout: -1 * time.Second,
 	}
-	inst, err := r.New()
+	inst, err := r.New("test")
 	assert.NoError(err)
 	_, err = inst.Validate(context.Background(), schema.StateOf(r), mockResolver(router))
 	assert.Error(err)
@@ -205,7 +205,7 @@ func Test_Validate_006(t *testing.T) {
 		Router: router,
 	}
 	r.TLS.Cert = []byte("some-cert-data")
-	inst, err := r.New()
+	inst, err := r.New("test")
 	assert.NoError(err)
 	_, err = inst.Validate(context.Background(), schema.StateOf(r), mockResolver(router))
 	assert.NoError(err)
@@ -220,7 +220,7 @@ func Test_Validate_007(t *testing.T) {
 		Router: router,
 	}
 	r.TLS.Key = []byte("some-key-data")
-	inst, err := r.New()
+	inst, err := r.New("test")
 	assert.NoError(err)
 	_, err = inst.Validate(context.Background(), schema.StateOf(r), mockResolver(router))
 	assert.NoError(err)
@@ -236,7 +236,7 @@ func Test_Validate_008(t *testing.T) {
 	}
 	r.TLS.Cert = []byte("some-cert-data")
 	r.TLS.Key = []byte("some-key-data")
-	inst, err := r.New()
+	inst, err := r.New("test")
 	assert.NoError(err)
 	_, err = inst.Validate(context.Background(), schema.StateOf(r), mockResolver(router))
 	assert.NoError(err)
@@ -252,7 +252,7 @@ func Test_Validate_009(t *testing.T) {
 		ReadTimeout:  0,
 		WriteTimeout: 0,
 	}
-	inst, err := r.New()
+	inst, err := r.New("test")
 	assert.NoError(err)
 	_, err = inst.Validate(context.Background(), schema.StateOf(r), mockResolver(router))
 	assert.NoError(err)
@@ -269,7 +269,7 @@ func Test_Plan_001(t *testing.T) {
 		Router:      &mockRouter{ResourceInstance: schematest.ResourceInstance{N: "r1", RN: "httprouter"}},
 		ReadTimeout: 5 * time.Minute,
 	}
-	inst, err := r.New()
+	inst, err := r.New("test")
 	assert.NoError(err)
 	plan, err := inst.Plan(context.Background(), r)
 	assert.NoError(err)
@@ -287,7 +287,7 @@ func Test_Plan_002(t *testing.T) {
 		ReadTimeout:  5 * time.Minute,
 		WriteTimeout: 5 * time.Minute,
 	}
-	inst, err := r.New()
+	inst, err := r.New("test")
 	assert.NoError(err)
 
 	// Apply to establish current state
@@ -312,7 +312,7 @@ func Test_Plan_003(t *testing.T) {
 		ReadTimeout:  5 * time.Minute,
 		WriteTimeout: 5 * time.Minute,
 	}
-	inst, err := old.New()
+	inst, err := old.New("test")
 	assert.NoError(err)
 
 	// Apply the original config
@@ -349,7 +349,7 @@ func Test_Plan_004(t *testing.T) {
 		Listen: "localhost:8080",
 		Router: &mockRouter{ResourceInstance: schematest.ResourceInstance{N: "r1", RN: "httprouter"}},
 	}
-	inst, err := r.New()
+	inst, err := r.New("test")
 	assert.NoError(err)
 	plan, err := inst.Plan(context.Background(), r)
 	assert.NoError(err)
@@ -369,7 +369,7 @@ func Test_Apply_001(t *testing.T) {
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}
-	inst, err := r.New()
+	inst, err := r.New("test")
 	assert.NoError(err)
 
 	ctx := context.Background()
@@ -402,7 +402,7 @@ func Test_Apply_002(t *testing.T) {
 		Listen: freePort(t),
 		Router: &schematest.ResourceInstance{N: "r1", RN: "httprouter"},
 	}
-	inst, err := r.New()
+	inst, err := r.New("test")
 	assert.NoError(err)
 
 	err = inst.Apply(context.Background(), r)
@@ -420,7 +420,7 @@ func Test_Apply_003(t *testing.T) {
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}
-	inst, err := r.New()
+	inst, err := r.New("test")
 	assert.NoError(err)
 
 	ctx := context.Background()
@@ -452,7 +452,7 @@ func Test_Destroy_001(t *testing.T) {
 		Listen: "localhost:8080",
 		Router: &mockRouter{ResourceInstance: schematest.ResourceInstance{N: "r1", RN: "httprouter"}},
 	}
-	inst, err := r.New()
+	inst, err := r.New("test")
 	assert.NoError(err)
 	assert.NoError(inst.Destroy(context.Background()))
 }
@@ -470,7 +470,7 @@ func Test_References_001(t *testing.T) {
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}
-	inst, err := r.New()
+	inst, err := r.New("test")
 	assert.NoError(err)
 	assert.NoError(inst.Apply(context.Background(), r))
 	defer inst.Destroy(context.Background())
@@ -482,7 +482,7 @@ func Test_References_002(t *testing.T) {
 	// References before Apply returns nil
 	assert := assert.New(t)
 	r := resource.Resource{}
-	inst, err := r.New()
+	inst, err := r.New("test")
 	assert.NoError(err)
 	assert.Nil(inst.References())
 }
@@ -500,7 +500,7 @@ func Test_Read_001(t *testing.T) {
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}
-	inst, err := r.New()
+	inst, err := r.New("test")
 	assert.NoError(err)
 	assert.NoError(inst.Apply(context.Background(), r))
 	defer inst.Destroy(context.Background())
@@ -522,7 +522,7 @@ func Test_Read_002(t *testing.T) {
 	// Read before Apply returns nil
 	assert := assert.New(t)
 	r := resource.Resource{}
-	inst, err := r.New()
+	inst, err := r.New("test")
 	assert.NoError(err)
 
 	state, err := inst.Read(context.Background())
@@ -573,7 +573,7 @@ func Test_Plan_TLS_001(t *testing.T) {
 	}
 	r.TLS.Cert = []byte("not valid pem")
 	r.TLS.Key = []byte("not valid pem")
-	inst, err := r.New()
+	inst, err := r.New("test")
 	assert.NoError(err)
 
 	_, err = inst.Plan(context.Background(), r)
@@ -593,7 +593,7 @@ func Test_Plan_TLS_002(t *testing.T) {
 	}
 	r.TLS.Cert = certPEM
 	r.TLS.Key = keyPEM
-	inst, err := r.New()
+	inst, err := r.New("test")
 	assert.NoError(err)
 
 	_, err = inst.Plan(context.Background(), r)
@@ -613,7 +613,7 @@ func Test_Plan_TLS_003(t *testing.T) {
 	}
 	r.TLS.Cert = certPEM
 	r.TLS.Key = keyPEM
-	inst, err := r.New()
+	inst, err := r.New("test")
 	assert.NoError(err)
 
 	plan, err := inst.Plan(context.Background(), r)
@@ -634,7 +634,7 @@ func Test_Plan_TLS_004(t *testing.T) {
 	}
 	r.TLS.Cert = certPEM
 	r.TLS.Key = keyPEM
-	inst, err := r.New()
+	inst, err := r.New("test")
 	assert.NoError(err)
 
 	_, err = inst.Plan(context.Background(), r)
@@ -655,7 +655,7 @@ func Test_Plan_TLS_005(t *testing.T) {
 	}
 	r.TLS.Cert = combined
 	// r.TLS.Key is nil
-	inst, err := r.New()
+	inst, err := r.New("test")
 	assert.NoError(err)
 
 	plan, err := inst.Plan(context.Background(), r)
@@ -676,7 +676,7 @@ func Test_Plan_TLS_006(t *testing.T) {
 	}
 	// r.TLS.Cert is nil
 	r.TLS.Key = combined
-	inst, err := r.New()
+	inst, err := r.New("test")
 	assert.NoError(err)
 
 	plan, err := inst.Plan(context.Background(), r)
@@ -696,7 +696,7 @@ func Test_Plan_TLS_007(t *testing.T) {
 	}
 	r.TLS.Cert = certPEM
 	// r.TLS.Key is nil — no key anywhere, readPemBlocks will fail
-	inst, err := r.New()
+	inst, err := r.New("test")
 	assert.NoError(err)
 
 	_, err = inst.Plan(context.Background(), r)
@@ -716,7 +716,7 @@ func Test_Plan_TLS_008(t *testing.T) {
 	}
 	// r.TLS.Cert is nil — no cert anywhere
 	r.TLS.Key = keyPEM
-	inst, err := r.New()
+	inst, err := r.New("test")
 	assert.NoError(err)
 
 	_, err = inst.Plan(context.Background(), r)

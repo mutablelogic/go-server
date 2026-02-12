@@ -29,10 +29,10 @@ type Resource interface {
 	// used for validation and documentation.
 	Schema() []Attribute
 
-	// New creates a resource instance from the given configuration.
+	// New creates a named resource instance.
 	// The returned instance is not yet applied; call
 	// [ResourceInstance.Apply] to materialise it.
-	New() (ResourceInstance, error)
+	New(name string) (ResourceInstance, error)
 }
 
 // ResourceInstance represents a single configured unit of infrastructure

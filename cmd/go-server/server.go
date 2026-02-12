@@ -66,20 +66,23 @@ func (cmd *RunServer) Run(ctx *Globals) error {
 	// Build ordered middleware and handler name lists for the router state
 	var middlewareNames []string
 
-	// Create a read-only log middleware instance (passive — no dependencies)
-	if mw, ok := ctx.logger.(server.HTTPMiddleware); ok {
-		type debugSetter interface{ SetDebug(bool) }
-		var debugFn func(bool)
-		if ds, ok := ctx.logger.(debugSetter); ok {
-			debugFn = ds.SetDebug
-		}
-		logInst, err := manager.RegisterReadonlyInstance(ctx.ctx, log_resource.NewResource(mw.WrapFunc, debugFn), "main", schema.State{
-			"debug": ctx.Debug,
-		})
-		if err != nil {
-			return err
-		}
-		middlewareNames = append(middlewareNames, logInst.Name())
+	// Create a read-only logger instance
+	format := "text"
+	if isTerminal(os.Stderr) {
+		format = "term"
+	}
+	logInst, err := manager.RegisterReadonlyInstance(ctx.ctx, log_resource.Resource{}, "main", schema.State{
+		"debug":  ctx.Debug,
+		"format": format,
+	})
+	if err != nil {
+		return err
+	}
+	middlewareNames = append(middlewareNames, logInst.Name())
+
+	// Replace the early bootstrap logger with the resource instance
+	if l, ok := logInst.(server.Logger); ok {
+		ctx.logger = l
 	}
 
 	// Create a read-only otel middleware instance (passive — no dependencies)

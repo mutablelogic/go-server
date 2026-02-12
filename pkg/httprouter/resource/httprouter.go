@@ -54,9 +54,9 @@ const (
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func (r Resource) New() (schema.ResourceInstance, error) {
+func (r Resource) New(name string) (schema.ResourceInstance, error) {
 	return &ResourceInstance{
-		ResourceInstance: provider.NewResourceInstance[Resource](r),
+		ResourceInstance: provider.NewResourceInstance[Resource](r, name),
 	}, nil
 }
 
@@ -78,10 +78,11 @@ func (Resource) Schema() []schema.Attribute {
 // the validated *Resource configuration for use by Plan and Apply.
 func (r *ResourceInstance) Validate(ctx context.Context, state schema.State, resolve schema.Resolver) (any, error) {
 	// Perform common validation and decoding using the embedded ResourceInstance
-	desired, err := r.ResourceInstance.Validate(ctx, state, resolve)
+	v, err := r.ResourceInstance.Validate(ctx, state, resolve)
 	if err != nil {
 		return nil, err
 	}
+	desired := v.(*Resource)
 
 	// Normalize prefix
 	desired.Prefix = types.NormalisePath(desired.Prefix)
@@ -94,74 +95,69 @@ func (r *ResourceInstance) Validate(ctx context.Context, state schema.State, res
 // It creates the router, attaches middleware in order, registers
 // handlers, and adds default endpoints (404 and OpenAPI).
 func (r *ResourceInstance) Apply(ctx context.Context, v any) error {
-	c, err := r.ValidateConfig(v)
-	if err != nil {
-		return err
-	}
-
-	// Create a new router (no middleware passed to constructor — they come
-	// from the middleware references below)
-	router, err := httprouter.NewRouter(ctx, c.Prefix, c.Origin, c.Title, c.Version)
-	if err != nil {
-		return err
-	}
-
-	// Attach middleware in the order specified by the middleware attribute.
-	// Each referenced instance must implement [server.HTTPMiddleware].
-	for i, mw := range c.Middleware {
-		mp, ok := mw.(server.HTTPMiddleware)
-		if !ok {
-			return httpresponse.ErrBadRequest.Withf("apply: middleware[%d] (%s) does not implement HTTPMiddleware", i, mw.Name())
-		}
-		router.AddMiddleware(mp.WrapFunc)
-	}
-
-	// Register handlers. Each referenced instance must implement
-	// [server.HTTPHandler] or [server.HTTPFileServer]. Duplicate paths are rejected.
-	seen := make(map[string]string, len(c.Handlers)) // path -> handler name
-	for i, h := range c.Handlers {
-		var path string
-		switch hp := h.(type) {
-		case server.HTTPFileServer:
-			path = hp.HandlerPath()
-			if prev, dup := seen[path]; dup {
-				return httpresponse.ErrBadRequest.Withf("apply: duplicate handler path %q (handlers %s and %s)", path, prev, h.Name())
-			}
-			seen[path] = h.Name()
-			if err := router.RegisterFS(path, hp.HandlerFS(), true, hp.Spec()); err != nil {
-				return err
-			}
-		case server.HTTPHandler:
-			path = hp.HandlerPath()
-			if prev, dup := seen[path]; dup {
-				return httpresponse.ErrBadRequest.Withf("apply: duplicate handler path %q (handlers %s and %s)", path, prev, h.Name())
-			}
-			seen[path] = h.Name()
-			if err := router.RegisterFunc(path, hp.HandlerFunc(), true, hp.Spec()); err != nil {
-				return err
-			}
-		default:
-			return httpresponse.ErrBadRequest.Withf("apply: handlers[%d] (%s) does not implement HTTPHandler or HTTPFileServer", i, h.Name())
-		}
-	}
-
-	// Register default endpoints (skip if a handler already occupies the path)
-	if _, dup := seen["/"]; !dup {
-		if err := router.RegisterNotFound("/", true); err != nil {
+	return r.ApplyConfig(ctx, v, func(ctx context.Context, c *Resource) error {
+		// Create a new router (no middleware passed to constructor — they come
+		// from the middleware references below)
+		router, err := httprouter.NewRouter(ctx, c.Prefix, c.Origin, c.Title, c.Version)
+		if err != nil {
 			return err
 		}
-	}
-	if c.OpenAPI {
-		if err := router.RegisterOpenAPI(OpenAPIPath, true); err != nil {
-			return err
+
+		// Attach middleware in the order specified by the middleware attribute.
+		// Each referenced instance must implement [server.HTTPMiddleware].
+		for i, mw := range c.Middleware {
+			mp, ok := mw.(server.HTTPMiddleware)
+			if !ok {
+				return httpresponse.ErrBadRequest.Withf("apply: middleware[%d] (%s) does not implement HTTPMiddleware", i, mw.Name())
+			}
+			router.AddMiddleware(mp.WrapFunc)
 		}
-	}
 
-	// Store the router and the applied config, notify observers
-	r.router.Store(router)
-	r.SetStateAndNotify(c, r)
+		// Register handlers. Each referenced instance must implement
+		// [server.HTTPHandler] or [server.HTTPFileServer]. Duplicate paths are rejected.
+		seen := make(map[string]string, len(c.Handlers)) // path -> handler name
+		for i, h := range c.Handlers {
+			var path string
+			switch hp := h.(type) {
+			case server.HTTPFileServer:
+				path = hp.HandlerPath()
+				if prev, dup := seen[path]; dup {
+					return httpresponse.ErrBadRequest.Withf("apply: duplicate handler path %q (handlers %s and %s)", path, prev, h.Name())
+				}
+				seen[path] = h.Name()
+				if err := router.RegisterFS(path, hp.HandlerFS(), true, hp.Spec()); err != nil {
+					return err
+				}
+			case server.HTTPHandler:
+				path = hp.HandlerPath()
+				if prev, dup := seen[path]; dup {
+					return httpresponse.ErrBadRequest.Withf("apply: duplicate handler path %q (handlers %s and %s)", path, prev, h.Name())
+				}
+				seen[path] = h.Name()
+				if err := router.RegisterFunc(path, hp.HandlerFunc(), true, hp.Spec()); err != nil {
+					return err
+				}
+			default:
+				return httpresponse.ErrBadRequest.Withf("apply: handlers[%d] (%s) does not implement HTTPHandler or HTTPFileServer", i, h.Name())
+			}
+		}
 
-	return nil
+		// Register default endpoints (skip if a handler already occupies the path)
+		if _, dup := seen["/"]; !dup {
+			if err := router.RegisterNotFound("/", true); err != nil {
+				return err
+			}
+		}
+		if c.OpenAPI {
+			if err := router.RegisterOpenAPI(OpenAPIPath, true); err != nil {
+				return err
+			}
+		}
+
+		// Store the router
+		r.router.Store(router)
+		return nil
+	})
 }
 
 // Spec returns the OpenAPI specification for this router, or nil if

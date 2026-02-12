@@ -31,6 +31,19 @@ const (
 	Term
 )
 
+// FormatFromString returns the Format for the given string.
+// Unrecognised values default to Text.
+func FormatFromString(s string) Format {
+	switch s {
+	case "json":
+		return JSON
+	case "term":
+		return Term
+	default:
+		return Text
+	}
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 

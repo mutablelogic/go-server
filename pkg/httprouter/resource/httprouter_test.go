@@ -55,7 +55,7 @@ func validState() schema.State {
 func newInstance(t *testing.T) schema.ResourceInstance {
 	t.Helper()
 	var r resource.Resource
-	inst, err := r.New()
+	inst, err := r.New("test")
 	assert.NoError(t, err)
 	assert.NotNil(t, inst)
 	return inst
@@ -88,16 +88,16 @@ func Test_Resource_002(t *testing.T) {
 }
 
 func Test_Resource_003(t *testing.T) {
-	// New creates instances with empty names (manager assigns type.label)
+	// New creates instances with the given name
 	assert := assert.New(t)
 	var r resource.Resource
-	inst1, err := r.New()
+	inst1, err := r.New("test")
 	assert.NoError(err)
-	assert.Empty(inst1.Name())
+	assert.Equal("test", inst1.Name())
 
-	inst2, err := r.New()
+	inst2, err := r.New("test")
 	assert.NoError(err)
-	assert.Empty(inst2.Name())
+	assert.Equal("test", inst2.Name())
 }
 
 func Test_Resource_004(t *testing.T) {

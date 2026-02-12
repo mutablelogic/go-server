@@ -50,10 +50,10 @@ type ResourceInstance[C schema.Resource] struct {
 // LIFECYCLE
 
 // NewResourceInstance returns a ResourceInstance for the given resource
-// type. The name is initially empty; the manager assigns the final
-// "type.label" name via [SetName] after creation.
-func NewResourceInstance[C schema.Resource](resource C) ResourceInstance[C] {
+// type with the supplied name.
+func NewResourceInstance[C schema.Resource](resource C, name string) ResourceInstance[C] {
 	return ResourceInstance[C]{
+		name:     name,
 		resource: resource,
 	}
 }
@@ -64,12 +64,6 @@ func NewResourceInstance[C schema.Resource](resource C) ResourceInstance[C] {
 // Name satisfies [schema.ResourceInstance].
 func (b *ResourceInstance[C]) Name() string {
 	return b.name
-}
-
-// SetName overrides the auto-generated name. This is used by
-// [Manager.RegisterReadonlyInstance] to assign a deterministic label.
-func (b *ResourceInstance[C]) SetName(name string) {
-	b.name = name
 }
 
 // Resource satisfies [schema.ResourceInstance].  It returns the resource
@@ -84,35 +78,28 @@ func (b *ResourceInstance[C]) State() *C {
 	return b.state.Load()
 }
 
-// SetState stores the applied configuration without notifying
-// observers. Prefer [SetStateAndNotify] in Apply methods.
-func (b *ResourceInstance[C]) SetState(c *C) {
+// SetState stores the applied configuration and notifies all
+// registered observers. The source parameter should be the outermost
+// [schema.ResourceInstance] (typically the concrete type that embeds
+// ResourceInstance). Call this at the end of a successful [Apply].
+func (b *ResourceInstance[C]) SetState(c *C, source schema.ResourceInstance) {
 	b.state.Store(c)
-}
 
-// ValidateConfig asserts that v is a *C and returns it. Use this at
-// the top of Apply methods to replace the duplicated type-assertion
-// boilerplate.
-func (b *ResourceInstance[C]) ValidateConfig(v any) (*C, error) {
-	c, ok := v.(*C)
-	if !ok {
-		return nil, httpresponse.ErrInternalError.With("apply: unexpected config type")
+	// Notify observers — snapshot the map under lock so callbacks
+	// are free to call AddObserver/RemoveObserver without deadlocking.
+	b.mu.RLock()
+	snapshot := make([]ObserverFunc, 0, len(b.observers))
+	for _, fn := range b.observers {
+		snapshot = append(snapshot, fn)
 	}
-	return c, nil
-}
-
-// SetStateAndNotify stores the applied configuration and notifies
-// all registered observers. The source parameter should be the
-// outermost [schema.ResourceInstance] (typically the concrete type
-// that embeds ResourceInstance). Call this at the end of a
-// successful [Apply].
-func (b *ResourceInstance[C]) SetStateAndNotify(c *C, source schema.ResourceInstance) {
-	b.state.Store(c)
-	b.NotifyObservers(source)
+	b.mu.RUnlock()
+	for _, fn := range snapshot {
+		fn(source)
+	}
 }
 
 // AddObserver registers a callback that will be invoked when this
-// instance's state changes via [SetStateAndNotify]. The id is
+// instance's state changes via [SetState]. The id is
 // typically the name of the observing instance; calling AddObserver
 // with an existing id replaces the previous callback.
 func (b *ResourceInstance[C]) AddObserver(id string, fn ObserverFunc) {
@@ -131,27 +118,11 @@ func (b *ResourceInstance[C]) RemoveObserver(id string) {
 	delete(b.observers, id)
 }
 
-// NotifyObservers calls all registered observer callbacks with the
-// given source instance. The observer map is copied under the lock
-// so callbacks are free to call AddObserver/RemoveObserver without
-// deadlocking.
-func (b *ResourceInstance[C]) NotifyObservers(source schema.ResourceInstance) {
-	b.mu.RLock()
-	snapshot := make([]ObserverFunc, 0, len(b.observers))
-	for _, fn := range b.observers {
-		snapshot = append(snapshot, fn)
-	}
-	b.mu.RUnlock()
-	for _, fn := range snapshot {
-		fn(source)
-	}
-}
-
 // Validate decodes incoming [schema.State] into a *C, resolves
 // references via resolve, and checks required/type constraints.
 // Concrete Validate methods should call this first, then add
 // resource-specific checks.
-func (b *ResourceInstance[C]) Validate(_ context.Context, state schema.State, resolve schema.Resolver) (*C, error) {
+func (b *ResourceInstance[C]) Validate(_ context.Context, state schema.State, resolve schema.Resolver) (any, error) {
 	var desired C
 	if err := state.Decode(&desired, resolve); err != nil {
 		return nil, httpresponse.ErrBadRequest.Withf("invalid state: %v", err)
@@ -165,10 +136,7 @@ func (b *ResourceInstance[C]) Validate(_ context.Context, state schema.State, re
 	return &desired, nil
 }
 
-// Plan satisfies [schema.ResourceInstance].  It computes the diff between
-// the validated configuration v (which must be *C) and the instance's
-// current applied state.
-func (b *ResourceInstance[C]) Plan(_ context.Context, v any) (schema.Plan, error) {
+func (b *ResourceInstance[C]) PlanConfig(ctx context.Context, v any, fn func(context.Context, []schema.Change) error) (schema.Plan, error) {
 	desired, ok := v.(*C)
 	if !ok {
 		return schema.Plan{}, httpresponse.ErrInternalError.With("plan: unexpected config type")
@@ -206,10 +174,46 @@ func (b *ResourceInstance[C]) Plan(_ context.Context, v any) (schema.Plan, error
 		}
 	}
 
+	// Invoke the callback with the list of changes
+	if fn != nil {
+		if err := fn(ctx, changes); err != nil {
+			return schema.Plan{}, err
+		}
+	}
+
+	// Return the plan
 	if len(changes) == 0 {
 		return schema.Plan{Action: schema.ActionNoop}, nil
 	}
 	return schema.Plan{Action: schema.ActionUpdate, Changes: changes}, nil
+}
+
+func (b *ResourceInstance[C]) ApplyConfig(ctx context.Context, v any, fn func(context.Context, *C) error) error {
+	c, ok := v.(*C)
+	if !ok {
+		return httpresponse.ErrInternalError.With("apply: unexpected config type")
+	}
+	if fn != nil {
+		if err := fn(ctx, c); err != nil {
+			return err
+		}
+	}
+	b.state.Store(c)
+	return nil
+}
+
+// Plan satisfies [schema.ResourceInstance].  It computes the diff between
+// the validated configuration v (which must be *C) and the instance's
+// current applied state.
+func (b *ResourceInstance[C]) Plan(ctx context.Context, v any) (schema.Plan, error) {
+	return b.PlanConfig(ctx, v, nil)
+}
+
+// Apply satisfies [schema.ResourceInstance].  It applies the desired
+// configuration v (which must be *C) to the instance, stores the
+// state, and returns any error.
+func (b *ResourceInstance[C]) Apply(ctx context.Context, v any) error {
+	return b.ApplyConfig(ctx, v, nil)
 }
 
 // Read satisfies [schema.ResourceInstance].  It returns the live state
@@ -232,6 +236,9 @@ func (b *ResourceInstance[C]) References() []string {
 	}
 	return schema.ReferencesOf(*current)
 }
+
+///////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
 
 // isNil reports whether v is nil, including typed nils (e.g. []byte(nil)).
 func isNil(v any) bool {

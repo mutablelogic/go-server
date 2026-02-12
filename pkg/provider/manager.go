@@ -136,22 +136,14 @@ func (m *Manager) newInstance(resource, label string) (schema.ResourceInstance, 
 		return nil, ErrBadRequest.Withf("resource %q is not registered", resource)
 	}
 
-	// Create a new resource instance
-	resourceinstance, err := res.New()
+	// Create a new resource instance with the name resource.label
+	instanceName := resource + "." + label
+	resourceinstance, err := res.New(instanceName)
 	if err != nil {
 		return nil, fmt.Errorf("resource %q: %w", resource, err)
 	}
 	if resourceinstance == nil {
 		return nil, ErrBadRequest.With("resource instance is nil")
-	}
-
-	// Assign the name as resource.label
-	instanceName := resource + "." + label
-	if nameable, ok := resourceinstance.(interface{ SetName(string) }); ok {
-		nameable.SetName(instanceName)
-	}
-	if resourceinstance.Name() != instanceName {
-		return nil, ErrBadRequest.With("resource instance does not support SetName")
 	}
 	if _, exists := m.instances[instanceName]; exists {
 		return nil, ErrConflict.Withf("resource instance %q already exists", instanceName)
@@ -207,19 +199,11 @@ func (m *Manager) RegisterReadonlyInstance(ctx context.Context, resource schema.
 		m.resources[name] = resource
 	}
 
-	// Create a new instance
-	inst, err := resource.New()
+	// Create a new instance with the name {resource}.{label}
+	instanceName := name + "." + label
+	inst, err := resource.New(instanceName)
 	if err != nil {
 		return nil, fmt.Errorf("resource %q: %w", name, err)
-	}
-
-	// Override the name with {resource}.{label}
-	instanceName := name + "." + label
-	if nameable, ok := inst.(interface{ SetName(string) }); ok {
-		nameable.SetName(instanceName)
-	}
-	if inst.Name() != instanceName {
-		return nil, ErrBadRequest.Withf("instance does not support SetName")
 	}
 	if _, exists := m.instances[instanceName]; exists {
 		return nil, ErrConflict.Withf("instance %q already exists", instanceName)

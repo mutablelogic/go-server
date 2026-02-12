@@ -41,9 +41,9 @@ func NewResource(fn func(http.HandlerFunc) http.HandlerFunc) Resource {
 	return Resource{fn: httprouter.HTTPMiddlewareFunc(fn)}
 }
 
-func (r Resource) New() (schema.ResourceInstance, error) {
+func (r Resource) New(name string) (schema.ResourceInstance, error) {
 	return &ResourceInstance{
-		ResourceInstance: provider.NewResourceInstance[Resource](r),
+		ResourceInstance: provider.NewResourceInstance[Resource](r, name),
 		fn:               r.fn,
 	}, nil
 }
@@ -76,13 +76,8 @@ func (r *ResourceInstance) WrapFunc(next http.HandlerFunc) http.HandlerFunc {
 
 // Apply stores the configuration. The actual middleware attachment is
 // performed by the router during its own Apply.
-func (r *ResourceInstance) Apply(_ context.Context, v any) error {
-	c, err := r.ValidateConfig(v)
-	if err != nil {
-		return err
-	}
-	r.SetStateAndNotify(c, r)
-	return nil
+func (r *ResourceInstance) Apply(ctx context.Context, v any) error {
+	return r.ApplyConfig(ctx, v, nil)
 }
 
 // Destroy is a no-op.

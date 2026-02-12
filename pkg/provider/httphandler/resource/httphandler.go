@@ -55,9 +55,9 @@ func NewResource(name, path string, fn http.HandlerFunc, spec *openapi.PathItem)
 	return Resource{name: name, fn: fn, path: path, spec: spec}
 }
 
-func (r Resource) New() (schema.ResourceInstance, error) {
+func (r Resource) New(name string) (schema.ResourceInstance, error) {
 	return &ResourceInstance{
-		ResourceInstance: provider.NewResourceInstance[Resource](r),
+		ResourceInstance: provider.NewResourceInstance[Resource](r, name),
 		fn:               r.fn,
 		path:             r.path,
 		spec:             r.spec,
@@ -160,14 +160,11 @@ func (r *ResourceInstance) Read(ctx context.Context) (schema.State, error) {
 
 // Apply stores the configuration. The actual route registration is
 // performed by the router during its own Apply.
-func (r *ResourceInstance) Apply(_ context.Context, v any) error {
-	c, err := r.ValidateConfig(v)
-	if err != nil {
-		return err
-	}
-	r.middleware = c.Middleware
-	r.SetStateAndNotify(c, r)
-	return nil
+func (r *ResourceInstance) Apply(ctx context.Context, v any) error {
+	return r.ApplyConfig(ctx, v, func(ctx context.Context, c *Resource) error {
+		r.middleware = c.Middleware
+		return nil
+	})
 }
 
 // Destroy is a no-op.

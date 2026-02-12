@@ -29,16 +29,16 @@ var _ schema.ResourceInstance = (*ResourceInstance)(nil)
 ///////////////////////////////////////////////////////////////////////////////
 // RESOURCE
 
-func (m *Resource) Name() string                          { return m.N }
-func (m *Resource) Schema() []schema.Attribute            { return nil }
-func (m *Resource) New() (schema.ResourceInstance, error) { return nil, nil }
+func (m *Resource) Name() string                                  { return m.N }
+func (m *Resource) Schema() []schema.Attribute                    { return nil }
+func (m *Resource) New(_ string) (schema.ResourceInstance, error) { return nil, nil }
 
 ///////////////////////////////////////////////////////////////////////////////
 // RESOURCE INSTANCE
 
-func (m *ResourceInstance) Name() string              { return m.N }
-func (m *ResourceInstance) Resource() schema.Resource  { return &Resource{N: m.RN} }
-func (m *ResourceInstance) References() []string       { return nil }
+func (m *ResourceInstance) Name() string                    { return m.N }
+func (m *ResourceInstance) Resource() schema.Resource       { return &Resource{N: m.RN} }
+func (m *ResourceInstance) References() []string            { return nil }
 func (m *ResourceInstance) Destroy(_ context.Context) error { return nil }
 func (m *ResourceInstance) Read(_ context.Context) (schema.State, error) {
 	return nil, nil

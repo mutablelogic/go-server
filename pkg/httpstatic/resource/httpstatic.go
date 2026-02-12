@@ -53,9 +53,9 @@ const (
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func (r Resource) New() (schema.ResourceInstance, error) {
+func (r Resource) New(name string) (schema.ResourceInstance, error) {
 	return &ResourceInstance{
-		ResourceInstance: provider.NewResourceInstance[Resource](r),
+		ResourceInstance: provider.NewResourceInstance[Resource](r, name),
 	}, nil
 }
 
@@ -76,10 +76,11 @@ func (Resource) Schema() []schema.Attribute {
 // Validate decodes the incoming state, resolves references, and returns
 // the validated *Resource configuration for use by Plan and Apply.
 func (r *ResourceInstance) Validate(ctx context.Context, state schema.State, resolve schema.Resolver) (any, error) {
-	desired, err := r.ResourceInstance.Validate(ctx, state, resolve)
+	v, err := r.ResourceInstance.Validate(ctx, state, resolve)
 	if err != nil {
 		return nil, err
 	}
+	desired := v.(*Resource)
 
 	// Normalise the path
 	desired.Path = types.NormalisePath(desired.Path)
@@ -144,23 +145,16 @@ func (r *ResourceInstance) Read(ctx context.Context) (schema.State, error) {
 // Apply materialises the resource using the validated configuration.
 // It creates an [httpstatic.Static] backed by [os.DirFS] for the
 // configured directory.
-func (r *ResourceInstance) Apply(_ context.Context, v any) error {
-	c, err := r.ValidateConfig(v)
-	if err != nil {
-		return err
-	}
-
-	// Create the static file server from the directory on disk
-	static, err := httpstatic.New(c.Path, os.DirFS(c.Dir), c.Summary, c.Description)
-	if err != nil {
-		return err
-	}
-	r.static = static
-
-	// Store the state and notify observers
-	r.SetStateAndNotify(c, r)
-
-	return nil
+func (r *ResourceInstance) Apply(ctx context.Context, v any) error {
+	return r.ApplyConfig(ctx, v, func(ctx context.Context, c *Resource) error {
+		// Create the static file server from the directory on disk
+		static, err := httpstatic.New(c.Path, os.DirFS(c.Dir), c.Summary, c.Description)
+		if err != nil {
+			return err
+		}
+		r.static = static
+		return nil
+	})
 }
 
 // Destroy is a no-op.

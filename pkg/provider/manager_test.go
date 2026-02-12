@@ -18,8 +18,9 @@ type mockResource struct {
 
 func (m *mockResource) Name() string               { return m.name }
 func (m *mockResource) Schema() []schema.Attribute { return schema.AttributesOf(nodeConfig{}) }
-func (m *mockResource) New() (schema.ResourceInstance, error) {
+func (m *mockResource) New(name string) (schema.ResourceInstance, error) {
 	return &mockInstance{
+		name:     name,
 		resource: m,
 	}, nil
 }
@@ -36,7 +37,6 @@ type mockInstance struct {
 }
 
 func (m *mockInstance) Name() string              { return m.name }
-func (m *mockInstance) SetName(name string)       { m.name = name }
 func (m *mockInstance) Resource() schema.Resource { return m.resource }
 func (m *mockInstance) Validate(_ context.Context, _ schema.State, _ schema.Resolver) (any, error) {
 	return nil, nil
