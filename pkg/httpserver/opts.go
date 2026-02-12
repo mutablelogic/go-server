@@ -10,6 +10,7 @@ import (
 type opt struct {
 	r time.Duration
 	w time.Duration
+	i time.Duration
 }
 
 type Opt func(*opt) error
@@ -21,6 +22,7 @@ func apply(opts ...Opt) (*opt, error) {
 	o := new(opt)
 	o.r = defaultReadTimeout
 	o.w = defaultWriteTimeout
+	o.i = defaultIdleTimeout
 	for _, opt := range opts {
 		if err := opt(o); err != nil {
 			return nil, err
@@ -47,6 +49,16 @@ func WithWriteTimeout(v time.Duration) Opt {
 	return func(o *opt) error {
 		if v > 0 {
 			o.w = v
+		}
+		return nil
+	}
+}
+
+// Set the idle timeout for keep-alive connections
+func WithIdleTimeout(v time.Duration) Opt {
+	return func(o *opt) error {
+		if v > 0 {
+			o.i = v
 		}
 		return nil
 	}

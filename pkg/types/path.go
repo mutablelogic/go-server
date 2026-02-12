@@ -23,5 +23,5 @@ func NormalisePath(path string) string {
 
 // Return a normalised joined path
 func JoinPath(prefix, path string) string {
-	return NormalisePath(prefix + pathSeparator + strings.TrimLeft(path, pathSeparator))
+	return NormalisePath(strings.TrimRight(prefix, pathSeparator) + pathSeparator + strings.TrimLeft(path, pathSeparator))
 }

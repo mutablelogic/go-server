@@ -7,9 +7,6 @@ import (
 	"io"
 	"log/slog"
 	"strconv"
-
-	// Packages
-	ref "github.com/mutablelogic/go-server/pkg/ref"
 )
 
 /////////////////////////////////////////////////////////////////////////////////
@@ -17,7 +14,7 @@ import (
 
 type TermHandler struct {
 	io.Writer
-	slog.Level
+	level *slog.LevelVar
 	attrs []slog.Attr
 }
 
@@ -71,10 +68,10 @@ func (h *TermHandler) Handle(ctx context.Context, r slog.Record) error {
 	}
 	parts = append(parts, level+":")
 
-	label := ref.Label(ctx)
-	if label != "" {
-		parts = append(parts, label+":")
-	}
+	//	label := ref.Label(ctx)
+	//	if label != "" {
+	//		parts = append(parts, label+":")
+	//	}
 
 	// Gather attributes
 	var data []byte
@@ -94,7 +91,7 @@ func (h *TermHandler) Handle(ctx context.Context, r slog.Record) error {
 func (h *TermHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	return &TermHandler{
 		Writer: h.Writer,
-		Level:  h.Level,
+		level:  h.level,
 		attrs:  append(h.attrs, attrs...),
 	}
 }
@@ -103,13 +100,13 @@ func (h *TermHandler) WithGroup(name string) slog.Handler {
 	// Groups not supported
 	return &TermHandler{
 		Writer: h.Writer,
-		Level:  h.Level,
+		level:  h.level,
 		attrs:  h.attrs,
 	}
 }
 
 func (h *TermHandler) Enabled(ctx context.Context, level slog.Level) bool {
-	return level >= h.Level
+	return level >= h.level.Level()
 }
 
 /////////////////////////////////////////////////////////////////////////////////

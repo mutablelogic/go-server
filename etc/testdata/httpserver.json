@@ -1,8 +1,0 @@
-{
-    "httpserver": {
-        "main": {
-            "port": 8080,
-            "host": "localhost"
-        }
-    }
-}

@@ -37,7 +37,7 @@ DOCKER_TAG = ${DOCKER_REPO}-${OS}-${ARCH}:${VERSION}
 # ALL
 
 .PHONY: all
-all: clean build
+all: build
 
 ###############################################################################
 # BUILD

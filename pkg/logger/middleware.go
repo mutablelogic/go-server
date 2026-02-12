@@ -5,9 +5,6 @@ import (
 	"net"
 	"net/http"
 	"time"
-
-	// Packages
-	server "github.com/mutablelogic/go-server"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -17,12 +14,10 @@ var (
 	remoteAddrHeaders = []string{"X-Real-Ip", "X-Forwarded-For", "CF-Connecting-IP", "True-Client-IP"}
 )
 
-var _ server.HTTPMiddleware = (*Logger)(nil)
-
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS - MIDDLEWARE
 
-func (t *Logger) HandleFunc(next http.HandlerFunc) http.HandlerFunc {
+func (t *Logger) WrapFunc(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		now := time.Now()
 		nw := NewResponseWriter(w)

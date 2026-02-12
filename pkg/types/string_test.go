@@ -131,3 +131,74 @@ func Test_IsUppercase(t *testing.T) {
 		})
 	}
 }
+
+func Test_Unquote(t *testing.T) {
+	assert := assert.New(t)
+
+	tests := []struct {
+		Name     string
+		Input    string
+		Expected string
+	}{
+		{"DoubleQuoted", `"hello"`, "hello"},
+		{"WithEscape", `"hello\nworld"`, "hello\nworld"},
+		{"BackQuoted", "`raw string`", "raw string"},
+		{"NotQuoted", "plain", "plain"},
+		{"Empty", "", ""},
+		{"SingleChar", "x", "x"},
+		{"EmptyQuoted", `""`, ""},
+		{"WithTab", `"a\tb"`, "a\tb"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Name, func(t *testing.T) {
+			assert.Equal(test.Expected, types.Unquote(test.Input))
+		})
+	}
+}
+
+func Test_Stringify(t *testing.T) {
+	assert := assert.New(t)
+
+	t.Run("String", func(t *testing.T) {
+		result := types.Stringify("hello")
+		assert.Equal(`"hello"`, result)
+	})
+
+	t.Run("Int", func(t *testing.T) {
+		result := types.Stringify(42)
+		assert.Equal("42", result)
+	})
+
+	t.Run("Bool", func(t *testing.T) {
+		result := types.Stringify(true)
+		assert.Equal("true", result)
+	})
+
+	t.Run("Nil", func(t *testing.T) {
+		result := types.Stringify[any](nil)
+		assert.Equal("null", result)
+	})
+
+	t.Run("Map", func(t *testing.T) {
+		result := types.Stringify(map[string]int{"a": 1})
+		assert.Contains(result, `"a": 1`)
+	})
+
+	t.Run("Slice", func(t *testing.T) {
+		result := types.Stringify([]int{1, 2, 3})
+		assert.Contains(result, "1")
+		assert.Contains(result, "2")
+		assert.Contains(result, "3")
+	})
+
+	t.Run("Struct", func(t *testing.T) {
+		type testStruct struct {
+			Name string `json:"name"`
+			Age  int    `json:"age"`
+		}
+		result := types.Stringify(testStruct{Name: "Alice", Age: 30})
+		assert.Contains(result, `"name": "Alice"`)
+		assert.Contains(result, `"age": 30`)
+	})
+}

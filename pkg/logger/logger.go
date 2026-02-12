@@ -15,6 +15,7 @@ import (
 
 type Logger struct {
 	*slog.Logger
+	level slog.LevelVar
 }
 
 var _ server.Logger = (*Logger)(nil)
@@ -30,34 +31,56 @@ const (
 	Term
 )
 
+// FormatFromString returns the Format for the given string.
+// Unrecognised values default to Text.
+func FormatFromString(s string) Format {
+	switch s {
+	case "json":
+		return JSON
+	case "term":
+		return Term
+	default:
+		return Text
+	}
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
 func New(w io.Writer, f Format, debug bool) *Logger {
-	level := func() slog.Level {
-		if debug {
-			return slog.LevelDebug
-		}
-		return slog.LevelInfo
+	l := &Logger{}
+	if debug {
+		l.level.Set(slog.LevelDebug)
 	}
 	var handler slog.Handler
 	switch f {
 	case JSON:
 		handler = slog.NewJSONHandler(w, &slog.HandlerOptions{
-			Level: level(),
+			Level: &l.level,
 		})
 	case Text:
 		handler = slog.NewTextHandler(w, &slog.HandlerOptions{
-			Level: level(),
+			Level: &l.level,
 		})
 	case Term:
 		handler = &TermHandler{
 			Writer: w,
-			Level:  level(),
+			level:  &l.level,
 		}
 	}
-	return &Logger{
-		Logger: slog.New(handler),
+	l.Logger = slog.New(handler)
+	return l
+}
+
+// SetDebug dynamically switches the log level between debug and info.
+func (t *Logger) SetDebug(v bool) {
+	if t == nil {
+		return
+	}
+	if v {
+		t.level.Set(slog.LevelDebug)
+	} else {
+		t.level.Set(slog.LevelInfo)
 	}
 }
 
@@ -87,6 +110,9 @@ func (t *Logger) Printf(ctx context.Context, f string, args ...any) {
 // Append structured data to the log in key-value pairs
 // where the key is a string and the value is any type
 func (t *Logger) With(kv ...any) server.Logger {
+	if t == nil {
+		return t
+	}
 	return &Logger{
 		Logger: t.Logger.With(kv...),
 	}
@@ -97,6 +123,9 @@ func (t *Logger) With(kv ...any) server.Logger {
 
 // Emit a debugging message
 func (t *Logger) log(ctx context.Context, level slog.Level, v string) {
+	if t == nil {
+		return
+	}
 	t.Logger.Log(ctx, level, v)
 }
 

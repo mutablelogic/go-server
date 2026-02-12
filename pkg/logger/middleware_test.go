@@ -15,7 +15,7 @@ import (
 func Test_Middleware_001(t *testing.T) {
 	assert := assert.New(t)
 	logger := logger.New(os.Stderr, logger.Term, false)
-	ts := httptest.NewServer(logger.HandleFunc(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(logger.WrapFunc(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "Hello, client")
 	})))
 	defer ts.Close()

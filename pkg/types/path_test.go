@@ -1,6 +1,7 @@
 package types_test
 
 import (
+	"fmt"
 	"testing"
 
 	// Packages
@@ -45,4 +46,32 @@ func Test_Path_001(t *testing.T) {
 		path := types.NormalisePath("path//")
 		assert.Equal("/path", path)
 	})
+}
+
+func Test_JoinPath(t *testing.T) {
+	assert := assert.New(t)
+
+	tests := []struct {
+		Prefix   string
+		Path     string
+		Expected string
+	}{
+		{"", "", "/"},
+		{"/", "", "/"},
+		{"", "/", "/"},
+		{"/api", "/v1", "/api/v1"},
+		{"/api", "v1", "/api/v1"},
+		{"/api/", "/v1", "/api/v1"},
+		{"/api/", "v1/", "/api/v1"},
+		{"api", "v1", "/api/v1"},
+		{"/", "/path", "/path"},
+		{"/prefix", "/", "/prefix"},
+		{"/a/b", "/c/d", "/a/b/c/d"},
+	}
+
+	for i, test := range tests {
+		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
+			assert.Equal(test.Expected, types.JoinPath(test.Prefix, test.Path))
+		})
+	}
 }

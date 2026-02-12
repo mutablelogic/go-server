@@ -3,10 +3,10 @@ package httpserver
 import (
 	"bytes"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/pem"
 	"fmt"
-	"io"
-	"os"
+	"time"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -20,25 +20,23 @@ const (
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-// Create a new TLS configuration object from the certificate and key files
-func TLSConfig(name string, verify bool, files ...string) (*tls.Config, error) {
-	var data bytes.Buffer
-
-	// Append certificate and key to buffer
-	for _, file := range files {
-		if file == "" {
+// TLSConfig creates a [tls.Config] from raw PEM-encoded certificate and
+// key data. The data slices may each contain a single PEM block, or they
+// may be concatenated (cert + key in one slice). name sets the
+// ServerName field; when verify is false, client certificate verification
+// is skipped.
+func TLSConfig(name string, verify bool, data ...[]byte) (*tls.Config, error) {
+	var buf bytes.Buffer
+	for _, d := range data {
+		if len(d) == 0 {
 			continue
 		}
-		if _, err := os.Stat(file); err != nil {
-			return nil, fmt.Errorf("file not found: %s", file)
-		}
-		if err := appendBytes(&data, file); err != nil {
-			return nil, err
-		}
+		buf.Write(d)
+		buf.WriteByte('\n')
 	}
 
 	// Read key pair
-	cert, key, err := readPemBlocks(bytes.TrimSpace(data.Bytes()))
+	cert, key, err := readPemBlocks(bytes.TrimSpace(buf.Bytes()))
 	if err != nil {
 		return nil, err
 	}
@@ -49,8 +47,45 @@ func TLSConfig(name string, verify bool, files ...string) (*tls.Config, error) {
 		return nil, err
 	}
 
-	// Return success
-	return &tls.Config{ServerName: name, InsecureSkipVerify: !verify, Certificates: []tls.Certificate{certificate}}, nil
+	// Build the TLS config. When verify is true, require and validate
+	// client certificates; otherwise accept any client.
+	clientAuth := tls.NoClientCert
+	if verify {
+		clientAuth = tls.RequireAndVerifyClientCert
+	}
+	return &tls.Config{
+		ServerName:   name,
+		ClientAuth:   clientAuth,
+		Certificates: []tls.Certificate{certificate},
+	}, nil
+}
+
+// ValidateCert checks that the given PEM-encoded certificate and key
+// form a valid key pair and that the leaf certificate has not expired.
+// It is intended for use at plan time to catch configuration errors
+// before Apply.
+func ValidateCert(cert, key []byte) error {
+	certPEM, keyPEM, err := readPemBlocks(bytes.TrimSpace(append(append([]byte{}, cert...), key...)))
+	if err != nil {
+		return err
+	}
+
+	// Verify the key pair is valid
+	tlsCert, err := tls.X509KeyPair(certPEM, keyPEM)
+	if err != nil {
+		return fmt.Errorf("invalid key pair: %w", err)
+	}
+
+	// Parse the leaf certificate to check expiry
+	leaf, err := x509.ParseCertificate(tlsCert.Certificate[0])
+	if err != nil {
+		return fmt.Errorf("cannot parse certificate: %w", err)
+	}
+	if time.Now().After(leaf.NotAfter) {
+		return fmt.Errorf("certificate expired on %s", leaf.NotAfter.Format(time.DateOnly))
+	}
+
+	return nil
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -89,15 +124,4 @@ func readPemBlocks(data []byte) ([]byte, []byte, error) {
 
 	// Return success
 	return cert, key, nil
-}
-
-func appendBytes(w io.Writer, file string) error {
-	// Append file to writer
-	data, err := os.ReadFile(file)
-	if err != nil {
-		return err
-	} else if _, err := w.Write(data); err != nil {
-		return err
-	}
-	return nil
 }

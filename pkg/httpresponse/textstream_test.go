@@ -27,7 +27,7 @@ func Test_textstream_001(t *testing.T) {
 
 		time.Sleep(1 * time.Second)
 		assert.NoError(ts.Close())
-		assert.Equal(100, resp.Code)
+		assert.Equal(200, resp.Code)
 		assert.Equal("text/event-stream", resp.Header().Get("Content-Type"))
 		assert.Equal("event: ping\n\n", resp.Body.String())
 	})
@@ -42,7 +42,7 @@ func Test_textstream_001(t *testing.T) {
 
 		time.Sleep(1 * time.Second)
 		assert.NoError(ts.Close())
-		assert.Equal(100, resp.Code)
+		assert.Equal(200, resp.Code)
 		assert.Equal("text/event-stream", resp.Header().Get("Content-Type"))
 		assert.Equal("event: ping\n\n"+"event: foo\n\n", resp.Body.String())
 	})
@@ -56,7 +56,7 @@ func Test_textstream_001(t *testing.T) {
 
 		time.Sleep(1 * time.Second)
 		assert.NoError(ts.Close())
-		assert.Equal(100, resp.Code)
+		assert.Equal(200, resp.Code)
 		assert.Equal("text/event-stream", resp.Header().Get("Content-Type"))
 		assert.Equal("event: foo\n"+"data: \"bar\"\n\n", resp.Body.String())
 	})
@@ -70,7 +70,7 @@ func Test_textstream_001(t *testing.T) {
 
 		time.Sleep(1 * time.Second)
 		assert.NoError(ts.Close())
-		assert.Equal(100, resp.Code)
+		assert.Equal(200, resp.Code)
 		assert.Equal("text/event-stream", resp.Header().Get("Content-Type"))
 		assert.Equal("event: foo\n"+"data: \"bar1\"\n"+"data: \"bar2\"\n\n", resp.Body.String())
 	})
