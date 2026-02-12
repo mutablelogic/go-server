@@ -12,8 +12,7 @@ jobs:
     strategy:
       matrix:
         arch: [amd64, arm64]
-    runs-on:
-      - ${{ matrix.arch == 'amd64' && 'ubuntu-latest' || matrix.arch }}
+    runs-on: ${{ matrix.arch == 'amd64' && 'ubuntu-24.04' || matrix.arch == 'arm64' && 'ubuntu-24.04-arm' }}
     env:
       OS: linux
       ARCH: ${{ matrix.arch }}
