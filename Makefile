@@ -29,7 +29,7 @@ BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/version.GoBuildTime=$(shell date -u '+%
 BUILD_FLAGS = -ldflags "-s -w ${BUILD_LD_FLAGS}" 
 
 # Docker
-DOCKER_REPO ?= ghcr.io/mutablelogic/go-server
+DOCKER_REPO ?= ghcr.io/mutablelogic/kaiak
 DOCKER_SOURCE ?= ${BUILD_MODULE}
 DOCKER_TAG = ${DOCKER_REPO}-${OS}-${ARCH}:${VERSION}
 

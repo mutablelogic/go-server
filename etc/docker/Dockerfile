@@ -1,30 +1,25 @@
 ARG OS
 ARG ARCH
 
-# Run makefile to build all the commands
-FROM --platform=${OS}/${ARCH} golang:latest AS builder
+# Build stage
+FROM --platform=${OS}/${ARCH} golang:1.25 AS builder
 ARG OS
 ARG ARCH
 WORKDIR /usr/src/app
 COPY . .
 
-# Build the server
-RUN \
-    apt update -y && apt upgrade -y && \
-    OS=${OS} ARCH=${ARCH} make build-docker 
+RUN OS=${OS} ARCH=${ARCH} make build
 
-# Copy binaries to /usr/local/bin
+# Runtime stage
 FROM --platform=${OS}/${ARCH} debian:trixie-slim
-ARG OS
-ARG ARCH
 ARG SOURCE
-COPY --from=builder /usr/src/app/build/* /usr/local/bin/
-RUN apt update -y && apt install -y ca-certificates 
+RUN apt-get update -y && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /usr/src/app/build/kaiak /usr/local/bin/kaiak
 
 # Labels
 LABEL org.opencontainers.image.source=https://${SOURCE}
 
-# Entrypoint when running the server
-ENV PLUGIN_PATH="/usr/local/bin/*.plugin" ENDPOINT="http://0.0.0.0:80/"
+# Entrypoint
 EXPOSE 80 443
-ENTRYPOINT [ "/usr/local/bin/server" ]
+ENTRYPOINT ["/usr/local/bin/kaiak"]
+CMD ["run"]

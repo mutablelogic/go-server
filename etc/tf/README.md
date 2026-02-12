@@ -7,7 +7,7 @@ Manual testing for the `terraform-kaiak-provider`.
 1. A running kaiak server:
 
 ```bash
-go run ./cmd/go-server run
+go run ./cmd/kaiak run
 ```
 
 1. Build and install the provider:
