@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 
@@ -289,12 +290,23 @@ func (m *Manager) ListResources(ctx context.Context, req schema.ListResourcesReq
 			instances = append(instances, m.instanceMeta(ctx, inst))
 		}
 
+		// Sort instances by name
+		slices.SortFunc(instances, func(a, b schema.InstanceMeta) int {
+			return strings.Compare(a.Name, b.Name)
+		})
+
 		resources = append(resources, schema.ResourceMeta{
 			Name:       r.Name(),
 			Attributes: r.Schema(),
 			Instances:  instances,
 		})
 	}
+
+	// Sort resources by name for deterministic output
+	slices.SortFunc(resources, func(a, b schema.ResourceMeta) int {
+		return strings.Compare(a.Name, b.Name)
+	})
+
 	return &schema.ListResourcesResponse{
 		Provider:    m.name,
 		Description: m.description,
