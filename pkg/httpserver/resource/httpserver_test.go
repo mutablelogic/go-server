@@ -49,6 +49,23 @@ func freePort(t *testing.T) string {
 	return fmt.Sprintf("localhost:%s", port)
 }
 
+// httpGetRetry performs an HTTP GET with retries. It retries transient
+// errors (connection refused, connection reset) up to the given timeout.
+func httpGetRetry(t *testing.T, url string, timeout time.Duration) *http.Response {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for {
+		resp, err := http.Get(url)
+		if err == nil {
+			return resp
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("HTTP GET %s failed after %v: %v", url, timeout, err)
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+}
+
 // mockResolver returns a Resolver that looks up instances by name.
 func mockResolver(instances ...schema.ResourceInstance) schema.Resolver {
 	return func(name string) schema.ResourceInstance {
@@ -375,16 +392,10 @@ func Test_Apply_001(t *testing.T) {
 	ctx := context.Background()
 	assert.NoError(inst.Apply(ctx, r))
 
-	// Give the server a moment to start listening
-	time.Sleep(50 * time.Millisecond)
-
-	// Verify the server is accepting connections
-	resp, err := http.Get(fmt.Sprintf("http://%s/", addr))
-	assert.NoError(err)
-	if resp != nil {
-		resp.Body.Close()
-		assert.Equal(http.StatusOK, resp.StatusCode)
-	}
+	// Verify the server is accepting connections (retry to avoid races)
+	resp := httpGetRetry(t, fmt.Sprintf("http://%s/", addr), 2*time.Second)
+	resp.Body.Close()
+	assert.Equal(http.StatusOK, resp.StatusCode)
 
 	// Destroy should shut it down cleanly
 	assert.NoError(inst.Destroy(ctx))
@@ -427,19 +438,14 @@ func Test_Apply_003(t *testing.T) {
 
 	// First apply
 	assert.NoError(inst.Apply(ctx, r))
-	time.Sleep(50 * time.Millisecond)
 
 	// Second apply on same port should stop-then-start
 	assert.NoError(inst.Apply(ctx, r))
-	time.Sleep(50 * time.Millisecond)
 
-	// Server should still be reachable
-	resp, err := http.Get(fmt.Sprintf("http://%s/", addr))
-	assert.NoError(err)
-	if resp != nil {
-		resp.Body.Close()
-		assert.Equal(http.StatusOK, resp.StatusCode)
-	}
+	// Server should still be reachable (retry to avoid races)
+	resp := httpGetRetry(t, fmt.Sprintf("http://%s/", addr), 2*time.Second)
+	resp.Body.Close()
+	assert.Equal(http.StatusOK, resp.StatusCode)
 
 	// Clean up
 	assert.NoError(inst.Destroy(ctx))

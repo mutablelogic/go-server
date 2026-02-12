@@ -216,6 +216,12 @@ func (b *ResourceInstance[C]) Apply(ctx context.Context, v any) error {
 	return b.ApplyConfig(ctx, v, nil)
 }
 
+// Destroy satisfies [schema.ResourceInstance].  The default implementation
+// is a no-op; concrete types may override it to release resources.
+func (b *ResourceInstance[C]) Destroy(_ context.Context) error {
+	return nil
+}
+
 // Read satisfies [schema.ResourceInstance].  It returns the live state
 // of the instance by reflecting over the current applied configuration.
 // Concrete types may override this to include computed fields.

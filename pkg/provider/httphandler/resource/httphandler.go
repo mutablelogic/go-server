@@ -166,8 +166,3 @@ func (r *ResourceInstance) Apply(ctx context.Context, v any) error {
 		return nil
 	})
 }
-
-// Destroy is a no-op.
-func (r *ResourceInstance) Destroy(_ context.Context) error {
-	return nil
-}

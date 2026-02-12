@@ -1,7 +1,6 @@
 package resource
 
 import (
-	"context"
 	"net/http"
 
 	// Packages
@@ -62,25 +61,8 @@ func (Resource) Schema() []schema.Attribute {
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS - RESOURCE INSTANCE
 
-// Validate decodes the incoming state, resolves references, and returns
-// the validated *Resource configuration for use by Plan and Apply.
-func (r *ResourceInstance) Validate(ctx context.Context, state schema.State, resolve schema.Resolver) (any, error) {
-	return r.ResourceInstance.Validate(ctx, state, resolve)
-}
-
 // WrapFunc wraps next with the captured middleware function.
 // The router calls this during its own Apply to build the middleware chain.
 func (r *ResourceInstance) WrapFunc(next http.HandlerFunc) http.HandlerFunc {
 	return r.fn(next)
-}
-
-// Apply stores the configuration. The actual middleware attachment is
-// performed by the router during its own Apply.
-func (r *ResourceInstance) Apply(ctx context.Context, v any) error {
-	return r.ApplyConfig(ctx, v, nil)
-}
-
-// Destroy is a no-op.
-func (r *ResourceInstance) Destroy(_ context.Context) error {
-	return nil
 }
