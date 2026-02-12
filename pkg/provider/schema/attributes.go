@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 )
 
@@ -43,7 +44,65 @@ type Attribute struct {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+// GLOBALS
+
+// reservedNames are names that must not be used as attribute or resource
+// names because they clash with Terraform or HCL reserved identifiers.
+var reservedNames = map[string]bool{
+	// Terraform meta-arguments and root blocks
+	"connection":  true,
+	"count":       true,
+	"data":        true,
+	"depends_on":  true,
+	"for_each":    true,
+	"lifecycle":   true,
+	"locals":      true,
+	"module":      true,
+	"output":      true,
+	"provider":    true,
+	"provisioner": true,
+	"resource":    true,
+	"terraform":   true,
+	"variable":    true,
+	// HCL literal keywords
+	"true":  true,
+	"false": true,
+	"null":  true,
+	// HCL for-expression keywords
+	"for":    true,
+	"in":     true,
+	"if":     true,
+	"else":   true,
+	"endif":  true,
+	"endfor": true,
+}
+
+///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
+
+// ValidateName checks that name is a valid resource type name or instance
+// label. Names may contain lowercase letters, digits and underscores, and
+// must start with a letter or underscore. Dots and hyphens are not allowed.
+// Names that collide with Terraform/HCL reserved words are rejected.
+func ValidateName(name string) error {
+	if name == "" {
+		return fmt.Errorf("name must not be empty")
+	}
+	if strings.Contains(name, ".") {
+		return fmt.Errorf("%q: name must not contain dots", name)
+	}
+	if strings.Contains(name, "-") {
+		return fmt.Errorf("%q: name must not contain hyphens", name)
+	}
+	c := name[0]
+	if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_') {
+		return fmt.Errorf("%q: name must start with a letter or underscore", name)
+	}
+	if reservedNames[name] {
+		return fmt.Errorf("%q: name is reserved", name)
+	}
+	return nil
+}
 
 // Attributes uses reflection to convert a struct into a slice of [Attribute],
 // reading struct tags to determine each field's properties:

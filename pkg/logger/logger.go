@@ -74,6 +74,9 @@ func New(w io.Writer, f Format, debug bool) *Logger {
 
 // SetDebug dynamically switches the log level between debug and info.
 func (t *Logger) SetDebug(v bool) {
+	if t == nil {
+		return
+	}
 	if v {
 		t.level.Set(slog.LevelDebug)
 	} else {
@@ -107,6 +110,9 @@ func (t *Logger) Printf(ctx context.Context, f string, args ...any) {
 // Append structured data to the log in key-value pairs
 // where the key is a string and the value is any type
 func (t *Logger) With(kv ...any) server.Logger {
+	if t == nil {
+		return t
+	}
 	return &Logger{
 		Logger: t.Logger.With(kv...),
 	}
@@ -117,6 +123,9 @@ func (t *Logger) With(kv ...any) server.Logger {
 
 // Emit a debugging message
 func (t *Logger) log(ctx context.Context, level slog.Level, v string) {
+	if t == nil {
+		return
+	}
 	t.Logger.Log(ctx, level, v)
 }
 

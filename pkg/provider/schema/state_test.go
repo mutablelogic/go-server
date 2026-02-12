@@ -135,7 +135,7 @@ func Test_Decode_011(t *testing.T) {
 	state := schema.State{
 		"listen":       ":8080",
 		"router":       "router-01",
-		"read-timeout": "1m0s",
+		"read_timeout": "1m0s",
 	}
 	err := state.Decode(&r, nil)
 	assert.Error(err)
@@ -184,8 +184,8 @@ func Test_Decode_015(t *testing.T) {
 	// Full round-trip: StateOf then Decode (struct with no interface refs)
 	type serverConfig struct {
 		Listen       string        `name:"listen"`
-		ReadTimeout  time.Duration `name:"read-timeout"`
-		WriteTimeout time.Duration `name:"write-timeout"`
+		ReadTimeout  time.Duration `name:"read_timeout"`
+		WriteTimeout time.Duration `name:"write_timeout"`
 		TLS          struct {
 			Name   string `name:"name"`
 			Verify bool   `name:"verify"`
@@ -405,8 +405,8 @@ func Test_StateOf_003(t *testing.T) {
 
 	// Scalar fields
 	assert.Equal("localhost:8080", s["listen"])
-	assert.Equal("5m0s", s["read-timeout"])
-	assert.Equal("10s", s["write-timeout"])
+	assert.Equal("5m0s", s["read_timeout"])
+	assert.Equal("10s", s["write_timeout"])
 
 	// Embedded TLS fields with prefix
 	assert.Equal("myserver", s["tls.name"])

@@ -99,7 +99,7 @@ func Test_Resource_002(t *testing.T) {
 	for _, a := range attrs {
 		names[a.Name] = true
 	}
-	for _, want := range []string{"listen", "description", "endpoint", "router", "read-timeout", "write-timeout", "idle-timeout", "tls.name", "tls.verify", "tls.cert", "tls.key"} {
+	for _, want := range []string{"listen", "description", "endpoint", "router", "read_timeout", "write_timeout", "idle_timeout", "tls.name", "tls.verify", "tls.cert", "tls.key"} {
 		assert.True(names[want], "missing attribute %q", want)
 	}
 

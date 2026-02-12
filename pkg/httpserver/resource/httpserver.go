@@ -27,9 +27,9 @@ type Resource struct {
 	Description  string                  `name:"description" help:"Server description for OpenAPI spec"`
 	Endpoint     string                  `name:"endpoint" readonly:"" help:"Base URL of the running server"`
 	Router       schema.ResourceInstance `name:"router" type:"httprouter" required:"" help:"HTTP router"`
-	ReadTimeout  time.Duration           `name:"read-timeout" default:"5m" help:"Read timeout"`
-	WriteTimeout time.Duration           `name:"write-timeout" default:"5m" help:"Write timeout"`
-	IdleTimeout  time.Duration           `name:"idle-timeout" default:"5m" help:"Idle timeout for keep-alive connections"`
+	ReadTimeout  time.Duration           `name:"read_timeout" default:"5m" help:"Read timeout"`
+	WriteTimeout time.Duration           `name:"write_timeout" default:"5m" help:"Write timeout"`
+	IdleTimeout  time.Duration           `name:"idle_timeout" default:"5m" help:"Idle timeout for keep-alive connections"`
 	TLS          struct {
 		Name   string `name:"name" help:"TLS server name"`
 		Verify bool   `name:"verify" default:"true" help:"Verify client certificates"`

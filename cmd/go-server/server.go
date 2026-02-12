@@ -49,24 +49,24 @@ type RunServer struct {
 // COMMANDS
 
 func (cmd *RunServer) Run(ctx *Globals) error {
-	// Create the manager
-	manager, err := provider.New(ctx.execName, "A generic server for running providers", version.GitTag)
+	return cmd.WithManager(ctx, func(manager *provider.Manager, v string) error {
+		// Start the HTTP server and wait for shutdown
+		return cmd.Serve(ctx, manager, version.Version())
+	})
+}
+
+// withManager creates the resource manager, registers all resource instances
+// (logger, otel, handlers, router) in dependency order, invokes fn, then
+// closes the manager regardless of whether fn returned an error.
+func (cmd *RunServer) WithManager(ctx *Globals, fn func(*provider.Manager, string) error) error {
+	manager, err := provider.New(ctx.execName, "A generic server for running providers", version.Version())
 	if err != nil {
 		return err
 	}
-
-	// Compute a version string (ldflags may not be set in dev builds)
-	versionTag := version.GitTag
-	if versionTag == "" && version.GitHash != "" {
-		versionTag = version.GitHash[:8]
-	} else if versionTag == "" {
-		versionTag = "dev"
-	}
-
-	// Build ordered middleware and handler name lists for the router state
-	var middlewareNames []string
+	defer manager.Close(ctx.ctx)
 
 	// Create a read-only logger instance
+	var middlewareNames []string
 	format := "text"
 	if isTerminal(os.Stderr) {
 		format = "term"
@@ -85,7 +85,7 @@ func (cmd *RunServer) Run(ctx *Globals) error {
 		ctx.logger = l
 	}
 
-	// Create a read-only otel middleware instance (passive — no dependencies)
+	// Create a read-only otel middleware instance
 	if ctx.tracer != nil {
 		otelInst, err := manager.RegisterReadonlyInstance(ctx.ctx, otel_resource.NewResource(otel.HTTPHandlerFunc(ctx.tracer)), "main", schema.State{})
 		if err != nil {
@@ -94,15 +94,15 @@ func (cmd *RunServer) Run(ctx *Globals) error {
 		middlewareNames = append(middlewareNames, otelInst.Name())
 	}
 
-	// Create read-only handler instances (passive — no dependencies)
+	// Create read-only handler instances
 	handlerResources := []handler_resource.Resource{
 		handler_resource.NewResource(
-			"provider-api", "resource",
+			"provider_api_resources", "resource",
 			httphandler.ResourceListHandler(manager),
 			httphandler.ResourceListSpec(),
 		),
 		handler_resource.NewResource(
-			"provider-api-item", "resource/{id}",
+			"provider_api_instances", "resource/{id}",
 			httphandler.ResourceInstanceHandler(manager),
 			httphandler.ResourceInstanceSpec(),
 		),
@@ -134,23 +134,29 @@ func (cmd *RunServer) Run(ctx *Globals) error {
 	}
 
 	// Create a read-only httprouter instance — references middleware and handlers
-	routerInst, err := manager.RegisterReadonlyInstance(ctx.ctx, httprouter_resource.Resource{}, "main", schema.State{
+	if _, err := manager.RegisterReadonlyInstance(ctx.ctx, httprouter_resource.Resource{}, "main", schema.State{
 		"prefix":     ctx.HTTP.Prefix,
 		"origin":     ctx.HTTP.Origin,
 		"title":      ctx.execName,
-		"version":    versionTag,
+		"version":    version.Version(),
 		"openapi":    cmd.OpenAPI,
 		"middleware": middlewareNames,
 		"handlers":   handlerNames,
-	})
-	if err != nil {
+	}); err != nil {
 		return err
 	}
 
-	// Create a read-only httpserver instance
+	return fn(manager, version.Version())
+}
+
+// Serve creates the httpserver instance, logs the startup banner, and
+// blocks until context cancellation (e.g. SIGINT). The caller is
+// responsible for closing the manager afterwards.
+func (cmd *RunServer) Serve(ctx *Globals, manager *provider.Manager, versionTag string) error {
+	// Build the httpserver state
 	serverState := schema.State{
 		"listen": ctx.HTTP.Addr,
-		"router": routerInst.Name(),
+		"router": "httprouter.main",
 	}
 	if cmd.TLS.CertFile != "" || cmd.TLS.KeyFile != "" {
 		certPEM, err := os.ReadFile(cmd.TLS.CertFile)
@@ -166,34 +172,28 @@ func (cmd *RunServer) Run(ctx *Globals) error {
 		serverState["tls.name"] = cmd.TLS.ServerName
 	}
 	if ctx.HTTP.Timeout > 0 {
-		serverState["read-timeout"] = ctx.HTTP.Timeout.String()
-		serverState["write-timeout"] = ctx.HTTP.Timeout.String()
+		serverState["read_timeout"] = ctx.HTTP.Timeout.String()
+		serverState["write_timeout"] = ctx.HTTP.Timeout.String()
 	}
 
-	// Create the read-only httpserver instance, which starts the server and serves requests
+	// Create the read-only httpserver instance, which starts the server
 	httpserver, err := manager.RegisterReadonlyInstance(ctx.ctx, httpserver_resource.Resource{}, "main", serverState)
 	if err != nil {
 		return err
 	}
 
-	// Output the version
+	// Output the version and endpoint
 	ctx.logger.Printf(ctx.ctx, "%s@%s", ctx.execName, versionTag)
 	if state, err := httpserver.Read(ctx.ctx); err == nil {
 		ctx.logger.Printf(ctx.ctx, "Listening on %v", state["endpoint"])
 	}
 
-	// Wait for context cancellation (e.g. signal), then close all resources
+	// Wait for context cancellation (e.g. signal)
 	<-ctx.ctx.Done()
 
-	// Close the manager, destroying all resources in dependency order
-	// (httpserver stops first, then httprouter is torn down)
-	if err := manager.Close(ctx.ctx); err != nil {
-		return err
-	}
-
-	// Terminated message
+	// Log before closing — manager.Close destroys the logger
 	ctx.logger.Print(ctx.ctx, "terminated gracefully")
 
-	// Return any error
+	// Return success
 	return nil
 }

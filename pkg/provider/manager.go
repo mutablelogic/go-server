@@ -165,13 +165,29 @@ func (m *Manager) RegisterResource(r schema.Resource) error {
 	defer m.Unlock()
 	if r == nil {
 		return ErrBadRequest.With("resource is nil")
-	} else if name := r.Name(); name == "" {
-		return ErrBadRequest.With("resource name is empty")
-	} else if _, exists := m.resources[name]; exists {
-		return ErrConflict.Withf("resource %q is already registered", name)
-	} else {
-		m.resources[name] = r
 	}
+
+	// Validate resource name
+	name := r.Name()
+	if err := schema.ValidateName(name); err != nil {
+		return ErrBadRequest.Withf("resource name: %v", err)
+	}
+	if _, exists := m.resources[name]; exists {
+		return ErrConflict.Withf("resource %q is already registered", name)
+	}
+
+	// Validate attribute names in the resource schema
+	for _, attr := range r.Schema() {
+		// Strip dot-prefix (e.g. "tls.cert" → validate "tls" and "cert")
+		parts := strings.SplitN(attr.Name, ".", 2)
+		for _, part := range parts {
+			if err := schema.ValidateName(part); err != nil {
+				return ErrBadRequest.Withf("resource %q attribute %q: %v", name, attr.Name, err)
+			}
+		}
+	}
+
+	m.resources[name] = r
 
 	// Return success
 	return nil

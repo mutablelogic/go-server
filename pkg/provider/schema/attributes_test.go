@@ -13,9 +13,9 @@ import (
 type httpserverResource struct {
 	Listen       string                  `name:"listen" help:"Listen address (e.g. localhost:8080)"`
 	Router       schema.ResourceInstance `name:"router" type:"httprouter" required:"" help:"HTTP router"`
-	ReadTimeout  time.Duration           `name:"read-timeout" default:"5m" help:"Read timeout"`
-	WriteTimeout time.Duration           `name:"write-timeout" default:"5m" help:"Write timeout"`
-	IdleTimeout  time.Duration           `name:"idle-timeout" default:"5m" help:"Idle timeout for keep-alive connections"`
+	ReadTimeout  time.Duration           `name:"read_timeout" default:"5m" help:"Read timeout"`
+	WriteTimeout time.Duration           `name:"write_timeout" default:"5m" help:"Write timeout"`
+	IdleTimeout  time.Duration           `name:"idle_timeout" default:"5m" help:"Idle timeout for keep-alive connections"`
 	TLS          struct {
 		Name   string `name:"name" help:"TLS server name"`
 		Verify bool   `name:"verify" default:"true" help:"Verify client certificates"`
@@ -53,9 +53,9 @@ func Test_Attributes_003(t *testing.T) {
 	}
 	assert.Contains(names, "listen")
 	assert.Contains(names, "router")
-	assert.Contains(names, "read-timeout")
-	assert.Contains(names, "write-timeout")
-	assert.Contains(names, "idle-timeout")
+	assert.Contains(names, "read_timeout")
+	assert.Contains(names, "write_timeout")
+	assert.Contains(names, "idle_timeout")
 	assert.Contains(names, "tls.name")
 	assert.Contains(names, "tls.verify")
 	assert.Contains(names, "tls.cert")
@@ -67,7 +67,7 @@ func Test_Attributes_004(t *testing.T) {
 	attrs := schema.AttributesOf(httpserverResource{})
 	var readTimeout *schema.Attribute
 	for _, a := range attrs {
-		if a.Name == "read-timeout" {
+		if a.Name == "read_timeout" {
 			readTimeout = &a
 			break
 		}
@@ -130,7 +130,7 @@ func Test_Attributes_009(t *testing.T) {
 	// Sensitive and required tags
 	type secrets struct {
 		Password string `name:"password" help:"The password" sensitive:"" required:""`
-		APIKey   string `name:"api-key" sensitive:""`
+		APIKey   string `name:"api_key" sensitive:""`
 	}
 	attrs := schema.AttributesOf(secrets{})
 	assert.Len(attrs, 2)
@@ -139,7 +139,7 @@ func Test_Attributes_009(t *testing.T) {
 	assert.True(attrs[0].Sensitive)
 	assert.True(attrs[0].Required)
 
-	assert.Equal("api-key", attrs[1].Name)
+	assert.Equal("api_key", attrs[1].Name)
 	assert.True(attrs[1].Sensitive)
 	assert.False(attrs[1].Required)
 }
@@ -390,4 +390,91 @@ func Test_ReadOnly_005(t *testing.T) {
 	assert.Error(err)
 	assert.Contains(err.Error(), "name")
 	assert.NotContains(err.Error(), "id")
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// ValidateName tests
+
+func Test_ValidateName_001(t *testing.T) {
+	assert := assert.New(t)
+	assert.NoError(schema.ValidateName("httpserver"))
+}
+
+func Test_ValidateName_002(t *testing.T) {
+	assert := assert.New(t)
+	assert.NoError(schema.ValidateName("main"))
+}
+
+func Test_ValidateName_003(t *testing.T) {
+	assert := assert.New(t)
+	// Hyphens are not allowed
+	assert.Error(schema.ValidateName("read-timeout"))
+}
+
+func Test_ValidateName_004(t *testing.T) {
+	assert := assert.New(t)
+	// Dots are not allowed
+	assert.Error(schema.ValidateName("tls.cert"))
+}
+
+func Test_ValidateName_005(t *testing.T) {
+	assert := assert.New(t)
+	assert.NoError(schema.ValidateName("tls_cert"))
+}
+
+func Test_ValidateName_006(t *testing.T) {
+	assert := assert.New(t)
+	// Empty name is rejected
+	assert.Error(schema.ValidateName(""))
+}
+
+func Test_ValidateName_007(t *testing.T) {
+	assert := assert.New(t)
+	// Must start with letter or underscore, not a digit
+	assert.Error(schema.ValidateName("9server"))
+}
+
+func Test_ValidateName_008(t *testing.T) {
+	assert := assert.New(t)
+	// Leading underscore is OK
+	assert.NoError(schema.ValidateName("_internal"))
+}
+
+func Test_ValidateName_009(t *testing.T) {
+	assert := assert.New(t)
+	// Reserved word "provider" is rejected
+	assert.Error(schema.ValidateName("provider"))
+}
+
+func Test_ValidateName_010(t *testing.T) {
+	assert := assert.New(t)
+	// Reserved word "lifecycle" is rejected
+	assert.Error(schema.ValidateName("lifecycle"))
+}
+
+func Test_ValidateName_011(t *testing.T) {
+	assert := assert.New(t)
+	// Hyphens are rejected outright (not just reserved words)
+	assert.Error(schema.ValidateName("for-each"))
+	assert.Error(schema.ValidateName("depends-on"))
+	assert.Error(schema.ValidateName("my-name"))
+}
+
+func Test_ValidateName_012(t *testing.T) {
+	assert := assert.New(t)
+	// HCL literal keywords are rejected
+	assert.Error(schema.ValidateName("true"))
+	assert.Error(schema.ValidateName("false"))
+	assert.Error(schema.ValidateName("null"))
+}
+
+func Test_ValidateName_013(t *testing.T) {
+	assert := assert.New(t)
+	// HCL for-expression keywords are rejected
+	assert.Error(schema.ValidateName("for"))
+	assert.Error(schema.ValidateName("in"))
+	assert.Error(schema.ValidateName("if"))
+	assert.Error(schema.ValidateName("else"))
+	assert.Error(schema.ValidateName("endif"))
+	assert.Error(schema.ValidateName("endfor"))
 }
