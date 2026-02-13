@@ -287,7 +287,7 @@ func (m *Manager) ListResources(ctx context.Context, req schema.ListResourcesReq
 			if inst.instance.Resource().Name() != r.Name() {
 				continue
 			}
-			instances = append(instances, m.instanceMeta(ctx, inst))
+			instances = append(instances, m.redactedInstanceMeta(ctx, inst))
 		}
 
 		// Sort instances by name
@@ -504,8 +504,9 @@ func (m *Manager) DestroyResourceInstance(ctx context.Context, req schema.Destro
 			return nil, ErrConflict.Withf("cannot destroy %q: instance is read-only", name)
 		}
 
-		// Capture metadata before destruction
-		meta := m.instanceMeta(ctx, inst)
+		// Capture metadata before destruction (redacted — no need to
+		// return sensitive values for instances being removed)
+		meta := m.redactedInstanceMeta(ctx, inst)
 
 		m.notifyRemovals(inst.instance)
 		m.unwireObservers(inst.instance)
@@ -539,6 +540,15 @@ func (m *Manager) instanceMeta(ctx context.Context, inst instance) schema.Instan
 		State:      state,
 		References: inst.instance.References(),
 	}
+}
+
+// redactedInstanceMeta is like [instanceMeta] but replaces sensitive
+// attribute values with a redacted placeholder. It is used for list
+// endpoints where exposing secrets is unnecessary.
+func (m *Manager) redactedInstanceMeta(ctx context.Context, inst instance) schema.InstanceMeta {
+	meta := m.instanceMeta(ctx, inst)
+	meta.State = meta.State.Redact(inst.instance.Resource().Schema())
+	return meta
 }
 
 // directDependents returns the names of all live instances that

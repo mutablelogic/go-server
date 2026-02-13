@@ -20,8 +20,14 @@ type Resolver func(name string) ResourceInstance
 ///////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 
+const (
+	// RedactedValue is the placeholder used by [State.Redact] for sensitive fields.
+	RedactedValue = "(sensitive)"
+)
+
 var (
 	durationType = reflect.TypeOf(time.Duration(0))
+	timeType     = reflect.TypeOf(time.Time{})
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -117,6 +123,28 @@ func WritableStateOf(resource any) State {
 	return s
 }
 
+// Redact returns a copy of the state with all sensitive attribute values
+// replaced by [RedactedValue]. The attrs slice identifies which fields are
+// sensitive. This should be used before serialising state into API responses
+// that may be logged or cached by intermediaries.
+func (s State) Redact(attrs []Attribute) State {
+	if s == nil {
+		return nil
+	}
+	redacted := make(State, len(s))
+	for k, v := range s {
+		redacted[k] = v
+	}
+	for _, a := range attrs {
+		if a.Sensitive {
+			if _, exists := redacted[a.Name]; exists {
+				redacted[a.Name] = RedactedValue
+			}
+		}
+	}
+	return redacted
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
@@ -209,6 +237,12 @@ func stateValue(v reflect.Value) any {
 	// Duration → string
 	if v.Type() == durationType {
 		return v.Interface().(time.Duration).String()
+	}
+
+	// Time → RFC 3339 string (ensures consistent serialisation
+	// regardless of whether the value passes through JSON)
+	if v.Type() == timeType {
+		return v.Interface().(time.Time).Format(time.RFC3339)
 	}
 
 	return v.Interface()
@@ -347,6 +381,20 @@ func setField(dst reflect.Value, val any) error {
 			return err
 		}
 		dst.Set(reflect.ValueOf(d))
+		return nil
+	}
+
+	// Time: stored as RFC 3339 string (e.g. "2026-02-13T12:00:00Z")
+	if dst.Type() == timeType {
+		s, ok := val.(string)
+		if !ok {
+			return fmt.Errorf("expected string for time, got %T", val)
+		}
+		t, err := time.Parse(time.RFC3339, s)
+		if err != nil {
+			return err
+		}
+		dst.Set(reflect.ValueOf(t))
 		return nil
 	}
 
