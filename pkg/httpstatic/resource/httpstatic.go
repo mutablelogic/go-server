@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"sort"
+	"strings"
 	"sync"
 
 	// Packages
@@ -130,7 +131,7 @@ func (r *ResourceInstance) Read(ctx context.Context) (schema.State, error) {
 			if eps, ok := rtrState["endpoints"].([]string); ok {
 				path := r.HandlerPath()
 				for _, ep := range eps {
-					endpoints = append(endpoints, ep+"/"+path)
+					endpoints = append(endpoints, strings.TrimRight(ep, "/")+types.NormalisePath(path))
 				}
 			}
 		}

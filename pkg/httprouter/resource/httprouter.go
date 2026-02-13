@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -241,7 +242,7 @@ func (r *ResourceInstance) Read(_ context.Context) (schema.State, error) {
 	if len(r.endpoints) > 0 {
 		endpoints := make([]string, 0, len(r.endpoints))
 		for _, srv := range r.endpoints {
-			endpoints = append(endpoints, srv.URL+c.Prefix)
+			endpoints = append(endpoints, strings.TrimRight(srv.URL, "/")+types.NormalisePath(c.Prefix))
 		}
 		sort.Strings(endpoints)
 		state["endpoints"] = endpoints
