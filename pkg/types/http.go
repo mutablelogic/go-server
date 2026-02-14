@@ -11,6 +11,8 @@ const (
 	SchemeSecure            = "https"
 	SchemeInsecure          = "http"
 	ContentTypeHeader       = "Content-Type"
+	ApiKeyHeader            = "X-Api-Key"
+	AuthorizationHeader     = "Authorization"
 	ContentAcceptHeader     = "Accept"
 	ContentLengthHeader     = "Content-Length"
 	ContentDispositonHeader = "Content-Disposition"

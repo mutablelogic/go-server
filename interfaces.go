@@ -92,6 +92,17 @@ type HTTPFileServer interface {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+// AUTH
+
+type HTTPAuth interface {
+	HTTPMiddleware
+
+	// Spec returns the OpenAPI security-scheme description for this
+	// handler, or nil if no spec is provided.
+	// TODO Spec() *openapi.SecurityScheme
+}
+
+///////////////////////////////////////////////////////////////////////////////
 // MIDDLEWARE
 
 // HTTPMiddleware defines methods for HTTP middleware

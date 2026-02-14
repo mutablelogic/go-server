@@ -8,7 +8,7 @@ import (
 	"time"
 
 	// Packages
-	"github.com/mutablelogic/go-server/pkg/httpresponse"
+	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -20,7 +20,8 @@ const (
 )
 
 var (
-	typeTime = reflect.TypeOf(time.Time{})
+	typeTime     = reflect.TypeFor[time.Time]()
+	typeDuration = reflect.TypeFor[time.Duration]()
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -140,11 +141,19 @@ func setQueryValue(tag string, v reflect.Value, value []string) error {
 		}
 		v.SetBool(value)
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		value, err := strconv.ParseInt(value[0], 10, 64)
-		if err != nil {
-			return errBadRequest.Withf("%q: Parse error (expected a int value)", tag)
+		if v.Type() == typeDuration {
+			d, err := time.ParseDuration(value[0])
+			if err != nil {
+				return errBadRequest.Withf("%q: Parse error (expected a duration value)", tag)
+			}
+			v.SetInt(int64(d))
+		} else {
+			value, err := strconv.ParseInt(value[0], 10, 64)
+			if err != nil {
+				return errBadRequest.Withf("%q: Parse error (expected a int value)", tag)
+			}
+			v.SetInt(value)
 		}
-		v.SetInt(value)
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		value, err := strconv.ParseUint(value[0], 10, 64)
 		if err != nil {
