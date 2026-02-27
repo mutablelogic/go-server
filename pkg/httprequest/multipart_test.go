@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	// Packages
-	gomultipart "github.com/mutablelogic/go-client/pkg/multipart"
+	types "github.com/mutablelogic/go-server/pkg/types"
 	assert "github.com/stretchr/testify/assert"
 )
 
@@ -128,8 +128,8 @@ func Test_Read_FormData_Files(t *testing.T) {
 
 	t.Run("WithFileField", func(t *testing.T) {
 		type payload struct {
-			Name string           `json:"name"`
-			File gomultipart.File `json:"file"`
+			Name string     `json:"name"`
+			File types.File `json:"file"`
 		}
 		var buf bytes.Buffer
 		w := multipart.NewWriter(&buf)
@@ -167,8 +167,8 @@ func Test_Read_FormData_Files(t *testing.T) {
 
 	t.Run("WithMultipleFilesSlice", func(t *testing.T) {
 		type payload struct {
-			Name  string             `json:"name"`
-			Files []gomultipart.File `json:"file"`
+			Name  string       `json:"name"`
+			Files []types.File `json:"file"`
 		}
 		var buf bytes.Buffer
 		w := multipart.NewWriter(&buf)
@@ -199,7 +199,7 @@ func Test_Read_FormData_Files(t *testing.T) {
 
 	t.Run("WithSingleFileInSlice", func(t *testing.T) {
 		type payload struct {
-			Files []gomultipart.File `json:"file"`
+			Files []types.File `json:"file"`
 		}
 		var buf bytes.Buffer
 		w := multipart.NewWriter(&buf)
@@ -220,7 +220,7 @@ func Test_Read_FormData_Files(t *testing.T) {
 		// Verify that when a file in the slice cannot be opened, an error is
 		// returned and previously-opened bodies are closed (no resource leak).
 		type payload struct {
-			Files []gomultipart.File `json:"file"`
+			Files []types.File `json:"file"`
 		}
 		var buf bytes.Buffer
 		w := multipart.NewWriter(&buf)
