@@ -301,3 +301,62 @@ func Test_Read_FormData_Files(t *testing.T) {
 		assert.Error(err)
 	})
 }
+
+// makeFH is a helper that builds a *multipart.FileHeader with the given
+// basename and an optional X-Path header value (pass "" to omit the header).
+func makeFH(filename, xpath string) *multipart.FileHeader {
+	h := make(textproto.MIMEHeader)
+	if xpath != "" {
+		h.Set(types.ContentPathHeader, xpath)
+	}
+	return &multipart.FileHeader{Filename: filename, Header: h}
+}
+
+func Test_fileHeaderPath(t *testing.T) {
+	assert := assert.New(t)
+
+	tests := []struct {
+		name     string
+		filename string // fh.Filename (stdlib basename fallback)
+		xpath    string // X-Path header value; "" means header is absent
+		want     string // expected File.Path
+	}{
+		// No X-Path header: use the stdlib-provided basename.
+		{"NoHeader", "base.txt", "", "base.txt"},
+
+		// Valid relative sub-path: returned unchanged after cleaning.
+		{"ValidSubPath", "z.txt", "x/y/z.txt", "x/y/z.txt"},
+
+		// path.Clean collapses redundant separators but keeps it safe.
+		{"RedundantSeparators", "z.txt", "x//y/z.txt", "x/y/z.txt"},
+
+		// Absolute path: leading slash is stripped; remainder is returned.
+		{"AbsolutePath", "passwd", "/etc/passwd", "etc/passwd"},
+
+		// Double-slash absolute path: Clean + TrimPrefix yield the same result.
+		{"DoubleSlash", "passwd", "//etc/passwd", "etc/passwd"},
+
+		// Simple traversal ("../../../etc/passwd"): starts with ".." → fallback.
+		{"TraversalSimple", "passwd", "../../../etc/passwd", "passwd"},
+
+		// Traversal hidden after a valid prefix ("a/../../b.txt"):
+		// path.Clean resolves this to "../b.txt" which escapes root → fallback.
+		{"TraversalMiddle", "b.txt", "a/../../b.txt", "b.txt"},
+
+		// X-Path is exactly ".": degenerate, fall back to filename.
+		{"DotOnly", "base.txt", ".", "base.txt"},
+
+		// X-Path is "/" (absolute root): strip slash yields "" → fallback.
+		{"SlashOnly", "base.txt", "/", "base.txt"},
+
+		// X-Path is "/.." : Clean gives "/..", TrimPrefix gives ".." → fallback.
+		{"SlashDotDot", "base.txt", "/..", "base.txt"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := fileHeaderPath(makeFH(tt.filename, tt.xpath))
+			assert.Equal(tt.want, got)
+		})
+	}
+}
