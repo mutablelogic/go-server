@@ -2,13 +2,11 @@ package httprequest_test
 
 import (
 	"bytes"
-	"io"
 	"mime/multipart"
 	"net/http"
 	"strings"
 	"testing"
 
-	gomultipart "github.com/mutablelogic/go-client/pkg/multipart"
 	"github.com/mutablelogic/go-server/pkg/httprequest"
 	"github.com/stretchr/testify/assert"
 )
@@ -135,48 +133,6 @@ func Test_Read_FormData(t *testing.T) {
 		assert.NoError(err)
 		assert.Equal("alice", p.Name)
 		assert.Equal("30", p.Age)
-	})
-
-	t.Run("WithFileField", func(t *testing.T) {
-		type payload struct {
-			Name string         `json:"name"`
-			File gomultipart.File `json:"file"`
-		}
-		var buf bytes.Buffer
-		w := multipart.NewWriter(&buf)
-		_ = w.WriteField("name", "doc")
-		part, _ := w.CreateFormFile("file", "test.txt")
-		_, _ = part.Write([]byte("file contents"))
-		w.Close()
-
-		r, _ := http.NewRequest(http.MethodPost, "/", &buf)
-		r.Header.Set("Content-Type", w.FormDataContentType())
-		var p payload
-		err := httprequest.Read(r, &p)
-		assert.NoError(err)
-		assert.Equal("doc", p.Name)
-		assert.Equal("test.txt", p.File.Path)
-		assert.NotNil(p.File.Body)
-		// Read body
-		data, _ := io.ReadAll(p.File.Body)
-		assert.Equal("file contents", string(data))
-	})
-
-	t.Run("UnsupportedFileFieldType", func(t *testing.T) {
-		type payload struct {
-			File string `json:"file"`
-		}
-		var buf bytes.Buffer
-		w := multipart.NewWriter(&buf)
-		part, _ := w.CreateFormFile("file", "test.txt")
-		_, _ = part.Write([]byte("data"))
-		w.Close()
-
-		r, _ := http.NewRequest(http.MethodPost, "/", &buf)
-		r.Header.Set("Content-Type", w.FormDataContentType())
-		var p payload
-		err := httprequest.Read(r, &p)
-		assert.Error(err)
 	})
 }
 

@@ -79,10 +79,16 @@ func readString(r *http.Request, v any) error {
 }
 
 var (
-	typeFile = reflect.TypeOf(gomultipart.File{})
+	typeFile      = reflect.TypeOf(gomultipart.File{})
+	typeFileSlice = reflect.TypeOf([]gomultipart.File{})
 )
 
 func readFormData(r *http.Request, v any) error {
+	// ParseMultipartForm reads the entire request body eagerly: parts up to
+	// FormDataMaxMemory bytes are held in memory, larger parts spill to OS temp
+	// files. Cleanup (RemoveAll) is handled automatically: each opened file body
+	// is wrapped in a refCountedBody, and RemoveAll is called once the last body
+	// is closed by the caller.
 	if err := r.ParseMultipartForm(FormDataMaxMemory); err != nil {
 		return err
 	}
@@ -90,31 +96,63 @@ func readFormData(r *http.Request, v any) error {
 		return httpresponse.ErrBadRequest.With("Missing form data")
 	}
 
+	cleanup := &multipartCleanup{form: r.MultipartForm}
+	defer cleanup.done() // calls RemoveAll immediately if no files were opened
+
 	// Set non-file fields
 	if err := Query(r.MultipartForm.Value, v); err != nil {
 		return err
 	}
 
-	// Set file fields - we only support one file per field
+	// Set file fields — supports both a single gomultipart.File and []gomultipart.File
 	for key, values := range r.MultipartForm.File {
 		if len(values) == 0 {
 			continue
 		}
-		// Get the first file for the field
 		value, err := writableFieldForName(v, key)
 		if err != nil {
 			return err
 		}
 		switch value.Type() {
 		case typeFile:
-			body, err := values[0].Open()
+			// Backward-compatible single-file: use the first part only.
+			body, err := cleanup.open(values[0])
 			if err != nil {
 				return errBadRequest.Withf("cannot open file %q: %v", values[0].Filename, err)
 			}
 			value.Set(reflect.ValueOf(gomultipart.File{
-				Path: values[0].Filename,
-				Body: body,
+				Path:        values[0].Filename,
+				Body:        body,
+				ContentType: values[0].Header.Get("Content-Type"),
+				Header:      values[0].Header,
 			}))
+		case typeFileSlice:
+			// Multi-file: open every part and collect into a slice.
+			files := make([]gomultipart.File, 0, len(values))
+			for _, fh := range values {
+				body, err := cleanup.open(fh)
+				if err != nil {
+					// Close any already-opened bodies; their Close() calls
+					// decrement the ref count and will trigger RemoveAll when
+					// the count reaches zero. Join all close errors.
+					errs := []error{errBadRequest.Withf("cannot open file %q: %v", fh.Filename, err)}
+					for _, f := range files {
+						if c, ok := f.Body.(io.Closer); ok {
+							if cerr := c.Close(); cerr != nil {
+								errs = append(errs, cerr)
+							}
+						}
+					}
+					return errors.Join(errs...)
+				}
+				files = append(files, gomultipart.File{
+					Path:        fh.Filename,
+					Body:        body,
+					ContentType: fh.Header.Get("Content-Type"),
+					Header:      fh.Header,
+				})
+			}
+			value.Set(reflect.ValueOf(files))
 		default:
 			return httpresponse.ErrBadRequest.Withf("cannot set field %q of type %s", key, value.Type())
 		}

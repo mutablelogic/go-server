@@ -5,8 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mutablelogic/go-server/pkg/httprequest"
-	"github.com/stretchr/testify/assert"
+	// Packages
+	httprequest "github.com/mutablelogic/go-server/pkg/httprequest"
+	assert "github.com/stretchr/testify/assert"
 )
 
 func Test_Query_String(t *testing.T) {
@@ -72,9 +73,9 @@ func Test_Query_Int(t *testing.T) {
 	assert := assert.New(t)
 
 	type params struct {
-		Count  int   `json:"count"`
-		Small  int8  `json:"small"`
-		Big    int64 `json:"big"`
+		Count int   `json:"count"`
+		Small int8  `json:"small"`
+		Big   int64 `json:"big"`
 	}
 
 	t.Run("SetInt", func(t *testing.T) {
