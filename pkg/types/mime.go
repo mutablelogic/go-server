@@ -17,6 +17,7 @@ const (
 	ContentTypeTextXml    = "text/xml"
 	ContentTypeTextPlain  = "text/plain"
 	ContentTypeTextStream = "text/event-stream"
+	ContentTypeForm       = "application/x-www-form-urlencoded"
 	ContentTypeFormData   = "multipart/form-data"
 	ContentTypeAny        = "*/*"
 )
