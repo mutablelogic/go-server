@@ -237,6 +237,40 @@ func Test_Read_FormData(t *testing.T) {
 		data, _ := io.ReadAll(p.Files[0].Body)
 		assert.Equal("solo", string(data))
 	})
+
+	t.Run("FileSliceOpenError", func(t *testing.T) {
+		// Verify that when a file in the slice cannot be opened, an error is
+		// returned and previously-opened bodies are closed (no resource leak).
+		//
+		// Strategy: pre-parse the form so ParseMultipartForm is a no-op when
+		// httprequest.Read calls it, then inject a zero-value FileHeader whose
+		// Open() calls os.Open("") and fails.  The first file (in memory) opens
+		// successfully, giving us a non-empty slice to clean up.
+		type payload struct {
+			Files []gomultipart.File `json:"file"`
+		}
+		var buf bytes.Buffer
+		w := multipart.NewWriter(&buf)
+		part, _ := w.CreateFormFile("file", "good.txt")
+		_, _ = part.Write([]byte("data"))
+		w.Close()
+
+		r, _ := http.NewRequest(http.MethodPost, "/", &buf)
+		r.Header.Set("Content-Type", w.FormDataContentType())
+
+		// Pre-parse so we can tamper with the file list.
+		_ = r.ParseMultipartForm(32 << 20)
+
+		// Append a zero-value FileHeader: content==nil, tmpfile=="" → os.Open("") fails.
+		r.MultipartForm.File["file"] = append(
+			r.MultipartForm.File["file"],
+			&multipart.FileHeader{Filename: "broken.txt"},
+		)
+
+		var p payload
+		err := httprequest.Read(r, &p)
+		assert.Error(err)
+	})
 }
 
 func Test_Read_FormData_JSON(t *testing.T) {

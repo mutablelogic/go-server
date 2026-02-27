@@ -124,7 +124,17 @@ func readFormData(r *http.Request, v any) error {
 			for _, fh := range values {
 				body, err := fh.Open()
 				if err != nil {
-					return errBadRequest.Withf("cannot open file %q: %v", fh.Filename, err)
+					// Close any already-opened bodies before returning, joining
+					// any close errors into the returned error.
+					errs := []error{errBadRequest.Withf("cannot open file %q: %v", fh.Filename, err)}
+					for _, f := range files {
+						if c, ok := f.Body.(io.Closer); ok {
+							if cerr := c.Close(); cerr != nil {
+								errs = append(errs, cerr)
+							}
+						}
+					}
+					return errors.Join(errs...)
 				}
 				files = append(files, gomultipart.File{
 					Path:        fh.Filename,
