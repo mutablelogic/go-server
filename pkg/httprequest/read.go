@@ -84,12 +84,20 @@ var (
 )
 
 func readFormData(r *http.Request, v any) error {
+	// ParseMultipartForm reads the entire request body eagerly: parts up to
+	// FormDataMaxMemory bytes are held in memory, larger parts spill to OS temp
+	// files. Cleanup (RemoveAll) is handled automatically: each opened file body
+	// is wrapped in a refCountedBody, and RemoveAll is called once the last body
+	// is closed by the caller.
 	if err := r.ParseMultipartForm(FormDataMaxMemory); err != nil {
 		return err
 	}
 	if r.MultipartForm == nil {
 		return httpresponse.ErrBadRequest.With("Missing form data")
 	}
+
+	cleanup := &multipartCleanup{form: r.MultipartForm}
+	defer cleanup.done() // calls RemoveAll immediately if no files were opened
 
 	// Set non-file fields
 	if err := Query(r.MultipartForm.Value, v); err != nil {
@@ -108,7 +116,7 @@ func readFormData(r *http.Request, v any) error {
 		switch value.Type() {
 		case typeFile:
 			// Backward-compatible single-file: use the first part only.
-			body, err := values[0].Open()
+			body, err := cleanup.open(values[0])
 			if err != nil {
 				return errBadRequest.Withf("cannot open file %q: %v", values[0].Filename, err)
 			}
@@ -122,10 +130,11 @@ func readFormData(r *http.Request, v any) error {
 			// Multi-file: open every part and collect into a slice.
 			files := make([]gomultipart.File, 0, len(values))
 			for _, fh := range values {
-				body, err := fh.Open()
+				body, err := cleanup.open(fh)
 				if err != nil {
-					// Close any already-opened bodies before returning, joining
-					// any close errors into the returned error.
+					// Close any already-opened bodies; their Close() calls
+					// decrement the ref count and will trigger RemoveAll when
+					// the count reaches zero. Join all close errors.
 					errs := []error{errBadRequest.Withf("cannot open file %q: %v", fh.Filename, err)}
 					for _, f := range files {
 						if c, ok := f.Body.(io.Closer); ok {

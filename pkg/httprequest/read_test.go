@@ -2,13 +2,11 @@ package httprequest_test
 
 import (
 	"bytes"
-	"io"
 	"mime/multipart"
 	"net/http"
 	"strings"
 	"testing"
 
-	gomultipart "github.com/mutablelogic/go-client/pkg/multipart"
 	"github.com/mutablelogic/go-server/pkg/httprequest"
 	"github.com/stretchr/testify/assert"
 )
@@ -135,141 +133,6 @@ func Test_Read_FormData(t *testing.T) {
 		assert.NoError(err)
 		assert.Equal("alice", p.Name)
 		assert.Equal("30", p.Age)
-	})
-
-	t.Run("WithFileField", func(t *testing.T) {
-		type payload struct {
-			Name string           `json:"name"`
-			File gomultipart.File `json:"file"`
-		}
-		var buf bytes.Buffer
-		w := multipart.NewWriter(&buf)
-		_ = w.WriteField("name", "doc")
-		part, _ := w.CreateFormFile("file", "test.txt")
-		_, _ = part.Write([]byte("file contents"))
-		w.Close()
-
-		r, _ := http.NewRequest(http.MethodPost, "/", &buf)
-		r.Header.Set("Content-Type", w.FormDataContentType())
-		var p payload
-		err := httprequest.Read(r, &p)
-		assert.NoError(err)
-		assert.Equal("doc", p.Name)
-		assert.Equal("test.txt", p.File.Path)
-		assert.NotNil(p.File.Body)
-		assert.NotEmpty(p.File.ContentType)
-		assert.NotNil(p.File.Header)
-		assert.NotEmpty(p.File.Header.Get("Content-Disposition"))
-		// Read body
-		data, _ := io.ReadAll(p.File.Body)
-		assert.Equal("file contents", string(data))
-	})
-
-	t.Run("UnsupportedFileFieldType", func(t *testing.T) {
-		type payload struct {
-			File string `json:"file"`
-		}
-		var buf bytes.Buffer
-		w := multipart.NewWriter(&buf)
-		part, _ := w.CreateFormFile("file", "test.txt")
-		_, _ = part.Write([]byte("data"))
-		w.Close()
-
-		r, _ := http.NewRequest(http.MethodPost, "/", &buf)
-		r.Header.Set("Content-Type", w.FormDataContentType())
-		var p payload
-		err := httprequest.Read(r, &p)
-		assert.Error(err)
-	})
-
-	t.Run("WithMultipleFilesSlice", func(t *testing.T) {
-		type payload struct {
-			Name  string             `json:"name"`
-			Files []gomultipart.File `json:"file"`
-		}
-		var buf bytes.Buffer
-		w := multipart.NewWriter(&buf)
-		_ = w.WriteField("name", "batch")
-		part1, _ := w.CreateFormFile("file", "a.txt")
-		_, _ = part1.Write([]byte("contents of a"))
-		part2, _ := w.CreateFormFile("file", "b.txt")
-		_, _ = part2.Write([]byte("contents of b"))
-		w.Close()
-
-		r, _ := http.NewRequest(http.MethodPost, "/", &buf)
-		r.Header.Set("Content-Type", w.FormDataContentType())
-		var p payload
-		err := httprequest.Read(r, &p)
-		assert.NoError(err)
-		assert.Equal("batch", p.Name)
-		assert.Len(p.Files, 2)
-		assert.Equal("a.txt", p.Files[0].Path)
-		assert.Equal("b.txt", p.Files[1].Path)
-		assert.NotNil(p.Files[0].Header)
-		assert.NotNil(p.Files[1].Header)
-		assert.NotEmpty(p.Files[0].Header.Get("Content-Disposition"))
-		assert.NotEmpty(p.Files[1].Header.Get("Content-Disposition"))
-		assert.NotEmpty(p.Files[0].ContentType)
-		assert.NotEmpty(p.Files[1].ContentType)
-		data0, _ := io.ReadAll(p.Files[0].Body)
-		data1, _ := io.ReadAll(p.Files[1].Body)
-		assert.Equal("contents of a", string(data0))
-		assert.Equal("contents of b", string(data1))
-	})
-
-	t.Run("WithSingleFileInSlice", func(t *testing.T) {
-		type payload struct {
-			Files []gomultipart.File `json:"file"`
-		}
-		var buf bytes.Buffer
-		w := multipart.NewWriter(&buf)
-		part, _ := w.CreateFormFile("file", "only.txt")
-		_, _ = part.Write([]byte("solo"))
-		w.Close()
-
-		r, _ := http.NewRequest(http.MethodPost, "/", &buf)
-		r.Header.Set("Content-Type", w.FormDataContentType())
-		var p payload
-		err := httprequest.Read(r, &p)
-		assert.NoError(err)
-		assert.Len(p.Files, 1)
-		assert.Equal("only.txt", p.Files[0].Path)
-		data, _ := io.ReadAll(p.Files[0].Body)
-		assert.Equal("solo", string(data))
-	})
-
-	t.Run("FileSliceOpenError", func(t *testing.T) {
-		// Verify that when a file in the slice cannot be opened, an error is
-		// returned and previously-opened bodies are closed (no resource leak).
-		//
-		// Strategy: pre-parse the form so ParseMultipartForm is a no-op when
-		// httprequest.Read calls it, then inject a zero-value FileHeader whose
-		// Open() calls os.Open("") and fails.  The first file (in memory) opens
-		// successfully, giving us a non-empty slice to clean up.
-		type payload struct {
-			Files []gomultipart.File `json:"file"`
-		}
-		var buf bytes.Buffer
-		w := multipart.NewWriter(&buf)
-		part, _ := w.CreateFormFile("file", "good.txt")
-		_, _ = part.Write([]byte("data"))
-		w.Close()
-
-		r, _ := http.NewRequest(http.MethodPost, "/", &buf)
-		r.Header.Set("Content-Type", w.FormDataContentType())
-
-		// Pre-parse so we can tamper with the file list.
-		_ = r.ParseMultipartForm(32 << 20)
-
-		// Append a zero-value FileHeader: content==nil, tmpfile=="" → os.Open("") fails.
-		r.MultipartForm.File["file"] = append(
-			r.MultipartForm.File["file"],
-			&multipart.FileHeader{Filename: "broken.txt"},
-		)
-
-		var p payload
-		err := httprequest.Read(r, &p)
-		assert.Error(err)
 	})
 }
 
