@@ -79,7 +79,8 @@ func readString(r *http.Request, v any) error {
 }
 
 var (
-	typeFile = reflect.TypeOf(gomultipart.File{})
+	typeFile      = reflect.TypeOf(gomultipart.File{})
+	typeFileSlice = reflect.TypeOf([]gomultipart.File{})
 )
 
 func readFormData(r *http.Request, v any) error {
@@ -95,18 +96,18 @@ func readFormData(r *http.Request, v any) error {
 		return err
 	}
 
-	// Set file fields - we only support one file per field
+	// Set file fields — supports both a single gomultipart.File and []gomultipart.File
 	for key, values := range r.MultipartForm.File {
 		if len(values) == 0 {
 			continue
 		}
-		// Get the first file for the field
 		value, err := writableFieldForName(v, key)
 		if err != nil {
 			return err
 		}
 		switch value.Type() {
 		case typeFile:
+			// Backward-compatible single-file: use the first part only.
 			body, err := values[0].Open()
 			if err != nil {
 				return errBadRequest.Withf("cannot open file %q: %v", values[0].Filename, err)
@@ -115,6 +116,20 @@ func readFormData(r *http.Request, v any) error {
 				Path: values[0].Filename,
 				Body: body,
 			}))
+		case typeFileSlice:
+			// Multi-file: open every part and collect into a slice.
+			files := make([]gomultipart.File, 0, len(values))
+			for _, fh := range values {
+				body, err := fh.Open()
+				if err != nil {
+					return errBadRequest.Withf("cannot open file %q: %v", fh.Filename, err)
+				}
+				files = append(files, gomultipart.File{
+					Path: fh.Filename,
+					Body: body,
+				})
+			}
+			value.Set(reflect.ValueOf(files))
 		default:
 			return httpresponse.ErrBadRequest.Withf("cannot set field %q of type %s", key, value.Type())
 		}
