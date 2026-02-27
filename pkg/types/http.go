@@ -16,6 +16,7 @@ const (
 	ContentDispositonHeader = "Content-Disposition"
 	ContentModifiedHeader   = "Last-Modified"
 	ContentHashHeader       = "ETag"
+	ContentPathHeader       = "X-Path"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

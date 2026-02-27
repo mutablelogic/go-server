@@ -4,11 +4,13 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"mime/multipart"
 	"net/http"
+	"path"
 	"reflect"
+	"strings"
 
 	// Packages
-	gomultipart "github.com/mutablelogic/go-client/pkg/multipart"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	types "github.com/mutablelogic/go-server/pkg/types"
 )
@@ -79,8 +81,8 @@ func readString(r *http.Request, v any) error {
 }
 
 var (
-	typeFile      = reflect.TypeOf(gomultipart.File{})
-	typeFileSlice = reflect.TypeOf([]gomultipart.File{})
+	typeFile      = reflect.TypeOf(types.File{})
+	typeFileSlice = reflect.TypeOf([]types.File{})
 )
 
 func readFormData(r *http.Request, v any) error {
@@ -120,15 +122,15 @@ func readFormData(r *http.Request, v any) error {
 			if err != nil {
 				return errBadRequest.Withf("cannot open file %q: %v", values[0].Filename, err)
 			}
-			value.Set(reflect.ValueOf(gomultipart.File{
-				Path:        values[0].Filename,
+			value.Set(reflect.ValueOf(types.File{
+				Path:        fileHeaderPath(values[0]),
 				Body:        body,
 				ContentType: values[0].Header.Get("Content-Type"),
 				Header:      values[0].Header,
 			}))
 		case typeFileSlice:
 			// Multi-file: open every part and collect into a slice.
-			files := make([]gomultipart.File, 0, len(values))
+			files := make([]types.File, 0, len(values))
 			for _, fh := range values {
 				body, err := cleanup.open(fh)
 				if err != nil {
@@ -137,16 +139,14 @@ func readFormData(r *http.Request, v any) error {
 					// the count reaches zero. Join all close errors.
 					errs := []error{errBadRequest.Withf("cannot open file %q: %v", fh.Filename, err)}
 					for _, f := range files {
-						if c, ok := f.Body.(io.Closer); ok {
-							if cerr := c.Close(); cerr != nil {
-								errs = append(errs, cerr)
-							}
+						if cerr := f.Body.Close(); cerr != nil {
+							errs = append(errs, cerr)
 						}
 					}
 					return errors.Join(errs...)
 				}
-				files = append(files, gomultipart.File{
-					Path:        fh.Filename,
+				files = append(files, types.File{
+					Path:        fileHeaderPath(fh),
 					Body:        body,
 					ContentType: fh.Header.Get("Content-Type"),
 					Header:      fh.Header,
@@ -160,4 +160,30 @@ func readFormData(r *http.Request, v any) error {
 
 	// Return success
 	return nil
+}
+
+// fileHeaderPath returns the sanitised logical path for a multipart file part.
+// It prefers the X-Path header (set by go-client when the path contains
+// directory components, since the stdlib strips directories from the
+// Content-Disposition filename per RFC 7578 §4.2) and falls back to
+// the base filename exposed by the stdlib parser.
+//
+// The X-Path value is normalised with path.Clean and stripped of any leading
+// slash. If the result is empty or escapes its root via .. segments, the
+// function falls back to fh.Filename (already basename-only per the stdlib)
+// to prevent path traversal attacks.
+func fileHeaderPath(fh *multipart.FileHeader) string {
+	p := fh.Header.Get(types.ContentPathHeader)
+	if p == "" {
+		return fh.Filename
+	}
+	// Resolve . and .. then strip any leading slash.
+	p = path.Clean(p)
+	p = strings.TrimPrefix(p, "/")
+	// If the cleaned path escapes the root or is degenerate, fall back to
+	// the stdlib-provided basename which is always safe.
+	if p == "." || p == "" || strings.HasPrefix(p, "..") {
+		return fh.Filename
+	}
+	return p
 }

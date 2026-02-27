@@ -2,13 +2,15 @@ package httprequest
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"testing"
 
 	// Packages
-	gomultipart "github.com/mutablelogic/go-client/pkg/multipart"
+	types "github.com/mutablelogic/go-server/pkg/types"
 	assert "github.com/stretchr/testify/assert"
 )
 
@@ -128,8 +130,8 @@ func Test_Read_FormData_Files(t *testing.T) {
 
 	t.Run("WithFileField", func(t *testing.T) {
 		type payload struct {
-			Name string           `json:"name"`
-			File gomultipart.File `json:"file"`
+			Name string     `json:"name"`
+			File types.File `json:"file"`
 		}
 		var buf bytes.Buffer
 		w := multipart.NewWriter(&buf)
@@ -146,7 +148,7 @@ func Test_Read_FormData_Files(t *testing.T) {
 		assert.NotEmpty(p.File.ContentType)
 		assert.NotNil(p.File.Header)
 		assert.NotEmpty(p.File.Header.Get("Content-Disposition"))
-		defer p.File.Body.(io.Closer).Close()
+		defer p.File.Body.Close()
 		data, _ := io.ReadAll(p.File.Body)
 		assert.Equal("file contents", string(data))
 	})
@@ -167,8 +169,8 @@ func Test_Read_FormData_Files(t *testing.T) {
 
 	t.Run("WithMultipleFilesSlice", func(t *testing.T) {
 		type payload struct {
-			Name  string             `json:"name"`
-			Files []gomultipart.File `json:"file"`
+			Name  string       `json:"name"`
+			Files []types.File `json:"file"`
 		}
 		var buf bytes.Buffer
 		w := multipart.NewWriter(&buf)
@@ -189,8 +191,8 @@ func Test_Read_FormData_Files(t *testing.T) {
 		assert.NotEmpty(p.Files[1].Header.Get("Content-Disposition"))
 		assert.NotEmpty(p.Files[0].ContentType)
 		assert.NotEmpty(p.Files[1].ContentType)
-		defer p.Files[0].Body.(io.Closer).Close()
-		defer p.Files[1].Body.(io.Closer).Close()
+		defer p.Files[0].Body.Close()
+		defer p.Files[1].Body.Close()
 		data0, _ := io.ReadAll(p.Files[0].Body)
 		data1, _ := io.ReadAll(p.Files[1].Body)
 		assert.Equal("contents of a", string(data0))
@@ -199,7 +201,7 @@ func Test_Read_FormData_Files(t *testing.T) {
 
 	t.Run("WithSingleFileInSlice", func(t *testing.T) {
 		type payload struct {
-			Files []gomultipart.File `json:"file"`
+			Files []types.File `json:"file"`
 		}
 		var buf bytes.Buffer
 		w := multipart.NewWriter(&buf)
@@ -211,16 +213,75 @@ func Test_Read_FormData_Files(t *testing.T) {
 		assert.NoError(err)
 		assert.Len(p.Files, 1)
 		assert.Equal("only.txt", p.Files[0].Path)
-		defer p.Files[0].Body.(io.Closer).Close()
+		defer p.Files[0].Body.Close()
 		data, _ := io.ReadAll(p.Files[0].Body)
 		assert.Equal("solo", string(data))
+	})
+
+	t.Run("XPathHeader_SingleFile", func(t *testing.T) {
+		// Verify that when a part carries an X-Path header the resulting
+		// File.Path equals the X-Path value rather than the basename.
+		type payload struct {
+			File types.File `json:"file"`
+		}
+		var buf bytes.Buffer
+		w := multipart.NewWriter(&buf)
+		h := make(textproto.MIMEHeader)
+		h.Set("Content-Disposition", fmt.Sprintf(`form-data; name=%q; filename=%q`, "file", "z.txt"))
+		h.Set("Content-Type", "text/plain")
+		h.Set(types.ContentPathHeader, "x/y/z.txt")
+		part, err := w.CreatePart(h)
+		assert.NoError(err)
+		_, _ = part.Write([]byte("deep content"))
+		w.Close()
+		var p payload
+		err = Read(buildRequest(&buf, w), &p)
+		assert.NoError(err)
+		assert.Equal("x/y/z.txt", p.File.Path)
+		defer p.File.Body.Close()
+		data, _ := io.ReadAll(p.File.Body)
+		assert.Equal("deep content", string(data))
+	})
+
+	t.Run("XPathHeader_FileSlice", func(t *testing.T) {
+		// Verify X-Path is respected for every part when binding to []types.File.
+		type payload struct {
+			Files []types.File `json:"file"`
+		}
+		var buf bytes.Buffer
+		w := multipart.NewWriter(&buf)
+		for _, tc := range []struct{ xpath, content string }{
+			{"a/b/one.txt", "content one"},
+			{"c/d/two.txt", "content two"},
+		} {
+			h := make(textproto.MIMEHeader)
+			h.Set("Content-Disposition", fmt.Sprintf(`form-data; name=%q; filename=%q`, "file", tc.xpath[len(tc.xpath)-7:]))
+			h.Set("Content-Type", "text/plain")
+			h.Set(types.ContentPathHeader, tc.xpath)
+			part, err := w.CreatePart(h)
+			assert.NoError(err)
+			_, _ = part.Write([]byte(tc.content))
+		}
+		w.Close()
+		var p payload
+		err := Read(buildRequest(&buf, w), &p)
+		assert.NoError(err)
+		assert.Len(p.Files, 2)
+		assert.Equal("a/b/one.txt", p.Files[0].Path)
+		assert.Equal("c/d/two.txt", p.Files[1].Path)
+		defer p.Files[0].Body.Close()
+		defer p.Files[1].Body.Close()
+		data0, _ := io.ReadAll(p.Files[0].Body)
+		data1, _ := io.ReadAll(p.Files[1].Body)
+		assert.Equal("content one", string(data0))
+		assert.Equal("content two", string(data1))
 	})
 
 	t.Run("FileSliceOpenError", func(t *testing.T) {
 		// Verify that when a file in the slice cannot be opened, an error is
 		// returned and previously-opened bodies are closed (no resource leak).
 		type payload struct {
-			Files []gomultipart.File `json:"file"`
+			Files []types.File `json:"file"`
 		}
 		var buf bytes.Buffer
 		w := multipart.NewWriter(&buf)
@@ -239,4 +300,63 @@ func Test_Read_FormData_Files(t *testing.T) {
 		err := Read(r, &p)
 		assert.Error(err)
 	})
+}
+
+// makeFH is a helper that builds a *multipart.FileHeader with the given
+// basename and an optional X-Path header value (pass "" to omit the header).
+func makeFH(filename, xpath string) *multipart.FileHeader {
+	h := make(textproto.MIMEHeader)
+	if xpath != "" {
+		h.Set(types.ContentPathHeader, xpath)
+	}
+	return &multipart.FileHeader{Filename: filename, Header: h}
+}
+
+func Test_fileHeaderPath(t *testing.T) {
+	assert := assert.New(t)
+
+	tests := []struct {
+		name     string
+		filename string // fh.Filename (stdlib basename fallback)
+		xpath    string // X-Path header value; "" means header is absent
+		want     string // expected File.Path
+	}{
+		// No X-Path header: use the stdlib-provided basename.
+		{"NoHeader", "base.txt", "", "base.txt"},
+
+		// Valid relative sub-path: returned unchanged after cleaning.
+		{"ValidSubPath", "z.txt", "x/y/z.txt", "x/y/z.txt"},
+
+		// path.Clean collapses redundant separators but keeps it safe.
+		{"RedundantSeparators", "z.txt", "x//y/z.txt", "x/y/z.txt"},
+
+		// Absolute path: leading slash is stripped; remainder is returned.
+		{"AbsolutePath", "passwd", "/etc/passwd", "etc/passwd"},
+
+		// Double-slash absolute path: Clean + TrimPrefix yield the same result.
+		{"DoubleSlash", "passwd", "//etc/passwd", "etc/passwd"},
+
+		// Simple traversal ("../../../etc/passwd"): starts with ".." → fallback.
+		{"TraversalSimple", "passwd", "../../../etc/passwd", "passwd"},
+
+		// Traversal hidden after a valid prefix ("a/../../b.txt"):
+		// path.Clean resolves this to "../b.txt" which escapes root → fallback.
+		{"TraversalMiddle", "b.txt", "a/../../b.txt", "b.txt"},
+
+		// X-Path is exactly ".": degenerate, fall back to filename.
+		{"DotOnly", "base.txt", ".", "base.txt"},
+
+		// X-Path is "/" (absolute root): strip slash yields "" → fallback.
+		{"SlashOnly", "base.txt", "/", "base.txt"},
+
+		// X-Path is "/.." : Clean gives "/..", TrimPrefix gives ".." → fallback.
+		{"SlashDotDot", "base.txt", "/..", "base.txt"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := fileHeaderPath(makeFH(tt.filename, tt.xpath))
+			assert.Equal(tt.want, got)
+		})
+	}
 }
