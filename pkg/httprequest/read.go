@@ -6,7 +6,9 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"path"
 	"reflect"
+	"strings"
 
 	// Packages
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
@@ -137,10 +139,8 @@ func readFormData(r *http.Request, v any) error {
 					// the count reaches zero. Join all close errors.
 					errs := []error{errBadRequest.Withf("cannot open file %q: %v", fh.Filename, err)}
 					for _, f := range files {
-						if c, ok := f.Body.(io.Closer); ok {
-							if cerr := c.Close(); cerr != nil {
-								errs = append(errs, cerr)
-							}
+						if cerr := f.Body.Close(); cerr != nil {
+							errs = append(errs, cerr)
 						}
 					}
 					return errors.Join(errs...)
@@ -162,14 +162,28 @@ func readFormData(r *http.Request, v any) error {
 	return nil
 }
 
-// fileHeaderPath returns the logical path for a multipart file part.
+// fileHeaderPath returns the sanitised logical path for a multipart file part.
 // It prefers the X-Path header (set by go-client when the path contains
 // directory components, since the stdlib strips directories from the
 // Content-Disposition filename per RFC 7578 §4.2) and falls back to
 // the base filename exposed by the stdlib parser.
+//
+// The X-Path value is normalised with path.Clean and stripped of any leading
+// slash. If the result is empty or escapes its root via .. segments, the
+// function falls back to fh.Filename (already basename-only per the stdlib)
+// to prevent path traversal attacks.
 func fileHeaderPath(fh *multipart.FileHeader) string {
-	if p := fh.Header.Get(types.ContentPathHeader); p != "" {
-		return p
+	p := fh.Header.Get(types.ContentPathHeader)
+	if p == "" {
+		return fh.Filename
 	}
-	return fh.Filename
+	// Resolve . and .. then strip any leading slash.
+	p = path.Clean(p)
+	p = strings.TrimPrefix(p, "/")
+	// If the cleaned path escapes the root or is degenerate, fall back to
+	// the stdlib-provided basename which is always safe.
+	if p == "." || p == "" || strings.HasPrefix(p, "..") {
+		return fh.Filename
+	}
+	return p
 }

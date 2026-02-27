@@ -2,9 +2,11 @@ package httprequest
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"testing"
 
 	// Packages
@@ -146,7 +148,7 @@ func Test_Read_FormData_Files(t *testing.T) {
 		assert.NotEmpty(p.File.ContentType)
 		assert.NotNil(p.File.Header)
 		assert.NotEmpty(p.File.Header.Get("Content-Disposition"))
-		defer p.File.Body.(io.Closer).Close()
+		defer p.File.Body.Close()
 		data, _ := io.ReadAll(p.File.Body)
 		assert.Equal("file contents", string(data))
 	})
@@ -189,8 +191,8 @@ func Test_Read_FormData_Files(t *testing.T) {
 		assert.NotEmpty(p.Files[1].Header.Get("Content-Disposition"))
 		assert.NotEmpty(p.Files[0].ContentType)
 		assert.NotEmpty(p.Files[1].ContentType)
-		defer p.Files[0].Body.(io.Closer).Close()
-		defer p.Files[1].Body.(io.Closer).Close()
+		defer p.Files[0].Body.Close()
+		defer p.Files[1].Body.Close()
 		data0, _ := io.ReadAll(p.Files[0].Body)
 		data1, _ := io.ReadAll(p.Files[1].Body)
 		assert.Equal("contents of a", string(data0))
@@ -211,9 +213,68 @@ func Test_Read_FormData_Files(t *testing.T) {
 		assert.NoError(err)
 		assert.Len(p.Files, 1)
 		assert.Equal("only.txt", p.Files[0].Path)
-		defer p.Files[0].Body.(io.Closer).Close()
+		defer p.Files[0].Body.Close()
 		data, _ := io.ReadAll(p.Files[0].Body)
 		assert.Equal("solo", string(data))
+	})
+
+	t.Run("XPathHeader_SingleFile", func(t *testing.T) {
+		// Verify that when a part carries an X-Path header the resulting
+		// File.Path equals the X-Path value rather than the basename.
+		type payload struct {
+			File types.File `json:"file"`
+		}
+		var buf bytes.Buffer
+		w := multipart.NewWriter(&buf)
+		h := make(textproto.MIMEHeader)
+		h.Set("Content-Disposition", fmt.Sprintf(`form-data; name=%q; filename=%q`, "file", "z.txt"))
+		h.Set("Content-Type", "text/plain")
+		h.Set(types.ContentPathHeader, "x/y/z.txt")
+		part, err := w.CreatePart(h)
+		assert.NoError(err)
+		_, _ = part.Write([]byte("deep content"))
+		w.Close()
+		var p payload
+		err = Read(buildRequest(&buf, w), &p)
+		assert.NoError(err)
+		assert.Equal("x/y/z.txt", p.File.Path)
+		defer p.File.Body.Close()
+		data, _ := io.ReadAll(p.File.Body)
+		assert.Equal("deep content", string(data))
+	})
+
+	t.Run("XPathHeader_FileSlice", func(t *testing.T) {
+		// Verify X-Path is respected for every part when binding to []types.File.
+		type payload struct {
+			Files []types.File `json:"file"`
+		}
+		var buf bytes.Buffer
+		w := multipart.NewWriter(&buf)
+		for _, tc := range []struct{ xpath, content string }{
+			{"a/b/one.txt", "content one"},
+			{"c/d/two.txt", "content two"},
+		} {
+			h := make(textproto.MIMEHeader)
+			h.Set("Content-Disposition", fmt.Sprintf(`form-data; name=%q; filename=%q`, "file", tc.xpath[len(tc.xpath)-7:]))
+			h.Set("Content-Type", "text/plain")
+			h.Set(types.ContentPathHeader, tc.xpath)
+			part, err := w.CreatePart(h)
+			assert.NoError(err)
+			_, _ = part.Write([]byte(tc.content))
+		}
+		w.Close()
+		var p payload
+		err := Read(buildRequest(&buf, w), &p)
+		assert.NoError(err)
+		assert.Len(p.Files, 2)
+		assert.Equal("a/b/one.txt", p.Files[0].Path)
+		assert.Equal("c/d/two.txt", p.Files[1].Path)
+		defer p.Files[0].Body.Close()
+		defer p.Files[1].Body.Close()
+		data0, _ := io.ReadAll(p.Files[0].Body)
+		data1, _ := io.ReadAll(p.Files[1].Body)
+		assert.Equal("content one", string(data0))
+		assert.Equal("content two", string(data1))
 	})
 
 	t.Run("FileSliceOpenError", func(t *testing.T) {
