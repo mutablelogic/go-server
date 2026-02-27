@@ -113,8 +113,10 @@ func readFormData(r *http.Request, v any) error {
 				return errBadRequest.Withf("cannot open file %q: %v", values[0].Filename, err)
 			}
 			value.Set(reflect.ValueOf(gomultipart.File{
-				Path: values[0].Filename,
-				Body: body,
+				Path:        values[0].Filename,
+				Body:        body,
+				ContentType: values[0].Header.Get("Content-Type"),
+				Header:      values[0].Header,
 			}))
 		case typeFileSlice:
 			// Multi-file: open every part and collect into a slice.
@@ -125,8 +127,10 @@ func readFormData(r *http.Request, v any) error {
 					return errBadRequest.Withf("cannot open file %q: %v", fh.Filename, err)
 				}
 				files = append(files, gomultipart.File{
-					Path: fh.Filename,
-					Body: body,
+					Path:        fh.Filename,
+					Body:        body,
+					ContentType: fh.Header.Get("Content-Type"),
+					Header:      fh.Header,
 				})
 			}
 			value.Set(reflect.ValueOf(files))
