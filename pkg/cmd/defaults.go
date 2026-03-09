@@ -34,8 +34,10 @@ func (d *defaults) init(path string) error {
 		return err
 	}
 	defer f.Close()
+
+	// Read the JSON defaults file into the store.
+	// If the file is corrupt or can't be read, discard
 	if err := json.NewDecoder(f).Decode(&d.data); err != nil {
-		// Corrupt or unreadable cache — discard and start empty
 		d.data = make(map[string]any)
 	}
 
