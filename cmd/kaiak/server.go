@@ -12,6 +12,7 @@ import (
 	httprouter_resource "github.com/mutablelogic/go-server/pkg/httprouter/resource"
 	httpserver_resource "github.com/mutablelogic/go-server/pkg/httpserver/resource"
 	httpstatic_resource "github.com/mutablelogic/go-server/pkg/httpstatic/resource"
+	logger_resource "github.com/mutablelogic/go-server/pkg/logger/resource"
 	otel "github.com/mutablelogic/go-server/pkg/otel"
 	otel_resource "github.com/mutablelogic/go-server/pkg/otel/resource"
 	provider "github.com/mutablelogic/go-server/pkg/provider"
@@ -58,8 +59,14 @@ func (s *RunServer) WithManager(ctx *cmd.Global, fn func(*provider.Manager, stri
 	}
 	defer manager.Close(ctx.Context())
 
-	// logger middleware comes from ctx.Logger() — no separate resource needed
 	var middlewareNames []string
+
+	// Create a read-only logger middleware instance
+	loggerInst, err := manager.RegisterReadonlyInstance(ctx.Context(), logger_resource.NewResource(ctx.Logger()), "main", schema.State{})
+	if err != nil {
+		return err
+	}
+	middlewareNames = append(middlewareNames, loggerInst.Name())
 
 	// Create a read-only otel middleware instance
 	if ctx.Tracer() != nil {
