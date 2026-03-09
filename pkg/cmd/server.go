@@ -73,17 +73,21 @@ func (s *RunServer) Run(ctx *Global) error {
 		)
 	}
 
+	// Create TLS config optionally when either cert or key file is provided.
 	var tlsCfg *tls.Config
-	if s.TLS.CertFile != "" || s.TLS.KeyFile != "" {
-		certPEM, err := os.ReadFile(s.TLS.CertFile)
-		if err != nil {
-			return fmt.Errorf("tls.cert: %w", err)
+	var data [][]byte
+	for _, field := range []string{s.TLS.CertFile, s.TLS.KeyFile} {
+		if field == "" {
+			continue
 		}
-		keyPEM, err := os.ReadFile(s.TLS.KeyFile)
-		if err != nil {
-			return fmt.Errorf("tls.key: %w", err)
+		if data_, err := os.ReadFile(field); err != nil {
+			return fmt.Errorf("%s: %w", field, err)
+		} else {
+			data = append(data, data_)
 		}
-		if tlsCfg, err = httpserver.TLSConfig(s.TLS.ServerName, false, certPEM, keyPEM); err != nil {
+	}
+	if len(data) > 0 {
+		if tlsCfg, err = httpserver.TLSConfig(s.TLS.ServerName, false, data...); err != nil {
 			return fmt.Errorf("tls: %w", err)
 		}
 	}
