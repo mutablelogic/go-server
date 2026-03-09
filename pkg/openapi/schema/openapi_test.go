@@ -221,3 +221,42 @@ func Test_PathItem_AllMethods(t *testing.T) {
 	assert.Equal("patch", decoded.Patch.Summary)
 	assert.Equal("trace", decoded.Trace.Summary)
 }
+
+func Test_AddTag_001(t *testing.T) {
+	assert := assert.New(t)
+
+	spec := schema.NewSpec("test", "1.0")
+	spec.AddTag("pets", "Operations about pets")
+	assert.Len(spec.Tags, 1)
+	assert.Equal("pets", spec.Tags[0].Name)
+	assert.Equal("Operations about pets", spec.Tags[0].Description)
+}
+
+func Test_AddTag_002(t *testing.T) {
+	assert := assert.New(t)
+
+	// Duplicate name should replace description, not append.
+	spec := schema.NewSpec("test", "1.0")
+	spec.AddTag("pets", "first")
+	spec.AddTag("pets", "second")
+	assert.Len(spec.Tags, 1)
+	assert.Equal("second", spec.Tags[0].Description)
+}
+
+func Test_AddTag_003(t *testing.T) {
+	assert := assert.New(t)
+
+	// Tags survive a JSON round-trip.
+	spec := schema.NewSpec("test", "1.0")
+	spec.AddTag("users", "User operations")
+	spec.AddTag("admin", "Admin operations")
+
+	data, err := json.Marshal(spec)
+	assert.NoError(err)
+
+	var decoded schema.Spec
+	assert.NoError(json.Unmarshal(data, &decoded))
+	assert.Len(decoded.Tags, 2)
+	assert.Equal("users", decoded.Tags[0].Name)
+	assert.Equal("admin", decoded.Tags[1].Name)
+}

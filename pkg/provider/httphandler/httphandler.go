@@ -6,6 +6,7 @@ import (
 	// Packages
 	httprequest "github.com/mutablelogic/go-server/pkg/httprequest"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
+	jsonschema "github.com/mutablelogic/go-server/pkg/jsonschema"
 	openapi "github.com/mutablelogic/go-server/pkg/openapi/schema"
 	provider "github.com/mutablelogic/go-server/pkg/provider"
 	schema "github.com/mutablelogic/go-server/pkg/provider/schema"
@@ -52,12 +53,42 @@ func ResourceListHandler(manager *provider.Manager) http.HandlerFunc {
 
 // ResourceListSpec returns the OpenAPI path-item for the resource list endpoint.
 func ResourceListSpec() *openapi.PathItem {
+	createSchema, _ := jsonschema.For[schema.CreateResourceInstanceRequest]()
+	typeSchema, _ := jsonschema.For[string]()
+	listRespSchema, _ := jsonschema.For[schema.ListResourcesResponse]()
+	createRespSchema, _ := jsonschema.For[schema.CreateResourceInstanceResponse]()
 	return types.Ptr(openapi.PathItem{
 		Get: &openapi.Operation{
-			Description: "List resource types, or instances when ?resource= is set",
+			Tags:        []string{"Resources"},
+			Summary:     "List resources",
+			Description: "Returns resource types, or resource instances when the ?type= query parameter is set.",
+			Parameters: []openapi.Parameter{
+				{
+					Name:        "type",
+					In:          openapi.ParameterInQuery,
+					Description: "Filter by resource type name (e.g. \"httpserver\")",
+					Schema:      typeSchema,
+				},
+			},
+			Responses: map[string]openapi.Response{
+				"200":     {Description: "OK", Content: map[string]openapi.MediaType{types.ContentTypeJSON: {Schema: listRespSchema}}},
+				"default": openapi.ErrorResponse("Error"),
+			},
 		},
 		Post: &openapi.Operation{
-			Description: "Create a new resource instance of the specified type",
+			Tags:        []string{"Resources"},
+			Summary:     "Create resource instance",
+			Description: "Creates a new instance of the specified resource type.",
+			RequestBody: &openapi.RequestBody{
+				Required: true,
+				Content: map[string]openapi.MediaType{
+					types.ContentTypeJSON: {Schema: createSchema},
+				},
+			},
+			Responses: map[string]openapi.Response{
+				"201":     {Description: "Created", Content: map[string]openapi.MediaType{types.ContentTypeJSON: {Schema: createRespSchema}}},
+				"default": openapi.ErrorResponse("Error"),
+			},
 		},
 	})
 }
@@ -109,15 +140,63 @@ func ResourceInstanceHandler(manager *provider.Manager) http.HandlerFunc {
 
 // ResourceInstanceSpec returns the OpenAPI path-item for the single-instance endpoint.
 func ResourceInstanceSpec() *openapi.PathItem {
+	updateSchema, _ := jsonschema.For[schema.UpdateResourceInstanceRequest]()
+	idSchema, _ := jsonschema.For[string]()
+	boolSchema, _ := jsonschema.For[bool]()
+	getRespSchema, _ := jsonschema.For[schema.GetResourceInstanceResponse]()
+	updateRespSchema, _ := jsonschema.For[schema.UpdateResourceInstanceResponse]()
+	destroyRespSchema, _ := jsonschema.For[schema.DestroyResourceInstanceResponse]()
+	idParam := openapi.Parameter{
+		Name:        "id",
+		In:          openapi.ParameterInPath,
+		Description: "Resource instance ID",
+		Required:    true,
+		Schema:      idSchema,
+	}
 	return types.Ptr(openapi.PathItem{
 		Get: &openapi.Operation{
-			Description: "Get a resource instance by ID",
+			Tags:        []string{"Resources"},
+			Summary:     "Get resource instance",
+			Description: "Returns the metadata and current state of a single resource instance by ID.",
+			Parameters:  []openapi.Parameter{idParam},
+			Responses: map[string]openapi.Response{
+				"200":     {Description: "OK", Content: map[string]openapi.MediaType{types.ContentTypeJSON: {Schema: getRespSchema}}},
+				"default": openapi.ErrorResponse("Error"),
+			},
 		},
 		Patch: &openapi.Operation{
-			Description: "Plan or apply changes to a resource instance",
+			Tags:        []string{"Resources"},
+			Summary:     "Plan or apply changes",
+			Description: "Computes a plan for the desired attribute values. When apply is true, the plan is executed immediately.",
+			Parameters:  []openapi.Parameter{idParam},
+			RequestBody: &openapi.RequestBody{
+				Required: true,
+				Content: map[string]openapi.MediaType{
+					types.ContentTypeJSON: {Schema: updateSchema},
+				},
+			},
+			Responses: map[string]openapi.Response{
+				"200":     {Description: "OK", Content: map[string]openapi.MediaType{types.ContentTypeJSON: {Schema: updateRespSchema}}},
+				"default": openapi.ErrorResponse("Error"),
+			},
 		},
 		Delete: &openapi.Operation{
-			Description: "Destroy a resource instance",
+			Tags:        []string{"Resources"},
+			Summary:     "Destroy resource instance",
+			Description: "Tears down the resource instance and releases its resources. Set cascade=true to also destroy dependents.",
+			Parameters: []openapi.Parameter{
+				idParam,
+				{
+					Name:        "cascade",
+					In:          openapi.ParameterInQuery,
+					Description: "Also destroy dependent instances in topological order",
+					Schema:      boolSchema,
+				},
+			},
+			Responses: map[string]openapi.Response{
+				"200":     {Description: "OK", Content: map[string]openapi.MediaType{types.ContentTypeJSON: {Schema: destroyRespSchema}}},
+				"default": openapi.ErrorResponse("Error"),
+			},
 		},
 	})
 }
