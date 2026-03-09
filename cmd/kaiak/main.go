@@ -20,11 +20,15 @@ type CLI struct {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+// GLOBALS
+
+const description = "Kaiak provides an infrastructure as code interface for composing and managing software resources."
+
+///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
 func main() {
-	cli := new(CLI)
-	if err := cmd.Main(cli, "kaiak command line interface", version.Version()); err != nil {
+	if err := cmd.Main(CLI{}, description, version.Version()); err != nil {
 		fmt.Fprintln(os.Stderr, "Error:", err)
 		os.Exit(-1)
 	}
