@@ -61,9 +61,6 @@ type Cmd interface {
 	// IsDebug reports whether debug logging is enabled.
 	IsDebug() bool
 
-	// IsVerbose reports whether verbose logging is enabled.
-	IsVerbose() bool
-
 	// HTTPAddr returns the HTTP listen/connect address.
 	HTTPAddr() string
 

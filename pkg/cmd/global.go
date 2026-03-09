@@ -115,8 +115,7 @@ func (g *global) ClientEndpoint() (string, []client.ClientOpt, error) {
 }
 
 func (g *global) IsTerm() bool               { return IsTerminal() }
-func (g *global) IsDebug() bool              { return g.Debug }
-func (g *global) IsVerbose() bool            { return g.Verbose }
+func (g *global) IsDebug() bool              { return g.Debug || g.Verbose }
 func (g *global) HTTPAddr() string           { return g.HTTP.Addr }
 func (g *global) HTTPPrefix() string         { return g.HTTP.Prefix }
 func (g *global) HTTPOrigin() string         { return g.HTTP.Origin }
