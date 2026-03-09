@@ -1,6 +1,7 @@
 package httpserver
 
 import (
+	"net/http"
 	"time"
 )
 
@@ -8,9 +9,10 @@ import (
 // TYPES
 
 type opt struct {
-	r time.Duration
-	w time.Duration
-	i time.Duration
+	r        time.Duration
+	w        time.Duration
+	i        time.Duration
+	catchAll http.Handler
 }
 
 type Opt func(*opt) error
@@ -60,6 +62,15 @@ func WithIdleTimeout(v time.Duration) Opt {
 		if v > 0 {
 			o.i = v
 		}
+		return nil
+	}
+}
+
+// WithCatchAll wraps the server's router so that any request not matched by the
+// router is handled by h instead of returning Go's default plain-text 404.
+func WithCatchAll(h http.Handler) Opt {
+	return func(o *opt) error {
+		o.catchAll = h
 		return nil
 	}
 }
