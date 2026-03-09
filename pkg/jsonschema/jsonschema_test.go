@@ -442,7 +442,7 @@ func TestFromJSON_StringSchema(t *testing.T) {
 	}
 }
 
-// For[int] — non-struct type should return an error.
+// For[T] with primitive and slice types — non-struct types generate a valid schema without error.
 func TestFor_NonStruct_Succeeds(t *testing.T) {
 	// Primitive and slice types should generate a valid schema without error.
 	if _, err := For[int](); err != nil {
@@ -1052,6 +1052,65 @@ func TestDecode_NestedStructWithDuration(t *testing.T) {
 	// Invalid nested duration string.
 	if err := schema.Decode(json.RawMessage(`{"name":"svc","db":{"timeout":"bad"}}`), &o); err == nil {
 		t.Error("expected error for invalid nested duration, got nil")
+	}
+}
+
+func TestDecode_PointerToPrimitive(t *testing.T) {
+	schema, err := For[string]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sp *string
+	if err := schema.Decode(json.RawMessage(`"hello"`), &sp); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if sp == nil || *sp != "hello" {
+		t.Errorf("got %v, want pointer to \"hello\"", sp)
+	}
+}
+
+func TestDecode_PointerToStruct(t *testing.T) {
+	type Config struct {
+		Name string `json:"name"`
+		Port int    `json:"port" default:"8080"`
+	}
+	schema, err := For[Config]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cp *Config
+	if err := schema.Decode(json.RawMessage(`{"name":"alice"}`), &cp); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cp == nil {
+		t.Fatal("expected non-nil pointer, got nil")
+	}
+	if cp.Name != "alice" {
+		t.Errorf("Name: got %q, want alice", cp.Name)
+	}
+	if cp.Port != 8080 {
+		t.Errorf("Port: got %d, want 8080 (default)", cp.Port)
+	}
+}
+
+func TestDecode_StructWithPointerFields(t *testing.T) {
+	type Config struct {
+		Name *string `json:"name"`
+		Age  *int    `json:"age,omitempty"`
+	}
+	schema, err := For[Config]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var c Config
+	if err := schema.Decode(json.RawMessage(`{"name":"bob"}`), &c); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if c.Name == nil || *c.Name != "bob" {
+		t.Errorf("Name: got %v, want pointer to \"bob\"", c.Name)
+	}
+	if c.Age != nil {
+		t.Errorf("Age: got %v, want nil (omitted)", c.Age)
 	}
 }
 

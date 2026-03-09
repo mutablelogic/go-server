@@ -145,7 +145,7 @@ func (r *ResourceInstance) Apply(ctx context.Context, v any) error {
 
 		// Register default endpoints (skip if a handler already occupies the path)
 		if _, dup := seen["/"]; !dup {
-			if err := router.RegisterNotFound("/", true); err != nil {
+			if err := router.RegisterCatchAll(true); err != nil {
 				return err
 			}
 		}

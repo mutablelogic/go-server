@@ -41,33 +41,17 @@ Fields with a `default:""` tag are automatically treated as optional so that def
 
 ## Type mappings
 
-| Go type | JSON Schema |
-|---|---|
-| `string` | `{"type":"string"}` |
-| `bool` | `{"type":"boolean"}` |
-| `int`, `int64`, etc. | `{"type":"integer"}` |
-| `float32`, `float64` | `{"type":"number"}` |
-| `[]T` | `{"type":"array"}` |
-| `map[K]V` | `{"type":"object"}` |
-| `struct` | `{"type":"object","properties":{…}}` |
-| `time.Time` | `{"type":"string"}` |
-| `time.Duration` | `{"type":"string","format":"duration"}` |
-
-### time.Duration
-
-`time.Duration` fields are represented as JSON strings using Go's standard duration syntax (e.g. `"5s"`, `"1h30m"`, `"250ms"`). `Decode` automatically parses the string and assigns the correct `time.Duration` value:
-
-```go
-type Config struct {
-    Timeout time.Duration `json:"timeout" default:"30s"`
-}
-
-var cfg Config
-schema.Decode(json.RawMessage(`{"timeout":"1m"}`), &cfg)
-// cfg.Timeout == time.Minute
-```
-
-If `timeout` is omitted from the JSON, the default `"30s"` is applied before unmarshalling.
+| Go type | JSON Schema | Notes |
+|---|---|---|
+| `string` | `{"type":"string"}` | |
+| `bool` | `{"type":"boolean"}` | |
+| `int`, `int64`, etc. | `{"type":"integer"}` | |
+| `float32`, `float64` | `{"type":"number"}` | |
+| `[]T` | `{"type":"array"}` | |
+| `map[K]V` | `{"type":"object"}` | |
+| `struct` | `{"type":"object","properties":{…}}` | struct tags are applied to properties |
+| `time.Time` | `{"type":"string","format":"date-time"}` | add `format:"date-time"` tag to advertise RFC 3339 — the format is advisory only, validation does not enforce it |
+| `time.Duration` | `{"type":"string","format":"duration"}` | values use Go duration syntax (e.g. `"5s"`, `"1h30m"`); `Decode` parses them automatically, including `default:""` tags |
 
 ## Supported struct tags
 

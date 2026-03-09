@@ -50,12 +50,12 @@ func Test_Router_004(t *testing.T) {
 	assert.Error(err)
 }
 
-func Test_RegisterNotFound_001(t *testing.T) {
+func Test_RegisterCatchAll_001(t *testing.T) {
 	assert := assert.New(t)
 
 	router, err := NewRouter(context.Background(), "/", "", "Test API", "1.0.0")
 	assert.NoError(err)
-	assert.NoError(router.RegisterNotFound("/", false))
+	assert.NoError(router.RegisterCatchAll(false))
 
 	// Request a path that doesn't match any specific handler
 	req := httptest.NewRequest(http.MethodGet, "/unknown-path", nil)

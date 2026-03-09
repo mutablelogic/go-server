@@ -43,7 +43,7 @@ func PluginsForPattern(pattern ...string) ([]Plugin, error) {
 			return nil, err
 		}
 		if len(files) == 0 {
-			return nil, httpresponse.ErrBadRequest.Withf("No plugins found for pattern: %q", pattern)
+			return nil, httpresponse.ErrBadRequest.Withf("No plugins found for pattern: %q", p)
 		}
 
 		// Load plugins

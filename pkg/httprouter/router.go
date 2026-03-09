@@ -6,6 +6,7 @@ package httprouter
 
 import (
 	"context"
+	"errors"
 	"io/fs"
 	"net/http"
 
@@ -115,18 +116,28 @@ func (r *Router) safeHandle(pattern string, handler http.HandlerFunc) (err error
 	return nil
 }
 
-// RegisterNotFound registers a catch-all handler at path that responds with
-// 404 Not Found. It is typically registered at "/" so that any request that
-// does not match a more specific route receives a structured error response.
+// RegisterCatchAll registers a structured-404 handler at the literal "/" path
+// in the underlying ServeMux. Because http.ServeMux treats "/" as a catch-all
+// that matches any request not handled by a more-specific pattern, this ensures
+// unmatched requests return a JSON 404 instead of Go's plain-text response.
+//
+// The handler is registered without the router prefix so it applies globally.
+// If "/" is already registered the call is a no-op (no error is returned).
 // When middleware is true the handler is wrapped by the router's middleware chain.
-func (r *Router) RegisterNotFound(path string, middleware bool) error {
-	handler := func(w http.ResponseWriter, req *http.Request) {
+func (r *Router) RegisterCatchAll(middleware bool) error {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		_ = httpresponse.Error(w, httpresponse.ErrNotFound, req.RequestURI)
-	}
+	})
 	if middleware {
 		handler = r.middleware.Wrap(handler)
 	}
-	return r.safeHandle(types.JoinPath(r.prefix, path), handler)
+	if err := r.safeHandle("/", handler); err != nil {
+		if errors.Is(err, httpresponse.ErrConflict) {
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
 // RegisterOpenAPI registers a handler at path that serves the router's
