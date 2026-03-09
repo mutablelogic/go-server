@@ -19,7 +19,11 @@ var (
 // PUBLIC METHODS - MIDDLEWARE
 
 // NewMiddleware returns an HTTP middleware function that logs each request.
+// If log is nil, slog.Default() is used.
 func NewMiddleware(log *slog.Logger) func(http.HandlerFunc) http.HandlerFunc {
+	if log == nil {
+		log = slog.Default()
+	}
 	return func(next http.HandlerFunc) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			now := time.Now()

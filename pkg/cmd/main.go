@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	// Packages
 	kong "github.com/alecthomas/kong"
@@ -61,7 +62,7 @@ func Main[T any](cmds T, description, version string) error {
 	}
 
 	// Create the context and cancel function
-	globals.ctx, globals.cancel = signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
+	globals.ctx, globals.cancel = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer globals.cancel()
 
 	// Open Telemetry
