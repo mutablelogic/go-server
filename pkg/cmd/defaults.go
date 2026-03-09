@@ -35,7 +35,8 @@ func (d *defaults) init(path string) error {
 	}
 	defer f.Close()
 	if err := json.NewDecoder(f).Decode(&d.data); err != nil {
-		return err
+		// Corrupt or unreadable cache — discard and start empty
+		d.data = make(map[string]any)
 	}
 
 	// Return success
@@ -65,6 +66,9 @@ func (d *defaults) Set(key string, value any) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
+	if d.data == nil {
+		d.data = make(map[string]any)
+	}
 	if value == nil {
 		delete(d.data, key)
 	} else {

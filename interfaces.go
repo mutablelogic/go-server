@@ -16,7 +16,7 @@ import (
 ///////////////////////////////////////////////////////////////////////////////
 // CMD
 
-// Cmd provides access to the runtime context that are set up by the main entry
+// Cmd provides access to the runtime context that is set up by the main entry
 // point and passed to command Run methods.
 type Cmd interface {
 	// Name returns the executable name.
