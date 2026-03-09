@@ -12,6 +12,7 @@ import (
 	// Packages
 	kong "github.com/alecthomas/kong"
 	otel "github.com/mutablelogic/go-client/pkg/otel"
+	server "github.com/mutablelogic/go-server"
 	logger "github.com/mutablelogic/go-server/pkg/logger"
 )
 
@@ -21,7 +22,7 @@ import (
 // Main is the main entry point for all commands. It parses command-line arguments and then dispatches to the appropriate command handler.
 func Main[T any](cmds T, description, version string) error {
 	var globals struct {
-		Global
+		global
 		Cmds T `embed:""`
 	}
 	globals.Cmds = cmds
@@ -65,6 +66,14 @@ func Main[T any](cmds T, description, version string) error {
 	globals.ctx, globals.cancel = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer globals.cancel()
 
+	// Load defaults
+	cacheDir, err := os.UserCacheDir()
+	if err != nil {
+		return err
+	} else if err := globals.init(filepath.Join(cacheDir, globals.execName, "defaults.json")); err != nil {
+		return err
+	}
+
 	// Open Telemetry
 	if globals.OTel.Endpoint != "" {
 		provider, err := otel.NewProvider(globals.OTel.Endpoint, globals.OTel.Header, globals.OTel.Name)
@@ -77,8 +86,11 @@ func Main[T any](cmds T, description, version string) error {
 		globals.tracer = provider.Tracer(globals.OTel.Name)
 	}
 
+	// Bind the global context to the server.Cmd interface for command Run() methods.
+	kongctx.BindTo(&globals.global, (*server.Cmd)(nil))
+
 	// Call the Run() method of the selected parsed command.
-	return kongctx.Run(&globals.Global)
+	return kongctx.Run()
 }
 
 // IsTerminal reports whether os.Stderr is an interactive terminal.

@@ -8,6 +8,7 @@ import (
 	"os"
 
 	// Packages
+	server "github.com/mutablelogic/go-server"
 	cmd "github.com/mutablelogic/go-server/pkg/cmd"
 	httprouter_resource "github.com/mutablelogic/go-server/pkg/httprouter/resource"
 	httpserver_resource "github.com/mutablelogic/go-server/pkg/httpserver/resource"
@@ -42,7 +43,7 @@ type RunServer struct {
 ///////////////////////////////////////////////////////////////////////////////
 // COMMANDS
 
-func (s *RunServer) Run(ctx *cmd.Global) error {
+func (s *RunServer) Run(ctx server.Cmd) error {
 	return s.WithManager(ctx, func(manager *provider.Manager, v string) error {
 		// Start the HTTP server and wait for shutdown
 		return s.Serve(ctx, manager, version.Version())
@@ -52,7 +53,7 @@ func (s *RunServer) Run(ctx *cmd.Global) error {
 // withManager creates the resource manager, registers all resource instances
 // (logger, otel, handlers, router) in dependency order, invokes fn, then
 // closes the manager regardless of whether fn returned an error.
-func (s *RunServer) WithManager(ctx *cmd.Global, fn func(*provider.Manager, string) error) error {
+func (s *RunServer) WithManager(ctx server.Cmd, fn func(*provider.Manager, string) error) error {
 	manager, err := provider.New(ctx.Name(), "A generic server for running providers", version.Version())
 	if err != nil {
 		return err
@@ -118,8 +119,8 @@ func (s *RunServer) WithManager(ctx *cmd.Global, fn func(*provider.Manager, stri
 
 	// Create a read-only httprouter instance — references middleware and handlers
 	if _, err := manager.RegisterReadonlyInstance(ctx.Context(), httprouter_resource.Resource{}, "main", schema.State{
-		"prefix":     ctx.HTTP.Prefix,
-		"origin":     ctx.HTTP.Origin,
+		"prefix":     ctx.HTTPPrefix(),
+		"origin":     ctx.HTTPOrigin(),
 		"title":      ctx.Name(),
 		"version":    version.Version(),
 		"openapi":    s.OpenAPI,
@@ -135,10 +136,10 @@ func (s *RunServer) WithManager(ctx *cmd.Global, fn func(*provider.Manager, stri
 // Serve creates the httpserver instance, logs the startup banner, and
 // blocks until context cancellation (e.g. SIGINT). The caller is
 // responsible for closing the manager afterwards.
-func (s *RunServer) Serve(ctx *cmd.Global, manager *provider.Manager, versionTag string) error {
+func (s *RunServer) Serve(ctx server.Cmd, manager *provider.Manager, versionTag string) error {
 	// Build the httpserver state
 	serverState := schema.State{
-		"listen": ctx.HTTP.Addr,
+		"listen": ctx.HTTPAddr(),
 		"router": "httprouter.main",
 	}
 	if s.TLS.CertFile != "" || s.TLS.KeyFile != "" {
@@ -154,9 +155,9 @@ func (s *RunServer) Serve(ctx *cmd.Global, manager *provider.Manager, versionTag
 		serverState["tls.key"] = keyPEM
 		serverState["tls.name"] = s.TLS.ServerName
 	}
-	if ctx.HTTP.Timeout > 0 {
-		serverState["read_timeout"] = ctx.HTTP.Timeout.String()
-		serverState["write_timeout"] = ctx.HTTP.Timeout.String()
+	if ctx.HTTPTimeout() > 0 {
+		serverState["read_timeout"] = ctx.HTTPTimeout().String()
+		serverState["write_timeout"] = ctx.HTTPTimeout().String()
 	}
 
 	// Create the read-only httpserver instance, which starts the server

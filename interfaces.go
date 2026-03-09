@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"time"
 
 	// Packages
 	client "github.com/mutablelogic/go-client"
@@ -15,11 +16,14 @@ import (
 ///////////////////////////////////////////////////////////////////////////////
 // CMD
 
-// Cmd provides access to the runtime context and observability handles
-// that are set up by the main entry point and passed to command Run methods.
+// Cmd provides access to the runtime context that is set up by the main entry
+// point and passed to command Run methods.
 type Cmd interface {
 	// Name returns the executable name.
 	Name() string
+
+	// Description returns the application description string.
+	Description() string
 
 	// Version returns the application version string.
 	Version() string
@@ -36,6 +40,38 @@ type Cmd interface {
 	// ClientEndpoint returns the HTTP endpoint URL and client options derived
 	// from the global HTTP flags.
 	ClientEndpoint() (string, []client.ClientOpt, error)
+
+	// Get retrieves a default value by key. Returns nil if the key does not exist.
+	Get(string) any
+
+	// GetString retrieves a default string value by key. Returns empty string if the key
+	// does not exist or the value is not a string.
+	GetString(string) string
+
+	// Set stores a default value by key and persists the store to disk.
+	// Pass nil to remove a key.
+	Set(string, any) error
+
+	// Keys returns all keys in the store.
+	Keys() []string
+
+	// IsTerm reports whether stderr is an interactive terminal.
+	IsTerm() bool
+
+	// IsDebug reports whether debug logging is enabled.
+	IsDebug() bool
+
+	// HTTPAddr returns the HTTP listen/connect address.
+	HTTPAddr() string
+
+	// HTTPPrefix returns the HTTP path prefix.
+	HTTPPrefix() string
+
+	// HTTPOrigin returns the cross-origin protection origin.
+	HTTPOrigin() string
+
+	// HTTPTimeout returns the HTTP read/write timeout.
+	HTTPTimeout() time.Duration
 }
 
 ///////////////////////////////////////////////////////////////////////////////

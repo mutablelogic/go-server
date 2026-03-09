@@ -3,11 +3,13 @@ package cmd
 import (
 	"os"
 	"testing"
+
+	server "github.com/mutablelogic/go-server"
 )
 
 type runTestCmd struct{}
 
-func (r *runTestCmd) Run(*Global) error { return nil }
+func (r *runTestCmd) Run(server.Cmd) error { return nil }
 
 func Test_Main_001(t *testing.T) {
 	type testCmds struct {
@@ -91,7 +93,7 @@ func Test_ClientEndpoint(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			g := &Global{}
+			g := &global{}
 			g.HTTP.Addr = tt.addr
 			g.HTTP.Prefix = tt.prefix
 
@@ -129,7 +131,7 @@ func Test_Main_OTelError(t *testing.T) {
 }
 
 func Test_ClientEndpoint_Opts(t *testing.T) {
-	g := &Global{}
+	g := &global{}
 	g.HTTP.Addr = "localhost:8084"
 	g.HTTP.Prefix = "/api"
 	g.Debug = true
@@ -141,5 +143,101 @@ func Test_ClientEndpoint_Opts(t *testing.T) {
 	// Debug=true should add OptTrace
 	if len(opts) == 0 {
 		t.Error("expected opts when Debug=true, got none")
+	}
+}
+
+func Test_Defaults_SetGetDelete(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/defaults.json"
+
+	var d defaults
+	if err := d.init(path); err != nil {
+		t.Fatal(err)
+	}
+
+	// Set a value and retrieve it
+	if err := d.Set("foo", "bar"); err != nil {
+		t.Fatal(err)
+	}
+	if got := d.GetString("foo"); got != "bar" {
+		t.Errorf("got %q, want %q", got, "bar")
+	}
+
+	// Missing key returns empty string
+	if got := d.GetString("missing"); got != "" {
+		t.Errorf("expected empty string, got %q", got)
+	}
+
+	// Keys returns the correct set
+	keys := d.Keys()
+	if len(keys) != 1 || keys[0] != "foo" {
+		t.Errorf("unexpected keys: %v", keys)
+	}
+
+	// Delete via nil
+	if err := d.Set("foo", nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := d.GetString("foo"); got != "" {
+		t.Errorf("expected empty after delete, got %q", got)
+	}
+	if len(d.Keys()) != 0 {
+		t.Errorf("expected no keys after delete, got %v", d.Keys())
+	}
+}
+
+func Test_Defaults_Persistence(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/defaults.json"
+
+	// Write via first instance
+	var d1 defaults
+	if err := d1.init(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := d1.Set("key", "value"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Reload via second instance and check value is present
+	var d2 defaults
+	if err := d2.init(path); err != nil {
+		t.Fatal(err)
+	}
+	if got := d2.GetString("key"); got != "value" {
+		t.Errorf("got %q after reload, want %q", got, "value")
+	}
+}
+
+func Test_Defaults_CorruptFile(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/defaults.json"
+
+	// Write garbage JSON
+	if err := os.WriteFile(path, []byte("not json {{"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	// init should succeed, discarding the corrupt file
+	var d defaults
+	if err := d.init(path); err != nil {
+		t.Fatalf("init with corrupt file returned error: %v", err)
+	}
+	if len(d.Keys()) != 0 {
+		t.Errorf("expected empty store after corrupt file, got %v", d.Keys())
+	}
+
+	// Corrupt file should have been removed
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Error("expected corrupt file to be removed")
+	}
+}
+
+func Test_Defaults_UninitializedSet(t *testing.T) {
+	// Set on a zero-value defaults (never init'd) must not panic
+	var d defaults
+	if err := d.Set("k", "v"); err == nil {
+		// save will fail because d.path is empty — that's fine, no panic
+		_ = err
 	}
 }
