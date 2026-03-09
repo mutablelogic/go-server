@@ -2,6 +2,7 @@ package logger_test
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -14,8 +15,8 @@ import (
 
 func Test_Middleware_001(t *testing.T) {
 	assert := assert.New(t)
-	logger := logger.New(os.Stderr, logger.Term, false)
-	ts := httptest.NewServer(logger.WrapFunc(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	ts := httptest.NewServer(logger.NewMiddleware(log)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "Hello, client")
 	})))
 	defer ts.Close()

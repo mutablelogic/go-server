@@ -3,33 +3,39 @@ package server
 import (
 	"context"
 	"io/fs"
+	"log/slog"
 	"net/http"
 
-	// OpenAPI specification
+	// Packages
+	client "github.com/mutablelogic/go-client"
 	openapi "github.com/mutablelogic/go-server/pkg/openapi/schema"
+	trace "go.opentelemetry.io/otel/trace"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
-// LOGGER
+// CMD
 
-// Logger defines methods for logging messages and structured data.
-// It can also act as HTTP middleware for request logging.
-type Logger interface {
-	// Debug logs a debugging message.
-	Debug(context.Context, ...any)
+// Cmd provides access to the runtime context and observability handles
+// that are set up by the main entry point and passed to command Run methods.
+type Cmd interface {
+	// Name returns the executable name.
+	Name() string
 
-	// Debugf logs a formatted debugging message.
-	Debugf(context.Context, string, ...any)
+	// Version returns the application version string.
+	Version() string
 
-	// Print logs an informational message.
-	Print(context.Context, ...any)
+	// Context returns the lifecycle context (cancelled on SIGINT).
+	Context() context.Context
 
-	// Printf logs a formatted informational message.
-	Printf(context.Context, string, ...any)
+	// Logger returns the structured logger.
+	Logger() *slog.Logger
 
-	// With returns a new Logger that includes the given key-value pairs
-	// in its structured log output.
-	With(...any) Logger
+	// Tracer returns the OpenTelemetry tracer, or nil if OTel is not configured.
+	Tracer() trace.Tracer
+
+	// ClientEndpoint returns the HTTP endpoint URL and client options derived
+	// from the global HTTP flags.
+	ClientEndpoint() (string, []client.ClientOpt, error)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
