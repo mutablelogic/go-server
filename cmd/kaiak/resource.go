@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	// Packages
-	cmd "github.com/mutablelogic/go-server/pkg/cmd"
+	server "github.com/mutablelogic/go-server"
 	schema "github.com/mutablelogic/go-server/pkg/provider/schema"
 )
 
@@ -52,7 +52,7 @@ type OpenAPICommand struct {
 ///////////////////////////////////////////////////////////////////////////////
 // COMMANDS
 
-func (cmd *ListResourcesCommand) Run(ctx *cmd.Global) (err error) {
+func (cmd *ListResourcesCommand) Run(ctx server.Cmd) (err error) {
 	client, err := clientFor(ctx)
 	if err != nil {
 		return err
@@ -69,7 +69,7 @@ func (cmd *ListResourcesCommand) Run(ctx *cmd.Global) (err error) {
 	return nil
 }
 
-func (cmd *GetResourceInstanceCommand) Run(ctx *cmd.Global) (err error) {
+func (cmd *GetResourceInstanceCommand) Run(ctx server.Cmd) (err error) {
 	client, err := clientFor(ctx)
 	if err != nil {
 		return err
@@ -84,7 +84,7 @@ func (cmd *GetResourceInstanceCommand) Run(ctx *cmd.Global) (err error) {
 	return nil
 }
 
-func (cmd *CreateResourceInstanceCommand) Run(ctx *cmd.Global) (err error) {
+func (cmd *CreateResourceInstanceCommand) Run(ctx server.Cmd) (err error) {
 	client, err := clientFor(ctx)
 	if err != nil {
 		return err
@@ -111,7 +111,7 @@ func (cmd *CreateResourceInstanceCommand) Run(ctx *cmd.Global) (err error) {
 	return nil
 }
 
-func (cmd *DestroyResourceInstanceCommand) Run(ctx *cmd.Global) (err error) {
+func (cmd *DestroyResourceInstanceCommand) Run(ctx server.Cmd) (err error) {
 	client, err := clientFor(ctx)
 	if err != nil {
 		return err
@@ -126,7 +126,7 @@ func (cmd *DestroyResourceInstanceCommand) Run(ctx *cmd.Global) (err error) {
 	return nil
 }
 
-func (cmd *UpdateResourceInstanceCommand) Run(ctx *cmd.Global) (err error) {
+func (cmd *UpdateResourceInstanceCommand) Run(ctx server.Cmd) (err error) {
 	client, err := clientFor(ctx)
 	if err != nil {
 		return err
@@ -158,7 +158,7 @@ func (cmd *UpdateResourceInstanceCommand) Run(ctx *cmd.Global) (err error) {
 	return nil
 }
 
-func (cmd *OpenAPICommand) Run(ctx *cmd.Global) (err error) {
+func (cmd *OpenAPICommand) Run(ctx server.Cmd) (err error) {
 	client, err := clientFor(ctx)
 	if err != nil {
 		return err
