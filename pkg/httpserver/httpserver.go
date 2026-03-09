@@ -70,45 +70,13 @@ func New(listen string, router http.Handler, cert *tls.Config, opts ...Opt) (*se
 	// Set other options
 	server.http.Addr = listen
 	server.http.TLSConfig = cert
-	if opt.catchAll != nil {
-		server.http.Handler = catchAllHandler(router, opt.catchAll)
-	} else {
-		server.http.Handler = router
-	}
+	server.http.Handler = router
 	server.http.WriteTimeout = opt.w
 	server.http.ReadTimeout = opt.r
 	server.http.IdleTimeout = opt.i
 
 	// Return success
 	return server, nil
-}
-
-// catchAllHandler wraps router so that 404 responses from the router are
-// delegated to fallback instead of returning Go's built-in plain text 404.
-func catchAllHandler(router http.Handler, fallback http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		rec := &statusRecorder{ResponseWriter: w}
-		router.ServeHTTP(rec, r)
-		if !rec.written {
-			fallback.ServeHTTP(w, r)
-		}
-	})
-}
-
-// statusRecorder captures whether the upstream handler wrote a response.
-type statusRecorder struct {
-	http.ResponseWriter
-	written bool
-}
-
-func (r *statusRecorder) WriteHeader(code int) {
-	r.written = true
-	r.ResponseWriter.WriteHeader(code)
-}
-
-func (r *statusRecorder) Write(b []byte) (int, error) {
-	r.written = true
-	return r.ResponseWriter.Write(b)
 }
 
 ///////////////////////////////////////////////////////////////////////////////

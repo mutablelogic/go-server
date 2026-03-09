@@ -11,6 +11,7 @@ import (
 	// Packages
 	kong "github.com/alecthomas/kong"
 	otel "github.com/mutablelogic/go-client/pkg/otel"
+	logger "github.com/mutablelogic/go-server/pkg/logger"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -54,7 +55,7 @@ func Main[T any](cmds T, description, version string) error {
 		level.Set(slog.LevelDebug)
 	}
 	if IsTerminal() {
-		globals.logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: &level}))
+		globals.logger = slog.New(logger.NewTermHandler(os.Stderr, &level))
 	} else {
 		globals.logger = slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: &level}))
 	}
