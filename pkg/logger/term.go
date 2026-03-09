@@ -21,6 +21,13 @@ type TermHandler struct {
 var _ slog.Handler = (*TermHandler)(nil)
 
 /////////////////////////////////////////////////////////////////////////////////
+// LIFECYCLE
+
+func NewTermHandler(w io.Writer, level *slog.LevelVar) *TermHandler {
+	return &TermHandler{Writer: w, level: level}
+}
+
+/////////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 
 const (

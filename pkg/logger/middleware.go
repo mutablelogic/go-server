@@ -2,6 +2,7 @@ package logger
 
 import (
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"time"
@@ -17,25 +18,32 @@ var (
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS - MIDDLEWARE
 
-func (t *Logger) WrapFunc(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		now := time.Now()
-		nw := NewResponseWriter(w)
-		next(nw, r)
+// NewMiddleware returns an HTTP middleware function that logs each request.
+// If log is nil, slog.Default() is used.
+func NewMiddleware(log *slog.Logger) func(http.HandlerFunc) http.HandlerFunc {
+	if log == nil {
+		log = slog.Default()
+	}
+	return func(next http.HandlerFunc) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			now := time.Now()
+			nw := NewResponseWriter(w)
+			next(nw, r)
 
-		// Print the response
-		result := fmt.Sprintf("%v %v -> [%v]", r.Method, r.URL, nw.Status())
-		t.With(
-			"delta_ms", time.Since(now).Milliseconds(),
-			"method", r.Method,
-			"status", nw.Status(),
-			"remote_ip", remoteAddr(r),
-			"url", r.URL.String(),
-			"path", r.URL.Path,
-			"query", r.URL.RawQuery,
-			"host", r.URL.Host,
-			"size", nw.Size(),
-		).Print(r.Context(), result)
+			// Print the response
+			result := fmt.Sprintf("%v %v -> [%v]", r.Method, r.URL, nw.Status())
+			log.With(
+				"delta_ms", time.Since(now).Milliseconds(),
+				"method", r.Method,
+				"status", nw.Status(),
+				"remote_ip", remoteAddr(r),
+				"url", r.URL.String(),
+				"path", r.URL.Path,
+				"query", r.URL.RawQuery,
+				"host", r.URL.Host,
+				"size", nw.Size(),
+			).InfoContext(r.Context(), result)
+		}
 	}
 }
 

@@ -44,7 +44,9 @@ func (s *Schema) Validate(data json.RawMessage) error {
 }
 
 // Decode unmarshals data into v, applies schema defaults for any missing fields,
-// then validates the result. v must be a pointer to a struct.
+// then validates the result. v must be a non-nil pointer; it may point to a
+// struct (in which case schema defaults are applied for missing fields), a
+// primitive (string, bool, numeric), a slice, or a *time.Duration.
 func (s *Schema) Decode(data json.RawMessage, v any) error {
 	var instance any
 	if err := json.Unmarshal(data, &instance); err != nil {

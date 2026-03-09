@@ -17,9 +17,9 @@ import (
 // TYPES
 
 // Plugin is the interface that plugins must implement to be loaded by the server.
-type Plugin interface {
-	schema.Provider
-}
+// It is a type alias for schema.Provider so that func() Plugin and
+// func() schema.Provider are the same type for plugin symbol lookup.
+type Plugin = schema.Provider
 
 ///////////////////////////////////////////////////////////////////////////////
 // GLOBALS
