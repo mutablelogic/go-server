@@ -12,11 +12,12 @@ import (
 // Err turns a HTTP status code into an error
 type Err int
 
-// JSON object for an error
-type errjson struct {
-	Code   int    `json:"code"`
-	Reason string `json:"reason,omitempty"`
-	Detail any    `json:"detail,omitempty"`
+// ErrResponse is the JSON error body returned by all error responses.
+// It is also used to generate the OpenAPI response schema.
+type ErrResponse struct {
+	Code   int    `json:"code"             jsonschema:"HTTP status code"`
+	Reason string `json:"reason,omitempty" jsonschema:"Human-readable reason phrase"`
+	Detail any    `json:"detail,omitempty" jsonschema:"Optional additional detail"`
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -40,7 +41,7 @@ const (
 // Error writes an error from a HTTP status code, with additional detail
 func Error(w http.ResponseWriter, err error, detail ...any) error {
 	// Create a JSON object for the error response
-	e := errjson{
+	e := ErrResponse{
 		Code:   http.StatusInternalServerError,
 		Reason: err.Error(),
 	}

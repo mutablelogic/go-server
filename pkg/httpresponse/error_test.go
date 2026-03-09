@@ -35,12 +35,12 @@ func Test_Error_003(t *testing.T) {
 	assert.NoError(err)
 	assert.Equal(http.StatusOK, recorder.Code)
 
-	expected := errjson{
+	expected := ErrResponse{
 		Code:   http.StatusOK,
 		Reason: http.StatusText(http.StatusOK),
 		Detail: "detail",
 	}
-	var actual errjson
+	var actual ErrResponse
 	err = json.Unmarshal(recorder.Body.Bytes(), &actual)
 	assert.NoError(err)
 	assert.Equal(expected, actual)
@@ -54,12 +54,12 @@ func Test_Error_004(t *testing.T) {
 	assert.NoError(err)
 	assert.Equal(http.StatusOK, recorder.Code)
 
-	expected := errjson{
+	expected := ErrResponse{
 		Code:   http.StatusOK,
 		Reason: http.StatusText(http.StatusOK),
 		Detail: []any{"detail", "detail"},
 	}
-	var actual errjson
+	var actual ErrResponse
 	err = json.Unmarshal(recorder.Body.Bytes(), &actual)
 	assert.NoError(err)
 	assert.Equal(expected, actual)
@@ -89,7 +89,7 @@ func Test_Error_With(t *testing.T) {
 		assert.NoError(writeErr)
 		assert.Equal(http.StatusBadRequest, recorder.Code)
 
-		var actual errjson
+		var actual ErrResponse
 		err := json.Unmarshal(recorder.Body.Bytes(), &actual)
 		assert.NoError(err)
 		assert.Equal(http.StatusBadRequest, actual.Code)
