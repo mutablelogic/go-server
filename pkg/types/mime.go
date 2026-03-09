@@ -10,6 +10,7 @@ import (
 
 const (
 	ContentTypeJSON       = "application/json"
+	ContentTypeJSONStream = "application/ndjson"
 	ContentTypeYAML       = "application/yaml"
 	ContentTypeXML        = "application/xml"
 	ContentTypeRSS        = "application/rss+xml"
@@ -20,7 +21,7 @@ const (
 	ContentTypeTextStream = "text/event-stream"
 	ContentTypeForm       = "application/x-www-form-urlencoded"
 	ContentTypeFormData   = "multipart/form-data"
-	ContentTypeHTML       = "text/html; charset=utf-8"
+	ContentTypeHTML       = "text/html"
 	ContentTypeAny        = "*/*"
 )
 

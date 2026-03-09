@@ -89,7 +89,26 @@ func (s *Schema) Decode(data json.RawMessage, v any) error {
 	return json.Unmarshal(data, v)
 }
 
-// Resolve returns a new Schema with all $ref references resolved.
+// FromJSON parses a JSON Schema document and returns a resolved *Schema ready
+// for use with Validate and Decode. Unlike For[T](), the result is not cached
+// since there is no type key to cache against.
+func FromJSON(data json.RawMessage) (*Schema, error) {
+	var s upstream.Schema
+	if err := json.Unmarshal(data, &s); err != nil {
+		return nil, err
+	}
+	res := &Schema{s, nil}
+	resolved, err := res.Resolve(nil)
+	if err != nil {
+		return nil, err
+	}
+	res.resolved = resolved
+	return res, nil
+}
+
+// For generates a JSON Schema for the given type T, enriches it with struct
+// tag annotations, resolves any $ref references, and caches the result.
+// Subsequent calls for the same type return the cached schema at no cost.
 func For[T any]() (*Schema, error) {
 	t := reflect.TypeFor[T]()
 	if v, ok := schemaCache.Load(t); ok {
@@ -325,17 +344,19 @@ func appendUnique(ss []string, s string) []string {
 }
 
 func removeString(ss []string, s string) []string {
-	for i, v := range ss {
-		if v == s {
-			return append(ss[:i], ss[i+1:]...)
+	out := ss[:0:0] // fresh slice, no shared backing array
+	for _, v := range ss {
+		if v != s {
+			out = append(out, v)
 		}
 	}
-	return ss
+	return out
 }
 
 // convertDurationFields walks the struct type of v and converts any time.Duration
 // field values in m from duration strings (e.g. "5s") to int64 nanoseconds, so
 // that json.Unmarshal can correctly populate time.Duration struct fields.
+// It recurses into nested struct fields whose map values are map[string]any.
 func convertDurationFields(m map[string]any, t reflect.Type) error {
 	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
@@ -352,14 +373,15 @@ func convertDurationFields(m map[string]any, t reflect.Type) error {
 		for ft.Kind() == reflect.Pointer {
 			ft = ft.Elem()
 		}
-		if ft != durationType {
-			continue
-		}
 		key := jsonFieldName(field)
 		if key == "" || key == "-" {
 			continue
 		}
-		if val, ok := m[key]; ok {
+		val, ok := m[key]
+		if !ok {
+			continue
+		}
+		if ft == durationType {
 			if str, ok := val.(string); ok {
 				d, err := time.ParseDuration(str)
 				if err != nil {
@@ -367,13 +389,20 @@ func convertDurationFields(m map[string]any, t reflect.Type) error {
 				}
 				m[key] = int64(d)
 			}
+		} else if ft.Kind() == reflect.Struct {
+			if nested, ok := val.(map[string]any); ok {
+				if err := convertDurationFields(nested, ft); err != nil {
+					return err
+				}
+			}
 		}
 	}
 	return nil
 }
 
 // parseEnumTag splits a comma-separated enum tag value into a slice of
-// non-empty, trimmed strings. Returns nil if the tag is empty.
+// non-empty, trimmed strings. Returns nil or an empty slice if the tag
+// contains no non-whitespace values.
 func parseEnumTag(tag string) []any {
 	if tag == "" {
 		return nil

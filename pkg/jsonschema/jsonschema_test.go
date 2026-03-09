@@ -393,6 +393,55 @@ func TestFor_PointerToStruct_EnumApplied(t *testing.T) {
 	}
 }
 
+///////////////////////////////////////////////////////////////////////////////
+// TESTS FOR FromJSON
+
+func TestFromJSON_ValidSchema(t *testing.T) {
+	raw := json.RawMessage(`{
+		"type": "object",
+		"properties": {
+			"name": {"type": "string"},
+			"age":  {"type": "integer"}
+		},
+		"required": ["name"]
+	}`)
+	schema, err := FromJSON(raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Valid input passes.
+	if err := schema.Validate(json.RawMessage(`{"name":"alice","age":30}`)); err != nil {
+		t.Errorf("expected no error, got: %v", err)
+	}
+	// Missing required field fails.
+	if err := schema.Validate(json.RawMessage(`{"age":30}`)); err == nil {
+		t.Error("expected error for missing required field, got nil")
+	}
+	// Wrong type fails.
+	if err := schema.Validate(json.RawMessage(`{"name":42}`)); err == nil {
+		t.Error("expected error for wrong type, got nil")
+	}
+}
+
+func TestFromJSON_InvalidJSON(t *testing.T) {
+	if _, err := FromJSON(json.RawMessage(`{not json}`)); err == nil {
+		t.Error("expected error for invalid JSON, got nil")
+	}
+}
+
+func TestFromJSON_StringSchema(t *testing.T) {
+	schema, err := FromJSON(json.RawMessage(`{"type":"string","minLength":3}`))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := schema.Validate(json.RawMessage(`"hello"`)); err != nil {
+		t.Errorf("expected no error, got: %v", err)
+	}
+	if err := schema.Validate(json.RawMessage(`"hi"`)); err == nil {
+		t.Error("expected error for string shorter than minLength, got nil")
+	}
+}
+
 // For[int] — non-struct type should return an error.
 func TestFor_NonStruct_Succeeds(t *testing.T) {
 	// Primitive and slice types should generate a valid schema without error.
@@ -975,6 +1024,34 @@ func TestDecode_StructWithDuration_Default(t *testing.T) {
 	}
 	if c.Timeout != 10*time.Second {
 		t.Errorf("Timeout: got %v, want 10s", c.Timeout)
+	}
+}
+
+func TestDecode_NestedStructWithDuration(t *testing.T) {
+	type Inner struct {
+		Timeout time.Duration `json:"timeout"`
+	}
+	type Outer struct {
+		Name string `json:"name"`
+		DB   Inner  `json:"db"`
+	}
+	schema, err := For[Outer]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var o Outer
+	if err := schema.Decode(json.RawMessage(`{"name":"svc","db":{"timeout":"5s"}}`), &o); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if o.Name != "svc" {
+		t.Errorf("Name: got %q, want svc", o.Name)
+	}
+	if o.DB.Timeout != 5*time.Second {
+		t.Errorf("DB.Timeout: got %v, want 5s", o.DB.Timeout)
+	}
+	// Invalid nested duration string.
+	if err := schema.Decode(json.RawMessage(`{"name":"svc","db":{"timeout":"bad"}}`), &o); err == nil {
+		t.Error("expected error for invalid nested duration, got nil")
 	}
 }
 
