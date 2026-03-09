@@ -51,14 +51,14 @@ func waitHTTP(url string) bool {
 	return false
 }
 
-// newTestGlobal builds a *Global wired to a cancellable context and a
+// newTestGlobal builds a *global wired to a cancellable context and a
 // discard-logger, ready to pass to RunServer.Run.
-func newTestGlobal(t *testing.T, addr string) *Global {
+func newTestGlobal(t *testing.T, addr string) *global {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	g := &Global{
+	g := &global{
 		ctx:      ctx,
 		cancel:   cancel,
 		logger:   slog.New(slog.NewTextHandler(os.Stderr, nil)),

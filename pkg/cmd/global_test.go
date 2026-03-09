@@ -7,7 +7,7 @@ import (
 
 type runTestCmd struct{}
 
-func (r *runTestCmd) Run(*Global) error { return nil }
+func (r *runTestCmd) Run(*global) error { return nil }
 
 func Test_Main_001(t *testing.T) {
 	type testCmds struct {
@@ -91,7 +91,7 @@ func Test_ClientEndpoint(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			g := &Global{}
+			g := &global{}
 			g.HTTP.Addr = tt.addr
 			g.HTTP.Prefix = tt.prefix
 
@@ -129,7 +129,7 @@ func Test_Main_OTelError(t *testing.T) {
 }
 
 func Test_ClientEndpoint_Opts(t *testing.T) {
-	g := &Global{}
+	g := &global{}
 	g.HTTP.Addr = "localhost:8084"
 	g.HTTP.Prefix = "/api"
 	g.Debug = true

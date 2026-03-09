@@ -27,7 +27,7 @@ type RegisterFunc func(*httprouter.Router, server.Cmd) error
 // RunServer is a general-purpose "run" command. Embed it in your CLI's command
 // struct to get a fully functional HTTP server with logging and OTel middleware.
 type RunServer struct {
-	OpenAPI bool `name:"openapi" help:"Serve OpenAPI spec at {prefix}/openapi.json" default:"true" negatable:""`
+	OpenAPI bool `name:"openapi" help:"Serve OpenAPI spec at {prefix}/openapi.{json,yaml,html}" default:"true" negatable:""`
 
 	// TLS server options
 	TLS struct {
@@ -49,27 +49,27 @@ func (s *RunServer) Register(fns ...RegisterFunc) *RunServer {
 ///////////////////////////////////////////////////////////////////////////////
 // COMMANDS
 
-func (s *RunServer) Run(ctx *Global) error {
+func (s *RunServer) Run(ctx server.Cmd) error {
 	v := ctx.Version()
 
 	// Build middleware chain: logger always first, OTel if configured
 	middleware := []httprouter.HTTPMiddlewareFunc{logger.NewMiddleware(ctx.Logger())}
-	if ctx.tracer != nil {
-		middleware = append(middleware, otel.HTTPHandlerFunc(ctx.tracer))
+	if ctx.Tracer() != nil {
+		middleware = append(middleware, otel.HTTPHandlerFunc(ctx.Tracer()))
 	}
 
 	// Create the router
-	router, err := httprouter.NewRouter(ctx.Context(), ctx.HTTP.Prefix, ctx.HTTP.Origin, ctx.Name(), v, middleware...)
+	router, err := httprouter.NewRouter(ctx.Context(), ctx.HTTPPrefix(), ctx.HTTPOrigin(), ctx.Name(), v, middleware...)
 	if err != nil {
 		return fmt.Errorf("router: %w", err)
 	}
 
 	// Build optional server options
 	var serverOpts []httpserver.Opt
-	if ctx.HTTP.Timeout > 0 {
+	if ctx.HTTPTimeout() > 0 {
 		serverOpts = append(serverOpts,
-			httpserver.WithReadTimeout(ctx.HTTP.Timeout),
-			httpserver.WithWriteTimeout(ctx.HTTP.Timeout),
+			httpserver.WithReadTimeout(ctx.HTTPTimeout()),
+			httpserver.WithWriteTimeout(ctx.HTTPTimeout()),
 		)
 	}
 
@@ -112,7 +112,7 @@ func (s *RunServer) Run(ctx *Global) error {
 	}
 
 	// Create a new server and start listening. The server will run until the context is cancelled.
-	srv, err := httpserver.New(ctx.HTTP.Addr, router, tlsCfg, serverOpts...)
+	srv, err := httpserver.New(ctx.HTTPAddr(), router, tlsCfg, serverOpts...)
 	if err != nil {
 		return fmt.Errorf("httpserver: %w", err)
 	}

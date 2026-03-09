@@ -13,13 +13,13 @@ import (
 	otel "go.opentelemetry.io/otel"
 )
 
-// Test_Global_Accessors verifies the simple accessor methods on *Global.
+// Test_Global_Accessors verifies the simple accessor methods on *global.
 func Test_Global_Accessors(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
 
-	g := &Global{
+	g := &global{
 		execName: "testbin",
 		version:  "v9.9.9",
 		ctx:      ctx,
@@ -84,7 +84,7 @@ func Test_RunServer_Register_Chaining(t *testing.T) {
 
 // Test_ClientEndpoint_Timeout verifies that a positive Timeout adds an opt.
 func Test_ClientEndpoint_Timeout(t *testing.T) {
-	g := &Global{}
+	g := &global{}
 	g.HTTP.Addr = "localhost:8084"
 	g.HTTP.Prefix = "/api"
 	g.HTTP.Timeout = 30 * time.Second
@@ -100,7 +100,7 @@ func Test_ClientEndpoint_Timeout(t *testing.T) {
 
 // Test_ClientEndpoint_Tracer verifies that a non-nil tracer adds an opt.
 func Test_ClientEndpoint_Tracer(t *testing.T) {
-	g := &Global{}
+	g := &global{}
 	g.HTTP.Addr = "localhost:8084"
 	g.HTTP.Prefix = "/api"
 	g.tracer = otel.Tracer("test") // noop tracer via default global provider
@@ -116,7 +116,7 @@ func Test_ClientEndpoint_Tracer(t *testing.T) {
 
 // Test_ClientEndpoint_Verbose verifies that Verbose=true adds an opt.
 func Test_ClientEndpoint_Verbose(t *testing.T) {
-	g := &Global{}
+	g := &global{}
 	g.HTTP.Addr = "localhost:8084"
 	g.HTTP.Prefix = "/api"
 	g.Verbose = true

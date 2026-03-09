@@ -19,7 +19,7 @@ import (
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type Global struct {
+type global struct {
 	// Debug options
 	Debug        bool             `name:"debug" help:"Enable debug logging"`
 	Verbose      bool             `name:"verbose" help:"Enable verbose logging"`
@@ -48,41 +48,44 @@ type Global struct {
 	execName    string
 	version     string
 	description string
+
+	// Defaults store for command defaults management
+	defaults
 }
 
-// Ensure *Global implements server.Cmd
-var _ server.Cmd = (*Global)(nil)
+// Ensure *globals implements server.Cmd
+var _ server.Cmd = (*global)(nil)
 
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func (g *Global) Name() string {
+func (g *global) Name() string {
 	return g.execName
 }
 
-func (g *Global) Description() string {
+func (g *global) Description() string {
 	return g.description
 }
 
-func (g *Global) Version() string {
+func (g *global) Version() string {
 	return g.version
 }
 
-func (g *Global) Context() context.Context {
+func (g *global) Context() context.Context {
 	return g.ctx
 }
 
-func (g *Global) Logger() *slog.Logger {
+func (g *global) Logger() *slog.Logger {
 	return g.logger
 }
 
-func (g *Global) Tracer() trace.Tracer {
+func (g *global) Tracer() trace.Tracer {
 	return g.tracer
 }
 
 // ClientEndpoint returns the HTTP endpoint URL and client options derived
 // from the global HTTP flags.
-func (g *Global) ClientEndpoint() (string, []client.ClientOpt, error) {
+func (g *global) ClientEndpoint() (string, []client.ClientOpt, error) {
 	scheme := "http"
 	host, port, err := net.SplitHostPort(g.HTTP.Addr)
 	if err != nil {
@@ -110,3 +113,11 @@ func (g *Global) ClientEndpoint() (string, []client.ClientOpt, error) {
 	}
 	return fmt.Sprintf("%s://%s%s", scheme, net.JoinHostPort(host, strconv.FormatUint(portn, 10)), g.HTTP.Prefix), opts, nil
 }
+
+func (g *global) IsTerm() bool               { return IsTerminal() }
+func (g *global) IsDebug() bool              { return g.Debug }
+func (g *global) IsVerbose() bool            { return g.Verbose }
+func (g *global) HTTPAddr() string           { return g.HTTP.Addr }
+func (g *global) HTTPPrefix() string         { return g.HTTP.Prefix }
+func (g *global) HTTPOrigin() string         { return g.HTTP.Origin }
+func (g *global) HTTPTimeout() time.Duration { return g.HTTP.Timeout }
