@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	// Packages
+	server "github.com/mutablelogic/go-server"
 	schema "github.com/mutablelogic/go-server/pkg/provider/schema"
 )
 
@@ -51,14 +52,14 @@ type OpenAPICommand struct {
 ///////////////////////////////////////////////////////////////////////////////
 // COMMANDS
 
-func (cmd *ListResourcesCommand) Run(ctx *Globals) (err error) {
-	client, err := ctx.Client()
+func (cmd *ListResourcesCommand) Run(ctx server.Cmd) (err error) {
+	client, err := clientFor(ctx)
 	if err != nil {
 		return err
 	}
 
 	// Get resources
-	result, err := client.ListResources(ctx.ctx, cmd.ListResourcesRequest)
+	result, err := client.ListResources(ctx.Context(), cmd.ListResourcesRequest)
 	if err != nil {
 		return err
 	}
@@ -68,13 +69,13 @@ func (cmd *ListResourcesCommand) Run(ctx *Globals) (err error) {
 	return nil
 }
 
-func (cmd *GetResourceInstanceCommand) Run(ctx *Globals) (err error) {
-	client, err := ctx.Client()
+func (cmd *GetResourceInstanceCommand) Run(ctx server.Cmd) (err error) {
+	client, err := clientFor(ctx)
 	if err != nil {
 		return err
 	}
 
-	result, err := client.GetResourceInstance(ctx.ctx, cmd.Name)
+	result, err := client.GetResourceInstance(ctx.Context(), cmd.Name)
 	if err != nil {
 		return err
 	}
@@ -83,8 +84,8 @@ func (cmd *GetResourceInstanceCommand) Run(ctx *Globals) (err error) {
 	return nil
 }
 
-func (cmd *CreateResourceInstanceCommand) Run(ctx *Globals) (err error) {
-	client, err := ctx.Client()
+func (cmd *CreateResourceInstanceCommand) Run(ctx server.Cmd) (err error) {
+	client, err := clientFor(ctx)
 	if err != nil {
 		return err
 	}
@@ -92,11 +93,11 @@ func (cmd *CreateResourceInstanceCommand) Run(ctx *Globals) (err error) {
 	// Create each instance; on error, destroy the ones already created
 	var created []schema.CreateResourceInstanceResponse
 	for _, name := range cmd.Names {
-		result, err := client.CreateResourceInstance(ctx.ctx, schema.CreateResourceInstanceRequest{Name: name})
+		result, err := client.CreateResourceInstance(ctx.Context(), schema.CreateResourceInstanceRequest{Name: name})
 		if err != nil {
 			// Roll back: destroy in reverse order
 			for i := len(created) - 1; i >= 0; i-- {
-				_, _ = client.DestroyResourceInstance(ctx.ctx, created[i].Instance.Name, false)
+				_, _ = client.DestroyResourceInstance(ctx.Context(), created[i].Instance.Name, false)
 			}
 			return err
 		}
@@ -110,13 +111,13 @@ func (cmd *CreateResourceInstanceCommand) Run(ctx *Globals) (err error) {
 	return nil
 }
 
-func (cmd *DestroyResourceInstanceCommand) Run(ctx *Globals) (err error) {
-	client, err := ctx.Client()
+func (cmd *DestroyResourceInstanceCommand) Run(ctx server.Cmd) (err error) {
+	client, err := clientFor(ctx)
 	if err != nil {
 		return err
 	}
 
-	result, err := client.DestroyResourceInstance(ctx.ctx, cmd.Name, cmd.Cascade)
+	result, err := client.DestroyResourceInstance(ctx.Context(), cmd.Name, cmd.Cascade)
 	if err != nil {
 		return err
 	}
@@ -125,8 +126,8 @@ func (cmd *DestroyResourceInstanceCommand) Run(ctx *Globals) (err error) {
 	return nil
 }
 
-func (cmd *UpdateResourceInstanceCommand) Run(ctx *Globals) (err error) {
-	client, err := ctx.Client()
+func (cmd *UpdateResourceInstanceCommand) Run(ctx server.Cmd) (err error) {
+	client, err := clientFor(ctx)
 	if err != nil {
 		return err
 	}
@@ -144,7 +145,7 @@ func (cmd *UpdateResourceInstanceCommand) Run(ctx *Globals) (err error) {
 	}
 
 	// Update instance (plan only unless --apply is set)
-	result, err := client.UpdateResourceInstance(ctx.ctx, cmd.Name, schema.UpdateResourceInstanceRequest{
+	result, err := client.UpdateResourceInstance(ctx.Context(), cmd.Name, schema.UpdateResourceInstanceRequest{
 		Attributes: attrs,
 		Apply:      cmd.Apply,
 	})
@@ -157,13 +158,13 @@ func (cmd *UpdateResourceInstanceCommand) Run(ctx *Globals) (err error) {
 	return nil
 }
 
-func (cmd *OpenAPICommand) Run(ctx *Globals) (err error) {
-	client, err := ctx.Client()
+func (cmd *OpenAPICommand) Run(ctx server.Cmd) (err error) {
+	client, err := clientFor(ctx)
 	if err != nil {
 		return err
 	}
 
-	raw, err := client.GetOpenAPI(ctx.ctx, cmd.Router)
+	raw, err := client.GetOpenAPI(ctx.Context(), cmd.Router)
 	if err != nil {
 		return err
 	}
