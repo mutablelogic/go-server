@@ -53,8 +53,10 @@ func Main[T any](cmds T, description, version string) error {
 
 	// Create logger
 	var level slog.LevelVar
-	if globals.Debug {
-		level.Set(slog.LevelDebug)
+	if globals.Verbose {
+		level.Set(logger.LevelTrace)
+	} else if globals.Debug {
+		level.Set(logger.LevelDebug)
 	}
 	if IsTerminal() {
 		globals.logger = slog.New(logger.NewTermHandler(os.Stderr, &level))
