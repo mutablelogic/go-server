@@ -63,14 +63,16 @@ func (h *TermHandler) Handle(ctx context.Context, r slog.Record) error {
 	parts = append(parts, r.Time.Format(timeFormat))
 
 	level := r.Level.String()
-	switch r.Level {
-	case slog.LevelDebug:
+	switch {
+	case r.Level < LevelDebug:
+		level = colorize(darkGray, "TRACE")
+	case r.Level == LevelDebug:
 		level = colorize(darkGray, level)
-	case slog.LevelInfo:
+	case r.Level == LevelInfo:
 		level = colorize(white, level)
-	case slog.LevelWarn:
+	case r.Level == LevelWarn:
 		level = colorize(lightYellow, level)
-	case slog.LevelError:
+	case r.Level >= LevelError:
 		level = colorize(lightRed, level)
 	}
 	parts = append(parts, level+":")
