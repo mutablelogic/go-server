@@ -1258,3 +1258,23 @@ func TestParseEnumTag(t *testing.T) {
 		})
 	}
 }
+
+func TestMustFor_Success(t *testing.T) {
+	type S struct {
+		Name string `json:"name"`
+	}
+	s := MustFor[S]()
+	if s == nil {
+		t.Fatal("MustFor returned nil for valid type")
+	}
+}
+
+func TestMustFor_Panic(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("MustFor did not panic for invalid type")
+		}
+	}()
+	// A channel cannot be represented as a JSON Schema; upstream returns an error.
+	MustFor[chan int]()
+}

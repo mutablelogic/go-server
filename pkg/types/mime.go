@@ -39,7 +39,6 @@ func ParseContentType(header string) (string, error) {
 }
 
 // IsValidHeaderKey reports whether s is a valid RFC 7230 header field name
-// token: one or more tchar characters.
 func IsValidHeaderKey(s string) bool {
 	return reHeaderKey.MatchString(s)
 }

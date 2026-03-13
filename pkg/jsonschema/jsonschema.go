@@ -149,6 +149,15 @@ func For[T any]() (*Schema, error) {
 	return res, nil
 }
 
+// MustFor is like [For] but panics if schema generation fails.
+func MustFor[T any]() *Schema {
+	s, err := For[T]()
+	if err != nil {
+		panic(fmt.Sprintf("jsonschema.MustFor: %v", err))
+	}
+	return s
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 

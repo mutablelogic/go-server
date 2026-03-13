@@ -19,7 +19,7 @@ import (
 
 // RegisterFunc is called after the router is created but before the server
 // starts listening. Use it to add routes and wire up handlers.
-type RegisterFunc func(*httprouter.Router, server.Cmd) error
+type RegisterFunc func(*httprouter.Router) error
 
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
@@ -94,7 +94,7 @@ func (s *RunServer) Run(ctx server.Cmd) error {
 
 	// Register routes
 	for _, fn := range s.register {
-		if err := fn(router, ctx); err != nil {
+		if err := fn(router); err != nil {
 			return fmt.Errorf("register: %w", err)
 		}
 	}

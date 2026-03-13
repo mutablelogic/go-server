@@ -185,8 +185,8 @@ func Test_RegisterFunc_003(t *testing.T) {
 	router, err := NewRouter(context.Background(), "/api/v1", "", "Test API", "1.0.0")
 	assert.NoError(err)
 
-	// Register a handler under the prefix
-	assert.NoError(router.RegisterFunc("/items", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// Register a relative path - should be joined with the prefix
+	assert.NoError(router.RegisterFunc("items", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("items"))
 	}), false, nil))
@@ -198,4 +198,26 @@ func Test_RegisterFunc_003(t *testing.T) {
 
 	assert.Equal(http.StatusOK, rec.Code)
 	assert.Equal("items", rec.Body.String())
+}
+
+func Test_RegisterFunc_004(t *testing.T) {
+	assert := assert.New(t)
+
+	// Create a router with a prefix
+	router, err := NewRouter(context.Background(), "/api/v1", "", "Test API", "1.0.0")
+	assert.NoError(err)
+
+	// Register an absolute path - prefix should not be prepended
+	assert.NoError(router.RegisterFunc("/health", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("ok"))
+	}), false, nil))
+
+	// Request at the absolute path, not under the prefix
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	assert.Equal(http.StatusOK, rec.Code)
+	assert.Equal("ok", rec.Body.String())
 }
