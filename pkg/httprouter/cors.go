@@ -30,7 +30,7 @@ func Cors(origin string, headers ...string) HTTPMiddlewareFunc {
 	if len(headers) > 0 {
 		var valid []string
 		for _, h := range headers {
-			if types.IsValidHeaderKey(h) {
+			if h = strings.TrimSpace(h); types.IsValidHeaderKey(h) {
 				valid = append(valid, h)
 			}
 		}
@@ -43,7 +43,12 @@ func Cors(origin string, headers ...string) HTTPMiddlewareFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Access-Control-Allow-Origin", allowOrigin)
 			if r.Method == http.MethodOptions {
-				w.Header().Set("Access-Control-Allow-Methods", "*")
+				// Echo back the requested method when present; fall back to "*".
+				allowMethods := r.Header.Get("Access-Control-Request-Method")
+				if allowMethods == "" {
+					allowMethods = "*"
+				}
+				w.Header().Set("Access-Control-Allow-Methods", allowMethods)
 				w.Header().Set("Access-Control-Allow-Headers", allowHeaders)
 				w.WriteHeader(http.StatusNoContent)
 				return

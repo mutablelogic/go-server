@@ -8,7 +8,6 @@ import (
 	"time"
 
 	// Packages
-	server "github.com/mutablelogic/go-server"
 	httprouter "github.com/mutablelogic/go-server/pkg/httprouter"
 	otel "go.opentelemetry.io/otel"
 )
@@ -49,11 +48,11 @@ func Test_RunServer_Register(t *testing.T) {
 	var called []int
 
 	s := &RunServer{}
-	s.Register(func(_ *httprouter.Router, _ server.Cmd) error {
+	s.Register(func(_ *httprouter.Router) error {
 		called = append(called, 1)
 		return nil
 	})
-	s.Register(func(_ *httprouter.Router, _ server.Cmd) error {
+	s.Register(func(_ *httprouter.Router) error {
 		called = append(called, 2)
 		return nil
 	})
@@ -64,7 +63,7 @@ func Test_RunServer_Register(t *testing.T) {
 
 	// Execute them manually to verify ordering
 	for _, fn := range s.register {
-		if err := fn(nil, nil); err != nil {
+		if err := fn(nil); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -76,7 +75,7 @@ func Test_RunServer_Register(t *testing.T) {
 // Test_RunServer_Register_Chaining verifies the fluent chaining return.
 func Test_RunServer_Register_Chaining(t *testing.T) {
 	s := &RunServer{}
-	got := s.Register(func(_ *httprouter.Router, _ server.Cmd) error { return nil })
+	got := s.Register(func(_ *httprouter.Router) error { return nil })
 	if got != s {
 		t.Error("Register() did not return the receiver")
 	}

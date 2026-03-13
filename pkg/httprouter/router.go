@@ -152,8 +152,9 @@ func (r *Router) RegisterCatchAll(middleware bool) error {
 
 // RegisterOpenAPI registers a handler at path that serves the router's
 // [openapi.Spec] as JSON on GET requests and returns 405 Method Not Allowed
-// for all other HTTP methods. When middleware is true the handler is wrapped
-// by the router's middleware chain.
+// for all other HTTP methods. If path is relative the router prefix is
+// prepended; if path is absolute it is used as-is. When middleware is true
+// the handler is wrapped by the router's middleware chain.
 func (r *Router) RegisterOpenAPI(path string, middleware bool) error {
 	handler := func(w http.ResponseWriter, req *http.Request) {
 		switch req.Method {
@@ -170,7 +171,8 @@ func (r *Router) RegisterOpenAPI(path string, middleware bool) error {
 }
 
 // RegisterFS registers a file server at path that serves static assets from
-// the given [fs.FS]. The router prefix is prepended to path and the combined
+// the given [fs.FS]. If path is relative (does not start with "/") the router
+// prefix is prepended; if path is absolute it is used as-is. The combined
 // prefix is stripped from incoming requests before the file lookup. A trailing
 // slash is ensured so that [http.ServeMux] treats it as a subtree pattern,
 // matching all sub-paths.
@@ -195,7 +197,8 @@ func (r *Router) RegisterFS(path string, fs fs.FS, middleware bool, spec *openap
 
 // RegisterFunc registers handler at path. The path should not include an HTTP
 // method; the handler itself is responsible for differentiating between methods.
-// The router prefix is prepended to path before registration.
+// If path is relative (does not start with "/") the router prefix is prepended;
+// if path is absolute it is used as-is.
 //
 // When spec is non-nil the corresponding [openapi.PathItem] is added to the
 // router's OpenAPI specification under the resolved path. When middleware is

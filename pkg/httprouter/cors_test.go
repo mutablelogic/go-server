@@ -46,7 +46,7 @@ func Test_Cors_002(t *testing.T) {
 func Test_Cors_003(t *testing.T) {
 	assert := assert.New(t)
 
-	// Preflight request without headers list defaults to "*"
+	// Preflight without Access-Control-Request-Method falls back to "*"
 	mw := Cors("https://example.com")
 	handler := mw(func(w http.ResponseWriter, r *http.Request) {
 		// Should not be called for OPTIONS
@@ -61,6 +61,24 @@ func Test_Cors_003(t *testing.T) {
 	assert.Equal("https://example.com", rec.Header().Get("Access-Control-Allow-Origin"))
 	assert.Equal("*", rec.Header().Get("Access-Control-Allow-Methods"))
 	assert.Equal("*", rec.Header().Get("Access-Control-Allow-Headers"))
+}
+
+func Test_Cors_003b(t *testing.T) {
+	assert := assert.New(t)
+
+	// Preflight with Access-Control-Request-Method echoes the requested method
+	mw := Cors("https://example.com")
+	handler := mw(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodOptions, "/", nil)
+	req.Header.Set("Access-Control-Request-Method", http.MethodDelete)
+	rec := httptest.NewRecorder()
+	handler(rec, req)
+
+	assert.Equal(http.StatusNoContent, rec.Code)
+	assert.Equal("DELETE", rec.Header().Get("Access-Control-Allow-Methods"))
 }
 
 func Test_Cors_004(t *testing.T) {

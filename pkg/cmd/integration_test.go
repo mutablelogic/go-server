@@ -12,7 +12,6 @@ import (
 	"time"
 
 	// Packages
-	server "github.com/mutablelogic/go-server"
 	httprouter "github.com/mutablelogic/go-server/pkg/httprouter"
 	otel "go.opentelemetry.io/otel"
 )
@@ -108,7 +107,7 @@ func Test_RunServer_Run_Register(t *testing.T) {
 	addr := freeAddr(t)
 	g := newTestGlobal(t, addr)
 	s := &RunServer{}
-	s.Register(func(router *httprouter.Router, _ server.Cmd) error {
+	s.Register(func(router *httprouter.Router) error {
 		return router.RegisterFunc("ping", func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusNoContent)
 		}, false, nil)
