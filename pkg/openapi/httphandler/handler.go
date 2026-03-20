@@ -72,7 +72,7 @@ func htmlHandler() http.HandlerFunc {
 			_ = httpresponse.Error(w, httpresponse.Err(http.StatusMethodNotAllowed), r.Method)
 			return
 		}
-		_ = httpresponse.Write(w, http.StatusOK, types.ContentTypeHTML, func(out io.Writer) (int, error) {
+		_ = httpresponse.Write(w, http.StatusOK, types.ContentTypeHTML+"; charset=utf-8", func(out io.Writer) (int, error) {
 			return out.Write(static.OpenAPIHTML)
 		})
 	}

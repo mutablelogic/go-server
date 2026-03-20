@@ -39,6 +39,12 @@ func (d *defaults) init(path string) error {
 	// If the file is corrupt or can't be read, discard
 	if err := json.NewDecoder(f).Decode(&d.data); err != nil {
 		d.data = make(map[string]any)
+		if closeErr := f.Close(); closeErr != nil {
+			return closeErr
+		}
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return err
+		}
 	}
 
 	// Return success

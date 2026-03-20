@@ -200,6 +200,18 @@ func Test_Query_StringSlice(t *testing.T) {
 		assert.NoError(err)
 		assert.Equal([]string{"a", "b", "c"}, p.Tags)
 	})
+
+	t.Run("NamedStringSlice", func(t *testing.T) {
+		type status string
+		type namedParams struct {
+			Status []status `json:"status"`
+		}
+
+		var p namedParams
+		err := httprequest.Query(url.Values{"status": {"active", "suspended"}}, &p)
+		assert.NoError(err)
+		assert.Equal([]status{"active", "suspended"}, p.Status)
+	})
 }
 
 func Test_Query_TagIgnore(t *testing.T) {
