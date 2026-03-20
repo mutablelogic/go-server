@@ -214,6 +214,60 @@ func Test_Query_StringSlice(t *testing.T) {
 	})
 }
 
+func Test_Query_IntSlice(t *testing.T) {
+	assert := assert.New(t)
+
+	type params struct {
+		IDs []int `json:"ids"`
+	}
+
+	t.Run("MultipleValues", func(t *testing.T) {
+		var p params
+		err := httprequest.Query(url.Values{"ids": {"1", "2", "3"}}, &p)
+		assert.NoError(err)
+		assert.Equal([]int{1, 2, 3}, p.IDs)
+	})
+
+	t.Run("SingleValue", func(t *testing.T) {
+		var p params
+		err := httprequest.Query(url.Values{"ids": {"42"}}, &p)
+		assert.NoError(err)
+		assert.Equal([]int{42}, p.IDs)
+	})
+
+	t.Run("Invalid", func(t *testing.T) {
+		var p params
+		err := httprequest.Query(url.Values{"ids": {"1", "abc", "3"}}, &p)
+		assert.Error(err)
+	})
+}
+
+func Test_Query_TimeSlice(t *testing.T) {
+	assert := assert.New(t)
+
+	type params struct {
+		Dates []time.Time `json:"dates"`
+	}
+
+	t.Run("MultipleValues", func(t *testing.T) {
+		var p params
+		err := httprequest.Query(url.Values{"dates": {"2025-01-15T10:30:00Z", "2025-06-01T00:00:00Z"}}, &p)
+		assert.NoError(err)
+		if assert.Len(p.Dates, 2) {
+			assert.Equal(2025, p.Dates[0].Year())
+			assert.Equal(time.Month(1), p.Dates[0].Month())
+			assert.Equal(2025, p.Dates[1].Year())
+			assert.Equal(time.Month(6), p.Dates[1].Month())
+		}
+	})
+
+	t.Run("Invalid", func(t *testing.T) {
+		var p params
+		err := httprequest.Query(url.Values{"dates": {"2025-01-15T10:30:00Z", "not-a-date"}}, &p)
+		assert.Error(err)
+	})
+}
+
 func Test_Query_TagIgnore(t *testing.T) {
 	assert := assert.New(t)
 
