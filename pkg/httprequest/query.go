@@ -127,32 +127,45 @@ func setQueryValue(tag string, v reflect.Value, value []string) error {
 		v.Set(reflect.New(v.Type().Elem()))
 		v = v.Elem()
 	}
+	if v.Kind() == reflect.Slice {
+		items := reflect.MakeSlice(v.Type(), len(value), len(value))
+		for i, item := range value {
+			if err := setQueryScalar(tag, items.Index(i), item); err != nil {
+				return err
+			}
+		}
+		v.Set(items)
+		return nil
+	}
+
+	return setQueryScalar(tag, v, value[0])
+}
+
+func setQueryScalar(tag string, v reflect.Value, value string) error {
 	// Set the value
 	switch v.Kind() {
 	case reflect.String:
-		if len(value) > 0 {
-			v.SetString(value[0])
-		}
+		v.SetString(value)
 	case reflect.Bool:
-		value, err := strconv.ParseBool(value[0])
+		value, err := strconv.ParseBool(value)
 		if err != nil {
 			return errBadRequest.Withf("%q: Parse error (expected a bool value)", tag)
 		}
 		v.SetBool(value)
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		value, err := strconv.ParseInt(value[0], 10, 64)
+		value, err := strconv.ParseInt(value, 10, 64)
 		if err != nil {
 			return errBadRequest.Withf("%q: Parse error (expected a int value)", tag)
 		}
 		v.SetInt(value)
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		value, err := strconv.ParseUint(value[0], 10, 64)
+		value, err := strconv.ParseUint(value, 10, 64)
 		if err != nil {
 			return errBadRequest.Withf("%q: Parse error (expected a uint value)", tag)
 		}
 		v.SetUint(value)
 	case reflect.Float32, reflect.Float64:
-		value, err := strconv.ParseFloat(value[0], v.Type().Bits())
+		value, err := strconv.ParseFloat(value, v.Type().Bits())
 		if err != nil {
 			return errBadRequest.Withf("%q: Parse error (expected a float value)", tag)
 		}
@@ -161,23 +174,14 @@ func setQueryValue(tag string, v reflect.Value, value []string) error {
 		switch v.Type() {
 		case typeTime:
 			t := new(time.Time)
-			if len(value) > 0 {
-				quoted := strconv.Quote(value[0])
-				if err := t.UnmarshalJSON([]byte(quoted)); err != nil {
-					return errBadRequest.Withf("%q: Parse error (expected a time value)", tag)
-				}
+			quoted := strconv.Quote(value)
+			if err := t.UnmarshalJSON([]byte(quoted)); err != nil {
+				return errBadRequest.Withf("%q: Parse error (expected a time value)", tag)
 			}
 			v.Set(reflect.ValueOf(t).Elem())
 		default:
 			return errBadRequest.Withf("%q: unsupported type (%q)", tag, v.Type())
 		}
-	case reflect.Slice:
-		// We only support string slices
-		if v.Type().Elem().Kind() == reflect.String {
-			v.Set(reflect.ValueOf(value))
-			return nil
-		}
-		fallthrough
 	default:
 		return errBadRequest.Withf("%q: unsupported kind (%q)", tag, v.Kind())
 	}

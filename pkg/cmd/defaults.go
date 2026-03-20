@@ -33,16 +33,21 @@ func (d *defaults) init(path string) error {
 	} else if err != nil {
 		return err
 	}
-	defer f.Close()
-
 	// Read the JSON defaults file into the store.
-	// If the file is corrupt or can't be read, discard
+	// If the file is corrupt or can't be read, discard and remove the file.
 	if err := json.NewDecoder(f).Decode(&d.data); err != nil {
 		d.data = make(map[string]any)
+		if closeErr := f.Close(); closeErr != nil {
+			return closeErr
+		}
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		return nil
 	}
 
 	// Return success
-	return nil
+	return f.Close()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
