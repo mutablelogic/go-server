@@ -63,10 +63,10 @@ func TestSpecReturnsDefensiveCopy(t *testing.T) {
 	}
 
 	_, spec := p.Spec()
-	if spec == nil || spec.Get == nil || len(spec.Get.Parameters) != 1 {
-		t.Fatalf("Spec().Get.Parameters = %#v, want single parameter", spec)
+	if spec == nil || spec.Get == nil || len(spec.Parameters) != 1 {
+		t.Fatalf("Spec().Parameters = %#v, want single parameter", spec)
 	}
-	spec.Get.Parameters[0].Name = "mutated"
+	spec.Parameters[0].Name = "mutated"
 	spec.Get.Summary = "mutated summary"
 
 	if p.parameters[0].Name != "id" {
@@ -77,8 +77,8 @@ func TestSpecReturnsDefensiveCopy(t *testing.T) {
 	if fresh == nil || fresh.Get == nil {
 		t.Fatalf("fresh Spec().Get = nil, want populated GET operation")
 	}
-	if fresh.Get.Parameters[0].Name != "id" {
-		t.Fatalf("fresh Spec().Get.Parameters[0].Name = %q, want %q", fresh.Get.Parameters[0].Name, "id")
+	if fresh.Parameters[0].Name != "id" {
+		t.Fatalf("fresh Spec().Parameters[0].Name = %q, want %q", fresh.Parameters[0].Name, "id")
 	}
 	if fresh.Get.Summary != "get resource" {
 		t.Fatalf("fresh Spec().Get.Summary = %q, want %q", fresh.Get.Summary, "get resource")
@@ -104,8 +104,8 @@ func TestRegisterNormalizesMethod(t *testing.T) {
 	if spec == nil || spec.Get == nil {
 		t.Fatalf("Spec().Get = nil, want populated GET operation")
 	}
-	if len(spec.Get.Parameters) != 1 || spec.Get.Parameters[0].Name != "id" {
-		t.Fatalf("Spec().Get.Parameters = %#v, want single path parameter id", spec.Get.Parameters)
+	if len(spec.Parameters) != 1 || spec.Parameters[0].Name != "id" {
+		t.Fatalf("Spec().Parameters = %#v, want single path parameter id", spec.Parameters)
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "/resource/123", nil)

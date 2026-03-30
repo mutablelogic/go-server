@@ -35,10 +35,11 @@ func NewPath(path string, summary string) *Path {
 	}
 
 	// Set the spec, parameters and handler
-	self.spec = openapi.PathItem{
-		Summary: summary,
-	}
 	self.parameters = parametersFromPath(self.path)
+	self.spec = openapi.PathItem{
+		Summary:    summary,
+		Parameters: append([]openapi.Parameter(nil), self.parameters...),
+	}
 	self.handlers = make(map[string]http.HandlerFunc, 5)
 
 	// Return success
@@ -94,7 +95,7 @@ func (p *Path) Register(method string, handler http.HandlerFunc, summary string)
 
 	// Register the handler and operation only after validation succeeds.
 	p.handlers[method] = handler
-	*operation = &openapi.Operation{Summary: summary, Parameters: p.parameters}
+	*operation = &openapi.Operation{Summary: summary}
 
 	// Success
 	return nil
@@ -139,6 +140,7 @@ func parametersFromPath(path string) []openapi.Parameter {
 
 func clonePathItem(item openapi.PathItem) *openapi.PathItem {
 	clone := item
+	clone.Parameters = append([]openapi.Parameter(nil), item.Parameters...)
 	clone.Get = cloneOperation(item.Get)
 	clone.Put = cloneOperation(item.Put)
 	clone.Post = cloneOperation(item.Post)
