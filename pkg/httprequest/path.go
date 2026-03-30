@@ -51,7 +51,7 @@ func NewPath(path string, summary string) *Path {
 // Handler returns the http.HandlerFunc for this path
 func (p *Path) Handler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if handler, ok := p.handlers[r.Method]; ok {
+		if handler, ok := p.handlers[strings.ToUpper(strings.TrimSpace(r.Method))]; ok {
 			handler(w, r)
 			return
 		}
@@ -61,35 +61,40 @@ func (p *Path) Handler() http.HandlerFunc {
 
 // Spec returns the openapi.PathItem for this path
 func (p *Path) Spec() (string, *openapi.PathItem) {
-	return p.path, types.Ptr(p.spec)
+	return p.path, clonePathItem(p.spec)
 }
 
 // Register registers an http.HandlerFunc for the given method
 func (p *Path) Register(method string, handler http.HandlerFunc, summary string) error {
-	// Register the handler
-	p.handlers[method] = handler
+	method = strings.ToUpper(strings.TrimSpace(method))
+
+	var operation **openapi.Operation
 
 	// Register the method in the spec
-	switch strings.ToUpper(method) {
+	switch method {
 	case http.MethodGet:
-		p.spec.Get = &openapi.Operation{Summary: summary, Parameters: p.parameters}
+		operation = &p.spec.Get
 	case http.MethodPost:
-		p.spec.Post = &openapi.Operation{Summary: summary, Parameters: p.parameters}
+		operation = &p.spec.Post
 	case http.MethodPut:
-		p.spec.Put = &openapi.Operation{Summary: summary, Parameters: p.parameters}
+		operation = &p.spec.Put
 	case http.MethodPatch:
-		p.spec.Patch = &openapi.Operation{Summary: summary, Parameters: p.parameters}
+		operation = &p.spec.Patch
 	case http.MethodDelete:
-		p.spec.Delete = &openapi.Operation{Summary: summary, Parameters: p.parameters}
+		operation = &p.spec.Delete
 	case http.MethodHead:
-		p.spec.Head = &openapi.Operation{Summary: summary, Parameters: p.parameters}
+		operation = &p.spec.Head
 	case http.MethodOptions:
-		p.spec.Options = &openapi.Operation{Summary: summary, Parameters: p.parameters}
+		operation = &p.spec.Options
 	case http.MethodTrace:
-		p.spec.Trace = &openapi.Operation{Summary: summary, Parameters: p.parameters}
+		operation = &p.spec.Trace
 	default:
 		return httpresponse.Err(http.StatusMethodNotAllowed).Withf("unsupported method %q", method)
 	}
+
+	// Register the handler and operation only after validation succeeds.
+	p.handlers[method] = handler
+	*operation = &openapi.Operation{Summary: summary, Parameters: p.parameters}
 
 	// Success
 	return nil
@@ -130,4 +135,27 @@ func parametersFromPath(path string) []openapi.Parameter {
 	}
 
 	return params
+}
+
+func clonePathItem(item openapi.PathItem) *openapi.PathItem {
+	clone := item
+	clone.Get = cloneOperation(item.Get)
+	clone.Put = cloneOperation(item.Put)
+	clone.Post = cloneOperation(item.Post)
+	clone.Delete = cloneOperation(item.Delete)
+	clone.Options = cloneOperation(item.Options)
+	clone.Head = cloneOperation(item.Head)
+	clone.Patch = cloneOperation(item.Patch)
+	clone.Trace = cloneOperation(item.Trace)
+	return types.Ptr(clone)
+}
+
+func cloneOperation(op *openapi.Operation) *openapi.Operation {
+	if op == nil {
+		return nil
+	}
+	clone := *op
+	clone.Tags = append([]string(nil), op.Tags...)
+	clone.Parameters = append([]openapi.Parameter(nil), op.Parameters...)
+	return &clone
 }
