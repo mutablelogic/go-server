@@ -1820,5 +1820,15 @@ func TestFor_SliceField_NoNull(t *testing.T) {
 		if prop.Type == "null" {
 			t.Errorf("%s: Type is \"null\", want \"array\"", name)
 		}
+		// Ensure the schema still declares "array" as the type.
+		hasArray := prop.Type == "array"
+		for _, typ := range prop.Types {
+			if typ == "array" {
+				hasArray = true
+			}
+		}
+		if !hasArray {
+			t.Errorf("%s: schema missing \"array\" type; Type=%q, Types=%v", name, prop.Type, prop.Types)
+		}
 	}
 }
