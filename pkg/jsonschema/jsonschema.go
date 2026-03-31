@@ -327,6 +327,17 @@ func enrichSchema(s *upstream.Schema, t reflect.Type) error {
 				}
 			}
 		}
+
+		// Slice fields should not allow null. The upstream library adds "null"
+		// because Go slices have a nil zero value, but in JSON APIs an absent
+		// slice is omitted or [], never null.
+		if ft.Kind() == reflect.Slice {
+			prop.Types = removeString(prop.Types, "null")
+			if prop.Type == "null" {
+				prop.Type = ""
+			}
+		}
+
 		if v := field.Tag.Get("min"); v != "" {
 			applyMin(prop, ft, v)
 		}
@@ -343,7 +354,10 @@ func enrichSchema(s *upstream.Schema, t reflect.Type) error {
 			prop.ReadOnly = true
 		}
 		if v := field.Tag.Get("example"); v != "" {
-			if raw := marshalDefault(field.Type, v); raw != nil {
+			var parsed any
+			if err := json.Unmarshal([]byte(v), &parsed); err == nil {
+				prop.Examples = append(prop.Examples, parsed)
+			} else if raw := marshalDefault(field.Type, v); raw != nil {
 				var decoded any
 				if err := json.Unmarshal(raw, &decoded); err == nil {
 					prop.Examples = append(prop.Examples, decoded)

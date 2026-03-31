@@ -1796,3 +1796,39 @@ func TestFor_ByteSlice_StructField(t *testing.T) {
 		t.Errorf("data format: got %q, want \"byte\"", prop.Format)
 	}
 }
+
+func TestFor_SliceField_NoNull(t *testing.T) {
+	type S struct {
+		Tags []string `json:"tags"`
+		IDs  []int    `json:"ids,omitempty"`
+	}
+	s, err := For[S]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"tags", "ids"} {
+		prop := s.Properties[name]
+		if prop == nil {
+			t.Fatalf("expected property %q", name)
+		}
+		// Type should be "array" with no "null" in Types.
+		for _, typ := range prop.Types {
+			if typ == "null" {
+				t.Errorf("%s: Types contains \"null\", want no null for slice fields", name)
+			}
+		}
+		if prop.Type == "null" {
+			t.Errorf("%s: Type is \"null\", want \"array\"", name)
+		}
+		// Ensure the schema still declares "array" as the type.
+		hasArray := prop.Type == "array"
+		for _, typ := range prop.Types {
+			if typ == "array" {
+				hasArray = true
+			}
+		}
+		if !hasArray {
+			t.Errorf("%s: schema missing \"array\" type; Type=%q, Types=%v", name, prop.Type, prop.Types)
+		}
+	}
+}
