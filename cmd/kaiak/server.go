@@ -97,7 +97,7 @@ func (s *RunServer) WithManager(ctx server.Cmd, fn func(*provider.Manager, strin
 		router.Spec().AddTagGroup("Parameter Sets", "First", "Second")
 
 		// Register the first path with all options
-		return router.RegisterPath("first/{a}/{b}/{x}", jsonschema.MustFor[First](), true, httprequest.NewPathItem(
+		return router.RegisterPath("first/{a}/{b}/{x}", jsonschema.MustFor[First](), httprequest.NewPathItem(
 			"Test Route",
 			"Target a test route with path parameters a, b, and x. Try GET /first/hello/world/optional or GET /first/123e4567-e89b-12d3-a456-426614174000/aGVsbG8gd29ybGQ=/optional",
 			"First",
@@ -118,7 +118,7 @@ func (s *RunServer) WithManager(ctx server.Cmd, fn func(*provider.Manager, strin
 		).Patch(nil, "PATCH Handler"))
 	}, func(router *httprouter.Router) error {
 		// Register the second path with all options
-		return router.RegisterPath("second/{c}/{d}", jsonschema.MustFor[Second](), true, httprequest.NewPathItem(
+		return router.RegisterPath("second/{c}/{d}", jsonschema.MustFor[Second](), httprequest.NewPathItem(
 			"Test Route",
 			"Target a test route with path parameters c and d. Try GET /second/hello/world",
 			"Second",

@@ -126,15 +126,22 @@ func (s *RunServer) Run(ctx server.Cmd) error {
 		return err
 	}
 
-	// Set the server URL in the OpenAPI spec now that the bound address is known
+	// Set the server URL in the OpenAPI spec now that the bound address is known.
+	// When a TLS server name is configured (e.g. behind a reverse proxy) it is
+	// used as the public hostname; otherwise the bound listen address is used.
 	if s.OpenAPI {
 		scheme := "http"
+		host := srv.Addr()
 		if tlsCfg != nil {
 			scheme = "https"
 		}
+		if s.TLS.ServerName != "" {
+			scheme = "https"
+			host = s.TLS.ServerName
+		}
 		router.Spec().SetSummary(ctx.Description())
 		router.Spec().SetServers([]openapi.Server{
-			{URL: fmt.Sprintf("%s://%s", scheme, srv.Addr())},
+			{URL: fmt.Sprintf("%s://%s", scheme, host)},
 		})
 	}
 

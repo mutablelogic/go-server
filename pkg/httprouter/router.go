@@ -40,11 +40,12 @@ var _ http.Handler = (*Router)(nil)
 // LIFECYCLE
 
 // NewRouter creates a new router with the given prefix, origin, title, version
-// and middleware. The prefix is normalised to a path. The origin is used for
-// cross-origin protection (CSRF) and can be:
-//   - Empty string: same-origin requests only
-//   - "*": allow all cross-origin requests
-//   - A specific origin in the form "scheme://host[:port]"
+// and middleware. The prefix is normalised to a path. The origin controls
+// cross-origin request handling:
+//   - Empty string: same-origin requests only (CRF enabled, no CORS)
+//   - "*": allow all cross-origin requests (CORS enabled, CRF bypassed)
+//   - A specific origin in the form "scheme://host[:port]" (CORS and CRF
+//     enabled, with the origin added as a trusted CRF origin)
 //
 // The title and version are used to create the OpenAPI spec for the router.
 func NewRouter(ctx context.Context, prefix, origin, title, version string, middleware ...HTTPMiddlewareFunc) (*Router, error) {
@@ -57,19 +58,24 @@ func NewRouter(ctx context.Context, prefix, origin, title, version string, middl
 	// Create a new OpenAPI spec
 	router.spec = openapi.NewSpec(title, version)
 
-	// Create a CSRF handler, and set the router's handler to the CSRF handler
-	// Origin can be empty (same-origin only), "*" (allow all cross-origin)
-	// or a specific origin in the form "scheme://host[:port]"
-	crf := http.NewCrossOriginProtection()
+	// Build the handler chain depending on the origin policy.
+	// When origin is "*" CRF is bypassed entirely because there is no
+	// meaningful CSRF protection when all origins are trusted.
 	switch {
-	case origin == "", origin == "*":
-		// No trusted origin added
-	default:
+	case origin == "*":
+		// All origins trusted – CORS only, no CRF
+		router.handler = Cors(origin)(router.mux.ServeHTTP)
+	case origin != "":
+		// Specific origin – CRF with trusted origin, wrapped by CORS
+		crf := http.NewCrossOriginProtection()
 		if err := crf.AddTrustedOrigin(origin); err != nil {
 			return nil, err
 		}
+		router.handler = Cors(origin)(crf.Handler(router.mux).ServeHTTP)
+	default:
+		// Empty origin – same-origin only, CRF with no trusted origins
+		router.handler = http.NewCrossOriginProtection().Handler(router.mux)
 	}
-	router.handler = crf.Handler(router.mux)
 
 	// Return success
 	return router, nil
@@ -92,6 +98,12 @@ func (r *Router) AddMiddleware(fn HTTPMiddlewareFunc) {
 // "*" when all origins are trusted, or a specific "scheme://host[:port]" value.
 func (r *Router) Origin() string {
 	return r.origin
+}
+
+// Prefix returns the normalised path prefix that all relative routes are
+// registered under.
+func (r *Router) Prefix() string {
+	return r.prefix
 }
 
 // Spec returns the OpenAPI 3.1 specification for this router. The spec is
@@ -196,9 +208,10 @@ func (r *Router) RegisterFS(path string, fs fs.FS, middleware bool, spec *openap
 	return r.safeHandle(prefix, handler)
 }
 
-// RegisterPath registers a handler at path that serves requests, which can optionally be wrapped with
-// a Cors handler if cors is true.
-func (r *Router) RegisterPath(path string, params *jsonschema.Schema, cors bool, pathitem httprequest.PathItem) error {
+// RegisterPath registers a [PathItem] handler at path. If path is relative
+// the router prefix is prepended. The handler is always wrapped by the
+// router's middleware chain.
+func (r *Router) RegisterPath(path string, params *jsonschema.Schema, pathitem httprequest.PathItem) error {
 	// Resove the path with the router prefix
 	path = r.resolvePath(path)
 
@@ -208,14 +221,12 @@ func (r *Router) RegisterPath(path string, params *jsonschema.Schema, cors bool,
 		r.spec.AddPath(path, spec)
 	}
 
-	// Wrap in CORS handler if requested
+	// Get handler or fall back to method-not-allowed
 	handler := pathitem.Handler()
 	if handler == nil {
 		handler = func(w http.ResponseWriter, r *http.Request) {
 			_ = httpresponse.Error(w, httpresponse.Err(http.StatusMethodNotAllowed), r.Method)
 		}
-	} else if cors {
-		handler = Cors(r.origin)(handler)
 	}
 
 	// Register the handler
