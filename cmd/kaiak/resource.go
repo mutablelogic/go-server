@@ -18,7 +18,6 @@ type ResourcesCommands struct {
 	CreateResourceInstance  CreateResourceInstanceCommand  `cmd:"" name:"create" help:"Create a new resource instance." group:"RESOURCE"`
 	UpdateResourceInstance  UpdateResourceInstanceCommand  `cmd:"" name:"update" help:"Update a resource instance (plan or apply)." group:"RESOURCE"`
 	DestroyResourceInstance DestroyResourceInstanceCommand `cmd:"" name:"destroy" help:"Destroy a resource instance." group:"RESOURCE"`
-	OpenAPI                 OpenAPICommand                 `cmd:"" name:"openapi" help:"Retrieve the OpenAPI spec from a running server." group:"RESOURCE"`
 }
 
 type DestroyResourceInstanceCommand struct {
@@ -43,10 +42,6 @@ type UpdateResourceInstanceCommand struct {
 	Set   map[string]string `flag:"" help:"Set attribute values (e.g. --set port=8080)." optional:""`
 	Del   []string          `flag:"" help:"Delete attributes (e.g. --del title)." optional:""`
 	Apply bool              `flag:"" help:"Apply the planned changes." default:"false"`
-}
-
-type OpenAPICommand struct {
-	Router string `arg:"" optional:"" default:"httprouter.main" help:"Router instance name (default: httprouter.main)"`
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -155,26 +150,6 @@ func (cmd *UpdateResourceInstanceCommand) Run(ctx server.Cmd) (err error) {
 
 	// Print result
 	fmt.Println(result)
-	return nil
-}
-
-func (cmd *OpenAPICommand) Run(ctx server.Cmd) (err error) {
-	client, err := clientFor(ctx)
-	if err != nil {
-		return err
-	}
-
-	raw, err := client.GetOpenAPI(ctx.Context(), cmd.Router)
-	if err != nil {
-		return err
-	}
-
-	// Pretty-print the JSON
-	indented, err := json.MarshalIndent(json.RawMessage(raw), "", "  ")
-	if err != nil {
-		return err
-	}
-	fmt.Println(string(indented))
 	return nil
 }
 

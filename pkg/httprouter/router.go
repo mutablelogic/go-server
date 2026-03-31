@@ -14,6 +14,7 @@ import (
 	// Packages
 	httprequest "github.com/mutablelogic/go-server/pkg/httprequest"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
+	"github.com/mutablelogic/go-server/pkg/jsonschema"
 	openapi "github.com/mutablelogic/go-server/pkg/openapi/schema"
 	types "github.com/mutablelogic/go-server/pkg/types"
 )
@@ -193,6 +194,23 @@ func (r *Router) RegisterFS(path string, fs fs.FS, middleware bool, spec *openap
 		handler = r.middleware.Wrap(handler)
 	}
 	return r.safeHandle(prefix, handler)
+}
+
+// RegisterPath registers a handler at path that serves requests
+func (r *Router) RegisterPath(path string, params *jsonschema.Schema, pathitem *httprequest.PathItem) error {
+	path = r.resolvePath(types.NormalisePath(path))
+	if path != "/" {
+		path += "/"
+	}
+
+	// OpenAPI spec is optional, but if provided, add the path to the spec
+	spec := pathitem.Spec(path, params)
+	if spec != nil {
+		r.spec.AddPath(path, spec)
+	}
+
+	// Register the handler
+	return r.safeHandle(path, r.middleware.Wrap(pathitem.Handler()))
 }
 
 // RegisterFunc registers handler at path. The path should not include an HTTP

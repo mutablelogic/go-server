@@ -3,6 +3,7 @@ package jsonschema
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"reflect"
 	"strconv"
 	"strings"
@@ -11,6 +12,7 @@ import (
 
 	// Packages
 	upstream "github.com/google/jsonschema-go/jsonschema"
+	uuid "github.com/google/uuid"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -29,6 +31,18 @@ var schemaCache sync.Map // reflect.Type -> *Schema
 // durationType is the reflect.Type for time.Duration, used to detect duration
 // fields and represent them as JSON strings rather than integers.
 var durationType = reflect.TypeFor[time.Duration]()
+
+// timeType is the reflect.Type for time.Time, used to detect time fields
+// and represent them as JSON strings with format "date-time".
+var timeType = reflect.TypeFor[time.Time]()
+
+// uuidType is the reflect.Type for uuid.UUID, used to detect UUID fields
+// and represent them as JSON strings with format "uuid".
+var uuidType = reflect.TypeFor[uuid.UUID]()
+
+// urlType is the reflect.Type for url.URL, used to detect URL fields
+// and represent them as JSON strings with format "uri".
+var urlType = reflect.TypeFor[url.URL]()
 
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
@@ -125,15 +139,40 @@ func For[T any]() (*Schema, error) {
 	for ft.Kind() == reflect.Pointer {
 		ft = ft.Elem()
 	}
-	if ft.Kind() == reflect.Struct {
-		if err := enrichSchema(s, t); err != nil {
-			return nil, err
-		}
-	} else if ft == durationType {
+	if ft == durationType {
 		// Override the upstream integer schema with a duration string schema.
 		s.Type = "string"
 		s.Types = nil
 		s.Format = "duration"
+	} else if ft == timeType {
+		// Override the upstream object schema with a date-time string schema.
+		s.Type = "string"
+		s.Types = nil
+		s.Format = "date-time"
+		s.Properties = nil
+	} else if ft == uuidType {
+		// Override the upstream array schema with a uuid string schema.
+		s.Type = "string"
+		s.Types = nil
+		s.Format = "uuid"
+		s.Items = nil
+		s.MinItems = nil
+		s.MaxItems = nil
+	} else if ft == urlType {
+		// Override the upstream object schema with a uri string schema.
+		s.Type = "string"
+		s.Types = nil
+		s.Format = "uri"
+		s.Properties = nil
+	} else if ft.Kind() == reflect.Slice && ft.Elem().Kind() == reflect.Uint8 {
+		// []byte is represented as a base64 string.
+		s.Type = "string"
+		s.Types = nil
+		s.Format = "byte"
+	} else if ft.Kind() == reflect.Struct {
+		if err := enrichSchema(s, t); err != nil {
+			return nil, err
+		}
 	}
 	res := &Schema{*s, nil}
 	resolved, err := res.Resolve(nil)
@@ -156,6 +195,17 @@ func MustFor[T any]() *Schema {
 		panic(fmt.Sprintf("jsonschema.MustFor: %v", err))
 	}
 	return s
+}
+
+// Property returns the schema for the named property, or nil if the property
+// is not present. The returned schema wraps the upstream property schema;
+// it is not resolved and should only be used for schema generation, not
+// for Validate or Decode.
+func (s *Schema) Property(name string) *Schema {
+	if prop, ok := s.Properties[name]; ok {
+		return &Schema{Schema: *prop}
+	}
+	return nil
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -196,6 +246,39 @@ func enrichSchema(s *upstream.Schema, t reflect.Type) error {
 			prop.Format = "duration"
 		}
 
+		// time.Time fields are represented as date-time strings, not objects.
+		if ft == timeType {
+			prop.Type = "string"
+			prop.Types = nil
+			prop.Format = "date-time"
+			prop.Properties = nil
+		}
+
+		// uuid.UUID fields are represented as uuid strings, not byte arrays.
+		if ft == uuidType {
+			prop.Type = "string"
+			prop.Types = nil
+			prop.Format = "uuid"
+			prop.Items = nil
+			prop.MinItems = nil
+			prop.MaxItems = nil
+		}
+
+		// url.URL fields are represented as uri strings, not objects.
+		if ft == urlType {
+			prop.Type = "string"
+			prop.Types = nil
+			prop.Format = "uri"
+			prop.Properties = nil
+		}
+
+		// []byte fields are represented as base64 strings.
+		if ft.Kind() == reflect.Slice && ft.Elem().Kind() == reflect.Uint8 {
+			prop.Type = "string"
+			prop.Types = nil
+			prop.Format = "byte"
+		}
+
 		if vals := parseEnumTag(field.Tag.Get("enum")); len(vals) > 0 {
 			prop.Enum = vals
 		}
@@ -226,6 +309,24 @@ func enrichSchema(s *upstream.Schema, t reflect.Type) error {
 		} else if isExplicitRequired {
 			s.Required = appendUnique(s.Required, jsonName)
 		}
+
+		// A pointer field that is required (explicitly or by upstream default)
+		// must not allow null: remove "null" from Types.
+		if field.Type.Kind() == reflect.Pointer {
+			isRequired := false
+			for _, r := range s.Required {
+				if r == jsonName {
+					isRequired = true
+					break
+				}
+			}
+			if isRequired {
+				prop.Types = removeString(prop.Types, "null")
+				if prop.Type == "null" {
+					prop.Type = ""
+				}
+			}
+		}
 		if v := field.Tag.Get("min"); v != "" {
 			applyMin(prop, ft, v)
 		}
@@ -240,6 +341,14 @@ func enrichSchema(s *upstream.Schema, t reflect.Type) error {
 		}
 		if _, ok := field.Tag.Lookup("readonly"); ok {
 			prop.ReadOnly = true
+		}
+		if v := field.Tag.Get("example"); v != "" {
+			if raw := marshalDefault(field.Type, v); raw != nil {
+				var decoded any
+				if err := json.Unmarshal(raw, &decoded); err == nil {
+					prop.Examples = append(prop.Examples, decoded)
+				}
+			}
 		}
 
 		// If the field's type is a struct or pointer to struct, recursively enrich it.

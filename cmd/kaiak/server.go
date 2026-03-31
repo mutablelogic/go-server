@@ -5,20 +5,19 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os"
+	"time"
 
 	// Packages
+	"github.com/google/uuid"
 	server "github.com/mutablelogic/go-server"
 	cmd "github.com/mutablelogic/go-server/pkg/cmd"
-	httprouter_resource "github.com/mutablelogic/go-server/pkg/httprouter/resource"
+	"github.com/mutablelogic/go-server/pkg/httprequest"
+	httprouter "github.com/mutablelogic/go-server/pkg/httprouter"
 	httpserver_resource "github.com/mutablelogic/go-server/pkg/httpserver/resource"
-	httpstatic_resource "github.com/mutablelogic/go-server/pkg/httpstatic/resource"
-	logger_resource "github.com/mutablelogic/go-server/pkg/logger/resource"
-	otel "github.com/mutablelogic/go-server/pkg/otel"
-	otel_resource "github.com/mutablelogic/go-server/pkg/otel/resource"
+	"github.com/mutablelogic/go-server/pkg/jsonschema"
 	provider "github.com/mutablelogic/go-server/pkg/provider"
-	httphandler "github.com/mutablelogic/go-server/pkg/provider/httphandler"
-	handler_resource "github.com/mutablelogic/go-server/pkg/provider/httphandler/resource"
 	schema "github.com/mutablelogic/go-server/pkg/provider/schema"
 	version "github.com/mutablelogic/go-server/pkg/version"
 )
@@ -27,7 +26,8 @@ import (
 // TYPES
 
 type ServerCommands struct {
-	RunServer RunServer `cmd:"" name:"run" help:"Run server." group:"SERVER"`
+	RunServer RunServer `cmd:"" name:"run" help:"Run the server."`
+	cmd.OpenAPICommands
 }
 
 type RunServer struct {
@@ -46,7 +46,7 @@ type RunServer struct {
 func (s *RunServer) Run(ctx server.Cmd) error {
 	return s.WithManager(ctx, func(manager *provider.Manager, v string) error {
 		// Start the HTTP server and wait for shutdown
-		return s.Serve(ctx, manager, version.Version())
+		return s.RunServer.Run(ctx)
 	})
 }
 
@@ -60,75 +60,104 @@ func (s *RunServer) WithManager(ctx server.Cmd, fn func(*provider.Manager, strin
 	}
 	defer manager.Close(ctx.Context())
 
-	var middlewareNames []string
-
-	// Create a read-only logger middleware instance
-	loggerInst, err := manager.RegisterReadonlyInstance(ctx.Context(), logger_resource.NewResource(ctx.Logger()), "main", schema.State{})
-	if err != nil {
-		return err
+	// First Parameter Set
+	type First struct {
+		A uuid.UUID `json:"a" example:"123e4567-e89b-12d3-a456-426614174000"`
+		B []byte    `json:"b" example:"hello world"`
+		X *url.URL  `json:"x" example:"optional string" optional:""`
 	}
-	middlewareNames = append(middlewareNames, loggerInst.Name())
 
-	// Create a read-only otel middleware instance
-	if ctx.Tracer() != nil {
-		otelInst, err := manager.RegisterReadonlyInstance(ctx.Context(), otel_resource.NewResource(otel.HTTPHandlerFunc(ctx.Tracer())), "main", schema.State{})
+	// Second Parameter Set
+	type Second struct {
+		C time.Time     `json:"c" example:"custom-c"`
+		D time.Duration `json:"d" example:"custom-d"`
+	}
+
+	s.RunServer.Register(func(router *httprouter.Router) error {
+		return router.RegisterPath("first/{a}/{b}/{x}", jsonschema.MustFor[First](), httprequest.NewPathItem(
+			"Test Route",
+			"Target a test route with path parameters a, b, and x. Try GET /first/hello/world/optional or GET /first/123e4567-e89b-12d3-a456-426614174000/aGVsbG8gd29ybGQ=/optional",
+			"First",
+		).Get(nil, "GET Handler").Patch(nil, "PATCH Handler"))
+	}, func(router *httprouter.Router) error {
+		return router.RegisterPath("second/{c}/{d}", jsonschema.MustFor[Second](), httprequest.NewPathItem(
+			"Test Route",
+			"Target a test route with path parameters c and d. Try GET /second/hello/world",
+			"Second",
+		).Get(nil, "GET Handler").Patch(nil, "PATCH Handler"))
+	})
+
+	/*
+		var middlewareNames []string
+
+		// Create a read-only logger middleware instance
+		loggerInst, err := manager.RegisterReadonlyInstance(ctx.Context(), logger_resource.NewResource(ctx.Logger()), "main", schema.State{})
 		if err != nil {
 			return err
 		}
-		middlewareNames = append(middlewareNames, otelInst.Name())
-	}
+		middlewareNames = append(middlewareNames, loggerInst.Name())
 
-	// Create read-only handler instances
-	handlerResources := []handler_resource.Resource{
-		handler_resource.NewResource(
-			"provider_api_resources", "resource",
-			httphandler.ResourceListHandler(manager),
-			httphandler.ResourceListSpec(),
-		),
-		handler_resource.NewResource(
-			"provider_api_instances", "resource/{id}",
-			httphandler.ResourceInstanceHandler(manager),
-			httphandler.ResourceInstanceSpec(),
-		),
-	}
-	handlerNames := make([]string, 0, len(handlerResources))
-	for _, r := range handlerResources {
-		inst, err := manager.RegisterReadonlyInstance(ctx.Context(), r, "main", schema.State{})
-		if err != nil {
+		// Create a read-only otel middleware instance
+		if ctx.Tracer() != nil {
+			otelInst, err := manager.RegisterReadonlyInstance(ctx.Context(), otel_resource.NewResource(otel.HTTPHandlerFunc(ctx.Tracer())), "main", schema.State{})
+			if err != nil {
+				return err
+			}
+			middlewareNames = append(middlewareNames, otelInst.Name())
+		}
+
+		// Create read-only handler instances
+		handlerResources := []handler_resource.Resource{
+			handler_resource.NewResource(
+				"provider_api_resources", "resource",
+				httphandler.ResourceListHandler(manager),
+				httphandler.ResourceListSpec(),
+			),
+			handler_resource.NewResource(
+				"provider_api_instances", "resource/{id}",
+				httphandler.ResourceInstanceHandler(manager),
+				httphandler.ResourceInstanceSpec(),
+			),
+		}
+		handlerNames := make([]string, 0, len(handlerResources))
+		for _, r := range handlerResources {
+			inst, err := manager.RegisterReadonlyInstance(ctx.Context(), r, "main", schema.State{})
+			if err != nil {
+				return err
+			}
+			handlerNames = append(handlerNames, inst.Name())
+		}
+
+		// Register the httpstatic resource type so it can be created dynamically
+		// via the API, and optionally create a read-only instance if a static
+		// directory is configured on the command line.
+		if err := manager.RegisterResource(httpstatic_resource.Resource{}); err != nil {
 			return err
 		}
-		handlerNames = append(handlerNames, inst.Name())
-	}
+		if s.Static.Dir != "" {
+			staticInst, err := manager.RegisterReadonlyInstance(ctx.Context(), httpstatic_resource.Resource{}, "main", schema.State{
+				"path": s.Static.Path,
+				"dir":  s.Static.Dir,
+			})
+			if err != nil {
+				return err
+			}
+			handlerNames = append(handlerNames, staticInst.Name())
+		}
 
-	// Register the httpstatic resource type so it can be created dynamically
-	// via the API, and optionally create a read-only instance if a static
-	// directory is configured on the command line.
-	if err := manager.RegisterResource(httpstatic_resource.Resource{}); err != nil {
-		return err
-	}
-	if s.Static.Dir != "" {
-		staticInst, err := manager.RegisterReadonlyInstance(ctx.Context(), httpstatic_resource.Resource{}, "main", schema.State{
-			"path": s.Static.Path,
-			"dir":  s.Static.Dir,
-		})
-		if err != nil {
+		// Create a read-only httprouter instance — references middleware and handlers
+		if _, err := manager.RegisterReadonlyInstance(ctx.Context(), httprouter_resource.Resource{}, "main", schema.State{
+			"prefix":     ctx.HTTPPrefix(),
+			"origin":     "", // TODO
+			"title":      ctx.Name(),
+			"version":    version.Version(),
+			"openapi":    s.OpenAPI,
+			"middleware": middlewareNames,
+			"handlers":   handlerNames,
+		}); err != nil {
 			return err
 		}
-		handlerNames = append(handlerNames, staticInst.Name())
-	}
-
-	// Create a read-only httprouter instance — references middleware and handlers
-	if _, err := manager.RegisterReadonlyInstance(ctx.Context(), httprouter_resource.Resource{}, "main", schema.State{
-		"prefix":     ctx.HTTPPrefix(),
-		"origin":     ctx.HTTPOrigin(),
-		"title":      ctx.Name(),
-		"version":    version.Version(),
-		"openapi":    s.OpenAPI,
-		"middleware": middlewareNames,
-		"handlers":   handlerNames,
-	}); err != nil {
-		return err
-	}
+	*/
 
 	return fn(manager, version.Version())
 }

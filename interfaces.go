@@ -67,9 +67,6 @@ type Cmd interface {
 	// HTTPPrefix returns the HTTP path prefix.
 	HTTPPrefix() string
 
-	// HTTPOrigin returns the cross-origin protection origin.
-	HTTPOrigin() string
-
 	// HTTPTimeout returns the HTTP read/write timeout.
 	HTTPTimeout() time.Duration
 }

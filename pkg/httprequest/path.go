@@ -14,33 +14,25 @@ import (
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type Path struct {
-	path       string
-	spec       openapi.PathItem
-	parameters []openapi.Parameter
-	handlers   map[string]http.HandlerFunc
+type PathItem struct {
+	spec     openapi.PathItem
+	tags     []string
+	handlers map[string]http.HandlerFunc
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func NewPath(path string, summary string) *Path {
-	self := new(Path)
-
-	// Path - can have either '/' prefix or not, but will always be normalised
-	// to remove '/' from the end
-	self.path = types.NormalisePath(path)
-	if !strings.HasPrefix(path, "/") && strings.HasPrefix(self.path, "/") {
-		self.path = self.path[1:]
-	}
+func NewPathItem(summary, description string, tags ...string) *PathItem {
+	self := new(PathItem)
 
 	// Set the spec, parameters and handler
-	self.parameters = parametersFromPath(self.path)
 	self.spec = openapi.PathItem{
-		Summary:    summary,
-		Parameters: append([]openapi.Parameter(nil), self.parameters...),
+		Summary:     summary,
+		Description: description,
 	}
 	self.handlers = make(map[string]http.HandlerFunc, 5)
+	self.tags = tags
 
 	// Return success
 	return self
@@ -50,7 +42,7 @@ func NewPath(path string, summary string) *Path {
 // PUBLIC METHODS
 
 // Handler returns the http.HandlerFunc for this path
-func (p *Path) Handler() http.HandlerFunc {
+func (p *PathItem) Handler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if handler, ok := p.handlers[strings.ToUpper(strings.TrimSpace(r.Method))]; ok {
 			handler(w, r)
@@ -61,57 +53,79 @@ func (p *Path) Handler() http.HandlerFunc {
 }
 
 // Spec returns the openapi.PathItem for this path
-func (p *Path) Spec() (string, *openapi.PathItem) {
-	return p.path, clonePathItem(p.spec)
+func (p *PathItem) Spec(path string, params *jsonschema.Schema) *openapi.PathItem {
+	p.spec.Parameters = parametersFromPath(path, params)
+	return types.Ptr(p.spec)
 }
 
-// Register registers an http.HandlerFunc for the given method
-func (p *Path) Register(method string, handler http.HandlerFunc, summary string) error {
-	method = strings.ToUpper(strings.TrimSpace(method))
+// Register Get handler
+func (p *PathItem) Get(handler http.HandlerFunc, summary string) *PathItem {
+	p.handlers[http.MethodGet] = handler
+	p.spec.Get = types.Ptr(openapi.Operation{Summary: summary, Tags: p.tags})
+	return p
+}
 
-	var operation **openapi.Operation
+// Register Put handler
+func (p *PathItem) Put(handler http.HandlerFunc, summary string) *PathItem {
+	p.handlers[http.MethodPut] = handler
+	p.spec.Put = types.Ptr(openapi.Operation{Summary: summary, Tags: p.tags})
+	return p
+}
 
-	// Register the method in the spec
-	switch method {
-	case http.MethodGet:
-		operation = &p.spec.Get
-	case http.MethodPost:
-		operation = &p.spec.Post
-	case http.MethodPut:
-		operation = &p.spec.Put
-	case http.MethodPatch:
-		operation = &p.spec.Patch
-	case http.MethodDelete:
-		operation = &p.spec.Delete
-	case http.MethodHead:
-		operation = &p.spec.Head
-	case http.MethodOptions:
-		operation = &p.spec.Options
-	case http.MethodTrace:
-		operation = &p.spec.Trace
-	default:
-		return httpresponse.Err(http.StatusMethodNotAllowed).Withf("unsupported method %q", method)
-	}
+// Register Post handler
+func (p *PathItem) Post(handler http.HandlerFunc, summary string) *PathItem {
+	p.handlers[http.MethodPost] = handler
+	p.spec.Post = types.Ptr(openapi.Operation{Summary: summary, Tags: p.tags})
+	return p
+}
 
-	// Register the handler and operation only after validation succeeds.
-	p.handlers[method] = handler
-	*operation = &openapi.Operation{Summary: summary}
+// Register Delete handler
+func (p *PathItem) Delete(handler http.HandlerFunc, summary string) *PathItem {
+	p.handlers[http.MethodDelete] = handler
+	p.spec.Delete = types.Ptr(openapi.Operation{Summary: summary, Tags: p.tags})
+	return p
+}
 
-	// Success
-	return nil
+// Register Patch handler
+func (p *PathItem) Patch(handler http.HandlerFunc, summary string) *PathItem {
+	p.handlers[http.MethodPatch] = handler
+	p.spec.Patch = types.Ptr(openapi.Operation{Summary: summary, Tags: p.tags})
+	return p
+}
+
+// Register Options handler
+func (p *PathItem) Options(handler http.HandlerFunc, summary string) *PathItem {
+	p.handlers[http.MethodOptions] = handler
+	p.spec.Options = types.Ptr(openapi.Operation{Summary: summary, Tags: p.tags})
+	return p
+}
+
+// Register Head handler
+func (p *PathItem) Head(handler http.HandlerFunc, summary string) *PathItem {
+	p.handlers[http.MethodHead] = handler
+	p.spec.Head = types.Ptr(openapi.Operation{Summary: summary, Tags: p.tags})
+	return p
+}
+
+// Register Trace handler
+func (p *PathItem) Trace(handler http.HandlerFunc, summary string) *PathItem {
+	p.handlers[http.MethodTrace] = handler
+	p.spec.Trace = types.Ptr(openapi.Operation{Summary: summary, Tags: p.tags})
+	return p
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-func parametersFromPath(path string) []openapi.Parameter {
+var stringSchema = jsonschema.MustFor[string]()
+
+func parametersFromPath(path string, schema *jsonschema.Schema) []openapi.Parameter {
 	path = strings.TrimSpace(types.NormalisePath(path))
 	if path == "" || path == "/" {
 		return nil
 	}
 
 	segments := strings.Split(path, "/")
-	stringSchema := jsonschema.MustFor[string]()
 	params := make([]openapi.Parameter, 0, len(segments))
 	seen := make(map[string]struct{}, len(segments))
 
@@ -127,37 +141,21 @@ func parametersFromPath(path string) []openapi.Parameter {
 			continue
 		}
 		seen[name] = struct{}{}
+
 		params = append(params, openapi.Parameter{
 			Name:     name,
 			In:       openapi.ParameterInPath,
 			Required: true,
 			Schema:   stringSchema,
 		})
+
+		if schema != nil {
+			if prop := schema.Property(name); prop != nil {
+				params[len(params)-1].Schema = prop
+			}
+		}
+
 	}
 
 	return params
-}
-
-func clonePathItem(item openapi.PathItem) *openapi.PathItem {
-	clone := item
-	clone.Parameters = append([]openapi.Parameter(nil), item.Parameters...)
-	clone.Get = cloneOperation(item.Get)
-	clone.Put = cloneOperation(item.Put)
-	clone.Post = cloneOperation(item.Post)
-	clone.Delete = cloneOperation(item.Delete)
-	clone.Options = cloneOperation(item.Options)
-	clone.Head = cloneOperation(item.Head)
-	clone.Patch = cloneOperation(item.Patch)
-	clone.Trace = cloneOperation(item.Trace)
-	return types.Ptr(clone)
-}
-
-func cloneOperation(op *openapi.Operation) *openapi.Operation {
-	if op == nil {
-		return nil
-	}
-	clone := *op
-	clone.Tags = append([]string(nil), op.Tags...)
-	clone.Parameters = append([]openapi.Parameter(nil), op.Parameters...)
-	return &clone
 }
