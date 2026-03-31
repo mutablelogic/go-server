@@ -354,7 +354,10 @@ func enrichSchema(s *upstream.Schema, t reflect.Type) error {
 			prop.ReadOnly = true
 		}
 		if v := field.Tag.Get("example"); v != "" {
-			if raw := marshalDefault(field.Type, v); raw != nil {
+			var parsed any
+			if err := json.Unmarshal([]byte(v), &parsed); err == nil {
+				prop.Examples = append(prop.Examples, parsed)
+			} else if raw := marshalDefault(field.Type, v); raw != nil {
 				var decoded any
 				if err := json.Unmarshal(raw, &decoded); err == nil {
 					prop.Examples = append(prop.Examples, decoded)
