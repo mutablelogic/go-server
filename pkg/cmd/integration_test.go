@@ -147,7 +147,7 @@ func Test_RunServer_Run_Register(t *testing.T) {
 ///////////////////////////////////////////////////////////////////////////////
 // Main — OTel branch INTEGRATION TEST
 
-// Test_Main_OTel exercises the --otel.endpoint branch in Main.
+// Test_Main_OTel exercises the traces-endpoint branch in Main.
 // A minimal httptest.Server acts as a fake OTLP collector: it accepts any
 // request and returns 200 OK. The test verifies that Main succeeds and the
 // OTel provider is initialised and shut down cleanly.
@@ -165,13 +165,13 @@ func Test_Main_OTel(t *testing.T) {
 	t.Cleanup(func() { os.Args = orig })
 	os.Args = []string{
 		"test",
-		"--otel.endpoint", otlpSrv.URL,
+		"--otel.traces-endpoint", otlpSrv.URL,
 		"--otel.name", "test-otel-svc",
 		"run",
 	}
 
 	if err := Main(otelCmds{}, "OTel integration test", "v0"); err != nil {
-		t.Errorf("Main() with --otel.endpoint returned error: %v", err)
+		t.Errorf("Main() with --otel.traces-endpoint returned error: %v", err)
 	}
 }
 
