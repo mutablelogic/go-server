@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"crypto/tls"
 	"fmt"
 	"os"
@@ -36,6 +35,11 @@ type RunServer struct {
 		KeyFile    string `name:"key" help:"TLS key file"`
 	} `embed:"" prefix:"tls."`
 
+	// HTTP server options
+	HTTP struct {
+		Origin string `name:"origin" help:"Cross-origin protection (CSRF) origin. Empty string for same-origin only, '*' to allow all cross-origin requests, or a specific origin in the form 'scheme://host[:port]'." default:""`
+	} `embed:"" prefix:"http."`
+
 	register []RegisterFunc
 }
 
@@ -59,7 +63,7 @@ func (s *RunServer) Run(ctx server.Cmd) error {
 	}
 
 	// Create the router
-	router, err := httprouter.NewRouter(ctx.Context(), ctx.HTTPPrefix(), ctx.HTTPOrigin(), ctx.Name(), v, middleware...)
+	router, err := httprouter.NewRouter(ctx.Context(), ctx.HTTPPrefix(), s.HTTP.Origin, ctx.Name(), v, middleware...)
 	if err != nil {
 		return fmt.Errorf("router: %w", err)
 	}
@@ -117,19 +121,27 @@ func (s *RunServer) Run(ctx server.Cmd) error {
 		return fmt.Errorf("httpserver: %w", err)
 	}
 
+	// Bind to the server's address to ensure it's available before registering the instance
 	if err := srv.Listen(); err != nil {
 		return err
 	}
 
-	// Set the server URL in the OpenAPI spec now that the bound address is known
+	// Set the server URL in the OpenAPI spec now that the bound address is known.
+	// When a TLS server name is configured (e.g. behind a reverse proxy) it is
+	// used as the public hostname; otherwise the bound listen address is used.
 	if s.OpenAPI {
 		scheme := "http"
+		host := srv.Addr()
 		if tlsCfg != nil {
 			scheme = "https"
 		}
+		if s.TLS.ServerName != "" {
+			scheme = "https"
+			host = s.TLS.ServerName
+		}
 		router.Spec().SetSummary(ctx.Description())
 		router.Spec().SetServers([]openapi.Server{
-			{URL: fmt.Sprintf("%s://%s", scheme, srv.Addr())},
+			{URL: fmt.Sprintf("%s://%s", scheme, host)},
 		})
 	}
 
@@ -146,6 +158,6 @@ func (s *RunServer) Run(ctx server.Cmd) error {
 	}
 
 	// Return success
-	ctx.Logger().InfoContext(context.Background(), "terminated gracefully")
+	ctx.Logger().InfoContext(ctx.Context(), "terminated gracefully")
 	return nil
 }

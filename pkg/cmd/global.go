@@ -30,7 +30,6 @@ type global struct {
 		Prefix  string        `name:"prefix" help:"HTTP path prefix" default:"/api"`
 		Addr    string        `name:"addr" env:"${ENV_NAME}_ADDR,ADDR" help:"HTTP Listen address" default:"localhost:8084"`
 		Timeout time.Duration `name:"timeout" help:"HTTP server read/write timeout" default:"15m"`
-		Origin  string        `name:"origin" help:"Cross-origin protection (CSRF) origin. Empty string for same-origin only, '*' to allow all cross-origin requests, or a specific origin in the form 'scheme://host[:port]'." default:""`
 	} `embed:"" prefix:"http."`
 
 	// Open Telemetry options
@@ -114,9 +113,22 @@ func (g *global) ClientEndpoint() (string, []client.ClientOpt, error) {
 	return fmt.Sprintf("%s://%s%s", scheme, net.JoinHostPort(host, strconv.FormatUint(portn, 10)), g.HTTP.Prefix), opts, nil
 }
 
-func (g *global) IsTerm() bool               { return IsTerminal() }
-func (g *global) IsDebug() bool              { return g.Debug || g.Verbose }
-func (g *global) HTTPAddr() string           { return g.HTTP.Addr }
-func (g *global) HTTPPrefix() string         { return g.HTTP.Prefix }
-func (g *global) HTTPOrigin() string         { return g.HTTP.Origin }
-func (g *global) HTTPTimeout() time.Duration { return g.HTTP.Timeout }
+func (g *global) IsTerm() bool {
+	return IsTerminal()
+}
+
+func (g *global) IsDebug() bool {
+	return g.Debug || g.Verbose
+}
+
+func (g *global) HTTPAddr() string {
+	return g.HTTP.Addr
+}
+
+func (g *global) HTTPPrefix() string {
+	return g.HTTP.Prefix
+}
+
+func (g *global) HTTPTimeout() time.Duration {
+	return g.HTTP.Timeout
+}

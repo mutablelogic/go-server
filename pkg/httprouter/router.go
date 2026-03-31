@@ -14,6 +14,7 @@ import (
 	// Packages
 	httprequest "github.com/mutablelogic/go-server/pkg/httprequest"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
+	"github.com/mutablelogic/go-server/pkg/jsonschema"
 	openapi "github.com/mutablelogic/go-server/pkg/openapi/schema"
 	types "github.com/mutablelogic/go-server/pkg/types"
 )
@@ -39,11 +40,12 @@ var _ http.Handler = (*Router)(nil)
 // LIFECYCLE
 
 // NewRouter creates a new router with the given prefix, origin, title, version
-// and middleware. The prefix is normalised to a path. The origin is used for
-// cross-origin protection (CSRF) and can be:
-//   - Empty string: same-origin requests only
-//   - "*": allow all cross-origin requests
-//   - A specific origin in the form "scheme://host[:port]"
+// and middleware. The prefix is normalised to a path. The origin controls
+// cross-origin request handling:
+//   - Empty string: same-origin requests only (CSRF enabled, no CORS)
+//   - "*": allow all cross-origin requests (CORS enabled, CSRF bypassed)
+//   - A specific origin in the form "scheme://host[:port]" (CORS and CSRF
+//     enabled, with the origin added as a trusted CSRF origin)
 //
 // The title and version are used to create the OpenAPI spec for the router.
 func NewRouter(ctx context.Context, prefix, origin, title, version string, middleware ...HTTPMiddlewareFunc) (*Router, error) {
@@ -56,19 +58,24 @@ func NewRouter(ctx context.Context, prefix, origin, title, version string, middl
 	// Create a new OpenAPI spec
 	router.spec = openapi.NewSpec(title, version)
 
-	// Create a CSRF handler, and set the router's handler to the CSRF handler
-	// Origin can be empty (same-origin only), "*" (allow all cross-origin)
-	// or a specific origin in the form "scheme://host[:port]"
-	crf := http.NewCrossOriginProtection()
+	// Build the handler chain depending on the origin policy.
+	// When origin is "*" CSRF is bypassed entirely because there is no
+	// meaningful CSRF protection when all origins are trusted.
 	switch {
-	case origin == "", origin == "*":
-		// No trusted origin added
-	default:
+	case origin == "*":
+		// All origins trusted – CORS only, no CSRF
+		router.handler = Cors(origin)(router.mux.ServeHTTP)
+	case origin != "":
+		// Specific origin – CSRF with trusted origin, wrapped by CORS
+		crf := http.NewCrossOriginProtection()
 		if err := crf.AddTrustedOrigin(origin); err != nil {
 			return nil, err
 		}
+		router.handler = Cors(origin)(crf.Handler(router.mux).ServeHTTP)
+	default:
+		// Empty origin – same-origin only, CSRF with no trusted origins
+		router.handler = http.NewCrossOriginProtection().Handler(router.mux)
 	}
-	router.handler = crf.Handler(router.mux)
 
 	// Return success
 	return router, nil
@@ -91,6 +98,12 @@ func (r *Router) AddMiddleware(fn HTTPMiddlewareFunc) {
 // "*" when all origins are trusted, or a specific "scheme://host[:port]" value.
 func (r *Router) Origin() string {
 	return r.origin
+}
+
+// Prefix returns the normalised path prefix that all relative routes are
+// registered under.
+func (r *Router) Prefix() string {
+	return r.prefix
 }
 
 // Spec returns the OpenAPI 3.1 specification for this router. The spec is
@@ -193,6 +206,29 @@ func (r *Router) RegisterFS(path string, fs fs.FS, middleware bool, spec *openap
 		handler = r.middleware.Wrap(handler)
 	}
 	return r.safeHandle(prefix, handler)
+}
+
+// RegisterPath registers a [PathItem] handler at path. If path is relative
+// the router prefix is prepended. The handler is always wrapped by the
+// router's middleware chain.
+func (r *Router) RegisterPath(path string, params *jsonschema.Schema, pathitem httprequest.PathItem) error {
+	// Resolve the path with the router prefix
+	path = r.resolvePath(path)
+
+	// OpenAPI spec is optional, but if provided, add the path to the spec
+	spec := pathitem.Spec(path, params)
+	if spec != nil {
+		r.spec.AddPath(path, spec)
+	}
+
+	// Get handler or fall back to method-not-allowed
+	handler := pathitem.Handler()
+	if handler == nil {
+		return httpresponse.ErrNotImplemented.Withf("path item %q has no handlers", path)
+	}
+
+	// Register the handler
+	return r.safeHandle(path, r.middleware.Wrap(handler))
 }
 
 // RegisterFunc registers handler at path. The path should not include an HTTP

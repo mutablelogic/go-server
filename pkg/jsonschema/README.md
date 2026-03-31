@@ -52,6 +52,7 @@ Fields with a `default:""` tag are automatically treated as optional so that def
 | `struct` | `{"type":"object","properties":{…}}` | struct tags are applied to properties |
 | `time.Time` | `{"type":"string","format":"date-time"}` | add `format:"date-time"` tag to advertise RFC 3339 — the format is advisory only, validation does not enforce it |
 | `time.Duration` | `{"type":"string","format":"duration"}` | values use Go duration syntax (e.g. `"5s"`, `"1h30m"`); `Decode` parses them automatically, including `default:""` tags |
+| `string` + `format:"uuid"` tag | `{"type":"string","format":"uuid"}` | add `format:"uuid"` to any `string` or `*string` field — the format is advisory; validation enforces the string type only |
 
 ## Supported struct tags
 
@@ -80,6 +81,7 @@ Fields with a `default:""` tag are automatically treated as optional so that def
 
 ```go
 type Config struct {
+    ID      string        `json:"id"      format:"uuid"  readonly:""   jsonschema:"resource identifier"`
     Host    string        `json:"host"    required:""   help:"Hostname or IP address"`
     Port    int           `json:"port"    default:"8080" min:"1" max:"65535"`
     Scheme  string        `json:"scheme"  enum:"http,https" default:"https"`
@@ -105,6 +107,7 @@ Produces (in part):
 {
   "type": "object",
   "properties": {
+    "id":      { "type": "string",  "format": "uuid", "description": "resource identifier", "readOnly": true },
     "host":    { "type": "string",  "description": "Hostname or IP address" },
     "port":    { "type": "integer", "default": 8080, "minimum": 1, "maximum": 65535 },
     "scheme":  { "type": "string",  "enum": ["http", "https"], "default": "https" },

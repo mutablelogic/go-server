@@ -10,7 +10,9 @@ import (
 	"testing/fstest"
 
 	// Packages
-	"github.com/stretchr/testify/assert"
+	jsonschema "github.com/mutablelogic/go-server/pkg/jsonschema"
+	openapi "github.com/mutablelogic/go-server/pkg/openapi/schema"
+	assert "github.com/stretchr/testify/assert"
 )
 
 func Test_Router_001(t *testing.T) {
@@ -220,4 +222,137 @@ func Test_RegisterFunc_004(t *testing.T) {
 
 	assert.Equal(http.StatusOK, rec.Code)
 	assert.Equal("ok", rec.Body.String())
+}
+
+// mockPathItem is a minimal implementation of httprequest.PathItem for testing.
+type mockPathItem struct {
+	handler http.HandlerFunc
+	spec    *openapi.PathItem
+}
+
+func (m *mockPathItem) Handler() http.HandlerFunc { return m.handler }
+func (m *mockPathItem) Spec(path string, params *jsonschema.Schema) *openapi.PathItem {
+	return m.spec
+}
+
+func Test_RegisterPath_001(t *testing.T) {
+	assert := assert.New(t)
+
+	// RegisterPath with a relative path joins the prefix
+	router, err := NewRouter(context.Background(), "/api/v1", "", "Test API", "1.0.0")
+	assert.NoError(err)
+
+	called := false
+	item := &mockPathItem{
+		handler: func(w http.ResponseWriter, r *http.Request) {
+			called = true
+			w.WriteHeader(http.StatusOK)
+		},
+		spec: &openapi.PathItem{Summary: "Test"},
+	}
+	assert.NoError(router.RegisterPath("items", nil, item))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/items", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	assert.True(called)
+	assert.Equal(http.StatusOK, rec.Code)
+}
+
+func Test_RegisterPath_002(t *testing.T) {
+	assert := assert.New(t)
+
+	// RegisterPath with an absolute path ignores the prefix
+	router, err := NewRouter(context.Background(), "/api/v1", "", "Test API", "1.0.0")
+	assert.NoError(err)
+
+	item := &mockPathItem{
+		handler: func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("absolute"))
+		},
+	}
+	assert.NoError(router.RegisterPath("/health", nil, item))
+
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	assert.Equal(http.StatusOK, rec.Code)
+	assert.Equal("absolute", rec.Body.String())
+}
+
+func Test_RegisterPath_003(t *testing.T) {
+	assert := assert.New(t)
+
+	// RegisterPath adds spec to the OpenAPI document
+	router, err := NewRouter(context.Background(), "/api", "", "Test API", "1.0.0")
+	assert.NoError(err)
+
+	item := &mockPathItem{
+		handler: func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		},
+		spec: &openapi.PathItem{
+			Summary: "List widgets",
+			Get:     &openapi.Operation{Summary: "Get widgets"},
+		},
+	}
+	assert.NoError(router.RegisterPath("widgets", nil, item))
+
+	spec := router.Spec()
+	assert.NotNil(spec)
+
+	// Marshal and check the spec contains the path
+	data, err := json.Marshal(spec)
+	assert.NoError(err)
+
+	var raw map[string]any
+	assert.NoError(json.Unmarshal(data, &raw))
+	paths, ok := raw["paths"].(map[string]any)
+	assert.True(ok)
+	_, ok = paths["/api/widgets"]
+	assert.True(ok, "expected /api/widgets in spec paths")
+}
+
+func Test_RegisterPath_004(t *testing.T) {
+	assert := assert.New(t)
+
+	// RegisterPath with nil handler returns an error
+	router, err := NewRouter(context.Background(), "/", "", "Test API", "1.0.0")
+	assert.NoError(err)
+
+	item := &mockPathItem{handler: nil}
+	err = router.RegisterPath("broken", nil, item)
+	assert.Error(err)
+}
+
+func Test_RegisterPath_005(t *testing.T) {
+	assert := assert.New(t)
+
+	// RegisterPath always applies middleware
+	mw := func(next http.HandlerFunc) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("X-Test", "middleware")
+			next(w, r)
+		}
+	}
+
+	router, err := NewRouter(context.Background(), "/", "", "Test API", "1.0.0", mw)
+	assert.NoError(err)
+
+	item := &mockPathItem{
+		handler: func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		},
+	}
+	assert.NoError(router.RegisterPath("test", nil, item))
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	assert.Equal(http.StatusOK, rec.Code)
+	assert.Equal("middleware", rec.Header().Get("X-Test"))
 }

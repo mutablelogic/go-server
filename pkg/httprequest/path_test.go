@@ -23,7 +23,7 @@ func TestParametersFromPath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			params := parametersFromPath(tt.path)
+			params := parametersFromPath(tt.path, nil)
 			if len(params) != len(tt.want) {
 				t.Fatalf("len(parametersFromPath(%q)) = %d, want %d", tt.path, len(params), len(tt.want))
 			}
@@ -45,62 +45,43 @@ func TestParametersFromPath(t *testing.T) {
 	}
 }
 
-func TestNewPathParameters(t *testing.T) {
-	p := NewPath("resource/{id}/child/{name}", "summary")
-	if len(p.parameters) != 2 {
-		t.Fatalf("len(p.parameters) = %d, want 2", len(p.parameters))
+func TestNewPathItemParameters(t *testing.T) {
+	p := NewPathItem("summary", "description")
+	spec := p.Spec("resource/{id}/child/{name}", nil)
+	if len(spec.Parameters) != 2 {
+		t.Fatalf("len(spec.Parameters) = %d, want 2", len(spec.Parameters))
 	}
-	if p.parameters[0].Name != "id" || p.parameters[1].Name != "name" {
-		t.Fatalf("p.parameters names = [%q %q], want [\"id\" \"name\"]", p.parameters[0].Name, p.parameters[1].Name)
-	}
-}
-
-func TestSpecReturnsDefensiveCopy(t *testing.T) {
-	p := NewPath("resource/{id}", "summary")
-	err := p.Register(http.MethodGet, func(http.ResponseWriter, *http.Request) {}, "get resource")
-	if err != nil {
-		t.Fatalf("Register returned error: %v", err)
-	}
-
-	_, spec := p.Spec()
-	if spec == nil || spec.Get == nil || len(spec.Parameters) != 1 {
-		t.Fatalf("Spec().Parameters = %#v, want single parameter", spec)
-	}
-	spec.Parameters[0].Name = "mutated"
-	spec.Get.Summary = "mutated summary"
-
-	if p.parameters[0].Name != "id" {
-		t.Fatalf("mutating returned spec should not mutate p.parameters")
-	}
-
-	_, fresh := p.Spec()
-	if fresh == nil || fresh.Get == nil {
-		t.Fatalf("fresh Spec().Get = nil, want populated GET operation")
-	}
-	if fresh.Parameters[0].Name != "id" {
-		t.Fatalf("fresh Spec().Parameters[0].Name = %q, want %q", fresh.Parameters[0].Name, "id")
-	}
-	if fresh.Get.Summary != "get resource" {
-		t.Fatalf("fresh Spec().Get.Summary = %q, want %q", fresh.Get.Summary, "get resource")
+	if spec.Parameters[0].Name != "id" || spec.Parameters[1].Name != "name" {
+		t.Fatalf("spec.Parameters names = [%q %q], want [\"id\" \"name\"]", spec.Parameters[0].Name, spec.Parameters[1].Name)
 	}
 }
 
-func TestRegisterNormalizesMethod(t *testing.T) {
-	p := NewPath("resource/{id}", "summary")
+func TestSpecReturnsPathAndOperations(t *testing.T) {
+	p := NewPathItem("summary", "description")
+	p.Get(func(http.ResponseWriter, *http.Request) {}, "get resource")
+
+	spec := p.Spec("resource/{id}", nil)
+	if spec == nil || spec.Get == nil {
+		t.Fatalf("Spec().Get = nil, want populated GET operation")
+	}
+	if len(spec.Parameters) != 1 || spec.Parameters[0].Name != "id" {
+		t.Fatalf("Spec().Parameters = %#v, want single path parameter id", spec.Parameters)
+	}
+	if spec.Get.Summary != "get resource" {
+		t.Fatalf("Spec().Get.Summary = %q, want %q", spec.Get.Summary, "get resource")
+	}
+}
+
+func TestHandlerDispatchesMethod(t *testing.T) {
+	p := NewPathItem("summary", "description")
 	called := false
 
-	err := p.Register("get", func(w http.ResponseWriter, r *http.Request) {
+	p.Get(func(w http.ResponseWriter, r *http.Request) {
 		called = true
 		w.WriteHeader(http.StatusNoContent)
 	}, "get resource")
-	if err != nil {
-		t.Fatalf("Register returned error: %v", err)
-	}
 
-	path, spec := p.Spec()
-	if path != "resource/{id}" {
-		t.Fatalf("Spec path = %q, want %q", path, "resource/{id}")
-	}
+	spec := p.Spec("resource/{id}", nil)
 	if spec == nil || spec.Get == nil {
 		t.Fatalf("Spec().Get = nil, want populated GET operation")
 	}
@@ -113,25 +94,15 @@ func TestRegisterNormalizesMethod(t *testing.T) {
 	p.Handler()(res, req)
 
 	if !called {
-		t.Fatalf("registered lowercase method handler was not called")
+		t.Fatalf("registered GET handler was not called")
 	}
 	if res.Code != http.StatusNoContent {
 		t.Fatalf("response status = %d, want %d", res.Code, http.StatusNoContent)
 	}
 }
 
-func TestRegisterRejectsUnsupportedMethodWithoutMutation(t *testing.T) {
-	p := NewPath("resource/{id}", "summary")
-	err := p.Register("brew", func(http.ResponseWriter, *http.Request) {}, "brew resource")
-	if err == nil {
-		t.Fatalf("Register returned nil error for unsupported method")
-	}
-	if len(p.handlers) != 0 {
-		t.Fatalf("len(p.handlers) = %d, want 0", len(p.handlers))
-	}
-	if p.spec.Get != nil || p.spec.Post != nil || p.spec.Put != nil || p.spec.Patch != nil || p.spec.Delete != nil || p.spec.Head != nil || p.spec.Options != nil || p.spec.Trace != nil {
-		t.Fatalf("spec operations were mutated for unsupported method")
-	}
+func TestHandlerMethodNotAllowed(t *testing.T) {
+	p := NewPathItem("summary", "description")
 
 	req := httptest.NewRequest(http.MethodGet, "/resource/123", nil)
 	res := httptest.NewRecorder()

@@ -2,9 +2,12 @@ package jsonschema
 
 import (
 	"encoding/json"
+	"net/url"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -102,6 +105,50 @@ type readonlyStruct struct {
 	Name string `json:"name"`
 }
 
+type uuidStruct struct {
+	ID string `json:"id" format:"uuid"`
+}
+
+type uuidNativeStruct struct {
+	ID   uuid.UUID `json:"id"`
+	Name string    `json:"name"`
+}
+
+type uuidRequiredStruct struct {
+	ID   string `json:"id"   format:"uuid" required:""`
+	Name string `json:"name"`
+}
+
+type uuidDefaultStruct struct {
+	ID string `json:"id" format:"uuid" default:"00000000-0000-0000-0000-000000000000"`
+}
+
+type uuidPointerStruct struct {
+	ID *string `json:"id" format:"uuid" optional:""`
+}
+
+type uuidDescStruct struct {
+	ID string `json:"id" format:"uuid" jsonschema:"resource identifier"`
+}
+
+type uuidReadonlyStruct struct {
+	ID   string `json:"id"   format:"uuid" readonly:""`
+	Name string `json:"name"`
+}
+
+type exampleStruct struct {
+	ID    string  `json:"id"    format:"uuid"  example:"123e4567-e89b-12d3-a456-426614174000"`
+	Name  string  `json:"name"  example:"alice"`
+	Age   int     `json:"age"   example:"30"`
+	Score float64 `json:"score" example:"9.5"`
+	Flag  bool    `json:"flag"  example:"true"`
+}
+
+type nestedUUIDStruct struct {
+	Inner uuidStruct `json:"inner"`
+	Label string     `json:"label"`
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // TYPE MAPPING TESTS
 
@@ -172,7 +219,7 @@ func TestFor_FixedArrayMinMaxItems(t *testing.T) {
 
 func TestFor_PointerField_AllowsNull(t *testing.T) {
 	type S struct {
-		Name *string `json:"name"`
+		Name *string `json:"name" optional:""`
 	}
 	s, err := For[S]()
 	if err != nil {
@@ -182,15 +229,45 @@ func TestFor_PointerField_AllowsNull(t *testing.T) {
 	if prop == nil {
 		t.Fatal("expected property 'name'")
 	}
-	// A *T field produces a schema that allows null; the upstream represents
-	// this as Types []string{"string","null"} rather than Type "string".
+	// An optional *T field is not required, so null must still be allowed.
 	hasString := prop.Type == "string" || sliceContains(prop.Types, "string")
 	hasNull := prop.Type == "null" || sliceContains(prop.Types, "null")
 	if !hasString {
-		t.Errorf("expected string type in pointer field schema, got Type=%q Types=%v", prop.Type, prop.Types)
+		t.Errorf("expected string type in optional pointer field schema, got Type=%q Types=%v", prop.Type, prop.Types)
 	}
 	if !hasNull {
-		t.Errorf("expected null type in pointer field schema, got Type=%q Types=%v", prop.Type, prop.Types)
+		t.Errorf("expected null type in optional pointer field schema, got Type=%q Types=%v", prop.Type, prop.Types)
+	}
+}
+
+func TestFor_PointerField_RequiredStripsNull(t *testing.T) {
+	type S struct {
+		Name *string `json:"name" required:""`
+	}
+	s, err := For[S]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	prop := s.Properties["name"]
+	if prop == nil {
+		t.Fatal("expected property 'name'")
+	}
+	hasString := prop.Type == "string" || sliceContains(prop.Types, "string")
+	hasNull := prop.Type == "null" || sliceContains(prop.Types, "null")
+	if !hasString {
+		t.Errorf("expected string type, got Type=%q Types=%v", prop.Type, prop.Types)
+	}
+	if hasNull {
+		t.Errorf("required pointer field must not allow null, got Type=%q Types=%v", prop.Type, prop.Types)
+	}
+	required := false
+	for _, r := range s.Required {
+		if r == "name" {
+			required = true
+		}
+	}
+	if !required {
+		t.Error("expected 'name' in Required")
 	}
 }
 
@@ -1277,4 +1354,445 @@ func TestMustFor_Panic(t *testing.T) {
 	}()
 	// A channel cannot be represented as a JSON Schema; upstream returns an error.
 	MustFor[chan int]()
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// UUID FIELD TESTS
+
+// A string field tagged format:"uuid" produces type=string, format=uuid.
+func TestFor_UUID_StringWithUUIDFormat(t *testing.T) {
+	s, err := For[uuidStruct]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	prop := s.Properties["id"]
+	if prop == nil {
+		t.Fatal("expected property 'id'")
+	}
+	if prop.Type != "string" && !sliceContains(prop.Types, "string") {
+		t.Errorf("id type: got Type=%q Types=%v, want string", prop.Type, prop.Types)
+	}
+	if prop.Format != "uuid" {
+		t.Errorf("id format: got %q, want \"uuid\"", prop.Format)
+	}
+}
+
+// A *string field tagged format:"uuid" still gets format=uuid applied.
+func TestFor_UUID_PointerField(t *testing.T) {
+	s, err := For[uuidPointerStruct]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	prop := s.Properties["id"]
+	if prop == nil {
+		t.Fatal("expected property 'id'")
+	}
+	if prop.Format != "uuid" {
+		t.Errorf("id format: got %q, want \"uuid\"", prop.Format)
+	}
+	// Pointer field must allow null.
+	hasNull := prop.Type == "null" || sliceContains(prop.Types, "null")
+	if !hasNull {
+		t.Errorf("expected null type for pointer field, got Type=%q Types=%v", prop.Type, prop.Types)
+	}
+}
+
+// A UUID field with a default emits the default as a JSON string and is optional.
+func TestFor_UUID_DefaultTag(t *testing.T) {
+	s, err := For[uuidDefaultStruct]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	prop := s.Properties["id"]
+	if prop == nil {
+		t.Fatal("expected property 'id'")
+	}
+	if prop.Format != "uuid" {
+		t.Errorf("id format: got %q, want \"uuid\"", prop.Format)
+	}
+	want := `"00000000-0000-0000-0000-000000000000"`
+	if string(prop.Default) != want {
+		t.Errorf("id default: got %s, want %s", prop.Default, want)
+	}
+	// Having a default makes the field optional.
+	for _, r := range s.Required {
+		if r == "id" {
+			t.Error("'id' should not be in Required when it has a default")
+		}
+	}
+}
+
+// A UUID field with required:"" appears in the parent Required list.
+func TestFor_UUID_RequiredTag(t *testing.T) {
+	s, err := For[uuidRequiredStruct]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	required := map[string]bool{}
+	for _, r := range s.Required {
+		required[r] = true
+	}
+	if !required["id"] {
+		t.Error("expected 'id' in Required")
+	}
+}
+
+// A UUID field with jsonschema:"…" gets the description applied.
+func TestFor_UUID_DescriptionTag(t *testing.T) {
+	s, err := For[uuidDescStruct]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	prop := s.Properties["id"]
+	if prop == nil {
+		t.Fatal("expected property 'id'")
+	}
+	if prop.Description != "resource identifier" {
+		t.Errorf("id description: got %q, want \"resource identifier\"", prop.Description)
+	}
+}
+
+// A UUID field with readonly:"" has ReadOnly=true in the schema.
+func TestFor_UUID_ReadonlyTag(t *testing.T) {
+	s, err := For[uuidReadonlyStruct]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	prop := s.Properties["id"]
+	if prop == nil {
+		t.Fatal("expected property 'id'")
+	}
+	if !prop.ReadOnly {
+		t.Error("expected ReadOnly=true on id")
+	}
+	if s.Properties["name"].ReadOnly {
+		t.Error("expected ReadOnly=false on name")
+	}
+}
+
+// UUID format propagates into a nested struct field.
+func TestFor_UUID_NestedStruct(t *testing.T) {
+	s, err := For[nestedUUIDStruct]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	inner := s.Properties["inner"]
+	if inner == nil {
+		t.Fatal("expected property 'inner'")
+	}
+	id := inner.Properties["id"]
+	if id == nil {
+		t.Fatal("expected nested property 'inner.id'")
+	}
+	if id.Format != "uuid" {
+		t.Errorf("inner.id format: got %q, want \"uuid\"", id.Format)
+	}
+}
+
+// Validate passes for a string UUID value and fails for a non-string.
+func TestValidate_UUID_TypeCheck(t *testing.T) {
+	s, err := For[uuidStruct]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Validate(json.RawMessage(`{"id":"123e4567-e89b-12d3-a456-426614174000"}`)); err != nil {
+		t.Errorf("expected no error for valid UUID string, got: %v", err)
+	}
+	// A non-string value must fail the type check.
+	if err := s.Validate(json.RawMessage(`{"id":42}`)); err == nil {
+		t.Error("expected error for integer UUID, got nil")
+	}
+}
+
+// Decode populates the UUID string field correctly.
+func TestDecode_UUID_Field(t *testing.T) {
+	s, err := For[uuidStruct]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var v uuidStruct
+	if err := s.Decode(json.RawMessage(`{"id":"123e4567-e89b-12d3-a456-426614174000"}`), &v); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if v.ID != "123e4567-e89b-12d3-a456-426614174000" {
+		t.Errorf("ID: got %q, want \"123e4567-e89b-12d3-a456-426614174000\"", v.ID)
+	}
+}
+
+// Decode applies the default UUID when the field is absent.
+func TestDecode_UUID_Default(t *testing.T) {
+	s, err := For[uuidDefaultStruct]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var v uuidDefaultStruct
+	if err := s.Decode(json.RawMessage(`{}`), &v); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if v.ID != "00000000-0000-0000-0000-000000000000" {
+		t.Errorf("ID: got %q, want zero UUID", v.ID)
+	}
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// EXAMPLE TAG TESTS
+
+func TestFor_ExampleTag_String(t *testing.T) {
+	s, err := For[exampleStruct]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	prop := s.Properties["name"]
+	if prop == nil {
+		t.Fatal("expected property 'name'")
+	}
+	if len(prop.Examples) != 1 {
+		t.Fatalf("Examples: got %d, want 1", len(prop.Examples))
+	}
+	if prop.Examples[0] != "alice" {
+		t.Errorf("Examples[0]: got %v, want \"alice\"", prop.Examples[0])
+	}
+}
+
+func TestFor_ExampleTag_Int(t *testing.T) {
+	s, err := For[exampleStruct]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	prop := s.Properties["age"]
+	if prop == nil {
+		t.Fatal("expected property 'age'")
+	}
+	if len(prop.Examples) != 1 {
+		t.Fatalf("Examples: got %d, want 1", len(prop.Examples))
+	}
+	// JSON unmarshal decodes numbers as float64.
+	if prop.Examples[0] != float64(30) {
+		t.Errorf("Examples[0]: got %v, want 30", prop.Examples[0])
+	}
+}
+
+func TestFor_ExampleTag_Float(t *testing.T) {
+	s, err := For[exampleStruct]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	prop := s.Properties["score"]
+	if prop == nil {
+		t.Fatal("expected property 'score'")
+	}
+	if len(prop.Examples) != 1 {
+		t.Fatalf("Examples: got %d, want 1", len(prop.Examples))
+	}
+	if prop.Examples[0] != float64(9.5) {
+		t.Errorf("Examples[0]: got %v, want 9.5", prop.Examples[0])
+	}
+}
+
+func TestFor_ExampleTag_Bool(t *testing.T) {
+	s, err := For[exampleStruct]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	prop := s.Properties["flag"]
+	if prop == nil {
+		t.Fatal("expected property 'flag'")
+	}
+	if len(prop.Examples) != 1 {
+		t.Fatalf("Examples: got %d, want 1", len(prop.Examples))
+	}
+	if prop.Examples[0] != true {
+		t.Errorf("Examples[0]: got %v, want true", prop.Examples[0])
+	}
+}
+
+func TestFor_ExampleTag_UUID(t *testing.T) {
+	s, err := For[exampleStruct]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	prop := s.Properties["id"]
+	if prop == nil {
+		t.Fatal("expected property 'id'")
+	}
+	if len(prop.Examples) != 1 {
+		t.Fatalf("Examples: got %d, want 1", len(prop.Examples))
+	}
+	if prop.Examples[0] != "123e4567-e89b-12d3-a456-426614174000" {
+		t.Errorf("Examples[0]: got %v, want UUID string", prop.Examples[0])
+	}
+}
+
+func TestFor_NoExampleTag_ExamplesNil(t *testing.T) {
+	s, err := For[simpleStruct]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	prop := s.Properties["name"]
+	if prop == nil {
+		t.Fatal("expected property 'name'")
+	}
+	if prop.Examples != nil {
+		t.Errorf("expected nil Examples for field without example tag, got %v", prop.Examples)
+	}
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// uuid.UUID FIELD TESTS
+
+// A uuid.UUID struct field produces type=string, format=uuid without any tag.
+func TestFor_UUIDNative_StructField(t *testing.T) {
+	s, err := For[uuidNativeStruct]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	prop := s.Properties["id"]
+	if prop == nil {
+		t.Fatal("expected property 'id'")
+	}
+	if prop.Type != "string" && !sliceContains(prop.Types, "string") {
+		t.Errorf("id type: got Type=%q Types=%v, want string", prop.Type, prop.Types)
+	}
+	if prop.Format != "uuid" {
+		t.Errorf("id format: got %q, want \"uuid\"", prop.Format)
+	}
+}
+
+// For[uuid.UUID] itself produces type=string, format=uuid.
+func TestFor_UUIDNative_TopLevel(t *testing.T) {
+	s, err := For[uuid.UUID]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Type != "string" && !sliceContains(s.Types, "string") {
+		t.Errorf("type: got Type=%q Types=%v, want string", s.Type, s.Types)
+	}
+	if s.Format != "uuid" {
+		t.Errorf("format: got %q, want \"uuid\"", s.Format)
+	}
+}
+
+// A uuid.UUID field without a format tag does not get format overwritten by
+// an explicit format tag — the uuid detection runs first and then the tag wins.
+func TestFor_UUIDNative_ExplicitFormatTagOverrides(t *testing.T) {
+	type S struct {
+		ID uuid.UUID `json:"id" format:"custom-id"`
+	}
+	s, err := For[S]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	prop := s.Properties["id"]
+	if prop == nil {
+		t.Fatal("expected property 'id'")
+	}
+	// The explicit format tag should win over the auto-detected uuid format.
+	if prop.Format != "custom-id" {
+		t.Errorf("id format: got %q, want \"custom-id\"", prop.Format)
+	}
+}
+
+func TestFor_TimeTime_TopLevel(t *testing.T) {
+	s, err := For[time.Time]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Type != "string" {
+		t.Errorf("type: got %q, want \"string\"", s.Type)
+	}
+	if s.Format != "date-time" {
+		t.Errorf("format: got %q, want \"date-time\"", s.Format)
+	}
+}
+
+func TestFor_TimeTime_StructField(t *testing.T) {
+	type S struct {
+		Created time.Time `json:"created"`
+	}
+	s, err := For[S]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	prop := s.Properties["created"]
+	if prop == nil {
+		t.Fatal("expected property 'created'")
+	}
+	if prop.Type != "string" {
+		t.Errorf("created type: got %q, want \"string\"", prop.Type)
+	}
+	if prop.Format != "date-time" {
+		t.Errorf("created format: got %q, want \"date-time\"", prop.Format)
+	}
+	if len(prop.Properties) != 0 {
+		t.Errorf("created properties: got %d, want 0 (should not leak struct fields)", len(prop.Properties))
+	}
+}
+
+func TestFor_URL_TopLevel(t *testing.T) {
+	s, err := For[url.URL]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Type != "string" {
+		t.Errorf("type: got %q, want \"string\"", s.Type)
+	}
+	if s.Format != "uri" {
+		t.Errorf("format: got %q, want \"uri\"", s.Format)
+	}
+}
+
+func TestFor_URL_StructField(t *testing.T) {
+	type S struct {
+		Link *url.URL `json:"link"`
+	}
+	s, err := For[S]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	prop := s.Properties["link"]
+	if prop == nil {
+		t.Fatal("expected property 'link'")
+	}
+	if prop.Type != "string" {
+		t.Errorf("link type: got %q, want \"string\"", prop.Type)
+	}
+	if prop.Format != "uri" {
+		t.Errorf("link format: got %q, want \"uri\"", prop.Format)
+	}
+	if len(prop.Properties) != 0 {
+		t.Errorf("link properties: got %d, want 0 (should not leak struct fields)", len(prop.Properties))
+	}
+}
+
+func TestFor_ByteSlice_TopLevel(t *testing.T) {
+	s, err := For[[]byte]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Type != "string" {
+		t.Errorf("type: got %q, want \"string\"", s.Type)
+	}
+	if s.Format != "byte" {
+		t.Errorf("format: got %q, want \"byte\"", s.Format)
+	}
+}
+
+func TestFor_ByteSlice_StructField(t *testing.T) {
+	type S struct {
+		Data []byte `json:"data"`
+	}
+	s, err := For[S]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	prop := s.Properties["data"]
+	if prop == nil {
+		t.Fatal("expected property 'data'")
+	}
+	if prop.Type != "string" {
+		t.Errorf("data type: got %q, want \"string\"", prop.Type)
+	}
+	if prop.Format != "byte" {
+		t.Errorf("data format: got %q, want \"byte\"", prop.Format)
+	}
 }
