@@ -196,8 +196,9 @@ func (r *Router) RegisterFS(path string, fs fs.FS, middleware bool, spec *openap
 	return r.safeHandle(prefix, handler)
 }
 
-// RegisterPath registers a handler at path that serves requests
-func (r *Router) RegisterPath(path string, params *jsonschema.Schema, pathitem httprequest.PathItem) error {
+// RegisterPath registers a handler at path that serves requests, which can optionally be wrapped with
+// a Cors handler if cors is true.
+func (r *Router) RegisterPath(path string, params *jsonschema.Schema, cors bool, pathitem httprequest.PathItem) error {
 	// Resove the path with the router prefix
 	path = r.resolvePath(path)
 
@@ -207,8 +208,18 @@ func (r *Router) RegisterPath(path string, params *jsonschema.Schema, pathitem h
 		r.spec.AddPath(path, spec)
 	}
 
+	// Wrap in CORS handler if requested
+	handler := pathitem.Handler()
+	if handler == nil {
+		handler = func(w http.ResponseWriter, r *http.Request) {
+			_ = httpresponse.Error(w, httpresponse.Err(http.StatusMethodNotAllowed), r.Method)
+		}
+	} else if cors {
+		handler = Cors(r.origin)(handler)
+	}
+
 	// Register the handler
-	return r.safeHandle(path, r.middleware.Wrap(pathitem.Handler()))
+	return r.safeHandle(path, r.middleware.Wrap(handler))
 }
 
 // RegisterFunc registers handler at path. The path should not include an HTTP

@@ -37,6 +37,7 @@ var _ PathItem = (*pathitem)(nil)
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
+// NewPathItem creates a new path item with the given summary, description and tags.
 func NewPathItem(summary, description string, tags ...string) *pathitem {
 	self := new(pathitem)
 
@@ -55,7 +56,7 @@ func NewPathItem(summary, description string, tags ...string) *pathitem {
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-// Handler returns the http.HandlerFunc for this path
+// Handler returns an http.HandlerFunc that dispatches to the registered method handler.
 func (p *pathitem) Handler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if handler, ok := p.handlers[strings.ToUpper(strings.TrimSpace(r.Method))]; ok {
@@ -66,62 +67,62 @@ func (p *pathitem) Handler() http.HandlerFunc {
 	}
 }
 
-// Spec returns the openapi.PathItem for this path
+// Spec returns the OpenAPI PathItem with path parameters resolved from the pattern.
 func (p *pathitem) Spec(path string, params *jsonschema.Schema) *openapi.PathItem {
 	p.spec.Parameters = parametersFromPath(path, params)
 	return types.Ptr(p.spec)
 }
 
-// Register Get handler
+// Get registers a GET handler with the given summary and operation options.
 func (p *pathitem) Get(handler http.HandlerFunc, summary string, opts ...openapi_op.OperationOpt) *pathitem {
 	p.handlers[http.MethodGet] = handler
 	p.spec.Get = types.Ptr(openapi_op.Operation(summary, append([]openapi_op.OperationOpt{openapi_op.WithTags(p.tags...)}, opts...)...))
 	return p
 }
 
-// Register Put handler
+// Put registers a PUT handler with the given summary and operation options.
 func (p *pathitem) Put(handler http.HandlerFunc, summary string, opts ...openapi_op.OperationOpt) *pathitem {
 	p.handlers[http.MethodPut] = handler
 	p.spec.Put = types.Ptr(openapi_op.Operation(summary, append([]openapi_op.OperationOpt{openapi_op.WithTags(p.tags...)}, opts...)...))
 	return p
 }
 
-// Register Post handler
+// Post registers a POST handler with the given summary and operation options.
 func (p *pathitem) Post(handler http.HandlerFunc, summary string, opts ...openapi_op.OperationOpt) *pathitem {
 	p.handlers[http.MethodPost] = handler
 	p.spec.Post = types.Ptr(openapi_op.Operation(summary, append([]openapi_op.OperationOpt{openapi_op.WithTags(p.tags...)}, opts...)...))
 	return p
 }
 
-// Register Delete handler
+// Delete registers a DELETE handler with the given summary and operation options.
 func (p *pathitem) Delete(handler http.HandlerFunc, summary string, opts ...openapi_op.OperationOpt) *pathitem {
 	p.handlers[http.MethodDelete] = handler
 	p.spec.Delete = types.Ptr(openapi_op.Operation(summary, append([]openapi_op.OperationOpt{openapi_op.WithTags(p.tags...)}, opts...)...))
 	return p
 }
 
-// Register Patch handler
+// Patch registers a PATCH handler with the given summary and operation options.
 func (p *pathitem) Patch(handler http.HandlerFunc, summary string, opts ...openapi_op.OperationOpt) *pathitem {
 	p.handlers[http.MethodPatch] = handler
 	p.spec.Patch = types.Ptr(openapi_op.Operation(summary, append([]openapi_op.OperationOpt{openapi_op.WithTags(p.tags...)}, opts...)...))
 	return p
 }
 
-// Register Options handler
+// Options registers an OPTIONS handler with the given summary and operation options.
 func (p *pathitem) Options(handler http.HandlerFunc, summary string, opts ...openapi_op.OperationOpt) *pathitem {
 	p.handlers[http.MethodOptions] = handler
 	p.spec.Options = types.Ptr(openapi_op.Operation(summary, append([]openapi_op.OperationOpt{openapi_op.WithTags(p.tags...)}, opts...)...))
 	return p
 }
 
-// Register Head handler
+// Head registers a HEAD handler with the given summary and operation options.
 func (p *pathitem) Head(handler http.HandlerFunc, summary string, opts ...openapi_op.OperationOpt) *pathitem {
 	p.handlers[http.MethodHead] = handler
 	p.spec.Head = types.Ptr(openapi_op.Operation(summary, append([]openapi_op.OperationOpt{openapi_op.WithTags(p.tags...)}, opts...)...))
 	return p
 }
 
-// Register Trace handler
+// Trace registers a TRACE handler with the given summary and operation options.
 func (p *pathitem) Trace(handler http.HandlerFunc, summary string, opts ...openapi_op.OperationOpt) *pathitem {
 	p.handlers[http.MethodTrace] = handler
 	p.spec.Trace = types.Ptr(openapi_op.Operation(summary, append([]openapi_op.OperationOpt{openapi_op.WithTags(p.tags...)}, opts...)...))
