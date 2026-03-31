@@ -2,6 +2,7 @@ package jsonschema
 
 import (
 	"encoding/json"
+	"net/url"
 	"reflect"
 	"testing"
 	"time"
@@ -1688,5 +1689,110 @@ func TestFor_UUIDNative_ExplicitFormatTagOverrides(t *testing.T) {
 	// The explicit format tag should win over the auto-detected uuid format.
 	if prop.Format != "custom-id" {
 		t.Errorf("id format: got %q, want \"custom-id\"", prop.Format)
+	}
+}
+
+func TestFor_TimeTime_TopLevel(t *testing.T) {
+	s, err := For[time.Time]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Type != "string" {
+		t.Errorf("type: got %q, want \"string\"", s.Type)
+	}
+	if s.Format != "date-time" {
+		t.Errorf("format: got %q, want \"date-time\"", s.Format)
+	}
+}
+
+func TestFor_TimeTime_StructField(t *testing.T) {
+	type S struct {
+		Created time.Time `json:"created"`
+	}
+	s, err := For[S]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	prop := s.Properties["created"]
+	if prop == nil {
+		t.Fatal("expected property 'created'")
+	}
+	if prop.Type != "string" {
+		t.Errorf("created type: got %q, want \"string\"", prop.Type)
+	}
+	if prop.Format != "date-time" {
+		t.Errorf("created format: got %q, want \"date-time\"", prop.Format)
+	}
+	if len(prop.Properties) != 0 {
+		t.Errorf("created properties: got %d, want 0 (should not leak struct fields)", len(prop.Properties))
+	}
+}
+
+func TestFor_URL_TopLevel(t *testing.T) {
+	s, err := For[url.URL]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Type != "string" {
+		t.Errorf("type: got %q, want \"string\"", s.Type)
+	}
+	if s.Format != "uri" {
+		t.Errorf("format: got %q, want \"uri\"", s.Format)
+	}
+}
+
+func TestFor_URL_StructField(t *testing.T) {
+	type S struct {
+		Link *url.URL `json:"link"`
+	}
+	s, err := For[S]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	prop := s.Properties["link"]
+	if prop == nil {
+		t.Fatal("expected property 'link'")
+	}
+	if prop.Type != "string" {
+		t.Errorf("link type: got %q, want \"string\"", prop.Type)
+	}
+	if prop.Format != "uri" {
+		t.Errorf("link format: got %q, want \"uri\"", prop.Format)
+	}
+	if len(prop.Properties) != 0 {
+		t.Errorf("link properties: got %d, want 0 (should not leak struct fields)", len(prop.Properties))
+	}
+}
+
+func TestFor_ByteSlice_TopLevel(t *testing.T) {
+	s, err := For[[]byte]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Type != "string" {
+		t.Errorf("type: got %q, want \"string\"", s.Type)
+	}
+	if s.Format != "byte" {
+		t.Errorf("format: got %q, want \"byte\"", s.Format)
+	}
+}
+
+func TestFor_ByteSlice_StructField(t *testing.T) {
+	type S struct {
+		Data []byte `json:"data"`
+	}
+	s, err := For[S]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	prop := s.Properties["data"]
+	if prop == nil {
+		t.Fatal("expected property 'data'")
+	}
+	if prop.Type != "string" {
+		t.Errorf("data type: got %q, want \"string\"", prop.Type)
+	}
+	if prop.Format != "byte" {
+		t.Errorf("data format: got %q, want \"byte\"", prop.Format)
 	}
 }

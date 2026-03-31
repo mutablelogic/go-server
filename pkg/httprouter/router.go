@@ -42,10 +42,10 @@ var _ http.Handler = (*Router)(nil)
 // NewRouter creates a new router with the given prefix, origin, title, version
 // and middleware. The prefix is normalised to a path. The origin controls
 // cross-origin request handling:
-//   - Empty string: same-origin requests only (CRF enabled, no CORS)
-//   - "*": allow all cross-origin requests (CORS enabled, CRF bypassed)
-//   - A specific origin in the form "scheme://host[:port]" (CORS and CRF
-//     enabled, with the origin added as a trusted CRF origin)
+//   - Empty string: same-origin requests only (CSRF enabled, no CORS)
+//   - "*": allow all cross-origin requests (CORS enabled, CSRF bypassed)
+//   - A specific origin in the form "scheme://host[:port]" (CORS and CSRF
+//     enabled, with the origin added as a trusted CSRF origin)
 //
 // The title and version are used to create the OpenAPI spec for the router.
 func NewRouter(ctx context.Context, prefix, origin, title, version string, middleware ...HTTPMiddlewareFunc) (*Router, error) {
@@ -59,21 +59,21 @@ func NewRouter(ctx context.Context, prefix, origin, title, version string, middl
 	router.spec = openapi.NewSpec(title, version)
 
 	// Build the handler chain depending on the origin policy.
-	// When origin is "*" CRF is bypassed entirely because there is no
+	// When origin is "*" CSRF is bypassed entirely because there is no
 	// meaningful CSRF protection when all origins are trusted.
 	switch {
 	case origin == "*":
-		// All origins trusted – CORS only, no CRF
+		// All origins trusted – CORS only, no CSRF
 		router.handler = Cors(origin)(router.mux.ServeHTTP)
 	case origin != "":
-		// Specific origin – CRF with trusted origin, wrapped by CORS
+		// Specific origin – CSRF with trusted origin, wrapped by CORS
 		crf := http.NewCrossOriginProtection()
 		if err := crf.AddTrustedOrigin(origin); err != nil {
 			return nil, err
 		}
 		router.handler = Cors(origin)(crf.Handler(router.mux).ServeHTTP)
 	default:
-		// Empty origin – same-origin only, CRF with no trusted origins
+		// Empty origin – same-origin only, CSRF with no trusted origins
 		router.handler = http.NewCrossOriginProtection().Handler(router.mux)
 	}
 

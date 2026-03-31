@@ -51,9 +51,9 @@ func (cmd *OpenAPICommand) Run(ctx server.Cmd) error {
 	// Otherwise open the HTML documentation in a browser.
 	switch {
 	case cmd.JSON:
-		return fetchAndPrint(endpoint, "openapi.json")
+		return fetchAndPrint(ctx, endpoint, "openapi.json")
 	case cmd.YAML:
-		return fetchAndPrint(endpoint, "openapi.yaml")
+		return fetchAndPrint(ctx, endpoint, "openapi.yaml")
 	default:
 		u, err := url.JoinPath(endpoint, "openapi.html")
 		if err != nil {
@@ -64,13 +64,18 @@ func (cmd *OpenAPICommand) Run(ctx server.Cmd) error {
 }
 
 // fetchAndPrint fetches the given path relative to endpoint and copies the
-// response body to stdout.
-func fetchAndPrint(endpoint, path string) error {
+// response body to stdout. The request is tied to ctx so that cancellation
+// (e.g. SIGINT) is respected.
+func fetchAndPrint(ctx server.Cmd, endpoint, path string) error {
 	u, err := url.JoinPath(endpoint, path)
 	if err != nil {
 		return err
 	}
-	resp, err := http.Get(u) //nolint:gosec
+	req, err := http.NewRequestWithContext(ctx.Context(), http.MethodGet, u, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
 	}

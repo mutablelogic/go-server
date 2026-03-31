@@ -210,8 +210,13 @@ func parametersFromQuery(q *jsonschema.Schema) []schema.Parameter {
 	if q == nil {
 		return nil
 	}
-	params := make([]schema.Parameter, 0, len(q.Properties))
+	names := make([]string, 0, len(q.Properties))
 	for name := range q.Properties {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	params := make([]schema.Parameter, 0, len(names))
+	for _, name := range names {
 		params = append(params, schema.Parameter{
 			Name:     name,
 			In:       schema.ParameterInQuery,
