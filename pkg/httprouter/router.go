@@ -197,11 +197,9 @@ func (r *Router) RegisterFS(path string, fs fs.FS, middleware bool, spec *openap
 }
 
 // RegisterPath registers a handler at path that serves requests
-func (r *Router) RegisterPath(path string, params *jsonschema.Schema, pathitem *httprequest.PathItem) error {
-	path = r.resolvePath(types.NormalisePath(path))
-	if path != "/" {
-		path += "/"
-	}
+func (r *Router) RegisterPath(path string, params *jsonschema.Schema, pathitem httprequest.PathItem) error {
+	// Resove the path with the router prefix
+	path = r.resolvePath(path)
 
 	// OpenAPI spec is optional, but if provided, add the path to the spec
 	spec := pathitem.Spec(path, params)

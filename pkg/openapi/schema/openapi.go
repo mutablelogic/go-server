@@ -22,12 +22,14 @@ import (
 
 // Spec is the root object of an OpenAPI 3.1 document.
 type Spec struct {
-	Openapi           string   `json:"openapi"                       yaml:"openapi"`
-	Info              Info     `json:"info"                          yaml:"info"`                        // Required.
-	JSONSchemaDialect string   `json:"jsonSchemaDialect,omitzero"    yaml:"jsonSchemaDialect,omitempty"` // Format: uri.
-	Servers           []Server `json:"servers,omitempty"             yaml:"servers,omitempty"`
-	Tags              []Tag    `json:"tags,omitempty"                yaml:"tags,omitempty"`
-	Paths             *Paths   `json:"paths,omitempty"               yaml:"paths,omitempty"`
+	Openapi           string                `json:"openapi"                       yaml:"openapi"`
+	Info              Info                  `json:"info"                          yaml:"info"`                        // Required.
+	JSONSchemaDialect string                `json:"jsonSchemaDialect,omitzero"    yaml:"jsonSchemaDialect,omitempty"` // Format: uri.
+	Servers           []Server              `json:"servers,omitempty"             yaml:"servers,omitempty"`
+	Tags              []Tag                 `json:"tags,omitempty"                yaml:"tags,omitempty"`
+	Paths             *Paths                `json:"paths,omitempty"               yaml:"paths,omitempty"`
+	Components        *Components           `json:"components,omitempty"          yaml:"components,omitempty"`
+	Security          []SecurityRequirement `json:"security,omitempty"            yaml:"security,omitempty"`
 }
 
 // Tag adds metadata to a group of operations identified by the same tag name.
@@ -73,12 +75,13 @@ type PathItem struct {
 
 // Operation describes a single API operation on a path.
 type Operation struct {
-	Tags        []string            `json:"tags,omitempty"        yaml:"tags,omitempty"`
-	Summary     string              `json:"summary,omitzero"      yaml:"summary,omitempty"`
-	Description string              `json:"description,omitzero"  yaml:"description,omitempty"`
-	Parameters  []Parameter         `json:"parameters,omitempty"  yaml:"parameters,omitempty"`
-	RequestBody *RequestBody        `json:"requestBody,omitempty" yaml:"requestBody,omitempty"`
-	Responses   map[string]Response `json:"responses,omitempty"   yaml:"responses,omitempty"`
+	Tags        []string              `json:"tags,omitempty"        yaml:"tags,omitempty"`
+	Summary     string                `json:"summary,omitzero"      yaml:"summary,omitempty"`
+	Description string                `json:"description,omitzero"  yaml:"description,omitempty"`
+	Parameters  []Parameter           `json:"parameters,omitempty"  yaml:"parameters,omitempty"`
+	RequestBody *RequestBody          `json:"requestBody,omitempty" yaml:"requestBody,omitempty"`
+	Responses   map[string]Response   `json:"responses,omitempty"   yaml:"responses,omitempty"`
+	Security    []SecurityRequirement `json:"security,omitempty"    yaml:"security,omitempty"`
 }
 
 // Response describes a single response from an [Operation].
@@ -108,6 +111,44 @@ type MediaType struct {
 	Schema *jsonschema.Schema `json:"schema,omitempty" yaml:"schema,omitempty"`
 }
 
+// SecurityRequirement maps security scheme names to the scopes required.
+// For schemes that do not use scopes (e.g. bearer token), the value is an
+// empty slice.
+type SecurityRequirement map[string][]string
+
+// Components holds reusable objects for the OpenAPI specification.
+type Components struct {
+	SecuritySchemes map[string]SecurityScheme `json:"securitySchemes,omitempty" yaml:"securitySchemes,omitempty"`
+}
+
+// SecurityScheme describes an authentication mechanism used by the API.
+type SecurityScheme struct {
+	Type         string      `json:"type"                    yaml:"type"` // Required: "apiKey", "http", "mutualTLS", "oauth2", "openIdConnect".
+	Description  string      `json:"description,omitzero"    yaml:"description,omitempty"`
+	Name         string      `json:"name,omitzero"           yaml:"name,omitempty"`               // Required for apiKey.
+	In           string      `json:"in,omitzero"             yaml:"in,omitempty"`                 // Required for apiKey: "query", "header", "cookie".
+	Scheme       string      `json:"scheme,omitzero"         yaml:"scheme,omitempty"`             // Required for http: e.g. "bearer".
+	BearerFormat string      `json:"bearerFormat,omitzero"   yaml:"bearerFormat,omitempty"`       // Optional hint for http/bearer.
+	Flows        *OAuthFlows `json:"flows,omitempty"         yaml:"flows,omitempty"`              // Required for oauth2.
+	OpenIdURL    string      `json:"openIdConnectUrl,omitzero" yaml:"openIdConnectUrl,omitempty"` // Required for openIdConnect.
+}
+
+// OAuthFlows describes the available OAuth2 flows.
+type OAuthFlows struct {
+	Implicit          *OAuthFlow `json:"implicit,omitempty"          yaml:"implicit,omitempty"`
+	Password          *OAuthFlow `json:"password,omitempty"          yaml:"password,omitempty"`
+	ClientCredentials *OAuthFlow `json:"clientCredentials,omitempty" yaml:"clientCredentials,omitempty"`
+	AuthorizationCode *OAuthFlow `json:"authorizationCode,omitempty" yaml:"authorizationCode,omitempty"`
+}
+
+// OAuthFlow describes a single OAuth2 flow.
+type OAuthFlow struct {
+	AuthorizationURL string            `json:"authorizationUrl,omitzero" yaml:"authorizationUrl,omitempty"`
+	TokenURL         string            `json:"tokenUrl,omitzero"         yaml:"tokenUrl,omitempty"`
+	RefreshURL       string            `json:"refreshUrl,omitzero"       yaml:"refreshUrl,omitempty"`
+	Scopes           map[string]string `json:"scopes"                    yaml:"scopes"` // Required.
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 
@@ -123,6 +164,17 @@ const (
 	ParameterInHeader = "header"
 	// ParameterInCookie is used for cookie parameters.
 	ParameterInCookie = "cookie"
+
+	// SecuritySchemeHTTP is the type value for HTTP authentication (e.g. bearer).
+	SecuritySchemeHTTP = "http"
+	// SecuritySchemeAPIKey is the type value for API key authentication.
+	SecuritySchemeAPIKey = "apiKey"
+	// SecuritySchemeOAuth2 is the type value for OAuth 2.0 authentication.
+	SecuritySchemeOAuth2 = "oauth2"
+	// SecuritySchemeOpenIDConnect is the type value for OpenID Connect.
+	SecuritySchemeOpenIDConnect = "openIdConnect"
+	// SecuritySchemeMutualTLS is the type value for mutual TLS.
+	SecuritySchemeMutualTLS = "mutualTLS"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -239,6 +291,20 @@ func (s *Spec) AddTag(name, description string) {
 		}
 	}
 	s.Tags = append(s.Tags, Tag{Name: name, Description: description})
+}
+
+// AddSecurityScheme registers a named [SecurityScheme] under components.
+// If a scheme with the same name already exists it is replaced.
+func (s *Spec) AddSecurityScheme(name string, scheme SecurityScheme) {
+	if s.Components == nil {
+		s.Components = &Components{
+			SecuritySchemes: make(map[string]SecurityScheme),
+		}
+	}
+	if s.Components.SecuritySchemes == nil {
+		s.Components.SecuritySchemes = make(map[string]SecurityScheme)
+	}
+	s.Components.SecuritySchemes[name] = scheme
 }
 
 // ErrorResponse returns a [Response] whose schema matches the JSON error body

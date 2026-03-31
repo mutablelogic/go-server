@@ -7,24 +7,38 @@ import (
 	// Packages
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	jsonschema "github.com/mutablelogic/go-server/pkg/jsonschema"
+	openapi_op "github.com/mutablelogic/go-server/pkg/openapi"
 	openapi "github.com/mutablelogic/go-server/pkg/openapi/schema"
 	types "github.com/mutablelogic/go-server/pkg/types"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
+// INTERFACES
+
+type PathItem interface {
+	// Handler returns the http.HandlerFunc that handles the PathItem
+	Handler() http.HandlerFunc
+
+	// Spec returns the openapi.PathItem for a path with optional path parameters
+	Spec(string, *jsonschema.Schema) *openapi.PathItem
+}
+
+///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type PathItem struct {
+type pathitem struct {
 	spec     openapi.PathItem
 	tags     []string
 	handlers map[string]http.HandlerFunc
 }
 
+var _ PathItem = (*pathitem)(nil)
+
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func NewPathItem(summary, description string, tags ...string) *PathItem {
-	self := new(PathItem)
+func NewPathItem(summary, description string, tags ...string) *pathitem {
+	self := new(pathitem)
 
 	// Set the spec, parameters and handler
 	self.spec = openapi.PathItem{
@@ -42,7 +56,7 @@ func NewPathItem(summary, description string, tags ...string) *PathItem {
 // PUBLIC METHODS
 
 // Handler returns the http.HandlerFunc for this path
-func (p *PathItem) Handler() http.HandlerFunc {
+func (p *pathitem) Handler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if handler, ok := p.handlers[strings.ToUpper(strings.TrimSpace(r.Method))]; ok {
 			handler(w, r)
@@ -53,64 +67,64 @@ func (p *PathItem) Handler() http.HandlerFunc {
 }
 
 // Spec returns the openapi.PathItem for this path
-func (p *PathItem) Spec(path string, params *jsonschema.Schema) *openapi.PathItem {
+func (p *pathitem) Spec(path string, params *jsonschema.Schema) *openapi.PathItem {
 	p.spec.Parameters = parametersFromPath(path, params)
 	return types.Ptr(p.spec)
 }
 
 // Register Get handler
-func (p *PathItem) Get(handler http.HandlerFunc, summary string) *PathItem {
+func (p *pathitem) Get(handler http.HandlerFunc, summary string, opts ...openapi_op.OperationOpt) *pathitem {
 	p.handlers[http.MethodGet] = handler
-	p.spec.Get = types.Ptr(openapi.Operation{Summary: summary, Tags: p.tags})
+	p.spec.Get = types.Ptr(openapi_op.Operation(summary, append([]openapi_op.OperationOpt{openapi_op.WithTags(p.tags...)}, opts...)...))
 	return p
 }
 
 // Register Put handler
-func (p *PathItem) Put(handler http.HandlerFunc, summary string) *PathItem {
+func (p *pathitem) Put(handler http.HandlerFunc, summary string, opts ...openapi_op.OperationOpt) *pathitem {
 	p.handlers[http.MethodPut] = handler
-	p.spec.Put = types.Ptr(openapi.Operation{Summary: summary, Tags: p.tags})
+	p.spec.Put = types.Ptr(openapi_op.Operation(summary, append([]openapi_op.OperationOpt{openapi_op.WithTags(p.tags...)}, opts...)...))
 	return p
 }
 
 // Register Post handler
-func (p *PathItem) Post(handler http.HandlerFunc, summary string) *PathItem {
+func (p *pathitem) Post(handler http.HandlerFunc, summary string, opts ...openapi_op.OperationOpt) *pathitem {
 	p.handlers[http.MethodPost] = handler
-	p.spec.Post = types.Ptr(openapi.Operation{Summary: summary, Tags: p.tags})
+	p.spec.Post = types.Ptr(openapi_op.Operation(summary, append([]openapi_op.OperationOpt{openapi_op.WithTags(p.tags...)}, opts...)...))
 	return p
 }
 
 // Register Delete handler
-func (p *PathItem) Delete(handler http.HandlerFunc, summary string) *PathItem {
+func (p *pathitem) Delete(handler http.HandlerFunc, summary string, opts ...openapi_op.OperationOpt) *pathitem {
 	p.handlers[http.MethodDelete] = handler
-	p.spec.Delete = types.Ptr(openapi.Operation{Summary: summary, Tags: p.tags})
+	p.spec.Delete = types.Ptr(openapi_op.Operation(summary, append([]openapi_op.OperationOpt{openapi_op.WithTags(p.tags...)}, opts...)...))
 	return p
 }
 
 // Register Patch handler
-func (p *PathItem) Patch(handler http.HandlerFunc, summary string) *PathItem {
+func (p *pathitem) Patch(handler http.HandlerFunc, summary string, opts ...openapi_op.OperationOpt) *pathitem {
 	p.handlers[http.MethodPatch] = handler
-	p.spec.Patch = types.Ptr(openapi.Operation{Summary: summary, Tags: p.tags})
+	p.spec.Patch = types.Ptr(openapi_op.Operation(summary, append([]openapi_op.OperationOpt{openapi_op.WithTags(p.tags...)}, opts...)...))
 	return p
 }
 
 // Register Options handler
-func (p *PathItem) Options(handler http.HandlerFunc, summary string) *PathItem {
+func (p *pathitem) Options(handler http.HandlerFunc, summary string, opts ...openapi_op.OperationOpt) *pathitem {
 	p.handlers[http.MethodOptions] = handler
-	p.spec.Options = types.Ptr(openapi.Operation{Summary: summary, Tags: p.tags})
+	p.spec.Options = types.Ptr(openapi_op.Operation(summary, append([]openapi_op.OperationOpt{openapi_op.WithTags(p.tags...)}, opts...)...))
 	return p
 }
 
 // Register Head handler
-func (p *PathItem) Head(handler http.HandlerFunc, summary string) *PathItem {
+func (p *pathitem) Head(handler http.HandlerFunc, summary string, opts ...openapi_op.OperationOpt) *pathitem {
 	p.handlers[http.MethodHead] = handler
-	p.spec.Head = types.Ptr(openapi.Operation{Summary: summary, Tags: p.tags})
+	p.spec.Head = types.Ptr(openapi_op.Operation(summary, append([]openapi_op.OperationOpt{openapi_op.WithTags(p.tags...)}, opts...)...))
 	return p
 }
 
 // Register Trace handler
-func (p *PathItem) Trace(handler http.HandlerFunc, summary string) *PathItem {
+func (p *pathitem) Trace(handler http.HandlerFunc, summary string, opts ...openapi_op.OperationOpt) *pathitem {
 	p.handlers[http.MethodTrace] = handler
-	p.spec.Trace = types.Ptr(openapi.Operation{Summary: summary, Tags: p.tags})
+	p.spec.Trace = types.Ptr(openapi_op.Operation(summary, append([]openapi_op.OperationOpt{openapi_op.WithTags(p.tags...)}, opts...)...))
 	return p
 }
 

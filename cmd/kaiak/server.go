@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"time"
@@ -16,7 +17,9 @@ import (
 	"github.com/mutablelogic/go-server/pkg/httprequest"
 	httprouter "github.com/mutablelogic/go-server/pkg/httprouter"
 	httpserver_resource "github.com/mutablelogic/go-server/pkg/httpserver/resource"
-	"github.com/mutablelogic/go-server/pkg/jsonschema"
+	jsonschema "github.com/mutablelogic/go-server/pkg/jsonschema"
+	openapiopt "github.com/mutablelogic/go-server/pkg/openapi"
+	openapi "github.com/mutablelogic/go-server/pkg/openapi/schema"
 	provider "github.com/mutablelogic/go-server/pkg/provider"
 	schema "github.com/mutablelogic/go-server/pkg/provider/schema"
 	version "github.com/mutablelogic/go-server/pkg/version"
@@ -64,7 +67,8 @@ func (s *RunServer) WithManager(ctx server.Cmd, fn func(*provider.Manager, strin
 	type First struct {
 		A uuid.UUID `json:"a" example:"123e4567-e89b-12d3-a456-426614174000"`
 		B []byte    `json:"b" example:"hello world"`
-		X *url.URL  `json:"x" example:"optional string" optional:""`
+		X *url.URL  `json:"x" example:"optional URI" optional:""`
+		Y uint      `json:"y" example:"42" optional:"" min:"0" max:"100"`
 	}
 
 	// Second Parameter Set
@@ -74,12 +78,37 @@ func (s *RunServer) WithManager(ctx server.Cmd, fn func(*provider.Manager, strin
 	}
 
 	s.RunServer.Register(func(router *httprouter.Router) error {
+		// Register security schemes for the router, which can be referenced by any path item
+		router.Spec().AddSecurityScheme("bearerAuth", openapi.SecurityScheme{
+			Type:   openapi.SecuritySchemeHTTP,
+			Scheme: "bearer",
+		})
+		router.Spec().AddSecurityScheme("apiKeyAuth", openapi.SecurityScheme{
+			Type: openapi.SecuritySchemeAPIKey,
+			Name: "X-API-Key",
+			In:   openapi.ParameterInHeader,
+		})
+
+		// Register the first path with all options
 		return router.RegisterPath("first/{a}/{b}/{x}", jsonschema.MustFor[First](), httprequest.NewPathItem(
 			"Test Route",
 			"Target a test route with path parameters a, b, and x. Try GET /first/hello/world/optional or GET /first/123e4567-e89b-12d3-a456-426614174000/aGVsbG8gd29ybGQ=/optional",
 			"First",
-		).Get(nil, "GET Handler").Patch(nil, "PATCH Handler"))
+		).Get(
+			nil,
+			"GET Handler",
+			openapiopt.WithDescription("Get a first response from the server"),
+			openapiopt.WithQuery(jsonschema.MustFor[First]()),
+			openapiopt.WithJSONRequest(jsonschema.MustFor[First]()),
+			openapiopt.WithFormRequest(jsonschema.MustFor[Second]()),
+			openapiopt.WithJSONResponse(http.StatusOK, jsonschema.MustFor[First]()),
+			openapiopt.WithTextResponse(http.StatusOK, "Some text response"),
+			openapiopt.WithErrorResponse(http.StatusBadRequest),
+			openapiopt.WithSecurity("bearerAuth", "auth:read"),
+			openapiopt.WithSecurity("apiKeyAuth"),
+		).Patch(nil, "PATCH Handler"))
 	}, func(router *httprouter.Router) error {
+		// Register the second path with all options
 		return router.RegisterPath("second/{c}/{d}", jsonschema.MustFor[Second](), httprequest.NewPathItem(
 			"Test Route",
 			"Target a test route with path parameters c and d. Try GET /second/hello/world",
