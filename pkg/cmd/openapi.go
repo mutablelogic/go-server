@@ -15,7 +15,11 @@
 package cmd
 
 import (
+	"fmt"
+	"io"
+	"net/http"
 	"net/url"
+	"os"
 
 	// Packages
 	server "github.com/mutablelogic/go-server"
@@ -43,9 +47,37 @@ func (cmd *OpenAPICommand) Run(ctx server.Cmd) error {
 		return err
 	}
 
-	u, err := url.JoinPath(endpoint, "openapi.html")
+	// When --json or --yaml is set, fetch the spec and print it to stdout.
+	// Otherwise open the HTML documentation in a browser.
+	switch {
+	case cmd.JSON:
+		return fetchAndPrint(endpoint, "openapi.json")
+	case cmd.YAML:
+		return fetchAndPrint(endpoint, "openapi.yaml")
+	default:
+		u, err := url.JoinPath(endpoint, "openapi.html")
+		if err != nil {
+			return err
+		}
+		return browser.OpenURL(u)
+	}
+}
+
+// fetchAndPrint fetches the given path relative to endpoint and copies the
+// response body to stdout.
+func fetchAndPrint(endpoint, path string) error {
+	u, err := url.JoinPath(endpoint, path)
 	if err != nil {
 		return err
 	}
-	return browser.OpenURL(u)
+	resp, err := http.Get(u) //nolint:gosec
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("%s: %s", path, resp.Status)
+	}
+	_, err = io.Copy(os.Stdout, resp.Body)
+	return err
 }

@@ -23,7 +23,7 @@ func TestParametersFromPath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			params := parametersFromPath(tt.path)
+			params := parametersFromPath(tt.path, nil)
 			if len(params) != len(tt.want) {
 				t.Fatalf("len(parametersFromPath(%q)) = %d, want %d", tt.path, len(params), len(tt.want))
 			}
@@ -46,23 +46,21 @@ func TestParametersFromPath(t *testing.T) {
 }
 
 func TestNewPathItemParameters(t *testing.T) {
-	p := NewPathItem("resource/{id}/child/{name}", "summary")
-	if len(p.parameters) != 2 {
-		t.Fatalf("len(p.parameters) = %d, want 2", len(p.parameters))
+	p := NewPathItem("summary", "description")
+	spec := p.Spec("resource/{id}/child/{name}", nil)
+	if len(spec.Parameters) != 2 {
+		t.Fatalf("len(spec.Parameters) = %d, want 2", len(spec.Parameters))
 	}
-	if p.parameters[0].Name != "id" || p.parameters[1].Name != "name" {
-		t.Fatalf("p.parameters names = [%q %q], want [\"id\" \"name\"]", p.parameters[0].Name, p.parameters[1].Name)
+	if spec.Parameters[0].Name != "id" || spec.Parameters[1].Name != "name" {
+		t.Fatalf("spec.Parameters names = [%q %q], want [\"id\" \"name\"]", spec.Parameters[0].Name, spec.Parameters[1].Name)
 	}
 }
 
 func TestSpecReturnsPathAndOperations(t *testing.T) {
-	p := NewPathItem("resource/{id}", "summary")
+	p := NewPathItem("summary", "description")
 	p.Get(func(http.ResponseWriter, *http.Request) {}, "get resource")
 
-	path, spec := p.Spec()
-	if path != "resource/{id}" {
-		t.Fatalf("Spec() path = %q, want %q", path, "resource/{id}")
-	}
+	spec := p.Spec("resource/{id}", nil)
 	if spec == nil || spec.Get == nil {
 		t.Fatalf("Spec().Get = nil, want populated GET operation")
 	}
@@ -75,7 +73,7 @@ func TestSpecReturnsPathAndOperations(t *testing.T) {
 }
 
 func TestHandlerDispatchesMethod(t *testing.T) {
-	p := NewPathItem("resource/{id}", "summary")
+	p := NewPathItem("summary", "description")
 	called := false
 
 	p.Get(func(w http.ResponseWriter, r *http.Request) {
@@ -83,10 +81,7 @@ func TestHandlerDispatchesMethod(t *testing.T) {
 		w.WriteHeader(http.StatusNoContent)
 	}, "get resource")
 
-	path, spec := p.Spec()
-	if path != "resource/{id}" {
-		t.Fatalf("Spec path = %q, want %q", path, "resource/{id}")
-	}
+	spec := p.Spec("resource/{id}", nil)
 	if spec == nil || spec.Get == nil {
 		t.Fatalf("Spec().Get = nil, want populated GET operation")
 	}
@@ -107,7 +102,7 @@ func TestHandlerDispatchesMethod(t *testing.T) {
 }
 
 func TestHandlerMethodNotAllowed(t *testing.T) {
-	p := NewPathItem("resource/{id}", "summary")
+	p := NewPathItem("summary", "description")
 
 	req := httptest.NewRequest(http.MethodGet, "/resource/123", nil)
 	res := httptest.NewRecorder()

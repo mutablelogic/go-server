@@ -57,9 +57,12 @@ func NewPathItem(summary, description string, tags ...string) *pathitem {
 // PUBLIC METHODS
 
 // Handler returns an http.HandlerFunc that dispatches to the registered method handler.
+// Methods registered with a nil handler are treated as spec-only (they appear in the
+// OpenAPI document but return 405 Method Not Allowed at runtime).
 func (p *pathitem) Handler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if handler, ok := p.handlers[strings.ToUpper(strings.TrimSpace(r.Method))]; ok {
+		method := strings.ToUpper(r.Method)
+		if handler, ok := p.handlers[method]; ok && handler != nil {
 			handler(w, r)
 			return
 		}

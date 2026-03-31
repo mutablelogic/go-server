@@ -212,7 +212,7 @@ func (r *Router) RegisterFS(path string, fs fs.FS, middleware bool, spec *openap
 // the router prefix is prepended. The handler is always wrapped by the
 // router's middleware chain.
 func (r *Router) RegisterPath(path string, params *jsonschema.Schema, pathitem httprequest.PathItem) error {
-	// Resove the path with the router prefix
+	// Resolve the path with the router prefix
 	path = r.resolvePath(path)
 
 	// OpenAPI spec is optional, but if provided, add the path to the spec
@@ -224,9 +224,7 @@ func (r *Router) RegisterPath(path string, params *jsonschema.Schema, pathitem h
 	// Get handler or fall back to method-not-allowed
 	handler := pathitem.Handler()
 	if handler == nil {
-		handler = func(w http.ResponseWriter, r *http.Request) {
-			_ = httpresponse.Error(w, httpresponse.Err(http.StatusMethodNotAllowed), r.Method)
-		}
+		return httpresponse.ErrNotImplemented.Withf("path item %q has no handlers", path)
 	}
 
 	// Register the handler
