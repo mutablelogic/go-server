@@ -19,7 +19,9 @@ import (
 type OperationOpt func(*opopt)
 
 type opopt struct {
+	id          string
 	description string
+	deprecated  bool
 	tags        []string
 	query       []schema.Parameter
 	request     schema.RequestBody
@@ -52,7 +54,9 @@ func Operation(summary string, opts ...OperationOpt) schema.Operation {
 	}
 
 	// Add tags, query parameters, requests and responses
+	operation.OperationId = o.id
 	operation.Description = o.description
+	operation.Deprecated = o.deprecated
 	operation.Tags = o.tags
 	operation.Parameters = o.query
 	if len(o.request.Content) > 0 {
@@ -75,6 +79,18 @@ func Operation(summary string, opts ...OperationOpt) schema.Operation {
 func WithDescription(description string) OperationOpt {
 	return func(opt *opopt) {
 		opt.description = description
+	}
+}
+
+func WithID(id string) OperationOpt {
+	return func(opt *opopt) {
+		opt.id = id
+	}
+}
+
+func WithDeprecated() OperationOpt {
+	return func(opt *opopt) {
+		opt.deprecated = true
 	}
 }
 

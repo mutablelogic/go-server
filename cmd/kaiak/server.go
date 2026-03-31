@@ -89,6 +89,13 @@ func (s *RunServer) WithManager(ctx server.Cmd, fn func(*provider.Manager, strin
 			In:   openapi.ParameterInHeader,
 		})
 
+		// Register tag descriptions
+		router.Spec().AddTag("First", "Operations for the first parameter set")
+		router.Spec().AddTag("Second", "Operations for the second parameter set")
+
+		// Group tags under sidebar headings (Redoc x-tagGroups)
+		router.Spec().AddTagGroup("Parameter Sets", "First", "Second")
+
 		// Register the first path with all options
 		return router.RegisterPath("first/{a}/{b}/{x}", jsonschema.MustFor[First](), httprequest.NewPathItem(
 			"Test Route",
@@ -106,6 +113,7 @@ func (s *RunServer) WithManager(ctx server.Cmd, fn func(*provider.Manager, strin
 			openapiopt.WithErrorResponse(http.StatusBadRequest),
 			openapiopt.WithSecurity("bearerAuth", "auth:read"),
 			openapiopt.WithSecurity("apiKeyAuth"),
+			openapiopt.WithDeprecated(),
 		).Patch(nil, "PATCH Handler"))
 	}, func(router *httprouter.Router) error {
 		// Register the second path with all options

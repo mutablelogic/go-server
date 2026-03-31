@@ -30,6 +30,14 @@ type Spec struct {
 	Paths             *Paths                `json:"paths,omitempty"               yaml:"paths,omitempty"`
 	Components        *Components           `json:"components,omitempty"          yaml:"components,omitempty"`
 	Security          []SecurityRequirement `json:"security,omitempty"            yaml:"security,omitempty"`
+	TagGroups         []TagGroup            `json:"x-tagGroups,omitempty"         yaml:"x-tagGroups,omitempty"` // Redoc extension.
+}
+
+// TagGroup groups tags under a heading in Redoc documentation.
+// This is a Redoc vendor extension (x-tagGroups).
+type TagGroup struct {
+	Name string   `json:"name"             yaml:"name"` // The heading displayed in the sidebar.
+	Tags []string `json:"tags"             yaml:"tags"` // Tag names belonging to this group.
 }
 
 // Tag adds metadata to a group of operations identified by the same tag name.
@@ -78,6 +86,8 @@ type Operation struct {
 	Tags        []string              `json:"tags,omitempty"        yaml:"tags,omitempty"`
 	Summary     string                `json:"summary,omitzero"      yaml:"summary,omitempty"`
 	Description string                `json:"description,omitzero"  yaml:"description,omitempty"`
+	OperationId string                `json:"operationId,omitzero"  yaml:"operationId,omitempty"`
+	Deprecated  bool                  `json:"deprecated,omitempty"  yaml:"deprecated,omitempty"`
 	Parameters  []Parameter           `json:"parameters,omitempty"  yaml:"parameters,omitempty"`
 	RequestBody *RequestBody          `json:"requestBody,omitempty" yaml:"requestBody,omitempty"`
 	Responses   map[string]Response   `json:"responses,omitempty"   yaml:"responses,omitempty"`
@@ -291,6 +301,19 @@ func (s *Spec) AddTag(name, description string) {
 		}
 	}
 	s.Tags = append(s.Tags, Tag{Name: name, Description: description})
+}
+
+// AddTagGroup appends a [TagGroup] that groups the given tags under a sidebar
+// heading in Redoc. If a group with the same name already exists, its tags
+// are replaced.
+func (s *Spec) AddTagGroup(name string, tags ...string) {
+	for i, g := range s.TagGroups {
+		if g.Name == name {
+			s.TagGroups[i].Tags = tags
+			return
+		}
+	}
+	s.TagGroups = append(s.TagGroups, TagGroup{Name: name, Tags: tags})
 }
 
 // AddSecurityScheme registers a named [SecurityScheme] under components.
