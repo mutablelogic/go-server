@@ -53,8 +53,6 @@ func (s *RunServer) Register(fns ...RegisterFunc) *RunServer {
 // COMMANDS
 
 func (s *RunServer) Run(ctx server.Cmd) error {
-	v := ctx.Version()
-
 	// Build optional server options
 	var serverOpts []httpserver.Opt
 	if ctx.HTTPTimeout() > 0 {
@@ -94,13 +92,13 @@ func (s *RunServer) Run(ctx server.Cmd) error {
 		return fmt.Errorf("httpserver: %w", err)
 	}
 
-	// Build middleware chain: OTel HTTP middleware also emits request logs.
+	// Build middleware chain: OTel HTTP middleware which emits traces, logs and metrics
 	middleware := []httprouter.HTTPMiddlewareFunc{
 		otel.HTTPHandlerFunc(srv.URL().Host, ctx.Logger()),
 	}
 
 	// Create the router
-	router, err := httprouter.NewRouter(ctx.Context(), srv.Router(), ctx.HTTPPrefix(), s.HTTP.Origin, ctx.Name(), v, middleware...)
+	router, err := httprouter.NewRouter(ctx.Context(), srv.Router(), ctx.HTTPPrefix(), s.HTTP.Origin, ctx.Name(), ctx.Version(), middleware...)
 	if err != nil {
 		return fmt.Errorf("router: %w", err)
 	}
@@ -114,17 +112,17 @@ func (s *RunServer) Run(ctx server.Cmd) error {
 
 	// Register OpenAPI spec endpoints if enabled
 	if s.OpenAPI {
-		if err := openapihttphandler.RegisterHandler(router, true); err != nil {
+		if err := openapihttphandler.RegisterHandler(router, false); err != nil {
 			return fmt.Errorf("openapi: %w", err)
 		}
 	}
 
 	// Always register a catch-all 404 handler at "/"
-	if err := router.RegisterCatchAll(true); err != nil {
+	if err := router.RegisterCatchAll(false); err != nil {
 		return fmt.Errorf("catchall: %w", err)
 	}
 
-	// Bind to the server's address to ensure it's available before registering the instance
+	// Bind to the server's address to ensure it's available
 	if err := srv.Listen(); err != nil {
 		return err
 	}
@@ -140,7 +138,7 @@ func (s *RunServer) Run(ctx server.Cmd) error {
 	}
 
 	// Report the server endpoint and version
-	ctx.Logger().InfoContext(ctx.Context(), "started", "name", ctx.Name(), "version", v, "endpoint", srv.Addr())
+	ctx.Logger().InfoContext(ctx.Context(), "started", "name", ctx.Name(), "version", ctx.Version(), "addr", srv.Addr(), "server", srv.URL().String(), "origin", s.HTTP.Origin, "prefix", ctx.HTTPPrefix())
 
 	// Run the server until the context is cancelled
 	eg, egCtx := errgroup.WithContext(ctx.Context())
