@@ -46,6 +46,9 @@ func parseEndpoint(endpoint string) (*url.URL, error) {
 	if endpoint == "" {
 		return nil, fmt.Errorf("missing OTLP endpoint")
 	}
+	if host, port, err := net.SplitHostPort(endpoint); err == nil && host != "" && port != "" {
+		endpoint = "https://" + endpoint
+	}
 	if !strings.Contains(endpoint, "://") {
 		if host, port, err := net.SplitHostPort(endpoint); err == nil && host != "" && port != "" {
 			endpoint = "https://" + endpoint
