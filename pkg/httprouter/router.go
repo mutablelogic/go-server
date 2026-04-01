@@ -143,10 +143,6 @@ func (r *Router) safeHandle(pattern string, handler http.HandlerFunc) (err error
 // in the underlying ServeMux. Because http.ServeMux treats "/" as a catch-all
 // that matches any request not handled by a more-specific pattern, this ensures
 // unmatched requests return a JSON 404 instead of Go's plain-text response.
-//
-// The handler is registered without the router prefix so it applies globally.
-// If "/" is already registered the call is a no-op (no error is returned).
-// When middleware is true the handler is wrapped by the router's middleware chain.
 func (r *Router) RegisterCatchAll(path string, middleware bool) error {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		_ = httpresponse.Error(w, httpresponse.ErrNotFound, req.RequestURI)
