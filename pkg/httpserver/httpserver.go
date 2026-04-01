@@ -73,7 +73,7 @@ func New(listen string, tls *tls.Config, opts ...Opt) (*server, error) {
 	// Set other options
 	server.http.Handler = http.DefaultServeMux
 	server.http.Addr = listen
-	if len(tls.Certificates) > 0 {
+	if tls != nil && len(tls.Certificates) > 0 {
 		server.http.TLSConfig = tls
 	}
 	server.http.WriteTimeout = opt.w
