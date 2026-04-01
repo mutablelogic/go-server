@@ -5,10 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
-<<<<<<< HEAD
-=======
 	"strings"
->>>>>>> f4b5e0d339ba87cf08d93fc3b72c99a1e8e10166
 
 	// Packages
 	sdkresource "go.opentelemetry.io/otel/sdk/resource"
@@ -17,8 +14,6 @@ import (
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-<<<<<<< HEAD
-=======
 // parseEndpoint parses an OTLP endpoint string into a URL.
 //
 // Callers typically pass values sourced from the command-layer environment
@@ -47,20 +42,14 @@ import (
 // and /v1/traces are appended later by the respective exporter helpers.
 // gRPC/grpcs endpoints must not include a path; the signal-specific RPC method
 // is handled by the gRPC exporters themselves.
->>>>>>> f4b5e0d339ba87cf08d93fc3b72c99a1e8e10166
 func parseEndpoint(endpoint string) (*url.URL, error) {
 	if endpoint == "" {
 		return nil, fmt.Errorf("missing OTLP endpoint")
 	}
-<<<<<<< HEAD
-	if host, port, err := net.SplitHostPort(endpoint); err == nil && host != "" && port != "" {
-		endpoint = "https://" + endpoint
-=======
 	if !strings.Contains(endpoint, "://") {
 		if host, port, err := net.SplitHostPort(endpoint); err == nil && host != "" && port != "" {
 			endpoint = "https://" + endpoint
 		}
->>>>>>> f4b5e0d339ba87cf08d93fc3b72c99a1e8e10166
 	}
 	parsed, err := url.Parse(endpoint)
 	if err != nil {
