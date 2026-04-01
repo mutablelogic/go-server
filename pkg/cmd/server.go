@@ -117,8 +117,11 @@ func (s *RunServer) Run(ctx server.Cmd) error {
 		}
 	}
 
-	// Always register a catch-all 404 handler at "/"
-	if err := router.RegisterCatchAll(false); err != nil {
+	// Always register a catch-all 404 handler at "/" and at the prefix root (e.g. "/api")
+	if err := router.RegisterCatchAll("/", false); err != nil {
+		return fmt.Errorf("catchall: %w", err)
+	}
+	if err := router.RegisterCatchAll(ctx.HTTPPrefix(), false); err != nil {
 		return fmt.Errorf("catchall: %w", err)
 	}
 

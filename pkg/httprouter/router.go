@@ -147,14 +147,14 @@ func (r *Router) safeHandle(pattern string, handler http.HandlerFunc) (err error
 // The handler is registered without the router prefix so it applies globally.
 // If "/" is already registered the call is a no-op (no error is returned).
 // When middleware is true the handler is wrapped by the router's middleware chain.
-func (r *Router) RegisterCatchAll(middleware bool) error {
+func (r *Router) RegisterCatchAll(path string, middleware bool) error {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		_ = httpresponse.Error(w, httpresponse.ErrNotFound, req.RequestURI)
 	})
 	if middleware {
 		handler = r.middleware.Wrap(handler)
 	}
-	if err := r.safeHandle("/", handler); err != nil {
+	if err := r.safeHandle(types.NormalisePath(path), handler); err != nil {
 		if errors.Is(err, httpresponse.ErrConflict) {
 			return nil
 		}
