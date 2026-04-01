@@ -9,7 +9,6 @@ import (
 	server "github.com/mutablelogic/go-server"
 	httprouter "github.com/mutablelogic/go-server/pkg/httprouter"
 	httpserver "github.com/mutablelogic/go-server/pkg/httpserver"
-	logger "github.com/mutablelogic/go-server/pkg/logger"
 	openapihttphandler "github.com/mutablelogic/go-server/pkg/openapi/httphandler"
 	openapi "github.com/mutablelogic/go-server/pkg/openapi/schema"
 	otel "github.com/mutablelogic/go-server/pkg/otel"
@@ -56,10 +55,9 @@ func (s *RunServer) Register(fns ...RegisterFunc) *RunServer {
 func (s *RunServer) Run(ctx server.Cmd) error {
 	v := ctx.Version()
 
-	// Build middleware chain: logger always first, OTel if configured
-	middleware := []httprouter.HTTPMiddlewareFunc{logger.NewMiddleware(ctx.Logger())}
-	if ctx.Tracer() != nil {
-		middleware = append(middleware, otel.HTTPHandlerFunc(ctx.Tracer()))
+	// Build middleware chain: OTel HTTP middleware also emits request logs.
+	middleware := []httprouter.HTTPMiddlewareFunc{
+		otel.HTTPHandlerFunc(ctx.HTTPAddr(), ctx.Logger()),
 	}
 
 	// Create the router
@@ -105,13 +103,13 @@ func (s *RunServer) Run(ctx server.Cmd) error {
 
 	// Register OpenAPI spec endpoints if enabled
 	if s.OpenAPI {
-		if err := openapihttphandler.RegisterHandler(router, false); err != nil {
+		if err := openapihttphandler.RegisterHandler(router, true); err != nil {
 			return fmt.Errorf("openapi: %w", err)
 		}
 	}
 
 	// Always register a catch-all 404 handler at "/"
-	if err := router.RegisterCatchAll(false); err != nil {
+	if err := router.RegisterCatchAll(true); err != nil {
 		return fmt.Errorf("catchall: %w", err)
 	}
 
