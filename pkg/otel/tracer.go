@@ -67,11 +67,18 @@ func newTraceProvider(endpoint, header string, res *sdkresource.Resource) (*sdkt
 // The endpoint can be in the form of host:port for HTTPS endpoints, or a
 // URL with http, https, grpc or grpcs scheme, host, port and optional path.
 func newTraceExporter(endpoint, header string) (sdktrace.SpanExporter, error) {
+<<<<<<< HEAD
+=======
 	headers := toHeaders(header)
+>>>>>>> f4b5e0d339ba87cf08d93fc3b72c99a1e8e10166
 	parsed, err := parseEndpoint(endpoint)
 	if err != nil {
 		return nil, err
 	}
+<<<<<<< HEAD
+	headers := toHeaders(header)
+=======
+>>>>>>> f4b5e0d339ba87cf08d93fc3b72c99a1e8e10166
 	switch parsed.Scheme {
 	case "http", "https":
 		return toHTTP(parsed, headers)
