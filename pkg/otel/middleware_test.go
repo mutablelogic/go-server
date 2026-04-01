@@ -1,6 +1,8 @@
 package otel_test
 
 import (
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -8,8 +10,10 @@ import (
 	// Packages
 	otel "github.com/mutablelogic/go-server/pkg/otel"
 	assert "github.com/stretchr/testify/assert"
+	gootel "go.opentelemetry.io/otel"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	tracenoop "go.opentelemetry.io/otel/trace/noop"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -23,12 +27,24 @@ func newTestTracer() (*tracetest.InMemoryExporter, *sdktrace.TracerProvider) {
 	return exporter, provider
 }
 
+func newTestLogger() *slog.Logger {
+	return slog.New(slog.NewTextHandler(io.Discard, nil))
+}
+
+func setGlobalTracerProvider(t *testing.T, provider *sdktrace.TracerProvider) {
+	t.Helper()
+	gootel.SetTracerProvider(provider)
+	t.Cleanup(func() {
+		gootel.SetTracerProvider(tracenoop.NewTracerProvider())
+	})
+}
+
 func TestHTTPHandler_CreatesSpan(t *testing.T) {
 	assert := assert.New(t)
 	exporter, provider := newTestTracer()
-	tracer := provider.Tracer("test")
+	setGlobalTracerProvider(t, provider)
 
-	handler := otel.HTTPHandler(tracer)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := otel.HTTPHandler("test", newTestLogger())(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
 	}))
@@ -48,9 +64,9 @@ func TestHTTPHandler_CreatesSpan(t *testing.T) {
 func TestHTTPHandlerFunc_CreatesSpan(t *testing.T) {
 	assert := assert.New(t)
 	exporter, provider := newTestTracer()
-	tracer := provider.Tracer("test")
+	setGlobalTracerProvider(t, provider)
 
-	handler := otel.HTTPHandlerFunc(tracer)(func(w http.ResponseWriter, r *http.Request) {
+	handler := otel.HTTPHandlerFunc("test", newTestLogger())(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusCreated)
 	})
 
@@ -69,9 +85,9 @@ func TestHTTPHandlerFunc_CreatesSpan(t *testing.T) {
 func TestHTTPHandler_CapturesStatusCode(t *testing.T) {
 	assert := assert.New(t)
 	exporter, provider := newTestTracer()
-	tracer := provider.Tracer("test")
+	setGlobalTracerProvider(t, provider)
 
-	handler := otel.HTTPHandler(tracer)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := otel.HTTPHandler("test", newTestLogger())(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 	}))
 
@@ -89,10 +105,10 @@ func TestHTTPHandler_CapturesStatusCode(t *testing.T) {
 func TestHTTPHandler_DefaultStatusOK(t *testing.T) {
 	assert := assert.New(t)
 	exporter, provider := newTestTracer()
-	tracer := provider.Tracer("test")
+	setGlobalTracerProvider(t, provider)
 
 	// Handler that doesn't explicitly call WriteHeader
-	handler := otel.HTTPHandler(tracer)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := otel.HTTPHandler("test", newTestLogger())(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("implicit 200"))
 	}))
 
@@ -110,9 +126,9 @@ func TestHTTPHandler_DefaultStatusOK(t *testing.T) {
 func TestHTTPHandler_ServerError(t *testing.T) {
 	assert := assert.New(t)
 	exporter, provider := newTestTracer()
-	tracer := provider.Tracer("test")
+	setGlobalTracerProvider(t, provider)
 
-	handler := otel.HTTPHandler(tracer)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := otel.HTTPHandler("test", newTestLogger())(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
 

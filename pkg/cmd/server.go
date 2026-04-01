@@ -9,7 +9,6 @@ import (
 	server "github.com/mutablelogic/go-server"
 	httprouter "github.com/mutablelogic/go-server/pkg/httprouter"
 	httpserver "github.com/mutablelogic/go-server/pkg/httpserver"
-	logger "github.com/mutablelogic/go-server/pkg/logger"
 	openapihttphandler "github.com/mutablelogic/go-server/pkg/openapi/httphandler"
 	openapi "github.com/mutablelogic/go-server/pkg/openapi/schema"
 	otel "github.com/mutablelogic/go-server/pkg/otel"
@@ -54,20 +53,6 @@ func (s *RunServer) Register(fns ...RegisterFunc) *RunServer {
 // COMMANDS
 
 func (s *RunServer) Run(ctx server.Cmd) error {
-	v := ctx.Version()
-
-	// Build middleware chain: logger always first, OTel if configured
-	middleware := []httprouter.HTTPMiddlewareFunc{logger.NewMiddleware(ctx.Logger())}
-	if ctx.Tracer() != nil {
-		middleware = append(middleware, otel.HTTPHandlerFunc(ctx.Tracer()))
-	}
-
-	// Create the router
-	router, err := httprouter.NewRouter(ctx.Context(), ctx.HTTPPrefix(), s.HTTP.Origin, ctx.Name(), v, middleware...)
-	if err != nil {
-		return fmt.Errorf("router: %w", err)
-	}
-
 	// Build optional server options
 	var serverOpts []httpserver.Opt
 	if ctx.HTTPTimeout() > 0 {
@@ -78,7 +63,6 @@ func (s *RunServer) Run(ctx server.Cmd) error {
 	}
 
 	// Create TLS config optionally when either cert or key file is provided.
-	var tlsCfg *tls.Config
 	var data [][]byte
 	for _, field := range []string{s.TLS.CertFile, s.TLS.KeyFile} {
 		if field == "" {
@@ -90,10 +74,33 @@ func (s *RunServer) Run(ctx server.Cmd) error {
 			data = append(data, data_)
 		}
 	}
+
+	// Set the TLS server name
+	var tlsCfg *tls.Config
 	if len(data) > 0 {
+		var err error
 		if tlsCfg, err = httpserver.TLSConfig(s.TLS.ServerName, false, data...); err != nil {
 			return fmt.Errorf("tls: %w", err)
 		}
+	} else if s.TLS.ServerName != "" {
+		tlsCfg = &tls.Config{ServerName: s.TLS.ServerName}
+	}
+
+	// Create a new server and start listening. The server will run until the context is cancelled.
+	srv, err := httpserver.New(ctx.HTTPAddr(), tlsCfg, serverOpts...)
+	if err != nil {
+		return fmt.Errorf("httpserver: %w", err)
+	}
+
+	// Build middleware chain: OTel HTTP middleware which emits traces, logs and metrics
+	middleware := []httprouter.HTTPMiddlewareFunc{
+		otel.HTTPHandlerFunc(srv.URL().Host, ctx.Logger()),
+	}
+
+	// Create the router
+	router, err := httprouter.NewRouter(ctx.Context(), srv.Router(), ctx.HTTPPrefix(), s.HTTP.Origin, ctx.Name(), ctx.Version(), middleware...)
+	if err != nil {
+		return fmt.Errorf("router: %w", err)
 	}
 
 	// Register routes
@@ -110,18 +117,15 @@ func (s *RunServer) Run(ctx server.Cmd) error {
 		}
 	}
 
-	// Always register a catch-all 404 handler at "/"
-	if err := router.RegisterCatchAll(false); err != nil {
+	// Always register a catch-all 404 handler at "/" and at the prefix root (e.g. "/api")
+	if err := router.RegisterCatchAll("/", false); err != nil {
+		return fmt.Errorf("catchall: %w", err)
+	}
+	if err := router.RegisterCatchAll(ctx.HTTPPrefix(), false); err != nil {
 		return fmt.Errorf("catchall: %w", err)
 	}
 
-	// Create a new server and start listening. The server will run until the context is cancelled.
-	srv, err := httpserver.New(ctx.HTTPAddr(), router, tlsCfg, serverOpts...)
-	if err != nil {
-		return fmt.Errorf("httpserver: %w", err)
-	}
-
-	// Bind to the server's address to ensure it's available before registering the instance
+	// Bind to the server's address to ensure it's available
 	if err := srv.Listen(); err != nil {
 		return err
 	}
@@ -130,23 +134,14 @@ func (s *RunServer) Run(ctx server.Cmd) error {
 	// When a TLS server name is configured (e.g. behind a reverse proxy) it is
 	// used as the public hostname; otherwise the bound listen address is used.
 	if s.OpenAPI {
-		scheme := "http"
-		host := srv.Addr()
-		if tlsCfg != nil {
-			scheme = "https"
-		}
-		if s.TLS.ServerName != "" {
-			scheme = "https"
-			host = s.TLS.ServerName
-		}
 		router.Spec().SetSummary(ctx.Description())
 		router.Spec().SetServers([]openapi.Server{
-			{URL: fmt.Sprintf("%s://%s", scheme, host)},
+			{URL: srv.URL().String()},
 		})
 	}
 
 	// Report the server endpoint and version
-	ctx.Logger().InfoContext(ctx.Context(), "started", "name", ctx.Name(), "version", v, "endpoint", srv.Addr())
+	ctx.Logger().InfoContext(ctx.Context(), "started", "name", ctx.Name(), "version", ctx.Version(), "addr", srv.Addr(), "server", srv.URL().String(), "origin", s.HTTP.Origin, "prefix", ctx.HTTPPrefix())
 
 	// Run the server until the context is cancelled
 	eg, egCtx := errgroup.WithContext(ctx.Context())

@@ -114,7 +114,7 @@ func Test_ClientEndpoint(t *testing.T) {
 	}
 }
 
-// Test_Main_OTelError verifies that an invalid OTel endpoint causes Main to
+// Test_Main_OTelError verifies that an invalid OTel traces endpoint causes Main to
 // return an error (exercises the otel.NewProvider failure path).
 func Test_Main_OTelError(t *testing.T) {
 	type errCmds struct {
@@ -123,10 +123,10 @@ func Test_Main_OTelError(t *testing.T) {
 
 	orig := os.Args
 	t.Cleanup(func() { os.Args = orig })
-	os.Args = []string{"test", "--otel.endpoint", "not-a-valid-url", "run"}
+	os.Args = []string{"test", "--otel.traces-endpoint", "not-a-valid-url", "run"}
 
 	if err := Main(errCmds{}, "OTel error test", "v0"); err == nil {
-		t.Error("Main() expected an error for invalid OTel endpoint, got nil")
+		t.Error("Main() expected an error for invalid OTel traces endpoint, got nil")
 	}
 }
 

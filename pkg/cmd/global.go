@@ -34,9 +34,11 @@ type global struct {
 
 	// Open Telemetry options
 	OTel struct {
-		Endpoint string `env:"OTEL_EXPORTER_OTLP_ENDPOINT" help:"Open Telemetry endpoint" default:""`
-		Header   string `env:"OTEL_EXPORTER_OTLP_HEADERS" help:"OpenTelemetry collector headers"`
-		Name     string `env:"OTEL_SERVICE_NAME" help:"OpenTelemetry service name" default:"${EXECUTABLE_NAME}"`
+		TracesEndpoint  string `env:"OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,OTEL_EXPORTER_OTLP_ENDPOINT" help:"Open Telemetry traces endpoint" default:""`
+		LogEndpoint     string `env:"OTEL_EXPORTER_OTLP_LOGS_ENDPOINT,OTEL_EXPORTER_OTLP_ENDPOINT" help:"Open Telemetry logs endpoint" default:""`
+		MetricsEndpoint string `env:"OTEL_EXPORTER_OTLP_METRICS_ENDPOINT,OTEL_EXPORTER_OTLP_ENDPOINT" help:"Open Telemetry metrics endpoint" default:""`
+		Header          string `env:"OTEL_EXPORTER_OTLP_HEADERS" help:"OpenTelemetry collector headers"`
+		Name            string `env:"OTEL_SERVICE_NAME" help:"OpenTelemetry service name" default:"${EXECUTABLE_NAME}"`
 	} `embed:"" prefix:"otel."`
 
 	// Private fields
@@ -122,6 +124,10 @@ func (g *global) IsDebug() bool {
 }
 
 func (g *global) HTTPAddr() string {
+	return g.HTTP.Addr
+}
+
+func (g *global) ServerName() string {
 	return g.HTTP.Addr
 }
 

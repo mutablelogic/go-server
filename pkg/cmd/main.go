@@ -11,9 +11,10 @@ import (
 
 	// Packages
 	kong "github.com/alecthomas/kong"
-	otel "github.com/mutablelogic/go-client/pkg/otel"
 	server "github.com/mutablelogic/go-server"
 	logger "github.com/mutablelogic/go-server/pkg/logger"
+	otel "github.com/mutablelogic/go-server/pkg/otel"
+	otelslog "go.opentelemetry.io/contrib/bridges/otelslog"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -77,15 +78,31 @@ func Main[T any](cmds T, description, version string) error {
 	}
 
 	// Open Telemetry
-	if globals.OTel.Endpoint != "" {
-		provider, err := otel.NewProvider(globals.OTel.Endpoint, globals.OTel.Header, globals.OTel.Name)
+	if globals.OTel.TracesEndpoint != "" || globals.OTel.LogEndpoint != "" || globals.OTel.MetricsEndpoint != "" {
+		provider, err := otel.NewProvider(
+			globals.OTel.TracesEndpoint,
+			globals.OTel.MetricsEndpoint,
+			globals.OTel.LogEndpoint,
+			globals.OTel.Header,
+			globals.OTel.Name,
+		)
 		if err != nil {
 			return err
 		}
 		defer otel.ShutdownProvider(context.Background())
 
-		// Store tracer for creating spans
-		globals.tracer = provider.Tracer(globals.OTel.Name)
+		// Set the tracer for go-client
+		if globals.OTel.TracesEndpoint != "" {
+			globals.tracer = provider.Tracer(globals.OTel.Name)
+		}
+
+		// Tee the logging to both the OTel logger and the console logger
+		if globals.OTel.LogEndpoint != "" {
+			globals.logger = slog.New(logger.NewMultiHandler(
+				globals.logger.Handler(),
+				otelslog.NewHandler(globals.OTel.Name),
+			))
+		}
 	}
 
 	// Bind the global context to the server.Cmd interface for command Run() methods.
