@@ -48,9 +48,9 @@ var _ http.Handler = (*Router)(nil)
 //     enabled, with the origin added as a trusted CSRF origin)
 //
 // The title and version are used to create the OpenAPI spec for the router.
-func NewRouter(ctx context.Context, prefix, origin, title, version string, middleware ...HTTPMiddlewareFunc) (*Router, error) {
+func NewRouter(ctx context.Context, mux *http.ServeMux, prefix, origin, title, version string, middleware ...HTTPMiddlewareFunc) (*Router, error) {
 	router := new(Router)
-	router.mux = http.NewServeMux()
+	router.mux = mux
 	router.prefix = types.NormalisePath(prefix)
 	router.origin = origin
 	router.middleware = middlewareFuncs(middleware)
@@ -143,18 +143,14 @@ func (r *Router) safeHandle(pattern string, handler http.HandlerFunc) (err error
 // in the underlying ServeMux. Because http.ServeMux treats "/" as a catch-all
 // that matches any request not handled by a more-specific pattern, this ensures
 // unmatched requests return a JSON 404 instead of Go's plain-text response.
-//
-// The handler is registered without the router prefix so it applies globally.
-// If "/" is already registered the call is a no-op (no error is returned).
-// When middleware is true the handler is wrapped by the router's middleware chain.
-func (r *Router) RegisterCatchAll(middleware bool) error {
+func (r *Router) RegisterCatchAll(path string, middleware bool) error {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		_ = httpresponse.Error(w, httpresponse.ErrNotFound, req.RequestURI)
 	})
 	if middleware {
 		handler = r.middleware.Wrap(handler)
 	}
-	if err := r.safeHandle("/", handler); err != nil {
+	if err := r.safeHandle(types.NormalisePath(path), handler); err != nil {
 		if errors.Is(err, httpresponse.ErrConflict) {
 			return nil
 		}

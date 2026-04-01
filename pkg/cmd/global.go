@@ -127,6 +127,10 @@ func (g *global) HTTPAddr() string {
 	return g.HTTP.Addr
 }
 
+func (g *global) ServerName() string {
+	return g.HTTP.Addr
+}
+
 func (g *global) HTTPPrefix() string {
 	return g.HTTP.Prefix
 }

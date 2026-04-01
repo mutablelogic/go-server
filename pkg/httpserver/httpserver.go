@@ -6,20 +6,23 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
 
 	// Packages
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
+	"github.com/mutablelogic/go-server/pkg/types"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
 type server struct {
-	http     http.Server
-	listener net.Listener
+	http       http.Server
+	listener   net.Listener
+	serverName string
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -55,7 +58,7 @@ func ListenAddr(listen string, tls bool) string {
 	return listen
 }
 
-func New(listen string, router http.Handler, cert *tls.Config, opts ...Opt) (*server, error) {
+func New(listen string, tls *tls.Config, opts ...Opt) (*server, error) {
 	server := new(server)
 
 	// Apply options
@@ -65,54 +68,34 @@ func New(listen string, router http.Handler, cert *tls.Config, opts ...Opt) (*se
 	}
 
 	// Resolve the listen address
-	listen = ListenAddr(listen, cert != nil)
+	listen = ListenAddr(listen, tls != nil && len(tls.Certificates) > 0)
 
 	// Set other options
+	server.http.Handler = http.DefaultServeMux
 	server.http.Addr = listen
-	server.http.TLSConfig = cert
-	if opt.catchAll != nil {
-		server.http.Handler = catchAllHandler(router, opt.catchAll)
-	} else {
-		server.http.Handler = router
+	if len(tls.Certificates) > 0 {
+		server.http.TLSConfig = tls
 	}
 	server.http.WriteTimeout = opt.w
 	server.http.ReadTimeout = opt.r
 	server.http.IdleTimeout = opt.i
 
+	// Set server name from TLS config if available (used for telemetry, OpenAPI and auth issuer certs)
+	if tls != nil && tls.ServerName != "" {
+		server.serverName = strings.TrimSpace(tls.ServerName)
+	}
+
 	// Return success
 	return server, nil
 }
 
-// catchAllHandler wraps router so that 404 responses from the router are
-// delegated to fallback instead of returning Go's built-in plain text 404.
-func catchAllHandler(router http.Handler, fallback http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		rec := &statusRecorder{ResponseWriter: w}
-		router.ServeHTTP(rec, r)
-		if !rec.written {
-			fallback.ServeHTTP(w, r)
-		}
-	})
-}
-
-// statusRecorder captures whether the upstream handler wrote a response.
-type statusRecorder struct {
-	http.ResponseWriter
-	written bool
-}
-
-func (r *statusRecorder) WriteHeader(code int) {
-	r.written = true
-	r.ResponseWriter.WriteHeader(code)
-}
-
-func (r *statusRecorder) Write(b []byte) (int, error) {
-	r.written = true
-	return r.ResponseWriter.Write(b)
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
+
+// Router returns the server's http.ServeMux for registering handlers.
+func (server *server) Router() *http.ServeMux {
+	return server.http.Handler.(*http.ServeMux)
+}
 
 // Addr returns the listen address. After [Listen] has been called this
 // returns the actual bound address (which may differ from the configured
@@ -138,6 +121,18 @@ func (server *server) Listen() error {
 	}
 	server.listener = ln
 	return nil
+}
+
+func (server *server) URL() *url.URL {
+	var url url.URL
+	url.Scheme = defaultListenPortHttp
+	url.Path = "/"
+	url.Host = server.Addr()
+	if server.serverName != "" {
+		url.Scheme = defaultListenPortHttps
+		url.Host = server.serverName
+	}
+	return types.Ptr(url)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
