@@ -50,12 +50,13 @@ func HTTPHandler(serverName string, log *slog.Logger) func(http.Handler) http.Ha
 				"http.request.method", r.Method,
 				"http.response.status_code", status,
 				"http.response.status_text", statusText,
+				"http.response.body.size", wrapped.Size(),
 				"client.address", remoteAddr(r),
 				"url.full", r.URL.String(),
 				"url.path", r.URL.Path,
 				"url.query", r.URL.RawQuery,
 				"server.address", r.Host,
-				"http.response.body.size", wrapped.Size(),
+				"server.name", serverName,
 			}
 
 			if spanCtx := trace.SpanFromContext(r.Context()).SpanContext(); spanCtx.IsValid() {

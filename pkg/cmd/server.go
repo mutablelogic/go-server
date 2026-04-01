@@ -55,17 +55,6 @@ func (s *RunServer) Register(fns ...RegisterFunc) *RunServer {
 func (s *RunServer) Run(ctx server.Cmd) error {
 	v := ctx.Version()
 
-	// Build middleware chain: OTel HTTP middleware also emits request logs.
-	middleware := []httprouter.HTTPMiddlewareFunc{
-		otel.HTTPHandlerFunc(ctx.HTTPAddr(), ctx.Logger()),
-	}
-
-	// Create the router
-	router, err := httprouter.NewRouter(ctx.Context(), ctx.HTTPPrefix(), s.HTTP.Origin, ctx.Name(), v, middleware...)
-	if err != nil {
-		return fmt.Errorf("router: %w", err)
-	}
-
 	// Build optional server options
 	var serverOpts []httpserver.Opt
 	if ctx.HTTPTimeout() > 0 {
@@ -76,7 +65,6 @@ func (s *RunServer) Run(ctx server.Cmd) error {
 	}
 
 	// Create TLS config optionally when either cert or key file is provided.
-	var tlsCfg *tls.Config
 	var data [][]byte
 	for _, field := range []string{s.TLS.CertFile, s.TLS.KeyFile} {
 		if field == "" {
@@ -88,10 +76,33 @@ func (s *RunServer) Run(ctx server.Cmd) error {
 			data = append(data, data_)
 		}
 	}
+
+	// Set the TLS server name
+	var tlsCfg *tls.Config
 	if len(data) > 0 {
+		var err error
 		if tlsCfg, err = httpserver.TLSConfig(s.TLS.ServerName, false, data...); err != nil {
 			return fmt.Errorf("tls: %w", err)
 		}
+	} else if s.TLS.ServerName != "" {
+		tlsCfg = &tls.Config{ServerName: s.TLS.ServerName}
+	}
+
+	// Create a new server and start listening. The server will run until the context is cancelled.
+	srv, err := httpserver.New(ctx.HTTPAddr(), tlsCfg, serverOpts...)
+	if err != nil {
+		return fmt.Errorf("httpserver: %w", err)
+	}
+
+	// Build middleware chain: OTel HTTP middleware also emits request logs.
+	middleware := []httprouter.HTTPMiddlewareFunc{
+		otel.HTTPHandlerFunc(srv.URL().Host, ctx.Logger()),
+	}
+
+	// Create the router
+	router, err := httprouter.NewRouter(ctx.Context(), srv.Router(), ctx.HTTPPrefix(), s.HTTP.Origin, ctx.Name(), v, middleware...)
+	if err != nil {
+		return fmt.Errorf("router: %w", err)
 	}
 
 	// Register routes
@@ -113,12 +124,6 @@ func (s *RunServer) Run(ctx server.Cmd) error {
 		return fmt.Errorf("catchall: %w", err)
 	}
 
-	// Create a new server and start listening. The server will run until the context is cancelled.
-	srv, err := httpserver.New(ctx.HTTPAddr(), router, tlsCfg, serverOpts...)
-	if err != nil {
-		return fmt.Errorf("httpserver: %w", err)
-	}
-
 	// Bind to the server's address to ensure it's available before registering the instance
 	if err := srv.Listen(); err != nil {
 		return err
@@ -128,18 +133,9 @@ func (s *RunServer) Run(ctx server.Cmd) error {
 	// When a TLS server name is configured (e.g. behind a reverse proxy) it is
 	// used as the public hostname; otherwise the bound listen address is used.
 	if s.OpenAPI {
-		scheme := "http"
-		host := srv.Addr()
-		if tlsCfg != nil {
-			scheme = "https"
-		}
-		if s.TLS.ServerName != "" {
-			scheme = "https"
-			host = s.TLS.ServerName
-		}
 		router.Spec().SetSummary(ctx.Description())
 		router.Spec().SetServers([]openapi.Server{
-			{URL: fmt.Sprintf("%s://%s", scheme, host)},
+			{URL: srv.URL().String()},
 		})
 	}
 

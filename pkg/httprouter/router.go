@@ -48,9 +48,9 @@ var _ http.Handler = (*Router)(nil)
 //     enabled, with the origin added as a trusted CSRF origin)
 //
 // The title and version are used to create the OpenAPI spec for the router.
-func NewRouter(ctx context.Context, prefix, origin, title, version string, middleware ...HTTPMiddlewareFunc) (*Router, error) {
+func NewRouter(ctx context.Context, mux *http.ServeMux, prefix, origin, title, version string, middleware ...HTTPMiddlewareFunc) (*Router, error) {
 	router := new(Router)
-	router.mux = http.NewServeMux()
+	router.mux = mux
 	router.prefix = types.NormalisePath(prefix)
 	router.origin = origin
 	router.middleware = middlewareFuncs(middleware)
