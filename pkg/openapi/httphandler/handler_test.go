@@ -16,7 +16,7 @@ import (
 
 func newRouter(t *testing.T) *httprouter.Router {
 	t.Helper()
-	router, err := httprouter.NewRouter(context.Background(), "/api", "", "Test API", "v1")
+	router, err := httprouter.NewRouter(context.Background(), http.NewServeMux(), "/api", "", "Test API", "v1")
 	if err != nil {
 		t.Fatalf("NewRouter: %v", err)
 	}
@@ -25,7 +25,7 @@ func newRouter(t *testing.T) *httprouter.Router {
 
 func Test_RegisterHandler_JSON(t *testing.T) {
 	router := newRouter(t)
-	if err := httphandler.RegisterHandler(router, false); err != nil {
+	if err := httphandler.RegisterHandler(router); err != nil {
 		t.Fatalf("RegisterHandler: %v", err)
 	}
 
@@ -51,7 +51,7 @@ func Test_RegisterHandler_JSON(t *testing.T) {
 
 func Test_RegisterHandler_YAML(t *testing.T) {
 	router := newRouter(t)
-	if err := httphandler.RegisterHandler(router, false); err != nil {
+	if err := httphandler.RegisterHandler(router); err != nil {
 		t.Fatalf("RegisterHandler: %v", err)
 	}
 
@@ -77,7 +77,7 @@ func Test_RegisterHandler_YAML(t *testing.T) {
 
 func Test_RegisterHandler_MethodNotAllowed(t *testing.T) {
 	router := newRouter(t)
-	if err := httphandler.RegisterHandler(router, false); err != nil {
+	if err := httphandler.RegisterHandler(router); err != nil {
 		t.Fatalf("RegisterHandler: %v", err)
 	}
 
@@ -95,17 +95,17 @@ func Test_RegisterHandler_MethodNotAllowed(t *testing.T) {
 
 func Test_RegisterHandler_Duplicate(t *testing.T) {
 	router := newRouter(t)
-	if err := httphandler.RegisterHandler(router, false); err != nil {
+	if err := httphandler.RegisterHandler(router); err != nil {
 		t.Fatalf("first RegisterHandler: %v", err)
 	}
-	if err := httphandler.RegisterHandler(router, false); err == nil {
+	if err := httphandler.RegisterHandler(router); err == nil {
 		t.Error("second RegisterHandler should return an error for duplicate paths, got nil")
 	}
 }
 
 func Test_RegisterHandler_HTML(t *testing.T) {
 	router := newRouter(t)
-	if err := httphandler.RegisterHandler(router, false); err != nil {
+	if err := httphandler.RegisterHandler(router); err != nil {
 		t.Fatalf("RegisterHandler: %v", err)
 	}
 

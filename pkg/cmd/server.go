@@ -112,7 +112,7 @@ func (s *RunServer) Run(ctx server.Cmd) error {
 
 	// Register OpenAPI spec endpoints if enabled
 	if s.OpenAPI {
-		if err := openapihttphandler.RegisterHandler(router, false); err != nil {
+		if err := openapihttphandler.RegisterHandler(router); err != nil {
 			return fmt.Errorf("openapi: %w", err)
 		}
 	}

@@ -14,7 +14,8 @@ import (
 	// Packages
 	httprequest "github.com/mutablelogic/go-server/pkg/httprequest"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
-	"github.com/mutablelogic/go-server/pkg/jsonschema"
+	jsonschema "github.com/mutablelogic/go-server/pkg/jsonschema"
+	openapi_ops "github.com/mutablelogic/go-server/pkg/openapi"
 	openapi "github.com/mutablelogic/go-server/pkg/openapi/schema"
 	types "github.com/mutablelogic/go-server/pkg/types"
 )
@@ -32,6 +33,7 @@ type Router struct {
 	middleware middlewareFuncs
 	handler    http.Handler
 	spec       *openapi.Spec
+	security   map[string]SecurityScheme
 }
 
 var _ http.Handler = (*Router)(nil)
@@ -49,11 +51,16 @@ var _ http.Handler = (*Router)(nil)
 //
 // The title and version are used to create the OpenAPI spec for the router.
 func NewRouter(ctx context.Context, mux *http.ServeMux, prefix, origin, title, version string, middleware ...HTTPMiddlewareFunc) (*Router, error) {
+	if mux == nil {
+		return nil, httpresponse.ErrBadRequest.With("mux is nil")
+	}
+
 	router := new(Router)
 	router.mux = mux
 	router.prefix = types.NormalisePath(prefix)
 	router.origin = origin
 	router.middleware = middlewareFuncs(middleware)
+	router.security = make(map[string]SecurityScheme)
 
 	// Create a new OpenAPI spec
 	router.spec = openapi.NewSpec(title, version)
@@ -205,15 +212,42 @@ func (r *Router) RegisterFS(path string, fs fs.FS, middleware bool, spec *openap
 }
 
 // RegisterPath registers a [PathItem] handler at path. If path is relative
-// the router prefix is prepended. The handler is always wrapped by the
-// router's middleware chain.
+// the router prefix is prepended. Any security schemes referenced by the
+// path item's OpenAPI operations must already be registered on the router;
+// matching handlers are wrapped with those security schemes before the
+// router's middleware chain is applied.
 func (r *Router) RegisterPath(path string, params *jsonschema.Schema, pathitem httprequest.PathItem) error {
 	// Resolve the path with the router prefix
 	path = r.resolvePath(path)
 
 	// OpenAPI spec is optional, but if provided, add the path to the spec
+	// and wrap per-method handlers with their security requirements
 	spec := pathitem.Spec(path, params)
 	if spec != nil {
+		var registerErr error
+
+		// Look at security requirements for each operation and apply any
+		// corresponding middleware to the per-method handler
+		openapi_ops.Operations(spec, func(method string, op *openapi.Operation) {
+			if registerErr != nil {
+				return
+			}
+			for _, requirement := range op.Security {
+				for name, scopes := range requirement {
+					scheme, ok := r.security[name]
+					if !ok {
+						registerErr = httpresponse.ErrNotImplemented.Withf("security scheme %q not registered for %s %s", name, method, path)
+						return
+					}
+					pathitem.WrapHandler(method, func(next http.HandlerFunc) http.HandlerFunc {
+						return scheme.Wrap(next, scopes)
+					})
+				}
+			}
+		})
+		if registerErr != nil {
+			return registerErr
+		}
 		r.spec.AddPath(path, spec)
 	}
 
@@ -225,28 +259,4 @@ func (r *Router) RegisterPath(path string, params *jsonschema.Schema, pathitem h
 
 	// Register the handler
 	return r.safeHandle(path, r.middleware.Wrap(handler))
-}
-
-// RegisterFunc registers handler at path. The path should not include an HTTP
-// method; the handler itself is responsible for differentiating between methods.
-// If path is relative (does not start with "/") the router prefix is prepended;
-// if path is absolute it is used as-is.
-//
-// When spec is non-nil the corresponding [openapi.PathItem] is added to the
-// router's OpenAPI specification under the resolved path. When middleware is
-// true the handler is wrapped by the router's middleware chain.
-func (r *Router) RegisterFunc(path string, handler http.HandlerFunc, middleware bool, spec *openapi.PathItem) error {
-	// OpenAPI spec is optional, but if provided, add the path to the spec
-	path = r.resolvePath(path)
-	if spec != nil {
-		r.spec.AddPath(path, spec)
-	}
-
-	// Optionally add middleware to the handler, and register the handler
-	if middleware {
-		handler = r.middleware.Wrap(handler)
-	}
-
-	// Register the handler
-	return r.safeHandle(path, handler)
 }
