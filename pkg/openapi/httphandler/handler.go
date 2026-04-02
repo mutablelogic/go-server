@@ -30,13 +30,21 @@ const (
 // All other HTTP methods return 405 Method Not Allowed. When middleware is
 // true the handlers are wrapped by the router's middleware chain.
 func RegisterHandler(router *httprouter.Router, middleware bool) error {
-	if err := router.RegisterFunc(pathJSON, jsonHandler(router), middleware, nil); err != nil {
+	_ = middleware
+
+	if err := router.RegisterPath(pathJSON, nil,
+		httprequest.NewPathItem("OpenAPI JSON", "Serve the OpenAPI specification as JSON").Get(jsonHandler(router), "Get OpenAPI JSON"),
+	); err != nil {
 		return err
 	}
-	if err := router.RegisterFunc(pathYAML, yamlHandler(router), middleware, nil); err != nil {
+	if err := router.RegisterPath(pathYAML, nil,
+		httprequest.NewPathItem("OpenAPI YAML", "Serve the OpenAPI specification as YAML").Get(yamlHandler(router), "Get OpenAPI YAML"),
+	); err != nil {
 		return err
 	}
-	return router.RegisterFunc(pathHTML, htmlHandler(), middleware, nil)
+	return router.RegisterPath(pathHTML, nil,
+		httprequest.NewPathItem("OpenAPI HTML", "Serve the OpenAPI documentation UI").Get(htmlHandler(), "Get OpenAPI HTML"),
+	)
 }
 
 func jsonHandler(router *httprouter.Router) http.HandlerFunc {

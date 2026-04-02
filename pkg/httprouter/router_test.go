@@ -10,17 +10,26 @@ import (
 	"testing/fstest"
 
 	// Packages
+	httprequest "github.com/mutablelogic/go-server/pkg/httprequest"
 	jsonschema "github.com/mutablelogic/go-server/pkg/jsonschema"
 	openapi "github.com/mutablelogic/go-server/pkg/openapi/schema"
 	assert "github.com/stretchr/testify/assert"
 )
 
+func newTestRouter(t *testing.T, prefix, origin string, middleware ...HTTPMiddlewareFunc) *Router {
+	t.Helper()
+	router, err := NewRouter(context.Background(), http.NewServeMux(), prefix, origin, "Test API", "1.0.0", middleware...)
+	if err != nil {
+		t.Fatalf("NewRouter: %v", err)
+	}
+	return router
+}
+
 func Test_Router_001(t *testing.T) {
 	assert := assert.New(t)
 
 	// Create a new router with no origin
-	router, err := NewRouter(context.Background(), "/", "", "Test API", "1.0.0")
-	assert.NoError(err)
+	router := newTestRouter(t, "/", "")
 	assert.NotNil(router)
 }
 
@@ -28,8 +37,7 @@ func Test_Router_002(t *testing.T) {
 	assert := assert.New(t)
 
 	// Create a new router with wildcard origin
-	router, err := NewRouter(context.Background(), "/", "*", "Test API", "1.0.0")
-	assert.NoError(err)
+	router := newTestRouter(t, "/", "*")
 	assert.NotNil(router)
 	assert.Equal("*", router.Origin())
 }
@@ -38,8 +46,7 @@ func Test_Router_003(t *testing.T) {
 	assert := assert.New(t)
 
 	// Create a new router with a specific origin
-	router, err := NewRouter(context.Background(), "/", "https://example.com", "Test API", "1.0.0")
-	assert.NoError(err)
+	router := newTestRouter(t, "/", "https://example.com")
 	assert.NotNil(router)
 	assert.Equal("https://example.com", router.Origin())
 }
@@ -48,16 +55,15 @@ func Test_Router_004(t *testing.T) {
 	assert := assert.New(t)
 
 	// Create a new router with an invalid origin
-	_, err := NewRouter(context.Background(), "/", "not-a-valid-origin", "Test API", "1.0.0")
+	_, err := NewRouter(context.Background(), http.NewServeMux(), "/", "not-a-valid-origin", "Test API", "1.0.0")
 	assert.Error(err)
 }
 
 func Test_RegisterCatchAll_001(t *testing.T) {
 	assert := assert.New(t)
 
-	router, err := NewRouter(context.Background(), "/", "", "Test API", "1.0.0")
-	assert.NoError(err)
-	assert.NoError(router.RegisterCatchAll(false))
+	router := newTestRouter(t, "/", "")
+	assert.NoError(router.RegisterCatchAll("/", false))
 
 	// Request a path that doesn't match any specific handler
 	req := httptest.NewRequest(http.MethodGet, "/unknown-path", nil)
@@ -70,8 +76,7 @@ func Test_RegisterCatchAll_001(t *testing.T) {
 func Test_RegisterOpenAPI_001(t *testing.T) {
 	assert := assert.New(t)
 
-	router, err := NewRouter(context.Background(), "/", "", "Test API", "1.0.0")
-	assert.NoError(err)
+	router := newTestRouter(t, "/", "")
 	assert.NoError(router.RegisterOpenAPI("/api/v1", false))
 
 	// GET should return the OpenAPI spec as JSON
@@ -84,7 +89,7 @@ func Test_RegisterOpenAPI_001(t *testing.T) {
 
 	// Decode the response body and check the spec
 	var spec map[string]any
-	err = json.Unmarshal(rec.Body.Bytes(), &spec)
+	err := json.Unmarshal(rec.Body.Bytes(), &spec)
 	assert.NoError(err)
 	assert.Equal("3.1.1", spec["openapi"])
 
@@ -97,8 +102,7 @@ func Test_RegisterOpenAPI_001(t *testing.T) {
 func Test_RegisterOpenAPI_002(t *testing.T) {
 	assert := assert.New(t)
 
-	router, err := NewRouter(context.Background(), "/", "", "Test API", "1.0.0")
-	assert.NoError(err)
+	router := newTestRouter(t, "/", "")
 	assert.NoError(router.RegisterOpenAPI("/api/v1", false))
 
 	// POST should return method not allowed
@@ -112,8 +116,7 @@ func Test_RegisterOpenAPI_002(t *testing.T) {
 func Test_RegisterFS_001(t *testing.T) {
 	assert := assert.New(t)
 
-	router, err := NewRouter(context.Background(), "/", "", "Test API", "1.0.0")
-	assert.NoError(err)
+	router := newTestRouter(t, "/", "")
 
 	// Create an in-memory filesystem with a test file
 	fsys := fstest.MapFS{
@@ -132,17 +135,17 @@ func Test_RegisterFS_001(t *testing.T) {
 	assert.Contains(rec.Body.String(), "Hello")
 }
 
-func Test_RegisterFunc_001(t *testing.T) {
+func Test_RegisterPath_UsingGet_001(t *testing.T) {
 	assert := assert.New(t)
 
-	router, err := NewRouter(context.Background(), "/", "", "Test API", "1.0.0")
-	assert.NoError(err)
+	router := newTestRouter(t, "/", "")
 
-	// Register a custom handler
-	assert.NoError(router.RegisterFunc("/hello", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	item := httprequest.NewPathItem("Hello", "Hello route")
+	item.Get(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("hello world"))
-	}), false, nil))
+		_, _ = w.Write([]byte("hello world"))
+	}, "Get hello")
+	assert.NoError(router.RegisterPath("/hello", nil, item))
 
 	// Request the handler
 	req := httptest.NewRequest(http.MethodGet, "/hello", nil)
@@ -153,7 +156,7 @@ func Test_RegisterFunc_001(t *testing.T) {
 	assert.Equal("hello world", rec.Body.String())
 }
 
-func Test_RegisterFunc_002(t *testing.T) {
+func Test_RegisterPath_UsingGet_002(t *testing.T) {
 	assert := assert.New(t)
 
 	// Create a router with middleware that adds a custom header
@@ -164,13 +167,13 @@ func Test_RegisterFunc_002(t *testing.T) {
 		}
 	}
 
-	router, err := NewRouter(context.Background(), "/", "", "Test API", "1.0.0", mw)
-	assert.NoError(err)
+	router := newTestRouter(t, "/", "", mw)
 
-	// Register a handler with middleware enabled
-	assert.NoError(router.RegisterFunc("/hello", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	item := httprequest.NewPathItem("Hello", "Hello route")
+	item.Get(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-	}), true, nil))
+	}, "Get hello")
+	assert.NoError(router.RegisterPath("/hello", nil, item))
 
 	req := httptest.NewRequest(http.MethodGet, "/hello", nil)
 	rec := httptest.NewRecorder()
@@ -180,18 +183,19 @@ func Test_RegisterFunc_002(t *testing.T) {
 	assert.Equal("middleware", rec.Header().Get("X-Test"))
 }
 
-func Test_RegisterFunc_003(t *testing.T) {
+func Test_RegisterPath_UsingGet_003(t *testing.T) {
 	assert := assert.New(t)
 
 	// Create a router with a prefix
-	router, err := NewRouter(context.Background(), "/api/v1", "", "Test API", "1.0.0")
-	assert.NoError(err)
+	router := newTestRouter(t, "/api/v1", "")
 
 	// Register a relative path - should be joined with the prefix
-	assert.NoError(router.RegisterFunc("items", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	item := httprequest.NewPathItem("Items", "Items route")
+	item.Get(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("items"))
-	}), false, nil))
+		_, _ = w.Write([]byte("items"))
+	}, "Get items")
+	assert.NoError(router.RegisterPath("items", nil, item))
 
 	// Request using the full prefixed path
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/items", nil)
@@ -202,18 +206,19 @@ func Test_RegisterFunc_003(t *testing.T) {
 	assert.Equal("items", rec.Body.String())
 }
 
-func Test_RegisterFunc_004(t *testing.T) {
+func Test_RegisterPath_UsingGet_004(t *testing.T) {
 	assert := assert.New(t)
 
 	// Create a router with a prefix
-	router, err := NewRouter(context.Background(), "/api/v1", "", "Test API", "1.0.0")
-	assert.NoError(err)
+	router := newTestRouter(t, "/api/v1", "")
 
 	// Register an absolute path - prefix should not be prepended
-	assert.NoError(router.RegisterFunc("/health", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	item := httprequest.NewPathItem("Health", "Health route")
+	item.Get(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("ok"))
-	}), false, nil))
+		_, _ = w.Write([]byte("ok"))
+	}, "Get health")
+	assert.NoError(router.RegisterPath("/health", nil, item))
 
 	// Request at the absolute path, not under the prefix
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
@@ -234,13 +239,17 @@ func (m *mockPathItem) Handler() http.HandlerFunc { return m.handler }
 func (m *mockPathItem) Spec(path string, params *jsonschema.Schema) *openapi.PathItem {
 	return m.spec
 }
+func (m *mockPathItem) WrapHandler(method string, fn func(http.HandlerFunc) http.HandlerFunc) {
+	if m.handler != nil {
+		m.handler = fn(m.handler)
+	}
+}
 
 func Test_RegisterPath_001(t *testing.T) {
 	assert := assert.New(t)
 
 	// RegisterPath with a relative path joins the prefix
-	router, err := NewRouter(context.Background(), "/api/v1", "", "Test API", "1.0.0")
-	assert.NoError(err)
+	router := newTestRouter(t, "/api/v1", "")
 
 	called := false
 	item := &mockPathItem{
@@ -264,8 +273,7 @@ func Test_RegisterPath_002(t *testing.T) {
 	assert := assert.New(t)
 
 	// RegisterPath with an absolute path ignores the prefix
-	router, err := NewRouter(context.Background(), "/api/v1", "", "Test API", "1.0.0")
-	assert.NoError(err)
+	router := newTestRouter(t, "/api/v1", "")
 
 	item := &mockPathItem{
 		handler: func(w http.ResponseWriter, r *http.Request) {
@@ -287,8 +295,7 @@ func Test_RegisterPath_003(t *testing.T) {
 	assert := assert.New(t)
 
 	// RegisterPath adds spec to the OpenAPI document
-	router, err := NewRouter(context.Background(), "/api", "", "Test API", "1.0.0")
-	assert.NoError(err)
+	router := newTestRouter(t, "/api", "")
 
 	item := &mockPathItem{
 		handler: func(w http.ResponseWriter, r *http.Request) {
@@ -320,11 +327,10 @@ func Test_RegisterPath_004(t *testing.T) {
 	assert := assert.New(t)
 
 	// RegisterPath with nil handler returns an error
-	router, err := NewRouter(context.Background(), "/", "", "Test API", "1.0.0")
-	assert.NoError(err)
+	router := newTestRouter(t, "/", "")
 
 	item := &mockPathItem{handler: nil}
-	err = router.RegisterPath("broken", nil, item)
+	err := router.RegisterPath("broken", nil, item)
 	assert.Error(err)
 }
 
@@ -339,8 +345,7 @@ func Test_RegisterPath_005(t *testing.T) {
 		}
 	}
 
-	router, err := NewRouter(context.Background(), "/", "", "Test API", "1.0.0", mw)
-	assert.NoError(err)
+	router := newTestRouter(t, "/", "", mw)
 
 	item := &mockPathItem{
 		handler: func(w http.ResponseWriter, r *http.Request) {

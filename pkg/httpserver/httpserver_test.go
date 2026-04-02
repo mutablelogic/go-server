@@ -98,19 +98,19 @@ func Test_Server_001(t *testing.T) {
 	assert := assert.New(t)
 
 	t.Run("1", func(t *testing.T) {
-		server, err := httpserver.New(":8080", nil, nil)
+		server, err := httpserver.New(":8080", nil)
 		if assert.NoError(err) {
 			assert.NotNil(server)
 		}
 	})
 	t.Run("2", func(t *testing.T) {
-		server, err := httpserver.New("", nil, nil)
+		server, err := httpserver.New("", nil)
 		if assert.NoError(err) {
 			assert.NotNil(server)
 		}
 	})
 	t.Run("3", func(t *testing.T) {
-		server, err := httpserver.New("", nil, &tls.Config{})
+		server, err := httpserver.New("", &tls.Config{})
 		if assert.NoError(err) {
 			assert.NotNil(server)
 		}
@@ -167,7 +167,7 @@ func Test_Options_001(t *testing.T) {
 	assert := assert.New(t)
 
 	// WithReadTimeout applies
-	s, err := httpserver.New(":0", nil, nil, httpserver.WithReadTimeout(10*time.Second))
+	s, err := httpserver.New(":0", nil, httpserver.WithReadTimeout(10*time.Second))
 	assert.NoError(err)
 	assert.NotNil(s)
 }
@@ -176,7 +176,7 @@ func Test_Options_002(t *testing.T) {
 	assert := assert.New(t)
 
 	// WithWriteTimeout applies
-	s, err := httpserver.New(":0", nil, nil, httpserver.WithWriteTimeout(15*time.Second))
+	s, err := httpserver.New(":0", nil, httpserver.WithWriteTimeout(15*time.Second))
 	assert.NoError(err)
 	assert.NotNil(s)
 }
@@ -185,7 +185,7 @@ func Test_Options_003(t *testing.T) {
 	assert := assert.New(t)
 
 	// WithIdleTimeout applies
-	s, err := httpserver.New(":0", nil, nil, httpserver.WithIdleTimeout(20*time.Second))
+	s, err := httpserver.New(":0", nil, httpserver.WithIdleTimeout(20*time.Second))
 	assert.NoError(err)
 	assert.NotNil(s)
 }
@@ -194,7 +194,7 @@ func Test_Options_004(t *testing.T) {
 	assert := assert.New(t)
 
 	// Zero-value durations do not override defaults (no panic)
-	s, err := httpserver.New(":0", nil, nil,
+	s, err := httpserver.New(":0", nil,
 		httpserver.WithReadTimeout(0),
 		httpserver.WithWriteTimeout(0),
 		httpserver.WithIdleTimeout(0),
@@ -338,7 +338,7 @@ func Test_Listen_001(t *testing.T) {
 	assert := assert.New(t)
 
 	// Listen on :0 succeeds and Addr returns a real port
-	s, err := httpserver.New(":0", nil, nil)
+	s, err := httpserver.New(":0", nil)
 	assert.NoError(err)
 	assert.NoError(s.Listen())
 
@@ -356,7 +356,7 @@ func Test_Listen_002(t *testing.T) {
 	assert := assert.New(t)
 
 	// Before Listen, Addr returns the configured address
-	s, err := httpserver.New("localhost:9999", nil, nil)
+	s, err := httpserver.New("localhost:9999", nil)
 	assert.NoError(err)
 	assert.Equal("localhost:9999", s.Addr())
 }
@@ -374,8 +374,9 @@ func Test_Run_001(t *testing.T) {
 		w.Write([]byte("pong"))
 	})
 
-	s, err := httpserver.New(":0", mux, nil)
+	s, err := httpserver.New(":0", nil)
 	assert.NoError(err)
+	s.Router().Handle("/ping", mux)
 	assert.NoError(s.Listen())
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -414,8 +415,9 @@ func Test_Run_002(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	s, err := httpserver.New(":0", mux, tlsCfg)
+	s, err := httpserver.New(":0", tlsCfg)
 	assert.NoError(err)
+	s.Router().Handle("/secure", mux)
 	assert.NoError(s.Listen())
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -446,7 +448,7 @@ func Test_Run_003(t *testing.T) {
 	assert := assert.New(t)
 
 	// Immediate cancel still returns cleanly
-	s, err := httpserver.New(":0", nil, nil)
+	s, err := httpserver.New(":0", nil)
 	assert.NoError(err)
 	assert.NoError(s.Listen())
 

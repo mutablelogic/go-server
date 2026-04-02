@@ -16,7 +16,7 @@ import (
 
 func newRouter(t *testing.T) *httprouter.Router {
 	t.Helper()
-	router, err := httprouter.NewRouter(context.Background(), "/api", "", "Test API", "v1")
+	router, err := httprouter.NewRouter(context.Background(), http.NewServeMux(), "/api", "", "Test API", "v1")
 	if err != nil {
 		t.Fatalf("NewRouter: %v", err)
 	}

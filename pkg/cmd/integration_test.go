@@ -12,6 +12,7 @@ import (
 	"time"
 
 	// Packages
+	httprequest "github.com/mutablelogic/go-server/pkg/httprequest"
 	httprouter "github.com/mutablelogic/go-server/pkg/httprouter"
 	otel "go.opentelemetry.io/otel"
 )
@@ -108,9 +109,11 @@ func Test_RunServer_Run_Register(t *testing.T) {
 	g := newTestGlobal(t, addr)
 	s := &RunServer{}
 	s.Register(func(router *httprouter.Router) error {
-		return router.RegisterFunc("ping", func(w http.ResponseWriter, r *http.Request) {
+		item := httprequest.NewPathItem("Ping", "Integration test ping route")
+		item.Get(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusNoContent)
-		}, false, nil)
+		}, "Get ping")
+		return router.RegisterPath("ping", nil, item)
 	})
 
 	errCh := make(chan error, 1)

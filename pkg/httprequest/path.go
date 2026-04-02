@@ -21,6 +21,11 @@ type PathItem interface {
 
 	// Spec returns the openapi.PathItem for a path with optional path parameters
 	Spec(string, *jsonschema.Schema) *openapi.PathItem
+
+	// WrapHandler wraps the handler for a specific HTTP method with middleware.
+	// The method should be an uppercase HTTP method name (GET, POST, etc.).
+	// If no handler is registered for the method, the call is a no-op.
+	WrapHandler(method string, fn func(http.HandlerFunc) http.HandlerFunc)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -74,6 +79,13 @@ func (p *pathitem) Handler() http.HandlerFunc {
 func (p *pathitem) Spec(path string, params *jsonschema.Schema) *openapi.PathItem {
 	p.spec.Parameters = parametersFromPath(path, params)
 	return types.Ptr(p.spec)
+}
+
+// WrapHandler wraps the handler for a specific HTTP method with the given middleware function.
+func (p *pathitem) WrapHandler(method string, fn func(http.HandlerFunc) http.HandlerFunc) {
+	if h, ok := p.handlers[method]; ok && h != nil {
+		p.handlers[method] = fn(h)
+	}
 }
 
 // Get registers a GET handler with the given summary and operation options.
