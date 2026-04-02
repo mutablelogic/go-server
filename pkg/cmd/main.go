@@ -100,7 +100,7 @@ func Main[T any](cmds T, description, version string) error {
 		if globals.OTel.LogEndpoint != "" {
 			globals.logger = slog.New(logger.NewMultiHandler(
 				globals.logger.Handler(),
-				otelslog.NewHandler(globals.OTel.Name),
+				logger.NewLevelHandler(otelslog.NewHandler(globals.OTel.Name), &level),
 			))
 		}
 	}
