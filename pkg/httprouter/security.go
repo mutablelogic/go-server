@@ -1,6 +1,7 @@
 package httprouter
 
 import (
+	"fmt"
 	"net/http"
 
 	// Packages
@@ -17,4 +18,15 @@ type SecurityScheme interface {
 
 	// Spec returns the openapi.PathItem for a path with optional path parameters
 	Spec() openapi.SecurityScheme
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS
+
+// RegisterSecurityScheme registers a security scheme with the router. The scheme
+// can then be referenced in the OpenAPI spec by name.
+func (r *Router) RegisterSecurityScheme(name string, scheme SecurityScheme) error {
+	// TODO
+	fmt.Println("Registering securityscheme (TODO)")
+	return nil
 }
