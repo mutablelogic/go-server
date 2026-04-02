@@ -6,12 +6,14 @@ import (
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"testing/fstest"
 
 	// Packages
 	httprequest "github.com/mutablelogic/go-server/pkg/httprequest"
 	jsonschema "github.com/mutablelogic/go-server/pkg/jsonschema"
+	openapi_op "github.com/mutablelogic/go-server/pkg/openapi"
 	openapi "github.com/mutablelogic/go-server/pkg/openapi/schema"
 	assert "github.com/stretchr/testify/assert"
 )
@@ -235,6 +237,8 @@ type mockPathItem struct {
 	spec    *openapi.PathItem
 }
 
+type testSecurityScheme struct{}
+
 func (m *mockPathItem) Handler() http.HandlerFunc { return m.handler }
 func (m *mockPathItem) Spec(path string, params *jsonschema.Schema) *openapi.PathItem {
 	return m.spec
@@ -243,6 +247,17 @@ func (m *mockPathItem) WrapHandler(method string, fn func(http.HandlerFunc) http
 	if m.handler != nil {
 		m.handler = fn(m.handler)
 	}
+}
+
+func (testSecurityScheme) Wrap(handler http.HandlerFunc, scopes []string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Security-Scopes", strings.Join(scopes, ","))
+		handler(w, r)
+	}
+}
+
+func (testSecurityScheme) Spec() openapi.SecurityScheme {
+	return openapi.SecurityScheme{Type: "http", Scheme: "bearer"}
 }
 
 func Test_RegisterPath_001(t *testing.T) {
@@ -360,4 +375,40 @@ func Test_RegisterPath_005(t *testing.T) {
 
 	assert.Equal(http.StatusOK, rec.Code)
 	assert.Equal("middleware", rec.Header().Get("X-Test"))
+}
+
+func Test_RegisterPath_006(t *testing.T) {
+	assert := assert.New(t)
+
+	router := newTestRouter(t, "/", "")
+	assert.NoError(router.RegisterSecurityScheme("bearerAuth", testSecurityScheme{}))
+
+	item := httprequest.NewPathItem("Secure", "Secure route")
+	item.Get(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}, "Get secure route", openapi_op.WithSecurity("bearerAuth", "read"))
+
+	assert.NoError(router.RegisterPath("secure", nil, item))
+
+	req := httptest.NewRequest(http.MethodGet, "/secure", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	assert.Equal(http.StatusNoContent, rec.Code)
+	assert.Equal("read", rec.Header().Get("X-Security-Scopes"))
+}
+
+func Test_RegisterPath_007(t *testing.T) {
+	assert := assert.New(t)
+
+	router := newTestRouter(t, "/", "")
+
+	item := httprequest.NewPathItem("Secure", "Secure route")
+	item.Get(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}, "Get secure route", openapi_op.WithSecurity("missingAuth", "read"))
+
+	err := router.RegisterPath("secure", nil, item)
+	assert.Error(err)
+	assert.Contains(err.Error(), "security scheme \"missingAuth\" not registered")
 }

@@ -208,8 +208,10 @@ func (r *Router) RegisterFS(path string, fs fs.FS, middleware bool, spec *openap
 }
 
 // RegisterPath registers a [PathItem] handler at path. If path is relative
-// the router prefix is prepended. The handler is always wrapped by the
-// router's middleware chain.
+// the router prefix is prepended. Any security schemes referenced by the
+// path item's OpenAPI operations must already be registered on the router;
+// matching handlers are wrapped with those security schemes before the
+// router's middleware chain is applied.
 func (r *Router) RegisterPath(path string, params *jsonschema.Schema, pathitem httprequest.PathItem) error {
 	// Resolve the path with the router prefix
 	path = r.resolvePath(path)
@@ -219,20 +221,27 @@ func (r *Router) RegisterPath(path string, params *jsonschema.Schema, pathitem h
 	spec := pathitem.Spec(path, params)
 	if spec != nil {
 		r.spec.AddPath(path, spec)
+		var registerErr error
 
 		// Look at security requirements for each operation and apply any
 		// corresponding middleware to the per-method handler
 		openapi_ops.Operations(spec, func(method string, op *openapi.Operation) {
 			for _, requirement := range op.Security {
 				for name, scopes := range requirement {
-					if scheme, ok := r.security[name]; ok {
-						pathitem.WrapHandler(method, func(next http.HandlerFunc) http.HandlerFunc {
-							return scheme.Wrap(next, scopes)
-						})
+					scheme, ok := r.security[name]
+					if !ok {
+						registerErr = httpresponse.ErrNotImplemented.Withf("security scheme %q not registered for %s %s", name, method, path)
+						return
 					}
+					pathitem.WrapHandler(method, func(next http.HandlerFunc) http.HandlerFunc {
+						return scheme.Wrap(next, scopes)
+					})
 				}
 			}
 		})
+		if registerErr != nil {
+			return registerErr
+		}
 	}
 
 	// Get handler or fall back to method-not-allowed

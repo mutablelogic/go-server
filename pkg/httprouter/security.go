@@ -32,6 +32,5 @@ func (r *Router) RegisterSecurityScheme(name string, scheme SecurityScheme) erro
 
 	r.spec.AddSecurityScheme(name, scheme.Spec())
 	r.security[name] = scheme
-
 	return nil
 }
