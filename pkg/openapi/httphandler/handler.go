@@ -22,16 +22,10 @@ const (
 
 // RegisterHandler registers GET handlers that serve the router's OpenAPI
 // specification at two paths relative to the router's prefix:
-//
 //   - openapi.json — JSON (application/json)
 //   - openapi.yaml — YAML (application/yaml)
 //   - openapi.html — HTML documentation (text/html)
-//
-// All other HTTP methods return 405 Method Not Allowed. When middleware is
-// true the handlers are wrapped by the router's middleware chain.
-func RegisterHandler(router *httprouter.Router, middleware bool) error {
-	_ = middleware
-
+func RegisterHandler(router *httprouter.Router) error {
 	if err := router.RegisterPath(pathJSON, nil,
 		httprequest.NewPathItem("OpenAPI JSON", "Serve the OpenAPI specification as JSON").Get(jsonHandler(router), "Get OpenAPI JSON"),
 	); err != nil {

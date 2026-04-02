@@ -61,6 +61,15 @@ func Test_Router_004(t *testing.T) {
 	assert.Error(err)
 }
 
+func Test_Router_005(t *testing.T) {
+	assert := assert.New(t)
+
+	// A nil ServeMux should fail cleanly instead of panicking later.
+	_, err := NewRouter(context.Background(), nil, "/", "", "Test API", "1.0.0")
+	assert.Error(err)
+	assert.Contains(err.Error(), "mux is nil")
+}
+
 func Test_RegisterCatchAll_001(t *testing.T) {
 	assert := assert.New(t)
 
@@ -233,19 +242,33 @@ func Test_RegisterPath_UsingGet_004(t *testing.T) {
 
 // mockPathItem is a minimal implementation of httprequest.PathItem for testing.
 type mockPathItem struct {
-	handler http.HandlerFunc
-	spec    *openapi.PathItem
+	handler  http.HandlerFunc
+	handlers map[string]http.HandlerFunc
+	spec     *openapi.PathItem
 }
 
 type testSecurityScheme struct{}
 
-func (m *mockPathItem) Handler() http.HandlerFunc { return m.handler }
+func (m *mockPathItem) Handler() http.HandlerFunc {
+	if len(m.handlers) == 0 {
+		return m.handler
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		if handler, ok := m.handlers[r.Method]; ok && handler != nil {
+			handler(w, r)
+			return
+		}
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
 func (m *mockPathItem) Spec(path string, params *jsonschema.Schema) *openapi.PathItem {
 	return m.spec
 }
+
 func (m *mockPathItem) WrapHandler(method string, fn func(http.HandlerFunc) http.HandlerFunc) {
-	if m.handler != nil {
-		m.handler = fn(m.handler)
+	if h, ok := m.handlers[method]; ok && h != nil {
+		m.handlers[method] = fn(h)
 	}
 }
 
@@ -411,4 +434,71 @@ func Test_RegisterPath_007(t *testing.T) {
 	err := router.RegisterPath("secure", nil, item)
 	assert.Error(err)
 	assert.Contains(err.Error(), "security scheme \"missingAuth\" not registered")
+}
+
+func Test_RegisterPath_008(t *testing.T) {
+	assert := assert.New(t)
+
+	router := newTestRouter(t, "/", "")
+
+	item := httprequest.NewPathItem("Secure", "Secure route")
+	item.Get(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}, "Get secure route", openapi_op.WithSecurity("missingAuth", "read"))
+
+	err := router.RegisterPath("secure", nil, item)
+	assert.Error(err)
+
+	spec := router.Spec()
+	if assert.NotNil(spec) {
+		if spec.Paths != nil {
+			_, exists := spec.Paths.MapOfPathItemValues["/secure"]
+			assert.False(exists)
+		}
+	}
+}
+
+func Test_mockPathItem_WrapHandler_001(t *testing.T) {
+	assert := assert.New(t)
+
+	called := false
+	item := &mockPathItem{
+		handlers: map[string]http.HandlerFunc{
+			http.MethodGet: func(w http.ResponseWriter, r *http.Request) {
+				called = true
+				w.WriteHeader(http.StatusNoContent)
+			},
+		},
+	}
+
+	item.WrapHandler(http.MethodPost, func(next http.HandlerFunc) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("X-Wrapped", "true")
+			next(w, r)
+		}
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/items", nil)
+	rec := httptest.NewRecorder()
+	item.Handler()(rec, req)
+
+	assert.True(called)
+	assert.Equal(http.StatusNoContent, rec.Code)
+	assert.Empty(rec.Header().Get("X-Wrapped"))
+
+	called = false
+	item.WrapHandler(http.MethodGet, func(next http.HandlerFunc) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("X-Wrapped", "true")
+			next(w, r)
+		}
+	})
+
+	req = httptest.NewRequest(http.MethodGet, "/items", nil)
+	rec = httptest.NewRecorder()
+	item.Handler()(rec, req)
+
+	assert.True(called)
+	assert.Equal(http.StatusNoContent, rec.Code)
+	assert.Equal("true", rec.Header().Get("X-Wrapped"))
 }

@@ -51,6 +51,10 @@ var _ http.Handler = (*Router)(nil)
 //
 // The title and version are used to create the OpenAPI spec for the router.
 func NewRouter(ctx context.Context, mux *http.ServeMux, prefix, origin, title, version string, middleware ...HTTPMiddlewareFunc) (*Router, error) {
+	if mux == nil {
+		return nil, httpresponse.ErrBadRequest.With("mux is nil")
+	}
+
 	router := new(Router)
 	router.mux = mux
 	router.prefix = types.NormalisePath(prefix)
@@ -220,12 +224,14 @@ func (r *Router) RegisterPath(path string, params *jsonschema.Schema, pathitem h
 	// and wrap per-method handlers with their security requirements
 	spec := pathitem.Spec(path, params)
 	if spec != nil {
-		r.spec.AddPath(path, spec)
 		var registerErr error
 
 		// Look at security requirements for each operation and apply any
 		// corresponding middleware to the per-method handler
 		openapi_ops.Operations(spec, func(method string, op *openapi.Operation) {
+			if registerErr != nil {
+				return
+			}
 			for _, requirement := range op.Security {
 				for name, scopes := range requirement {
 					scheme, ok := r.security[name]
@@ -242,6 +248,7 @@ func (r *Router) RegisterPath(path string, params *jsonschema.Schema, pathitem h
 		if registerErr != nil {
 			return registerErr
 		}
+		r.spec.AddPath(path, spec)
 	}
 
 	// Get handler or fall back to method-not-allowed
