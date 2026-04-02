@@ -95,6 +95,9 @@ func Main[T any](cmds T, description, version string) error {
 		if globals.OTel.TracesEndpoint != "" {
 			globals.tracer = provider.Tracer(globals.OTel.Name)
 		}
+		if globals.OTel.MetricsEndpoint != "" {
+			globals.meter = provider.Meter(globals.OTel.Name)
+		}
 
 		// Tee the logging to both the OTel logger and the console logger
 		if globals.OTel.LogEndpoint != "" {

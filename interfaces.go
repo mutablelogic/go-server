@@ -10,6 +10,7 @@ import (
 	// Packages
 	client "github.com/mutablelogic/go-client"
 	openapi "github.com/mutablelogic/go-server/pkg/openapi/schema"
+	metric "go.opentelemetry.io/otel/metric"
 	trace "go.opentelemetry.io/otel/trace"
 )
 
@@ -36,6 +37,9 @@ type Cmd interface {
 
 	// Tracer returns the OpenTelemetry tracer, or nil if OTel is not configured.
 	Tracer() trace.Tracer
+
+	// Meter returns the OpenTelemetry meter, or nil if OTel is not configured.
+	Meter() metric.Meter
 
 	// ClientEndpoint returns the HTTP endpoint URL and client options derived
 	// from the global HTTP flags.

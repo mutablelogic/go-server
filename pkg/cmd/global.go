@@ -13,6 +13,7 @@ import (
 	kong "github.com/alecthomas/kong"
 	client "github.com/mutablelogic/go-client"
 	server "github.com/mutablelogic/go-server"
+	metric "go.opentelemetry.io/otel/metric"
 	trace "go.opentelemetry.io/otel/trace"
 )
 
@@ -45,6 +46,7 @@ type global struct {
 	ctx         context.Context
 	cancel      context.CancelFunc
 	logger      *slog.Logger
+	meter       metric.Meter
 	tracer      trace.Tracer
 	execName    string
 	version     string
@@ -82,6 +84,10 @@ func (g *global) Logger() *slog.Logger {
 
 func (g *global) Tracer() trace.Tracer {
 	return g.tracer
+}
+
+func (g *global) Meter() metric.Meter {
+	return g.meter
 }
 
 // ClientEndpoint returns the HTTP endpoint URL and client options derived
