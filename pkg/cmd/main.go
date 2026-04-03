@@ -15,6 +15,7 @@ import (
 	logger "github.com/mutablelogic/go-server/pkg/logger"
 	otel "github.com/mutablelogic/go-server/pkg/otel"
 	otelslog "go.opentelemetry.io/contrib/bridges/otelslog"
+	term "golang.org/x/term"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -117,6 +118,18 @@ func Main[T any](cmds T, description, version string) error {
 
 // IsTerminal reports whether os.Stderr is an interactive terminal.
 func IsTerminal() bool {
-	fi, err := os.Stderr.Stat()
-	return err == nil && (fi.Mode()&os.ModeCharDevice) != 0
+	return TerminalWidth() > 0
+}
+
+// TerminalWidth returns the width of os.Stderr if it is a terminal, or zero otherwise.
+func TerminalWidth() int {
+	fd := int(os.Stderr.Fd())
+	if !term.IsTerminal(fd) {
+		return 0
+	}
+	width, _, err := term.GetSize(fd)
+	if err != nil || width <= 0 {
+		return 0
+	}
+	return width
 }

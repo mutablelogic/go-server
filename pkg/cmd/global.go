@@ -122,7 +122,11 @@ func (g *global) ClientEndpoint() (string, []client.ClientOpt, error) {
 }
 
 func (g *global) IsTerm() bool {
-	return IsTerminal()
+	return TerminalWidth() > 0
+}
+
+func (g *global) TermWidth() int {
+	return TerminalWidth()
 }
 
 func (g *global) IsDebug() bool {

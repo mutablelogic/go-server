@@ -62,6 +62,9 @@ type Cmd interface {
 	// IsTerm reports whether stderr is an interactive terminal.
 	IsTerm() bool
 
+	// TermWidth returns the width of the terminal, or zero if not a terminal.
+	TermWidth() int
+
 	// IsDebug reports whether debug logging is enabled.
 	IsDebug() bool
 
