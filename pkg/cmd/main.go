@@ -60,7 +60,7 @@ func Main[T any](cmds T, description, version string) error {
 	} else if globals.Debug {
 		level.Set(logger.LevelDebug)
 	}
-	if IsTerminal() {
+	if TerminalWidth() > 0 {
 		globals.logger = slog.New(logger.NewTermHandler(os.Stderr, &level))
 	} else {
 		globals.logger = slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: &level}))
