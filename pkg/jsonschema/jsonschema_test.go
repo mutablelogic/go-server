@@ -149,6 +149,38 @@ type nestedUUIDStruct struct {
 	Label string     `json:"label"`
 }
 
+type jsonRawStruct struct {
+	Payload json.RawMessage `json:"payload"`
+}
+
+type customJSONBytes []byte
+
+func (m customJSONBytes) MarshalJSON() ([]byte, error) {
+	if len(m) == 0 {
+		return []byte("null"), nil
+	}
+	return []byte(m), nil
+}
+
+type customJSONBytesStruct struct {
+	Payload customJSONBytes `json:"payload"`
+}
+
+type embeddedSpecialStruct struct {
+	Format customJSONBytes `json:"format,omitempty"`
+	Data   []byte          `json:"data,omitempty"`
+	URL    *url.URL        `json:"url,omitempty"`
+}
+
+type outerEmbeddedSpecialStruct struct {
+	embeddedSpecialStruct
+	Text string `json:"text"`
+}
+
+type sliceOfEmbeddedSpecialStruct struct {
+	Attachments []embeddedSpecialStruct `json:"attachments,omitempty"`
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // TYPE MAPPING TESTS
 
@@ -1020,6 +1052,42 @@ func TestFor_TimeDuration_StructField(t *testing.T) {
 	}
 }
 
+func TestFor_JSONRawMessage_TopLevel(t *testing.T) {
+	s, err := For[json.RawMessage]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Type != "string" {
+		t.Fatalf("Type: got %q, want \"string\"", s.Type)
+	}
+	if s.Format != "json" {
+		t.Fatalf("Format: got %q, want \"json\"", s.Format)
+	}
+	if s.Items != nil {
+		t.Fatalf("Items: got %v, want nil", s.Items)
+	}
+}
+
+func TestFor_JSONRawMessage_StructField(t *testing.T) {
+	s, err := For[jsonRawStruct]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	prop := s.Properties["payload"]
+	if prop == nil {
+		t.Fatal("expected property 'payload'")
+	}
+	if prop.Type != "string" && !sliceContains(prop.Types, "string") {
+		t.Fatalf("payload type: got Type=%q Types=%v, want string", prop.Type, prop.Types)
+	}
+	if prop.Format != "json" {
+		t.Fatalf("payload format: got %q, want \"json\"", prop.Format)
+	}
+	if prop.Items != nil {
+		t.Fatalf("payload items: got %v, want nil", prop.Items)
+	}
+}
+
 func TestValidate_TimeDuration(t *testing.T) {
 	schema, err := For[time.Duration]()
 	if err != nil {
@@ -1739,6 +1807,12 @@ func TestFor_URL_TopLevel(t *testing.T) {
 	if s.Format != "uri" {
 		t.Errorf("format: got %q, want \"uri\"", s.Format)
 	}
+	if len(s.Required) != 0 {
+		t.Errorf("required: got %v, want empty", s.Required)
+	}
+	if s.AdditionalProperties != nil {
+		t.Errorf("additionalProperties: got %v, want nil", s.AdditionalProperties)
+	}
 }
 
 func TestFor_URL_StructField(t *testing.T) {
@@ -1762,6 +1836,12 @@ func TestFor_URL_StructField(t *testing.T) {
 	if len(prop.Properties) != 0 {
 		t.Errorf("link properties: got %d, want 0 (should not leak struct fields)", len(prop.Properties))
 	}
+	if len(prop.Required) != 0 {
+		t.Errorf("link required: got %v, want empty", prop.Required)
+	}
+	if prop.AdditionalProperties != nil {
+		t.Errorf("link additionalProperties: got %v, want nil", prop.AdditionalProperties)
+	}
 }
 
 func TestFor_ByteSlice_TopLevel(t *testing.T) {
@@ -1774,6 +1854,9 @@ func TestFor_ByteSlice_TopLevel(t *testing.T) {
 	}
 	if s.Format != "byte" {
 		t.Errorf("format: got %q, want \"byte\"", s.Format)
+	}
+	if s.Items != nil {
+		t.Errorf("items: got %v, want nil", s.Items)
 	}
 }
 
@@ -1794,6 +1877,87 @@ func TestFor_ByteSlice_StructField(t *testing.T) {
 	}
 	if prop.Format != "byte" {
 		t.Errorf("data format: got %q, want \"byte\"", prop.Format)
+	}
+	if prop.Items != nil {
+		t.Errorf("data items: got %v, want nil", prop.Items)
+	}
+}
+
+func TestFor_CustomJSONBytes_TopLevel(t *testing.T) {
+	s, err := For[customJSONBytes]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Type != "string" {
+		t.Fatalf("type: got %q, want \"string\"", s.Type)
+	}
+	if s.Format != "json" {
+		t.Fatalf("format: got %q, want \"json\"", s.Format)
+	}
+	if s.Items != nil {
+		t.Fatalf("items: got %v, want nil", s.Items)
+	}
+}
+
+func TestFor_CustomJSONBytes_StructField(t *testing.T) {
+	s, err := For[customJSONBytesStruct]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	prop := s.Properties["payload"]
+	if prop == nil {
+		t.Fatal("expected property 'payload'")
+	}
+	if prop.Type != "string" && !sliceContains(prop.Types, "string") {
+		t.Fatalf("payload type: got Type=%q Types=%v, want string", prop.Type, prop.Types)
+	}
+	if prop.Format != "json" {
+		t.Fatalf("payload format: got %q, want \"json\"", prop.Format)
+	}
+	if prop.Items != nil {
+		t.Fatalf("payload items: got %v, want nil", prop.Items)
+	}
+}
+
+func TestFor_EmbeddedSpecialStructFields(t *testing.T) {
+	s, err := For[outerEmbeddedSpecialStruct]()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got := s.Properties["format"]; got == nil || got.Format != "json" || got.Type != "string" {
+		t.Fatalf("format property: got %#v, want type=string format=json", got)
+	}
+	if got := s.Properties["data"]; got == nil || got.Format != "byte" || got.Type != "string" {
+		t.Fatalf("data property: got %#v, want type=string format=byte", got)
+	}
+	if got := s.Properties["url"]; got == nil || got.Format != "uri" || got.Type != "string" {
+		t.Fatalf("url property: got %#v, want type=string format=uri", got)
+	} else if len(got.Required) != 0 || got.AdditionalProperties != nil || got.Items != nil {
+		t.Fatalf("url property leaked composite keywords: %#v", got)
+	}
+}
+
+func TestFor_SliceOfStructWithSpecialFields(t *testing.T) {
+	s, err := For[sliceOfEmbeddedSpecialStruct]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	attachments := s.Properties["attachments"]
+	if attachments == nil || attachments.Items == nil {
+		t.Fatalf("attachments schema: got %#v, want array items schema", attachments)
+	}
+	item := attachments.Items
+	if got := item.Properties["format"]; got == nil || got.Format != "json" || got.Type != "string" {
+		t.Fatalf("attachments.items.format: got %#v, want type=string format=json", got)
+	}
+	if got := item.Properties["data"]; got == nil || got.Format != "byte" || got.Type != "string" {
+		t.Fatalf("attachments.items.data: got %#v, want type=string format=byte", got)
+	}
+	if got := item.Properties["url"]; got == nil || got.Format != "uri" || got.Type != "string" {
+		t.Fatalf("attachments.items.url: got %#v, want type=string format=uri", got)
+	} else if len(got.Required) != 0 || got.AdditionalProperties != nil || got.Items != nil {
+		t.Fatalf("attachments.items.url leaked composite keywords: %#v", got)
 	}
 }
 
