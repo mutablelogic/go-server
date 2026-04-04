@@ -59,7 +59,7 @@ type Cmd interface {
 	// Keys returns all keys in the store.
 	Keys() []string
 
-	// IsTerm returns 0 if stdout is not an interactive terminal, or the
+	// IsTerm returns 0 if stderr is not an interactive terminal, or the
 	// width of the terminal if it is.
 	IsTerm() int
 
