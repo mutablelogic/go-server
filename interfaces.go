@@ -63,9 +63,6 @@ type Cmd interface {
 	// width of the terminal if it is.
 	IsTerm() int
 
-	// TermWidth returns the width of the terminal, or zero if not a terminal.
-	TermWidth() int
-
 	// IsDebug reports whether debug logging is enabled.
 	IsDebug() bool
 
