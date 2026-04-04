@@ -59,18 +59,12 @@ type Cmd interface {
 	// Keys returns all keys in the store.
 	Keys() []string
 
-<<<<<<< Updated upstream
-	// IsTerm returns 0 if stderr is not an interactive terminal, or the
-	// width of the terminal if it is.
-	IsTerm() int
-=======
 	// IsTerm returns 0 if stdout is not an interactive terminal, or the
 	// width of the terminal if it is.
 	IsTerm() int
 
 	// TermWidth returns the width of the terminal, or zero if not a terminal.
 	TermWidth() int
->>>>>>> Stashed changes
 
 	// IsDebug reports whether debug logging is enabled.
 	IsDebug() bool
