@@ -121,8 +121,8 @@ func (g *global) ClientEndpoint() (string, []client.ClientOpt, error) {
 	return fmt.Sprintf("%s://%s%s", scheme, net.JoinHostPort(host, strconv.FormatUint(portn, 10)), g.HTTP.Prefix), opts, nil
 }
 
-func (g *global) IsTerm() bool {
-	return IsTerminal()
+func (g *global) IsTerm() int {
+	return TerminalWidth()
 }
 
 func (g *global) IsDebug() bool {

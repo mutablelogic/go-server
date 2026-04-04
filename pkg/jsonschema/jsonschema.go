@@ -44,6 +44,18 @@ var uuidType = reflect.TypeFor[uuid.UUID]()
 // and represent them as JSON strings with format "uri".
 var urlType = reflect.TypeFor[url.URL]()
 
+// jsonType is the reflect.Type for json.RawMessage, used to detect JSON fields
+// and represent them as JSON strings with format "json".
+var jsonType = reflect.TypeFor[json.RawMessage]()
+
+// dataType is the reflect.Type for []byte, used to detect binary payload fields
+// and represent them as JSON strings with format "byte".
+var dataType = reflect.TypeFor[[]byte]()
+
+// jsonMarshalerType is used to detect named []byte types like json.RawMessage
+// that marshal as embedded JSON rather than base64-encoded bytes.
+var jsonMarshalerType = reflect.TypeFor[json.Marshaler]()
+
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
@@ -139,36 +151,8 @@ func For[T any]() (*Schema, error) {
 	for ft.Kind() == reflect.Pointer {
 		ft = ft.Elem()
 	}
-	if ft == durationType {
-		// Override the upstream integer schema with a duration string schema.
-		s.Type = "string"
-		s.Types = nil
-		s.Format = "duration"
-	} else if ft == timeType {
-		// Override the upstream object schema with a date-time string schema.
-		s.Type = "string"
-		s.Types = nil
-		s.Format = "date-time"
-		s.Properties = nil
-	} else if ft == uuidType {
-		// Override the upstream array schema with a uuid string schema.
-		s.Type = "string"
-		s.Types = nil
-		s.Format = "uuid"
-		s.Items = nil
-		s.MinItems = nil
-		s.MaxItems = nil
-	} else if ft == urlType {
-		// Override the upstream object schema with a uri string schema.
-		s.Type = "string"
-		s.Types = nil
-		s.Format = "uri"
-		s.Properties = nil
-	} else if ft.Kind() == reflect.Slice && ft.Elem().Kind() == reflect.Uint8 {
-		// []byte is represented as a base64 string.
-		s.Type = "string"
-		s.Types = nil
-		s.Format = "byte"
+	if applySpecialTypeSchema(s, ft) {
+		// Special native types override the upstream schema shape.
 	} else if ft.Kind() == reflect.Struct {
 		if err := enrichSchema(s, t); err != nil {
 			return nil, err
@@ -227,57 +211,28 @@ func enrichSchema(s *upstream.Schema, t reflect.Type) error {
 			continue
 		}
 
-		// Look up the property in the schema. If it's not present, skip it.
-		prop := s.Properties[jsonName]
-		if prop == nil {
-			continue
-		}
-
 		// Dereference pointer types once for type-based tag dispatch.
 		ft := field.Type
 		for ft.Kind() == reflect.Pointer {
 			ft = ft.Elem()
 		}
 
-		// time.Duration fields are represented as duration strings, not integers.
-		if ft == durationType {
-			prop.Type = "string"
-			prop.Types = nil
-			prop.Format = "duration"
+		// Anonymous embedded structs are flattened by the upstream schema generator,
+		// so recurse into the parent schema to enrich their promoted fields.
+		if field.Anonymous && ft.Kind() == reflect.Struct {
+			if err := enrichSchema(s, ft); err != nil {
+				return err
+			}
+			continue
 		}
 
-		// time.Time fields are represented as date-time strings, not objects.
-		if ft == timeType {
-			prop.Type = "string"
-			prop.Types = nil
-			prop.Format = "date-time"
-			prop.Properties = nil
+		// Look up the property in the schema. If it's not present, skip it.
+		prop := s.Properties[jsonName]
+		if prop == nil {
+			continue
 		}
 
-		// uuid.UUID fields are represented as uuid strings, not byte arrays.
-		if ft == uuidType {
-			prop.Type = "string"
-			prop.Types = nil
-			prop.Format = "uuid"
-			prop.Items = nil
-			prop.MinItems = nil
-			prop.MaxItems = nil
-		}
-
-		// url.URL fields are represented as uri strings, not objects.
-		if ft == urlType {
-			prop.Type = "string"
-			prop.Types = nil
-			prop.Format = "uri"
-			prop.Properties = nil
-		}
-
-		// []byte fields are represented as base64 strings.
-		if ft.Kind() == reflect.Slice && ft.Elem().Kind() == reflect.Uint8 {
-			prop.Type = "string"
-			prop.Types = nil
-			prop.Format = "byte"
-		}
+		special := applySpecialTypeSchema(prop, ft)
 
 		if vals := parseEnumTag(field.Tag.Get("enum")); len(vals) > 0 {
 			prop.Enum = vals
@@ -366,8 +321,12 @@ func enrichSchema(s *upstream.Schema, t reflect.Type) error {
 		}
 
 		// If the field's type is a struct or pointer to struct, recursively enrich it.
-		if ft.Kind() == reflect.Struct {
+		if !special && ft.Kind() == reflect.Struct {
 			if err := enrichSchema(prop, ft); err != nil {
+				return err
+			}
+		} else if !special && (ft.Kind() == reflect.Slice || ft.Kind() == reflect.Array) {
+			if err := enrichArrayItems(prop, ft); err != nil {
 				return err
 			}
 		}
@@ -375,6 +334,103 @@ func enrichSchema(s *upstream.Schema, t reflect.Type) error {
 
 	// Return success
 	return nil
+}
+
+func enrichArrayItems(prop *upstream.Schema, t reflect.Type) error {
+	elem := t.Elem()
+	for elem.Kind() == reflect.Pointer {
+		elem = elem.Elem()
+	}
+
+	if elem.Kind() != reflect.Struct {
+		return nil
+	}
+
+	if prop.Items != nil {
+		if err := enrichSchema(prop.Items, elem); err != nil {
+			return err
+		}
+	}
+	for _, item := range prop.ItemsArray {
+		if item == nil {
+			continue
+		}
+		if err := enrichSchema(item, elem); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func applySpecialTypeSchema(s *upstream.Schema, t reflect.Type) bool {
+	switch t {
+	case durationType:
+		// time.Duration is represented as a duration string.
+		resetToScalarStringSchema(s, "duration")
+		return true
+	case timeType:
+		// time.Time is represented as an RFC3339 string.
+		resetToScalarStringSchema(s, "date-time")
+		return true
+	case uuidType:
+		// uuid.UUID is represented as a uuid string.
+		resetToScalarStringSchema(s, "uuid")
+		return true
+	case urlType:
+		// url.URL is represented as a URI string.
+		resetToScalarStringSchema(s, "uri")
+		return true
+	case jsonType:
+		// json.RawMessage is represented as a JSON string placeholder.
+		resetToScalarStringSchema(s, "json")
+		return true
+	case dataType:
+		// []byte is represented as a byte-format string.
+		resetToScalarStringSchema(s, "byte")
+		return true
+	default:
+		if isJSONBytesType(t) {
+			resetToScalarStringSchema(s, "json")
+			return true
+		}
+		return false
+	}
+}
+
+func isJSONBytesType(t reflect.Type) bool {
+	return t != dataType && t.Kind() == reflect.Slice && t.Elem().Kind() == reflect.Uint8 && t.Implements(jsonMarshalerType)
+}
+
+func resetToScalarStringSchema(s *upstream.Schema, format string) {
+	s.Type = "string"
+	s.Types = nil
+	s.Format = format
+
+	// Clear array-specific keywords.
+	s.PrefixItems = nil
+	s.Items = nil
+	s.ItemsArray = nil
+	s.MinItems = nil
+	s.MaxItems = nil
+	s.AdditionalItems = nil
+	s.UniqueItems = false
+	s.Contains = nil
+	s.MinContains = nil
+	s.MaxContains = nil
+	s.UnevaluatedItems = nil
+
+	// Clear object-specific keywords.
+	s.MinProperties = nil
+	s.MaxProperties = nil
+	s.Required = nil
+	s.DependentRequired = nil
+	s.Properties = nil
+	s.PatternProperties = nil
+	s.AdditionalProperties = nil
+	s.PropertyNames = nil
+	s.UnevaluatedProperties = nil
+	s.DependentSchemas = nil
 }
 
 // marshalDefault converts a string tag value to json.RawMessage using the

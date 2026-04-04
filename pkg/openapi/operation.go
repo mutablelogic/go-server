@@ -136,6 +136,30 @@ func WithTextResponse(status int, description string) OperationOpt {
 	return WithResponse(status, types.ContentTypeTextPlain, stringSchema, description)
 }
 
+func WithTextStreamResponse(status int, description ...string) OperationOpt {
+	return WithResponse(status, types.ContentTypeTextStream, stringSchema, description...)
+}
+
+func WithNoContentResponse(status int, description ...string) OperationOpt {
+	statusString := func(status int) string {
+		if status < 100 || status > 599 {
+			return "default"
+		}
+		return fmt.Sprintf("%d", status)
+	}
+	descriptionString := func() string {
+		if len(description) > 0 {
+			return strings.Join(description, " ")
+		}
+		return http.StatusText(status)
+	}
+	return func(opt *opopt) {
+		opt.responses[statusString(status)] = schema.Response{
+			Description: descriptionString(),
+		}
+	}
+}
+
 func WithResponse(status int, contentType string, r *jsonschema.Schema, description ...string) OperationOpt {
 	statusString := func(status int) string {
 		if status < 100 || status > 599 {
