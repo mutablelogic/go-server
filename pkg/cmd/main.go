@@ -116,14 +116,9 @@ func Main[T any](cmds T, description, version string) error {
 	return kongctx.Run()
 }
 
-// IsTerminal reports whether os.Stderr is an interactive terminal.
-func IsTerminal() bool {
-	return TerminalWidth() > 0
-}
-
-// TerminalWidth returns the width of os.Stderr if it is a terminal, or zero otherwise.
+// TerminalWidth returns the width of os.Stdout if it is a terminal, or zero otherwise.
 func TerminalWidth() int {
-	fd := int(os.Stderr.Fd())
+	fd := int(os.Stdout.Fd())
 	if !term.IsTerminal(fd) {
 		return 0
 	}

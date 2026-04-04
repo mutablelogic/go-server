@@ -121,11 +121,7 @@ func (g *global) ClientEndpoint() (string, []client.ClientOpt, error) {
 	return fmt.Sprintf("%s://%s%s", scheme, net.JoinHostPort(host, strconv.FormatUint(portn, 10)), g.HTTP.Prefix), opts, nil
 }
 
-func (g *global) IsTerm() bool {
-	return TerminalWidth() > 0
-}
-
-func (g *global) TermWidth() int {
+func (g *global) IsTerm() int {
 	return TerminalWidth()
 }
 
