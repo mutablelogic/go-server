@@ -4,6 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+
+	// Packages
+	"github.com/mutablelogic/go-server/pkg/types"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -65,6 +68,10 @@ func Error(w http.ResponseWriter, err error, detail ...any) error {
 
 ///////////////////////////////////////////////////////////////////////////////
 // ERROR
+
+func (err ErrResponse) Error() string {
+	return types.Stringify(err)
+}
 
 func (code Err) Error() string {
 	return http.StatusText(int(code))
