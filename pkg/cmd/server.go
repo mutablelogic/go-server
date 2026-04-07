@@ -141,7 +141,7 @@ func (s *RunServer) Run(ctx server.Cmd) error {
 	}
 
 	// Report the server endpoint and version
-	ctx.Logger().InfoContext(ctx.Context(), "started", "name", ctx.Name(), "version", ctx.Version(), "addr", srv.Addr(), "server", srv.URL().String(), "origin", s.HTTP.Origin, "prefix", ctx.HTTPPrefix())
+	ctx.Logger().InfoContext(ctx.Context(), "httpserver started", "addr", srv.Addr(), "server", srv.URL().String(), "origin", s.HTTP.Origin, "prefix", ctx.HTTPPrefix())
 
 	// Run the server until the context is cancelled
 	eg, egCtx := errgroup.WithContext(ctx.Context())

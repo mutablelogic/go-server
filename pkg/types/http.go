@@ -8,15 +8,17 @@ import (
 // GLOBALS
 
 const (
-	SchemeSecure            = "https"
-	SchemeInsecure          = "http"
-	ContentTypeHeader       = "Content-Type"
-	ContentAcceptHeader     = "Accept"
-	ContentLengthHeader     = "Content-Length"
-	ContentDispositonHeader = "Content-Disposition"
-	ContentModifiedHeader   = "Last-Modified"
-	ContentHashHeader       = "ETag"
-	ContentPathHeader       = "X-Path"
+	SchemeSecure             = "https"
+	SchemeInsecure           = "http"
+	ContentTypeHeader        = "Content-Type"
+	ContentAcceptHeader      = "Accept"
+	ContentLengthHeader      = "Content-Length"
+	ContentDispositonHeader  = "Content-Disposition"
+	ContentModifiedHeader    = "Last-Modified"
+	ContentHashHeader        = "ETag"
+	ContentPathHeader        = "X-Path"
+	ContentNameHeader        = "X-Name"
+	ContentDescriptionHeader = "X-Description"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
