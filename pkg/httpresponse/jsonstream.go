@@ -1,6 +1,7 @@
 package httpresponse
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -18,14 +19,14 @@ import (
 
 // JSONStream implements a full-duplex newline-delimited JSON stream.
 //
-// Recv decodes one JSON value from the request body, and Send writes one JSON
-// value to the response body followed by a newline and an immediate flush.
+// Recv reads exactly one JSON value per line from the request body and Send
+// writes one JSON value to the response body followed by a newline and an
+// immediate flush.
 type JSONStream struct {
-	ctx       context.Context
 	req       *http.Request
-	dec       *json.Decoder
+	reader    *bufio.Reader
 	w         http.ResponseWriter
-	flusher   http.Flusher
+	recvMu    sync.Mutex
 	mu        sync.Mutex
 	closeOnce sync.Once
 	closed    atomic.Bool
@@ -47,25 +48,18 @@ func NewJSONStream(w http.ResponseWriter, r *http.Request, headers ...string) (*
 	if len(headers)%2 != 0 {
 		return nil, ErrBadRequest.With("headers must be key/value pairs")
 	}
-
-	flusher, ok := w.(http.Flusher)
-	if !ok {
+	if _, ok := w.(http.Flusher); !ok {
 		return nil, ErrInternalError.With("response writer does not support streaming")
 	}
 
-	body := r.Body
-	if body == nil {
-		body = http.NoBody
-	}
-
+	// Create the JSONStream
 	self := &JSONStream{
-		ctx:     r.Context(),
-		req:     r,
-		dec:     json.NewDecoder(body),
-		w:       w,
-		flusher: flusher,
+		req:    r,
+		reader: bufio.NewReader(r.Body),
+		w:      w,
 	}
 
+	// Set the headers on the response, and write out the header
 	w.Header().Set(types.ContentTypeHeader, types.ContentTypeJSONStream)
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
@@ -73,10 +67,10 @@ func NewJSONStream(w http.ResponseWriter, r *http.Request, headers ...string) (*
 	for i := 0; i < len(headers); i += 2 {
 		w.Header().Set(headers[i], headers[i+1])
 	}
-
 	w.WriteHeader(http.StatusOK)
-	flusher.Flush()
+	w.(http.Flusher).Flush()
 
+	// Return success
 	return self, nil
 }
 
@@ -85,36 +79,55 @@ func NewJSONStream(w http.ResponseWriter, r *http.Request, headers ...string) (*
 
 // Context returns the request context associated with the stream.
 func (s *JSONStream) Context() context.Context {
-	if s == nil || s.ctx == nil {
-		return context.Background()
-	}
-	return s.ctx
+	return s.req.Context()
 }
 
-// Recv returns the next JSON frame from the request body.
+// Recv returns the next newline-delimited JSON frame from the request body.
+// A blank line is treated as a keep-alive heartbeat and returns nil, nil.
 func (s *JSONStream) Recv() (json.RawMessage, error) {
-	if s == nil || s.closed.Load() {
+	s.recvMu.Lock()
+	defer s.recvMu.Unlock()
+
+	// Return if already closed
+	if s.closed.Load() {
 		return nil, io.ErrClosedPipe
 	}
 
-	var frame json.RawMessage
-	if err := s.dec.Decode(&frame); err != nil {
-		return nil, err
+	// Read the next line from the request body
+	line, err := s.reader.ReadBytes('\n')
+	if err != nil {
+		if err != io.EOF || len(line) == 0 {
+			return nil, err
+		}
 	}
 
-	return frame, nil
+	// Treat a blank line as a keep-alive heartbeat.
+	frame := bytes.TrimSpace(line)
+	if len(frame) == 0 {
+		return nil, nil
+	}
+
+	// Decode the JSON frame to ensure it's valid JSON and compact it to remove whitespace.
+	var raw json.RawMessage
+	if err := json.Unmarshal(frame, &raw); err != nil {
+		return nil, ErrBadRequest.Withf("invalid json frame: %v", err)
+	}
+
+	// Return the compacted JSON frame
+	return raw, nil
 }
 
 // Send writes one JSON frame to the response body and flushes it immediately.
 func (s *JSONStream) Send(frame json.RawMessage) error {
-	if s == nil || s.closed.Load() {
+	if s.closed.Load() {
 		return io.ErrClosedPipe
 	}
 
-	data, err := compactJSONFrame(frame)
-	if err != nil {
+	var buf bytes.Buffer
+	if err := json.Compact(&buf, frame); err != nil {
 		return err
 	}
+	data := buf.Bytes()
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -128,40 +141,18 @@ func (s *JSONStream) Send(frame json.RawMessage) error {
 	if _, err := s.w.Write([]byte{'\n'}); err != nil {
 		return err
 	}
-	s.flusher.Flush()
+	s.w.(http.Flusher).Flush()
 
 	return nil
 }
 
 // Close closes the request body and marks the stream as closed.
 func (s *JSONStream) Close() error {
-	if s == nil {
-		return nil
-	}
-
 	s.closeOnce.Do(func() {
 		s.closed.Store(true)
 		if s.req != nil && s.req.Body != nil {
 			s.err = s.req.Body.Close()
 		}
 	})
-
 	return s.err
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// PRIVATE METHODS
-
-func compactJSONFrame(frame json.RawMessage) ([]byte, error) {
-	frame = bytes.TrimSpace(frame)
-	if len(frame) == 0 {
-		return nil, ErrBadRequest.With("json frame is empty")
-	}
-
-	var buf bytes.Buffer
-	if err := json.Compact(&buf, frame); err != nil {
-		return nil, ErrBadRequest.Withf("invalid json frame: %v", err)
-	}
-
-	return buf.Bytes(), nil
 }

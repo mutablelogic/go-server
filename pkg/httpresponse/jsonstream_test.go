@@ -90,6 +90,56 @@ func Test_jsonstream_recv(t *testing.T) {
 	assert.ErrorIs(err, io.EOF)
 }
 
+func Test_jsonstream_recv_blank_line_is_keepalive(t *testing.T) {
+	assert := assert.New(t)
+
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("{\"a\":1}\n\n{\"b\":2}\n"))
+	resp := httptest.NewRecorder()
+
+	stream, err := httpresponse.NewJSONStream(resp, req)
+	require.NoError(t, err)
+	defer stream.Close()
+
+	frame, err := stream.Recv()
+	require.NoError(t, err)
+	assert.Equal(json.RawMessage(`{"a":1}`), frame)
+
+	frame, err = stream.Recv()
+	assert.Nil(frame)
+	assert.NoError(err)
+
+	frame, err = stream.Recv()
+	require.NoError(t, err)
+	assert.Equal(json.RawMessage(`{"b":2}`), frame)
+}
+
+func Test_jsonstream_recv_trailing_blank_line_is_keepalive(t *testing.T) {
+	assert := assert.New(t)
+
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("{\"a\":1}\n\n"))
+	resp := httptest.NewRecorder()
+
+	stream, err := httpresponse.NewJSONStream(resp, req)
+	require.NoError(t, err)
+	defer stream.Close()
+
+	frame, err := stream.Recv()
+	require.NoError(t, err)
+	assert.Equal(json.RawMessage(`{"a":1}`), frame)
+
+	frame, err = stream.Recv()
+	assert.Nil(frame)
+	assert.NoError(err)
+
+	frame, err = stream.Recv()
+	assert.Nil(frame)
+	assert.ErrorIs(err, io.EOF)
+
+	frame, err = stream.Recv()
+	assert.Nil(frame)
+	assert.ErrorIs(err, io.EOF)
+}
+
 func Test_jsonstream_send(t *testing.T) {
 	assert := assert.New(t)
 
