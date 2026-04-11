@@ -18,6 +18,7 @@ type Err int
 // ErrResponse is the JSON error body returned by all error responses.
 // It is also used to generate the OpenAPI response schema.
 type ErrResponse struct {
+	Type   string `json:"object"           jsonschema:"The type of the response, always 'error'"`
 	Code   int    `json:"code"             jsonschema:"HTTP status code"`
 	Reason string `json:"reason,omitempty" jsonschema:"Human-readable reason phrase"`
 	Detail any    `json:"detail,omitempty" jsonschema:"Optional additional detail"`
@@ -45,6 +46,7 @@ const (
 func Error(w http.ResponseWriter, err error, detail ...any) error {
 	// Create a JSON object for the error response
 	e := ErrResponse{
+		Type:   "error",
 		Code:   http.StatusInternalServerError,
 		Reason: err.Error(),
 	}

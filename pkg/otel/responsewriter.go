@@ -99,6 +99,14 @@ func (rw *responseWriter) ReadFrom(r io.Reader) (int64, error) {
 	return n, err
 }
 
+// Flush preserves streaming semantics when middleware wraps a response writer
+// that already supports flushing.
+func (rw *responseWriter) Flush() {
+	if flusher, ok := rw.ResponseWriter.(http.Flusher); ok {
+		flusher.Flush()
+	}
+}
+
 // Satisfy http.ResponseController support (Go 1.20+)
 func (rw *responseWriter) Unwrap() http.ResponseWriter {
 	return rw.ResponseWriter

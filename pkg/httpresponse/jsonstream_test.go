@@ -14,6 +14,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func recvFrame(t *testing.T, stream httpresponse.JSONStream) (json.RawMessage, bool) {
+	t.Helper()
+	ch := stream.Recv()
+	require.NotNil(t, ch)
+	frame, ok := <-ch
+	return frame, ok
+}
+
 type trackedReadCloser struct {
 	reader io.Reader
 	closed int
@@ -77,17 +85,17 @@ func Test_jsonstream_recv(t *testing.T) {
 	require.NoError(t, err)
 	defer stream.Close()
 
-	frame, err := stream.Recv()
-	require.NoError(t, err)
+	frame, ok := recvFrame(t, stream)
+	require.True(t, ok)
 	assert.Equal(json.RawMessage(`{"a":1}`), frame)
 
-	frame, err = stream.Recv()
-	require.NoError(t, err)
+	frame, ok = recvFrame(t, stream)
+	require.True(t, ok)
 	assert.Equal(json.RawMessage(`{"b":2}`), frame)
 
-	frame, err = stream.Recv()
+	frame, ok = recvFrame(t, stream)
 	assert.Nil(frame)
-	assert.ErrorIs(err, io.EOF)
+	assert.False(ok)
 }
 
 func Test_jsonstream_recv_blank_line_is_keepalive(t *testing.T) {
@@ -100,16 +108,16 @@ func Test_jsonstream_recv_blank_line_is_keepalive(t *testing.T) {
 	require.NoError(t, err)
 	defer stream.Close()
 
-	frame, err := stream.Recv()
-	require.NoError(t, err)
+	frame, ok := recvFrame(t, stream)
+	require.True(t, ok)
 	assert.Equal(json.RawMessage(`{"a":1}`), frame)
 
-	frame, err = stream.Recv()
+	frame, ok = recvFrame(t, stream)
 	assert.Nil(frame)
-	assert.NoError(err)
+	assert.True(ok)
 
-	frame, err = stream.Recv()
-	require.NoError(t, err)
+	frame, ok = recvFrame(t, stream)
+	require.True(t, ok)
 	assert.Equal(json.RawMessage(`{"b":2}`), frame)
 }
 
@@ -123,21 +131,21 @@ func Test_jsonstream_recv_trailing_blank_line_is_keepalive(t *testing.T) {
 	require.NoError(t, err)
 	defer stream.Close()
 
-	frame, err := stream.Recv()
-	require.NoError(t, err)
+	frame, ok := recvFrame(t, stream)
+	require.True(t, ok)
 	assert.Equal(json.RawMessage(`{"a":1}`), frame)
 
-	frame, err = stream.Recv()
+	frame, ok = recvFrame(t, stream)
 	assert.Nil(frame)
-	assert.NoError(err)
+	assert.True(ok)
 
-	frame, err = stream.Recv()
+	frame, ok = recvFrame(t, stream)
 	assert.Nil(frame)
-	assert.ErrorIs(err, io.EOF)
+	assert.False(ok)
 
-	frame, err = stream.Recv()
+	frame, ok = recvFrame(t, stream)
 	assert.Nil(frame)
-	assert.ErrorIs(err, io.EOF)
+	assert.False(ok)
 }
 
 func Test_jsonstream_send(t *testing.T) {
@@ -168,14 +176,14 @@ func Test_jsonstream_send_errors(t *testing.T) {
 	stream, err := httpresponse.NewJSONStream(resp, req)
 	require.NoError(t, err)
 
-	assert.Error(stream.Send(nil))
+	assert.NoError(stream.Send(nil))
 	assert.Error(stream.Send(json.RawMessage("not-json")))
 
 	require.NoError(t, stream.Close())
 	assert.ErrorIs(stream.Send(json.RawMessage(`{"ok":true}`)), io.ErrClosedPipe)
-	frame, err := stream.Recv()
+	frame, ok := recvFrame(t, stream)
 	assert.Nil(frame)
-	assert.ErrorIs(err, io.ErrClosedPipe)
+	assert.False(ok)
 }
 
 func Test_jsonstream_close(t *testing.T) {
@@ -193,18 +201,21 @@ func Test_jsonstream_close(t *testing.T) {
 	assert.NoError(stream.Close())
 	assert.Equal(1, body.closed)
 	assert.ErrorIs(stream.Send(json.RawMessage(`{"ok":true}`)), io.ErrClosedPipe)
-	frame, err := stream.Recv()
+	frame, ok := recvFrame(t, stream)
 	assert.Nil(frame)
-	assert.ErrorIs(err, io.ErrClosedPipe)
+	assert.False(ok)
 }
 
 func Test_jsonstream_handler_echo(t *testing.T) {
-	srv := httptest.NewServer(httpresponse.NewJSONStreamHandler(func(r <-chan json.RawMessage, w chan<- json.RawMessage) error {
-		for req := range r {
-			if req == nil {
+	srv := httptest.NewServer(httpresponse.NewJSONStreamHandler(func(req *http.Request, stream httpresponse.JSONStream) error {
+		assert.Equal(t, http.MethodPost, req.Method)
+		for frame := range stream.Recv() {
+			if frame == nil {
 				continue
 			}
-			w <- req
+			if err := stream.Send(frame); err != nil {
+				return err
+			}
 		}
 		return nil
 	}, "X-Test", "ok"))
@@ -229,9 +240,12 @@ func Test_jsonstream_handler_echo(t *testing.T) {
 }
 
 func Test_jsonstream_handler_heartbeat_forwarding(t *testing.T) {
-	srv := httptest.NewServer(httpresponse.NewJSONStreamHandler(func(r <-chan json.RawMessage, w chan<- json.RawMessage) error {
-		for req := range r {
-			w <- req
+	srv := httptest.NewServer(httpresponse.NewJSONStreamHandler(func(req *http.Request, stream httpresponse.JSONStream) error {
+		assert.Equal(t, "/", req.URL.Path)
+		for frame := range stream.Recv() {
+			if err := stream.Send(frame); err != nil {
+				return err
+			}
 		}
 		return nil
 	}))
