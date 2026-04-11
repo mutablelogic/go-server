@@ -33,6 +33,8 @@ type JSONStream struct {
 	err       error
 }
 
+type JSONStreamHandlerFunc func(r <-chan json.RawMessage, w chan<- json.RawMessage) error
+
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
@@ -50,6 +52,9 @@ func NewJSONStream(w http.ResponseWriter, r *http.Request, headers ...string) (*
 	}
 	if _, ok := w.(http.Flusher); !ok {
 		return nil, ErrInternalError.With("response writer does not support streaming")
+	}
+	if rc := http.NewResponseController(w); rc != nil {
+		_ = rc.EnableFullDuplex()
 	}
 
 	// Create the JSONStream
@@ -119,31 +124,82 @@ func (s *JSONStream) Recv() (json.RawMessage, error) {
 
 // Send writes one JSON frame to the response body and flushes it immediately.
 func (s *JSONStream) Send(frame json.RawMessage) error {
-	if s.closed.Load() {
-		return io.ErrClosedPipe
+	if frame == nil {
+		return ErrBadRequest.With("invalid json frame: nil")
 	}
+	return s.sendFrame(frame)
+}
 
-	var buf bytes.Buffer
-	if err := json.Compact(&buf, frame); err != nil {
-		return err
-	}
-	data := buf.Bytes()
+// NewJSONStreamHandler wraps a channel-based handler function in an HTTP handler.
+// The receive channel yields compacted JSON frames from the request body and nil
+// for heartbeat lines. Sending nil on the write channel emits a blank heartbeat line.
+func NewJSONStreamHandler(fn JSONStreamHandlerFunc, headers ...string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if fn == nil {
+			_ = Error(w, ErrInternalError.With("json stream handler is nil"))
+			return
+		}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
+		stream, err := NewJSONStream(w, r, headers...)
+		if err != nil {
+			_ = Error(w, err)
+			return
+		}
+		defer stream.Close()
 
-	if s.closed.Load() {
-		return io.ErrClosedPipe
-	}
-	if _, err := s.w.Write(data); err != nil {
-		return err
-	}
-	if _, err := s.w.Write([]byte{'\n'}); err != nil {
-		return err
-	}
-	s.w.(http.Flusher).Flush()
+		recvCh := make(chan json.RawMessage)
+		sendCh := make(chan json.RawMessage)
 
-	return nil
+		var wg sync.WaitGroup
+		var recvErr error
+		var sendErr error
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer close(recvCh)
+
+			for {
+				frame, err := stream.Recv()
+				if err == io.EOF {
+					return
+				}
+				if err != nil {
+					recvErr = err
+					return
+				}
+
+				select {
+				case <-stream.Context().Done():
+					return
+				case recvCh <- frame:
+				}
+			}
+		}()
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			var failed bool
+			for frame := range sendCh {
+				if failed {
+					continue
+				}
+				if err := stream.sendFrame(frame); err != nil {
+					sendErr = err
+					failed = true
+				}
+			}
+		}()
+
+		_ = fn(recvCh, sendCh)
+		close(sendCh)
+		wg.Wait()
+
+		_ = recvErr
+		_ = sendErr
+	})
 }
 
 // Close closes the request body and marks the stream as closed.
@@ -155,4 +211,34 @@ func (s *JSONStream) Close() error {
 		}
 	})
 	return s.err
+}
+
+func (s *JSONStream) sendFrame(frame json.RawMessage) error {
+	if s.closed.Load() {
+		return io.ErrClosedPipe
+	}
+
+	var data []byte
+	if frame == nil {
+		data = []byte{'\n'}
+	} else {
+		var buf bytes.Buffer
+		if err := json.Compact(&buf, frame); err != nil {
+			return err
+		}
+		data = append(buf.Bytes(), '\n')
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.closed.Load() {
+		return io.ErrClosedPipe
+	}
+	if _, err := s.w.Write(data); err != nil {
+		return err
+	}
+	s.w.(http.Flusher).Flush()
+
+	return nil
 }

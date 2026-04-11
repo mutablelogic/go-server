@@ -197,3 +197,75 @@ func Test_jsonstream_close(t *testing.T) {
 	assert.Nil(frame)
 	assert.ErrorIs(err, io.ErrClosedPipe)
 }
+
+func Test_jsonstream_handler_echo(t *testing.T) {
+	srv := httptest.NewServer(httpresponse.NewJSONStreamHandler(func(r <-chan json.RawMessage, w chan<- json.RawMessage) error {
+		for req := range r {
+			if req == nil {
+				continue
+			}
+			w <- req
+		}
+		return nil
+	}, "X-Test", "ok"))
+	defer srv.Close()
+
+	req, err := http.NewRequest(http.MethodPost, srv.URL, strings.NewReader("{\"a\":1}\n{\"b\":2}\n"))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/ndjson")
+	req.Header.Set("Accept", "application/ndjson")
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "application/ndjson", resp.Header.Get("Content-Type"))
+	assert.Equal(t, "ok", resp.Header.Get("X-Test"))
+	assert.Equal(t, "{\"a\":1}\n{\"b\":2}\n", string(data))
+}
+
+func Test_jsonstream_handler_heartbeat_forwarding(t *testing.T) {
+	srv := httptest.NewServer(httpresponse.NewJSONStreamHandler(func(r <-chan json.RawMessage, w chan<- json.RawMessage) error {
+		for req := range r {
+			w <- req
+		}
+		return nil
+	}))
+	defer srv.Close()
+
+	req, err := http.NewRequest(http.MethodPost, srv.URL, strings.NewReader("\n{\"ok\":true}\n"))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/ndjson")
+	req.Header.Set("Accept", "application/ndjson")
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, "\n{\"ok\":true}\n", string(data))
+}
+
+func Test_jsonstream_handler_nil(t *testing.T) {
+	srv := httptest.NewServer(httpresponse.NewJSONStreamHandler(nil))
+	defer srv.Close()
+
+	req, err := http.NewRequest(http.MethodPost, srv.URL, http.NoBody)
+	require.NoError(t, err)
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+	assert.Contains(t, string(data), "json stream handler is nil")
+}
