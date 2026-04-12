@@ -10,8 +10,8 @@ import (
 const (
 	SchemeSecure             = "https"
 	SchemeInsecure           = "http"
-	ContentTypeHeader        = "Content-Type"
 	ContentAcceptHeader      = "Accept"
+	ContentTypeHeader        = "Content-Type"
 	ContentLengthHeader      = "Content-Length"
 	ContentDispositonHeader  = "Content-Disposition"
 	ContentModifiedHeader    = "Last-Modified"
@@ -29,5 +29,9 @@ func RequestContentType(r *http.Request) (string, error) {
 }
 
 func AcceptContentType(r *http.Request) (string, error) {
-	return ParseContentType(r.Header.Get(ContentAcceptHeader))
+	if accept := r.Header.Get(ContentAcceptHeader); accept == "" {
+		return "", nil
+	} else {
+		return ParseContentType(accept)
+	}
 }

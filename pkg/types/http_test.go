@@ -29,8 +29,9 @@ func Test_RequestContentType(t *testing.T) {
 
 	t.Run("Empty content type", func(t *testing.T) {
 		r, _ := http.NewRequest(http.MethodGet, "/", nil)
-		_, err := types.RequestContentType(r)
-		assert.Error(err)
+		mimetype, err := types.RequestContentType(r)
+		assert.NoError(err)
+		assert.Equal("application/octet-stream", mimetype)
 	})
 
 	t.Run("Multipart form data", func(t *testing.T) {
@@ -63,7 +64,8 @@ func Test_AcceptContentType(t *testing.T) {
 
 	t.Run("Empty accept", func(t *testing.T) {
 		r, _ := http.NewRequest(http.MethodGet, "/", nil)
-		_, err := types.AcceptContentType(r)
-		assert.Error(err)
+		mimetype, err := types.AcceptContentType(r)
+		assert.NoError(err)
+		assert.Equal("", mimetype)
 	})
 }

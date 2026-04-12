@@ -12,10 +12,9 @@ func Test_Mime_001(t *testing.T) {
 	assert := assert.New(t)
 
 	t.Run("1", func(t *testing.T) {
-		_, err := types.ParseContentType("")
-		if assert.Error(err) {
-			assert.ErrorContains(err, "no media type")
-		}
+		mimetype, err := types.ParseContentType("")
+		assert.NoError(err)
+		assert.Equal(types.ContentTypeBinary, mimetype)
 	})
 
 	t.Run("2", func(t *testing.T) {

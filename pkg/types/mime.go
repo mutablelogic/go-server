@@ -9,20 +9,21 @@ import (
 // GLOBALS
 
 const (
-	ContentTypeJSON       = "application/json"
-	ContentTypeJSONStream = "application/ndjson"
-	ContentTypeYAML       = "application/yaml"
-	ContentTypeXML        = "application/xml"
-	ContentTypeRSS        = "application/rss+xml"
-	ContentTypeBinary     = "application/octet-stream"
-	ContentTypeCSV        = "text/csv"
-	ContentTypeTextXml    = "text/xml"
-	ContentTypeTextPlain  = "text/plain"
-	ContentTypeTextStream = "text/event-stream"
-	ContentTypeForm       = "application/x-www-form-urlencoded"
-	ContentTypeFormData   = "multipart/form-data"
-	ContentTypeHTML       = "text/html"
-	ContentTypeAny        = "*/*"
+	ContentTypeJSON             = "application/json"
+	ContentTypeJSONStream       = "application/ndjson"
+	ContentTypeJSONStreamLegacy = "application/x-ndjson"
+	ContentTypeYAML             = "application/yaml"
+	ContentTypeXML              = "application/xml"
+	ContentTypeRSS              = "application/rss+xml"
+	ContentTypeBinary           = "application/octet-stream"
+	ContentTypeCSV              = "text/csv"
+	ContentTypeTextXml          = "text/xml"
+	ContentTypeTextPlain        = "text/plain"
+	ContentTypeTextStream       = "text/event-stream"
+	ContentTypeForm             = "application/x-www-form-urlencoded"
+	ContentTypeFormData         = "multipart/form-data"
+	ContentTypeHTML             = "text/html"
+	ContentTypeAny              = "*/*"
 )
 
 // reHeaderKey matches a valid RFC 7230 header field name token:
@@ -32,10 +33,17 @@ var reHeaderKey = regexp.MustCompile(`^[!#$%&'*+\-.^_` + "`" + `|~0-9A-Za-z]+$`)
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-// Parse a content type header to return the mimetype
+// Parse a content type header to return the mimetype, return binary
+// if the header is invalid or empty
 func ParseContentType(header string) (string, error) {
-	mimetype, _, err := mime.ParseMediaType(header)
-	return mimetype, err
+	if header == "" {
+		return ContentTypeBinary, nil
+	}
+	if mimetype, _, err := mime.ParseMediaType(header); err != nil {
+		return ContentTypeBinary, err
+	} else {
+		return mimetype, nil
+	}
 }
 
 // IsValidHeaderKey reports whether s is a valid RFC 7230 header field name

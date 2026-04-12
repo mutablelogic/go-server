@@ -36,6 +36,7 @@ func Test_Error_003(t *testing.T) {
 	assert.Equal(http.StatusOK, recorder.Code)
 
 	expected := ErrResponse{
+		Type:   "error",
 		Code:   http.StatusOK,
 		Reason: http.StatusText(http.StatusOK),
 		Detail: "detail",
@@ -55,6 +56,7 @@ func Test_Error_004(t *testing.T) {
 	assert.Equal(http.StatusOK, recorder.Code)
 
 	expected := ErrResponse{
+		Type:   "error",
 		Code:   http.StatusOK,
 		Reason: http.StatusText(http.StatusOK),
 		Detail: []any{"detail", "detail"},

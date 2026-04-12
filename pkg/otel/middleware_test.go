@@ -8,11 +8,13 @@ import (
 	"testing"
 
 	// Packages
+	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	otel "github.com/mutablelogic/go-server/pkg/otel"
 	assert "github.com/stretchr/testify/assert"
+	require "github.com/stretchr/testify/require"
 	gootel "go.opentelemetry.io/otel"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	tracetest "go.opentelemetry.io/otel/sdk/trace/tracetest"
 	tracenoop "go.opentelemetry.io/otel/trace/noop"
 )
 
@@ -141,4 +143,18 @@ func TestHTTPHandler_ServerError(t *testing.T) {
 	assert.Equal(http.StatusInternalServerError, rec.Code)
 	spans := exporter.GetSpans()
 	assert.Len(spans, 1)
+}
+
+func TestWrappedResponseWriterSupportsJSONStream(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/stream", http.NoBody)
+	rec := httptest.NewRecorder()
+	wrapped := otel.NewResponseWriter(rec)
+
+	stream, err := httpresponse.NewJSONStream(wrapped, req)
+	require.NoError(t, err)
+	require.NotNil(t, stream)
+	t.Cleanup(func() { require.NoError(t, stream.Close()) })
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "application/ndjson", rec.Header().Get("Content-Type"))
 }
