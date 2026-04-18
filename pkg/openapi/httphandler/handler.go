@@ -27,17 +27,17 @@ const (
 //   - openapi.html — HTML documentation (text/html)
 func RegisterHandler(router *httprouter.Router) error {
 	if err := router.RegisterPath(pathJSON, nil,
-		httprequest.NewPathItem("OpenAPI JSON", "Serve the OpenAPI specification as JSON").Get(jsonHandler(router), "Get OpenAPI JSON"),
+		httprequest.NewPathItem("OpenAPI JSON", "Serve the OpenAPI specification as JSON", "OpenAPI").Get(jsonHandler(router), "Get OpenAPI JSON"),
 	); err != nil {
 		return err
 	}
 	if err := router.RegisterPath(pathYAML, nil,
-		httprequest.NewPathItem("OpenAPI YAML", "Serve the OpenAPI specification as YAML").Get(yamlHandler(router), "Get OpenAPI YAML"),
+		httprequest.NewPathItem("OpenAPI YAML", "Serve the OpenAPI specification as YAML", "OpenAPI").Get(yamlHandler(router), "Get OpenAPI YAML"),
 	); err != nil {
 		return err
 	}
 	return router.RegisterPath(pathHTML, nil,
-		httprequest.NewPathItem("OpenAPI HTML", "Serve the OpenAPI documentation UI").Get(htmlHandler(), "Get OpenAPI HTML"),
+		httprequest.NewPathItem("OpenAPI HTML", "Serve the OpenAPI documentation UI", "OpenAPI").Get(htmlHandler(), "Get OpenAPI HTML"),
 	)
 }
 
