@@ -6,7 +6,6 @@ import (
 	"os"
 
 	// Packages
-	types "github.com/hala-systems/fabric-service/pkg/types"
 	server "github.com/mutablelogic/go-server"
 	httprouter "github.com/mutablelogic/go-server/pkg/httprouter"
 	httpserver "github.com/mutablelogic/go-server/pkg/httpserver"
