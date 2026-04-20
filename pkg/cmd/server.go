@@ -13,6 +13,7 @@ import (
 	openapihttphandler "github.com/mutablelogic/go-server/pkg/openapi/httphandler"
 	openapi "github.com/mutablelogic/go-server/pkg/openapi/schema"
 	otel "github.com/mutablelogic/go-server/pkg/otel"
+	types "github.com/mutablelogic/go-server/pkg/types"
 	errgroup "golang.org/x/sync/errgroup"
 )
 
