@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"time"
 
 	// Packages
@@ -44,6 +45,10 @@ type Cmd interface {
 	// ClientEndpoint returns the HTTP endpoint URL and client options derived
 	// from the global HTTP flags.
 	ClientEndpoint() (string, []client.ClientOpt, error)
+
+	// URL returns the advertised server URL, derived from the global HTTP flags. Returns
+	// nil if the URL cannot be determined.
+	URL() *url.URL
 
 	// Get retrieves a default value by key. Returns nil if the key does not exist.
 	Get(string) any

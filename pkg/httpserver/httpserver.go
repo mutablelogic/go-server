@@ -99,17 +99,6 @@ func (server *server) Router() *http.ServeMux {
 	return server.mux
 }
 
-// SetHandler replaces the HTTP handler used to serve requests.
-// Route registration should continue to use Router, which always returns the
-// dedicated internal ServeMux.
-func (server *server) SetHandler(handler http.Handler) {
-	if handler == nil {
-		server.http.Handler = server.mux
-		return
-	}
-	server.http.Handler = handler
-}
-
 // Addr returns the listen address. After [Listen] has been called this
 // returns the actual bound address (which may differ from the configured
 // address when an ephemeral port is used).
