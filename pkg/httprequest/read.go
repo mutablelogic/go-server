@@ -41,6 +41,8 @@ func Read(r *http.Request, v interface{}) error {
 		return readString(r, v)
 	case types.ContentTypeFormData:
 		return readFormData(r, v)
+	case types.ContentTypeForm:
+		return readFormURLEncoded(r, v)
 	}
 
 	// Cannot handle this content type
@@ -159,6 +161,19 @@ func readFormData(r *http.Request, v any) error {
 	}
 
 	// Return success
+	return nil
+}
+
+func readFormURLEncoded(r *http.Request, v any) error {
+	if err := r.ParseForm(); err != nil {
+		return errBadRequest.With(err.Error())
+	}
+	if r.PostForm == nil {
+		return httpresponse.ErrBadRequest.With("Missing form data")
+	}
+	if err := Query(r.PostForm, v); err != nil {
+		return err
+	}
 	return nil
 }
 

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -133,6 +134,33 @@ func Test_Read_FormData(t *testing.T) {
 		assert.NoError(err)
 		assert.Equal("alice", p.Name)
 		assert.Equal("30", p.Age)
+	})
+}
+
+func Test_Read_FormURLEncoded(t *testing.T) {
+	assert := assert.New(t)
+
+	t.Run("WithFields", func(t *testing.T) {
+		type payload struct {
+			Name   string   `json:"name"`
+			Age    string   `json:"age"`
+			Scopes []string `json:"scope"`
+		}
+
+		values := url.Values{
+			"name":  {"alice"},
+			"age":   {"30"},
+			"scope": {"openid", "profile"},
+		}
+		r, _ := http.NewRequest(http.MethodPost, "/", strings.NewReader(values.Encode()))
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+		var p payload
+		err := httprequest.Read(r, &p)
+		assert.NoError(err)
+		assert.Equal("alice", p.Name)
+		assert.Equal("30", p.Age)
+		assert.Equal([]string{"openid", "profile"}, p.Scopes)
 	})
 }
 
