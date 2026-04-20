@@ -72,7 +72,13 @@ func newResource(name string, attrs []Attr) (*sdkresource.Resource, error) {
 		context.Background(),
 		sdkresource.WithAttributes(toAttributes(attrs)...),
 		sdkresource.WithHost(),
-		sdkresource.WithProcess(),
+		sdkresource.WithProcessPID(),
+		sdkresource.WithProcessExecutableName(),
+		sdkresource.WithProcessExecutablePath(),
+		sdkresource.WithProcessOwner(),
+		sdkresource.WithProcessRuntimeName(),
+		sdkresource.WithProcessRuntimeVersion(),
+		sdkresource.WithProcessRuntimeDescription(),
 		sdkresource.WithTelemetrySDK(),
 	)
 }
