@@ -6,6 +6,7 @@ import (
 	"os"
 
 	// Packages
+	types "github.com/hala-systems/fabric-service/pkg/types"
 	server "github.com/mutablelogic/go-server"
 	httprouter "github.com/mutablelogic/go-server/pkg/httprouter"
 	httpserver "github.com/mutablelogic/go-server/pkg/httpserver"
@@ -90,6 +91,9 @@ func (s *RunServer) Run(ctx server.Cmd) error {
 	srv, err := httpserver.New(ctx.HTTPAddr(), tlsCfg, serverOpts...)
 	if err != nil {
 		return fmt.Errorf("httpserver: %w", err)
+	} else if url := srv.URL(); url != nil {
+		url.Path = types.NormalisePath(ctx.HTTPPrefix())
+		ctx.(*global).url = url
 	}
 
 	// Build middleware chain: OTel HTTP middleware which emits traces, logs and metrics
@@ -117,17 +121,10 @@ func (s *RunServer) Run(ctx server.Cmd) error {
 		}
 	}
 
-	// Always register a catch-all 404 handler at "/" and at the prefix root (e.g. "/api")
-	if err := router.RegisterCatchAll("/", false); err != nil {
-		return fmt.Errorf("catchall: %w", err)
-	}
+	// Always register a catch-all 404 handler at the prefix root (e.g. "/api")
 	if err := router.RegisterCatchAll(ctx.HTTPPrefix(), false); err != nil {
 		return fmt.Errorf("catchall: %w", err)
 	}
-
-	// Serve requests through the wrapped router so CORS, CSRF protection and
-	// router middleware are applied to the registered routes.
-	srv.SetHandler(router)
 
 	// Bind to the server's address to ensure it's available
 	if err := srv.Listen(); err != nil {

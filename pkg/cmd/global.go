@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/url"
 	"os"
 	"strconv"
 	"time"
@@ -51,6 +52,7 @@ type global struct {
 	execName    string
 	version     string
 	description string
+	url         *url.URL
 
 	// Defaults store for command defaults management
 	defaults
@@ -119,6 +121,19 @@ func (g *global) ClientEndpoint() (string, []client.ClientOpt, error) {
 		opts = append(opts, client.OptTimeout(g.HTTP.Timeout))
 	}
 	return fmt.Sprintf("%s://%s%s", scheme, net.JoinHostPort(host, strconv.FormatUint(portn, 10)), g.HTTP.Prefix), opts, nil
+}
+
+func (g *global) URL() *url.URL {
+	if g.url == nil {
+		endpoint, _, err := g.ClientEndpoint()
+		if err != nil {
+			return nil
+		}
+		if url, err := url.Parse(endpoint); err == nil {
+			g.url = url
+		}
+	}
+	return g.url
 }
 
 func (g *global) IsTerm() int {
