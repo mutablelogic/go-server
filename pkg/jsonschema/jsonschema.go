@@ -390,12 +390,24 @@ func applySpecialTypeSchema(s *upstream.Schema, t reflect.Type) bool {
 		resetToScalarStringSchema(s, "byte")
 		return true
 	default:
+		if isUUIDLikeType(t) {
+			resetToScalarStringSchema(s, "uuid")
+			return true
+		}
 		if isJSONBytesType(t) {
 			resetToScalarStringSchema(s, "json")
 			return true
 		}
 		return false
 	}
+}
+
+func isUUIDLikeType(t reflect.Type) bool {
+	return t.Kind() == reflect.Array &&
+		uuidType.Kind() == reflect.Array &&
+		t.Len() == uuidType.Len() &&
+		t.Elem() == uuidType.Elem() &&
+		t.ConvertibleTo(uuidType)
 }
 
 func isJSONBytesType(t reflect.Type) bool {
