@@ -114,6 +114,13 @@ type uuidNativeStruct struct {
 	Name string    `json:"name"`
 }
 
+type namedUUID uuid.UUID
+
+type namedUUIDStruct struct {
+	ID   namedUUID `json:"id"`
+	Name string    `json:"name"`
+}
+
 type uuidRequiredStruct struct {
 	ID   string `json:"id"   format:"uuid" required:""`
 	Name string `json:"name"`
@@ -628,6 +635,23 @@ func TestFor_FormatTag(t *testing.T) {
 	}
 	if got := s.Properties["count"].Format; got != "int32" {
 		t.Errorf("count format: got %q, want %q", got, "int32")
+	}
+}
+
+func TestFor_NamedUUIDType_UsesUUIDStringSchema(t *testing.T) {
+	s, err := For[namedUUIDStruct]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	prop := s.Properties["id"]
+	if prop == nil {
+		t.Fatal("expected property 'id'")
+	}
+	if prop.Type != "string" {
+		t.Errorf("id type: got %q, want %q", prop.Type, "string")
+	}
+	if prop.Format != "uuid" {
+		t.Errorf("id format: got %q, want %q", prop.Format, "uuid")
 	}
 }
 
