@@ -22,6 +22,7 @@ import (
 type server struct {
 	http       http.Server
 	listener   net.Listener
+	mux        *http.ServeMux
 	serverName string
 }
 
@@ -71,7 +72,8 @@ func New(listen string, tls *tls.Config, opts ...Opt) (*server, error) {
 	listen = ListenAddr(listen, tls != nil && len(tls.Certificates) > 0)
 
 	// Set other options
-	server.http.Handler = http.DefaultServeMux
+	server.mux = http.NewServeMux()
+	server.http.Handler = server.mux
 	server.http.Addr = listen
 	if tls != nil && len(tls.Certificates) > 0 {
 		server.http.TLSConfig = tls
@@ -94,7 +96,18 @@ func New(listen string, tls *tls.Config, opts ...Opt) (*server, error) {
 
 // Router returns the server's http.ServeMux for registering handlers.
 func (server *server) Router() *http.ServeMux {
-	return server.http.Handler.(*http.ServeMux)
+	return server.mux
+}
+
+// SetHandler replaces the HTTP handler used to serve requests.
+// Route registration should continue to use Router, which always returns the
+// dedicated internal ServeMux.
+func (server *server) SetHandler(handler http.Handler) {
+	if handler == nil {
+		server.http.Handler = server.mux
+		return
+	}
+	server.http.Handler = handler
 }
 
 // Addr returns the listen address. After [Listen] has been called this

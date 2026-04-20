@@ -29,7 +29,6 @@ func (r *Router) RegisterSecurityScheme(name string, scheme SecurityScheme) erro
 	if _, exists := r.security[name]; exists {
 		return httpresponse.ErrConflict.Withf("security scheme %q already registered", name)
 	}
-
 	r.spec.AddSecurityScheme(name, scheme.Spec())
 	r.security[name] = scheme
 	return nil

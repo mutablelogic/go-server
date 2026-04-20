@@ -125,6 +125,10 @@ func (s *RunServer) Run(ctx server.Cmd) error {
 		return fmt.Errorf("catchall: %w", err)
 	}
 
+	// Serve requests through the wrapped router so CORS, CSRF protection and
+	// router middleware are applied to the registered routes.
+	srv.SetHandler(router)
+
 	// Bind to the server's address to ensure it's available
 	if err := srv.Listen(); err != nil {
 		return err
