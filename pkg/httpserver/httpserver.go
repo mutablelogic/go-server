@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"strings"
 	"sync"
@@ -129,7 +130,7 @@ func (server *server) URL() *url.URL {
 	var url url.URL
 	url.Scheme = defaultListenPortHttp
 	url.Path = "/"
-	url.Host = server.Addr()
+	url.Host = normalizeURLHost(server.Addr())
 	if server.serverName != "" {
 		url.Scheme = defaultListenPortHttps
 		url.Host = server.serverName
@@ -202,4 +203,24 @@ func (server *server) shutdown() error {
 	} else {
 		return err
 	}
+}
+
+func normalizeURLHost(addr string) string {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return addr
+	}
+	if host == "" || isUnspecifiedHost(host) {
+		host = defaultListenHost
+	}
+	return net.JoinHostPort(host, port)
+}
+
+func isUnspecifiedHost(host string) bool {
+	host = strings.TrimPrefix(strings.TrimSuffix(strings.TrimSpace(host), "]"), "[")
+	if host == "" {
+		return true
+	}
+	addr, err := netip.ParseAddr(host)
+	return err == nil && addr.IsUnspecified()
 }

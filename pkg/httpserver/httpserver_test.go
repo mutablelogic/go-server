@@ -361,6 +361,29 @@ func Test_Listen_002(t *testing.T) {
 	assert.Equal("localhost:9999", s.Addr())
 }
 
+func Test_URL_001(t *testing.T) {
+	assert := assert.New(t)
+
+	// Empty listen host should advertise localhost rather than a bare :port URL.
+	s, err := httpserver.New(":8084", nil)
+	assert.NoError(err)
+	if assert.NotNil(s.URL()) {
+		assert.Equal("http://localhost:8084/", s.URL().String())
+	}
+}
+
+func Test_URL_002(t *testing.T) {
+	assert := assert.New(t)
+
+	// Wildcard listener addresses should advertise localhost for local development.
+	s, err := httpserver.New(":0", nil)
+	assert.NoError(err)
+	assert.NoError(s.Listen())
+	if assert.NotNil(s.URL()) {
+		assert.Contains(s.URL().String(), "http://localhost:")
+	}
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // TESTS - RUN
 
