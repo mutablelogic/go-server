@@ -16,8 +16,8 @@ import (
 	errgroup "golang.org/x/sync/errgroup"
 )
 
-// RegisterFunc is called after the router is created but before the server
-// starts listening. Use it to add routes and wire up handlers.
+// RegisterFunc is called after the server URL has been resolved but before the
+// server starts serving requests. Use it to add routes and wire up handlers.
 type RegisterFunc func(*httprouter.Router) error
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -87,11 +87,19 @@ func (s *RunServer) Run(ctx server.Cmd) error {
 		tlsCfg = &tls.Config{ServerName: s.TLS.ServerName}
 	}
 
-	// Create a new server and start listening. The server will run until the context is cancelled.
+	// Create a new server. The listener is bound before registration so callbacks
+	// can rely on the final advertised URL, including :0 port allocation.
 	srv, err := httpserver.New(ctx.HTTPAddr(), tlsCfg, serverOpts...)
 	if err != nil {
 		return fmt.Errorf("httpserver: %w", err)
-	} else if url := srv.URL(); url != nil {
+	}
+
+	// Bind to the server's address to ensure the advertised URL is final before
+	// route registration runs.
+	if err := srv.Listen(); err != nil {
+		return err
+	}
+	if url := srv.URL(); url != nil {
 		url.Path = types.NormalisePath(ctx.HTTPPrefix())
 		ctx.(*global).url = url
 	}
@@ -124,11 +132,6 @@ func (s *RunServer) Run(ctx server.Cmd) error {
 	// Always register a catch-all 404 handler at the prefix root (e.g. "/api")
 	if err := router.RegisterCatchAll(ctx.HTTPPrefix(), false); err != nil {
 		return fmt.Errorf("catchall: %w", err)
-	}
-
-	// Bind to the server's address to ensure it's available
-	if err := srv.Listen(); err != nil {
-		return err
 	}
 
 	// Set the server URL in the OpenAPI spec now that the bound address is known.

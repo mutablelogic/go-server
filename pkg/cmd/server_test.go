@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -126,5 +127,96 @@ func Test_ClientEndpoint_Verbose(t *testing.T) {
 	}
 	if len(opts) == 0 {
 		t.Error("expected opts when Verbose=true, got none")
+	}
+}
+
+func Test_RunServer_AdvertisedURL(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	g := &global{
+		ctx:    ctx,
+		logger: slog.New(slog.NewTextHandler(os.Stderr, nil)),
+	}
+	g.HTTP.Addr = ":0"
+	g.HTTP.Prefix = "/api"
+
+	s := &RunServer{}
+	var registerURL string
+	s.Register(func(_ *httprouter.Router) error {
+		if url := g.URL(); url != nil {
+			registerURL = url.String()
+		}
+		return nil
+	})
+
+	done := make(chan error, 1)
+	go func() {
+		done <- s.Run(g)
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+	if registerURL == "" {
+		t.Fatal("expected URL to be available during route registration")
+	}
+	if !strings.HasPrefix(registerURL, "http://localhost:") {
+		t.Fatalf("register URL = %q, want localhost prefix", registerURL)
+	}
+	if strings.Contains(registerURL, ":0/") {
+		t.Fatalf("register URL = %q, want bound port instead of :0", registerURL)
+	}
+
+	if url := g.URL(); url == nil {
+		t.Fatal("expected URL after listen")
+	} else if strings.Contains(url.String(), ":0/") {
+		t.Fatalf("final URL = %q, want bound port", url.String())
+	}
+
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+}
+
+func Test_RunServer_AdvertisedURL_TLSName(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	g := &global{
+		ctx:    ctx,
+		logger: slog.New(slog.NewTextHandler(os.Stderr, nil)),
+	}
+	g.HTTP.Addr = ":0"
+	g.HTTP.Prefix = "/api"
+
+	s := &RunServer{}
+	s.TLS.ServerName = "auth.example.com"
+	var registerURL string
+	s.Register(func(_ *httprouter.Router) error {
+		if url := g.URL(); url != nil {
+			registerURL = url.String()
+		}
+		return nil
+	})
+
+	done := make(chan error, 1)
+	go func() {
+		done <- s.Run(g)
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+	if registerURL != "https://auth.example.com/api" {
+		t.Fatalf("register URL = %q, want %q", registerURL, "https://auth.example.com/api")
+	}
+
+	if url := g.URL(); url == nil {
+		t.Fatal("expected URL after listen")
+	} else if got := url.String(); got != "https://auth.example.com/api" {
+		t.Fatalf("final URL = %q, want %q", got, "https://auth.example.com/api")
+	}
+
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatal(err)
 	}
 }

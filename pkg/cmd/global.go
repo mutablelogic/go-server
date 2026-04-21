@@ -14,6 +14,7 @@ import (
 	kong "github.com/alecthomas/kong"
 	client "github.com/mutablelogic/go-client"
 	server "github.com/mutablelogic/go-server"
+	types "github.com/mutablelogic/go-server/pkg/types"
 	metric "go.opentelemetry.io/otel/metric"
 	trace "go.opentelemetry.io/otel/trace"
 )
@@ -95,7 +96,7 @@ func (g *global) Meter() metric.Meter {
 // ClientEndpoint returns the HTTP endpoint URL and client options derived
 // from the global HTTP flags.
 func (g *global) ClientEndpoint() (string, []client.ClientOpt, error) {
-	scheme := "http"
+	scheme := types.SchemeInsecure
 	host, port, err := net.SplitHostPort(g.HTTP.Addr)
 	if err != nil {
 		return "", nil, err
@@ -107,8 +108,14 @@ func (g *global) ClientEndpoint() (string, []client.ClientOpt, error) {
 	if err != nil {
 		return "", nil, err
 	}
-	if portn == 443 {
-		scheme = "https"
+	hostaddr := net.JoinHostPort(host, strconv.FormatUint(portn, 10))
+	switch portn {
+	case 80:
+		scheme = types.SchemeInsecure
+		hostaddr = host
+	case 443:
+		scheme = types.SchemeSecure
+		hostaddr = host
 	}
 	opts := []client.ClientOpt{}
 	if g.Debug || g.Verbose {
@@ -120,7 +127,7 @@ func (g *global) ClientEndpoint() (string, []client.ClientOpt, error) {
 	if g.HTTP.Timeout > 0 {
 		opts = append(opts, client.OptTimeout(g.HTTP.Timeout))
 	}
-	return fmt.Sprintf("%s://%s%s", scheme, net.JoinHostPort(host, strconv.FormatUint(portn, 10)), g.HTTP.Prefix), opts, nil
+	return fmt.Sprintf("%s://%s%s", scheme, hostaddr, g.HTTP.Prefix), opts, nil
 }
 
 func (g *global) URL() *url.URL {
