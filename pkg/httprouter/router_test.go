@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	// Packages
 	httprequest "github.com/mutablelogic/go-server/pkg/httprequest"
@@ -144,6 +145,24 @@ func Test_RegisterFS_001(t *testing.T) {
 
 	assert.Equal(http.StatusOK, rec.Code)
 	assert.Contains(rec.Body.String(), "Hello")
+}
+
+func Test_RegisterFS_002(t *testing.T) {
+	assert := assert.New(t)
+	modified := time.Date(2026, time.April, 22, 12, 0, 0, 0, time.UTC)
+	handler := withLastModified(modified, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("Hello"))
+	}))
+
+	condReq := httptest.NewRequest(http.MethodGet, "/test.txt", nil)
+	condReq.Header.Set("If-Modified-Since", modified.Format(http.TimeFormat))
+	condRec := httptest.NewRecorder()
+	handler.ServeHTTP(condRec, condReq)
+
+	assert.Equal(http.StatusNotModified, condRec.Code)
+	assert.Empty(condRec.Body.String())
+	assert.Equal(modified.Format(http.TimeFormat), condRec.Header().Get("Last-Modified"))
 }
 
 func Test_RegisterPath_UsingGet_001(t *testing.T) {

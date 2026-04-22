@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"runtime"
 	"runtime/debug"
+	"time"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -12,6 +13,7 @@ import (
 var (
 	GitTag    string
 	GitBranch string
+	BuildDate string
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -39,6 +41,26 @@ func Version() string {
 	return "dev"
 }
 
+func BuildTime() time.Time {
+	if BuildDate != "" {
+		if t, err := time.Parse(time.RFC3339, BuildDate); err == nil {
+			return t.UTC()
+		}
+	}
+
+	if info, ok := debug.ReadBuildInfo(); ok {
+		for _, s := range info.Settings {
+			if s.Key == "vcs.time" && s.Value != "" {
+				if t, err := time.Parse(time.RFC3339, s.Value); err == nil {
+					return t.UTC()
+				}
+			}
+		}
+	}
+
+	return time.Time{}
+}
+
 func JSON(execName string) json.RawMessage {
 	metadata := map[string]string{
 		"name":     execName,
@@ -53,6 +75,9 @@ func JSON(execName string) json.RawMessage {
 	if GitBranch != "" {
 		metadata["branch"] = GitBranch
 	}
+	if buildTime := BuildTime(); !buildTime.IsZero() {
+		metadata["build_time"] = buildTime.Format(time.RFC3339)
+	}
 
 	// Add build info from runtime/debug
 	var goos, goarch string
@@ -65,10 +90,6 @@ func JSON(execName string) json.RawMessage {
 			case "vcs.revision":
 				if s.Value != "" {
 					metadata["hash"] = s.Value
-				}
-			case "vcs.time":
-				if s.Value != "" {
-					metadata["build_time"] = s.Value
 				}
 			case "vcs.modified":
 				if s.Value == "true" {

@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"net/http"
 	"strings"
+	"time"
 
 	// Packages
 	httprequest "github.com/mutablelogic/go-server/pkg/httprequest"
@@ -18,6 +19,7 @@ import (
 	openapi_ops "github.com/mutablelogic/go-server/pkg/openapi"
 	openapi "github.com/mutablelogic/go-server/pkg/openapi/schema"
 	types "github.com/mutablelogic/go-server/pkg/types"
+	version "github.com/mutablelogic/go-server/pkg/version"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -204,7 +206,7 @@ func (r *Router) RegisterFS(path string, fs fs.FS, middleware bool, spec *openap
 	if spec != nil {
 		r.spec.AddPath(r.resolvePath(path), spec)
 	}
-	handler := http.StripPrefix(prefix, http.FileServer(http.FS(fs))).ServeHTTP
+	handler := withLastModified(version.BuildTime(), http.StripPrefix(prefix, http.FileServer(http.FS(fs)))).ServeHTTP
 	if middleware {
 		handler = r.middleware.Wrap(handler)
 	}
@@ -259,4 +261,36 @@ func (r *Router) RegisterPath(path string, params *jsonschema.Schema, pathitem h
 
 	// Register the handler
 	return r.safeHandle(path, r.middleware.Wrap(handler))
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+func withLastModified(modified time.Time, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if !modified.IsZero() && (req.Method == http.MethodGet || req.Method == http.MethodHead) {
+			w.Header().Set("Last-Modified", modified.UTC().Format(http.TimeFormat))
+			if ifModifiedSince(req, modified) {
+				w.WriteHeader(http.StatusNotModified)
+				return
+			}
+		}
+		next.ServeHTTP(w, req)
+	})
+}
+
+func ifModifiedSince(req *http.Request, modified time.Time) bool {
+	if modified.IsZero() {
+		return false
+	}
+	value := req.Header.Get("If-Modified-Since")
+	if value == "" {
+		return false
+	}
+	ifModifiedSince, err := http.ParseTime(value)
+	if err != nil {
+		return false
+	}
+	modified = modified.Truncate(time.Second)
+	return !modified.After(ifModifiedSince)
 }
