@@ -114,6 +114,7 @@ func (s *RunServer) Run(ctx server.Cmd) error {
 	if err != nil {
 		return fmt.Errorf("router: %w", err)
 	}
+	srv.SetHandler(router)
 
 	// Register routes
 	for _, fn := range s.register {

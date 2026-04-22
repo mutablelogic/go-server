@@ -100,6 +100,17 @@ func (server *server) Router() *http.ServeMux {
 	return server.mux
 }
 
+// SetHandler replaces the server's active HTTP handler. This is used when a
+// higher-level router wraps the underlying ServeMux with middleware such as
+// CORS, CSRF protection, tracing, or authentication.
+func (server *server) SetHandler(handler http.Handler) {
+	if handler == nil {
+		server.http.Handler = server.mux
+		return
+	}
+	server.http.Handler = handler
+}
+
 // Addr returns the listen address. After [Listen] has been called this
 // returns the actual bound address (which may differ from the configured
 // address when an ephemeral port is used).

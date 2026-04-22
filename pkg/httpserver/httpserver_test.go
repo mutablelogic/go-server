@@ -203,6 +203,40 @@ func Test_Options_004(t *testing.T) {
 	assert.NotNil(s)
 }
 
+func Test_Server_UsesCustomHandler(t *testing.T) {
+	assert := assert.New(t)
+
+	s, err := httpserver.New(":0", nil)
+	if !assert.NoError(err) {
+		return
+	}
+
+	s.SetHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusAccepted)
+	}))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if !assert.NoError(s.Listen()) {
+		return
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- s.Run(ctx)
+	}()
+
+	resp, err := http.Get(s.URL().String())
+	if assert.NoError(err) {
+		defer resp.Body.Close()
+		assert.Equal(http.StatusAccepted, resp.StatusCode)
+	}
+
+	cancel()
+	assert.NoError(<-done)
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // TESTS - TLS CONFIG
 
