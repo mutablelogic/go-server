@@ -3,6 +3,7 @@ package cmd
 import (
 	"crypto/tls"
 	"fmt"
+	"net/url"
 	"os"
 
 	// Packages
@@ -99,9 +100,14 @@ func (s *RunServer) Run(ctx server.Cmd) error {
 	if err := srv.Listen(); err != nil {
 		return err
 	}
-	if url := srv.URL(); url != nil {
-		url.Path = types.NormalisePath(ctx.HTTPPrefix())
-		ctx.(*global).url = url
+	if u := srv.URL(); u != nil {
+		u.Path = types.NormalisePath(ctx.HTTPPrefix())
+		type urlSetter interface {
+			SetURL(*url.URL)
+		}
+		if ctx, ok := ctx.(urlSetter); ok {
+			ctx.SetURL(u)
+		}
 	}
 
 	// Build middleware chain: OTel HTTP middleware which emits traces, logs and metrics
