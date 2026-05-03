@@ -59,6 +59,11 @@ type global struct {
 	defaults
 }
 
+type child struct {
+	server.Cmd
+	ctx context.Context
+}
+
 // Ensure *globals implements server.Cmd
 var _ server.Cmd = (*global)(nil)
 
@@ -79,6 +84,10 @@ func (g *global) Version() string {
 
 func (g *global) Context() context.Context {
 	return g.ctx
+}
+
+func (c *child) Context() context.Context {
+	return c.ctx
 }
 
 func (g *global) Logger() *slog.Logger {
@@ -165,4 +174,12 @@ func (g *global) HTTPPrefix() string {
 
 func (g *global) HTTPTimeout() time.Duration {
 	return g.HTTP.Timeout
+}
+
+// WithContext returns a copy of the Cmd with the provided context.
+func (g *global) WithContext(ctx context.Context) server.Cmd {
+	return types.Ptr(child{
+		Cmd: g,
+		ctx: ctx,
+	})
 }

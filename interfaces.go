@@ -79,6 +79,9 @@ type Cmd interface {
 
 	// HTTPTimeout returns the HTTP read/write timeout.
 	HTTPTimeout() time.Duration
+
+	// WithContext returns a copy of the Cmd with the provided context.
+	WithContext(context.Context) Cmd
 }
 
 ///////////////////////////////////////////////////////////////////////////////
