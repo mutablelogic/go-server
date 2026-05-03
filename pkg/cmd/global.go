@@ -152,6 +152,10 @@ func (g *global) URL() *url.URL {
 	return g.url
 }
 
+func (g *global) SetURL(url *url.URL) {
+	g.url = url
+}
+
 func (g *global) IsTerm() int {
 	return TerminalWidth()
 }
