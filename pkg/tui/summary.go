@@ -10,21 +10,23 @@ import (
 // TYPES
 
 type summary struct {
-	name   string
-	count  uint
-	offset uint64
-	limit  *uint64
+	name    string
+	count   uint
+	bodyLen uint
+	offset  uint64
+	limit   *uint64
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func TableSummary(name string, count uint, offset uint64, limit *uint64) *summary {
+func TableSummary(name string, count uint, bodyLen uint, offset uint64, limit *uint64) *summary {
 	return &summary{
-		name:   strings.TrimSpace(name),
-		count:  count,
-		offset: offset,
-		limit:  limit,
+		name:    strings.TrimSpace(name),
+		count:   count,
+		bodyLen: bodyLen,
+		offset:  offset,
+		limit:   limit,
 	}
 }
 
@@ -40,8 +42,15 @@ func (s *summary) String() string {
 	if name == "" {
 		name = "items"
 	}
+
+	// Total count unknown — derive range from body length alone
 	if s.count == 0 {
-		return fmt.Sprintf("No %s returned", name)
+		if s.bodyLen == 0 {
+			return fmt.Sprintf("No %s returned", name)
+		}
+		start := s.offset + 1
+		end := s.offset + uint64(s.bodyLen)
+		return fmt.Sprintf("Showing %s %d-%d", name, start, end)
 	}
 
 	end := uint64(s.count)
