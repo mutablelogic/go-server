@@ -1,6 +1,7 @@
 package httprequest
 
 import (
+	"errors"
 	"io"
 	"mime/multipart"
 	"sync"
@@ -52,6 +53,14 @@ func (mc *multipartCleanup) done() {
 
 func (mc *multipartCleanup) removeAll() {
 	mc.once.Do(func() { _ = mc.form.RemoveAll() })
+}
+
+// Seek delegates to the underlying reader if it supports seeking.
+func (b *refCountedBody) Seek(offset int64, whence int) (int64, error) {
+	if s, ok := b.ReadCloser.(io.Seeker); ok {
+		return s.Seek(offset, whence)
+	}
+	return 0, errors.New("not seekable")
 }
 
 // Close decrements the ref count; when it reaches zero RemoveAll is called.
