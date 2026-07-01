@@ -213,6 +213,23 @@ func (r *Router) RegisterFS(path string, fs fs.FS, middleware bool, spec *openap
 	return r.safeHandle(prefix, handler)
 }
 
+// Register registers a [PathItem] handler at path. If path is relative
+// the router prefix is prepended. Any security schemes referenced by the
+// path item's OpenAPI operations must already be registered on the router;
+// matching handlers are wrapped with those security schemes before the
+// router's middleware chain is applied.
+func (r *Router) Register(path string, params *jsonschema.Schema, fn func(pathitem httprequest.PathItem) error) error {
+	// Resolve the path with the router prefix
+	path = r.resolvePath(path)
+
+	// Populate the path item by calling the provided function
+	pathitem := httprequest.NewPathItem("SUMMARY", "DESCRIPTION")
+	if err := fn(pathitem); err != nil {
+		return err
+	}
+	return r.RegisterPath(path, params, pathitem)
+}
+
 // RegisterPath registers a [PathItem] handler at path. If path is relative
 // the router prefix is prepended. Any security schemes referenced by the
 // path item's OpenAPI operations must already be registered on the router;
