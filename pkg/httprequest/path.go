@@ -74,6 +74,10 @@ type PathOperation interface {
 	// Mark the operation as deprecated.
 	Deprecated() PathOperation
 
+	// Add a request body for the operation with the given content type and schema.
+	// An optional description can be provided. If no content type is provided, "application/json" is used.
+	RequestBody(schema *jsonschema.Schema, contentType ...string) PathOperation
+
 	// Add a JSON response for the operation with the given status code and schema.
 	// An optional description can be provided; if not, the default HTTP status text will be used.
 	JSONResponse(status int, schema *jsonschema.Schema, description ...string) PathOperation
@@ -306,6 +310,21 @@ func (p *pathoperation) Response(status int, contentType string, description ...
 		Description: descriptionText,
 		Content: map[string]openapi.MediaType{
 			contentType: {},
+		},
+	}
+	return p
+}
+
+func (p *pathoperation) RequestBody(schema *jsonschema.Schema, contentType ...string) PathOperation {
+	ct := types.ContentTypeJSON
+	if len(contentType) > 0 {
+		ct = contentType[0]
+	}
+	p.spec.RequestBody = &openapi.RequestBody{
+		Content: map[string]openapi.MediaType{
+			ct: {
+				Schema: schema,
+			},
 		},
 	}
 	return p
