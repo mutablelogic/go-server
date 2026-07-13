@@ -37,9 +37,28 @@ func TestTableWriteEmpty(t *testing.T) {
 func TestTableWriteEndsWithNewline(t *testing.T) {
 	var buffer bytes.Buffer
 
-	n, err := TableFor[testRow]().Write(&buffer, testRow{value: "alpha"})
+	table := TableFor[testRow]()
+	table.Append(testRow{value: "alpha"})
+	n, err := table.Write(&buffer)
 	require.NoError(t, err)
 	assert.Equal(t, len(buffer.String()), n)
 	assert.True(t, strings.HasSuffix(buffer.String(), "\n"))
 	assert.Contains(t, buffer.String(), "alpha")
+}
+
+func TestTableWriteFlushesBufferedRows(t *testing.T) {
+	var buffer bytes.Buffer
+
+	table := TableFor[testRow]()
+	table.Append(testRow{value: "alpha"}, testRow{value: "beta"})
+
+	_, err := table.Write(&buffer)
+	require.NoError(t, err)
+	assert.Contains(t, buffer.String(), "alpha")
+	assert.Contains(t, buffer.String(), "beta")
+
+	buffer.Reset()
+	_, err = table.Write(&buffer)
+	require.NoError(t, err)
+	assert.Equal(t, "", buffer.String())
 }
