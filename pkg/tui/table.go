@@ -24,6 +24,7 @@ type TableRow interface {
 type table[T TableRow] struct {
 	table  *lgtable.Table
 	widths []int
+	rows   []T
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -63,25 +64,39 @@ func TableFor[T TableRow](options ...Opt) *table[T] {
 ///////////////////////////////////////////////////////////////////////////////
 // RENDER
 
+func (t *table[T]) Append(rows ...T) *table[T] {
+	if len(rows) > 0 {
+		t.rows = append(t.rows, rows...)
+	}
+	return t
+}
+
 func (t *table[T]) Write(w io.Writer, rows ...T) (int, error) {
+	if len(rows) > 0 {
+		t.Append(rows...)
+	}
+
 	t.table.ClearRows()
-	if len(rows) == 0 {
+	if len(t.rows) == 0 {
 		return io.WriteString(w, "")
 	}
 
-	headers := rows[0].Header()
+	headers := t.rows[0].Header()
 	t.widths = make([]int, len(headers))
 	for i := range headers {
-		t.widths[i] = rows[0].Width(i)
+		t.widths[i] = t.rows[0].Width(i)
 	}
 	t.table.Headers(headers...)
-	for _, row := range rows {
+	for _, row := range t.rows {
 		cells := make([]string, len(headers))
 		for i := range headers {
 			cells[i] = row.Cell(i)
 		}
 		t.table.Row(cells...)
 	}
+	defer func() {
+		t.rows = nil
+	}()
 
 	return io.WriteString(w, fmt.Sprintln(t.table.Render()))
 }
