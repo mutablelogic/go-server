@@ -157,6 +157,22 @@ func For[T any]() (*Schema, error) {
 		if err := enrichSchema(s, t); err != nil {
 			return nil, err
 		}
+	} else if ft.Kind() == reflect.Slice || ft.Kind() == reflect.Array {
+		// T itself is a slice/array (e.g. a named "type FooList []Foo"), not a
+		// field of some enriched struct - enrichArrayItems is otherwise only
+		// reached via enrichSchema for slice-typed fields, so without this
+		// branch a top-level slice type's element schema never gets its
+		// struct tag annotations (help, example, etc.) applied.
+		if err := enrichArrayItems(s, ft); err != nil {
+			return nil, err
+		}
+
+		// As with slice-typed fields (see enrichSchema), the upstream library
+		// adds "null" because Go slices have a nil zero value, but a JSON API
+		// returns an absent list as [], never null - and a schema advertising
+		// "null" as a possibility leads tooling (e.g. example generators) to
+		// treat null as a valid, even preferred, response shape.
+		removeNullType(s)
 	}
 	res := &Schema{*s, nil}
 	resolved, err := res.Resolve(nil)
@@ -276,10 +292,7 @@ func enrichSchema(s *upstream.Schema, t reflect.Type) error {
 				}
 			}
 			if isRequired {
-				prop.Types = removeString(prop.Types, "null")
-				if prop.Type == "null" {
-					prop.Type = ""
-				}
+				removeNullType(prop)
 			}
 		}
 
@@ -287,10 +300,7 @@ func enrichSchema(s *upstream.Schema, t reflect.Type) error {
 		// because Go slices have a nil zero value, but in JSON APIs an absent
 		// slice is omitted or [], never null.
 		if ft.Kind() == reflect.Slice {
-			prop.Types = removeString(prop.Types, "null")
-			if prop.Type == "null" {
-				prop.Type = ""
-			}
+			removeNullType(prop)
 		}
 
 		if v := field.Tag.Get("min"); v != "" {
@@ -337,8 +347,11 @@ func enrichSchema(s *upstream.Schema, t reflect.Type) error {
 }
 
 func enrichArrayItems(prop *upstream.Schema, t reflect.Type) error {
-	elem := t.Elem()
+	origElem := t.Elem()
+	elem := origElem
+	isPointer := false
 	for elem.Kind() == reflect.Pointer {
+		isPointer = true
 		elem = elem.Elem()
 	}
 
@@ -346,9 +359,17 @@ func enrichArrayItems(prop *upstream.Schema, t reflect.Type) error {
 		return nil
 	}
 
+	// A slice of pointers (e.g. []*Format) gets "null" added to each item's
+	// schema because a *Format can be nil - but a JSON array representing a
+	// dynamically-sized list never actually contains null placeholders for
+	// its elements, so left in, it leads tooling (e.g. example generators)
+	// to render a null element instead of a real one.
 	if prop.Items != nil {
 		if err := enrichSchema(prop.Items, elem); err != nil {
 			return err
+		}
+		if isPointer {
+			removeNullType(prop.Items)
 		}
 	}
 	for _, item := range prop.ItemsArray {
@@ -357,6 +378,9 @@ func enrichArrayItems(prop *upstream.Schema, t reflect.Type) error {
 		}
 		if err := enrichSchema(item, elem); err != nil {
 			return err
+		}
+		if isPointer {
+			removeNullType(item)
 		}
 	}
 
@@ -543,6 +567,17 @@ func appendUnique(ss []string, s string) []string {
 		}
 	}
 	return append(ss, s)
+}
+
+// removeNullType strips "null" from a schema's Types (and clears Type if it
+// was the sole "null"), for cases where the upstream library allows null
+// (typically because the Go zero value - a nil slice or pointer - permits
+// it) but the JSON API contract does not.
+func removeNullType(s *upstream.Schema) {
+	s.Types = removeString(s.Types, "null")
+	if s.Type == "null" {
+		s.Type = ""
+	}
 }
 
 func removeString(ss []string, s string) []string {
