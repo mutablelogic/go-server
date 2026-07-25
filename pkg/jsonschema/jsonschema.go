@@ -347,8 +347,7 @@ func enrichSchema(s *upstream.Schema, t reflect.Type) error {
 }
 
 func enrichArrayItems(prop *upstream.Schema, t reflect.Type) error {
-	origElem := t.Elem()
-	elem := origElem
+	elem := t.Elem()
 	isPointer := false
 	for elem.Kind() == reflect.Pointer {
 		isPointer = true
@@ -569,10 +568,12 @@ func appendUnique(ss []string, s string) []string {
 	return append(ss, s)
 }
 
-// removeNullType strips "null" from a schema's Types (and clears Type if it
-// was the sole "null"), for cases where the upstream library allows null
-// (typically because the Go zero value - a nil slice or pointer - permits
-// it) but the JSON API contract does not.
+// removeNullType strips "null" from a schema's Types, and separately clears
+// Type if it is exactly "null" (Type and Types are mutually exclusive - one
+// holds a single type, the other a union - so both are handled). This is for
+// cases where the upstream library allows null (typically because the Go
+// zero value - a nil slice or pointer - permits it) but the JSON API
+// contract does not.
 func removeNullType(s *upstream.Schema) {
 	s.Types = removeString(s.Types, "null")
 	if s.Type == "null" {
