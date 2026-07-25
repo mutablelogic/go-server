@@ -2020,3 +2020,88 @@ func TestFor_SliceField_NoNull(t *testing.T) {
 		}
 	}
 }
+
+// Regression test: For[T]() only enriched struct-typed fields nested inside
+// an enriched parent struct - a slice/array passed directly as the top-level
+// T (e.g. a named "type FooList []Foo" response type, as opposed to a slice
+// field of some other struct) skipped enrichment entirely, so struct tag
+// annotations (help, example, required, ...) never reached its element
+// schema's properties.
+func TestFor_SliceTopLevel_ElementEnriched(t *testing.T) {
+	type namedSlice []exampleStruct
+
+	s, err := For[namedSlice]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Items == nil {
+		t.Fatal("expected Items schema for top-level slice type")
+	}
+	prop := s.Items.Properties["name"]
+	if prop == nil {
+		t.Fatal("expected Items property 'name'")
+	}
+	if len(prop.Examples) != 1 || prop.Examples[0] != "alice" {
+		t.Errorf("Items.Properties[name].Examples = %v, want [\"alice\"]", prop.Examples)
+	}
+}
+
+// Regression test: as with slice-typed fields, a top-level named slice type
+// must not advertise "null" as a valid type - a Go slice's nil zero value
+// isn't a meaningful API response shape, and leaving "null" in leads tooling
+// (e.g. example generators) to treat null as a valid response.
+func TestFor_SliceTopLevel_NoNull(t *testing.T) {
+	type namedSlice []exampleStruct
+
+	s, err := For[namedSlice]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, typ := range s.Types {
+		if typ == "null" {
+			t.Errorf("Types contains \"null\", want no null for a top-level slice type: %v", s.Types)
+		}
+	}
+	if s.Type == "null" {
+		t.Errorf("Type is \"null\", want \"array\"")
+	}
+}
+
+// Regression test: a slice of pointers-to-struct (e.g. "Body []*Format" in
+// a paginated list response) had each item's schema advertise "null" as a
+// valid element, because *Format is nilable - even though a JSON array
+// representing a dynamically-sized list never actually contains null
+// placeholders for its elements. Left in, this led example generators to
+// render a null element instead of a real one.
+func TestFor_SliceOfPointerField_ItemsNoNull(t *testing.T) {
+	type S struct {
+		Body []*exampleStruct `json:"body"`
+	}
+	s, err := For[S]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	prop := s.Properties["body"]
+	if prop == nil {
+		t.Fatal("expected property 'body'")
+	}
+	if prop.Items == nil {
+		t.Fatal("expected Items schema for 'body'")
+	}
+	for _, typ := range prop.Items.Types {
+		if typ == "null" {
+			t.Errorf("body.Items.Types contains \"null\", want no null for slice-of-pointer elements: %v", prop.Items.Types)
+		}
+	}
+	if prop.Items.Type == "null" {
+		t.Errorf("body.Items.Type is \"null\", want \"object\"")
+	}
+	// The element schema should still be enriched (e.g. example tags reach it).
+	nameProp := prop.Items.Properties["name"]
+	if nameProp == nil {
+		t.Fatal("expected Items property 'name'")
+	}
+	if len(nameProp.Examples) != 1 || nameProp.Examples[0] != "alice" {
+		t.Errorf("body.Items.Properties[name].Examples = %v, want [\"alice\"]", nameProp.Examples)
+	}
+}
