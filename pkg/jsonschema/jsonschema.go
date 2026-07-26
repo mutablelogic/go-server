@@ -421,6 +421,10 @@ func applySpecialTypeSchema(s *upstream.Schema, t reflect.Type) bool {
 			resetToScalarStringSchema(s, "json")
 			return true
 		}
+		if isDurationLikeType(t) {
+			resetToScalarStringSchema(s, "duration")
+			return true
+		}
 		return false
 	}
 }
@@ -435,6 +439,22 @@ func isUUIDLikeType(t reflect.Type) bool {
 
 func isJSONBytesType(t reflect.Type) bool {
 	return t != dataType && t.Kind() == reflect.Slice && t.Elem().Kind() == reflect.Uint8 && t.Implements(jsonMarshalerType)
+}
+
+// isDurationLikeType reports whether t is a named type derived from
+// time.Duration (e.g. `type Foo time.Duration`) that provides its own JSON
+// encoding - many packages define a local duration type this way rather
+// than exposing time.Duration on the wire directly, typically to render it
+// as a duration string via a custom MarshalJSON. Requiring both the exact
+// underlying kind and a custom Marshaler (rather than just Kind==Int64,
+// which any unrelated int64 type would trivially satisfy via
+// ConvertibleTo) keeps this from misfiring on arbitrary int64 fields that
+// have nothing to do with durations.
+func isDurationLikeType(t reflect.Type) bool {
+	return t != durationType &&
+		t.Kind() == reflect.Int64 &&
+		t.ConvertibleTo(durationType) &&
+		t.Implements(jsonMarshalerType)
 }
 
 func resetToScalarStringSchema(s *upstream.Schema, format string) {
@@ -474,8 +494,10 @@ func marshalDefault(t reflect.Type, val string) json.RawMessage {
 	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
-	// time.Duration defaults are stored as duration strings (e.g. "5s"), not integers.
-	if t == durationType {
+	// time.Duration (and duration-like named types, e.g. `type Foo
+	// time.Duration` with its own MarshalJSON) defaults are stored as
+	// duration strings (e.g. "5s"), not integers.
+	if t == durationType || isDurationLikeType(t) {
 		if b, err := json.Marshal(val); err == nil {
 			return b
 		}
