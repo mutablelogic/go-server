@@ -173,6 +173,21 @@ type customJSONBytesStruct struct {
 	Payload customJSONBytes `json:"payload"`
 }
 
+// customDuration is a named type derived from time.Duration with its own
+// MarshalJSON, matching the shape of a package-local "type Foo
+// time.Duration" that renders itself as a duration string - the case
+// isDurationLikeType exists to detect, since it's a different reflect.Type
+// than time.Duration itself and so isn't caught by the exact-type switch.
+type customDuration time.Duration
+
+func (d customDuration) MarshalJSON() ([]byte, error) {
+	return json.Marshal(time.Duration(d).String())
+}
+
+type customDurationStruct struct {
+	Timeout customDuration `json:"timeout"`
+}
+
 type embeddedSpecialStruct struct {
 	Format customJSONBytes `json:"format,omitempty"`
 	Data   []byte          `json:"data,omitempty"`
@@ -1073,6 +1088,47 @@ func TestFor_TimeDuration_StructField(t *testing.T) {
 	}
 	if timeout["format"] != "duration" {
 		t.Errorf("timeout format: got %v, want duration", timeout["format"])
+	}
+}
+
+// Regression test: a named type derived from time.Duration (e.g. `type Foo
+// time.Duration` with its own MarshalJSON) used to fall through to the
+// generic int64 handling - rendering as "integer" instead of a duration
+// string - because the switch in applySpecialTypeSchema compared by exact
+// reflect.Type identity, which time.Duration-derived types never match.
+func TestFor_CustomDuration_TopLevel(t *testing.T) {
+	s, err := For[customDuration]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Type != "string" {
+		t.Fatalf("type: got %q, want \"string\"", s.Type)
+	}
+	if s.Format != "duration" {
+		t.Fatalf("format: got %q, want \"duration\"", s.Format)
+	}
+	if s.Items != nil {
+		t.Fatalf("items: got %v, want nil", s.Items)
+	}
+}
+
+func TestFor_CustomDuration_StructField(t *testing.T) {
+	s, err := For[customDurationStruct]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	prop := s.Properties["timeout"]
+	if prop == nil {
+		t.Fatal("expected property 'timeout'")
+	}
+	if prop.Type != "string" && !sliceContains(prop.Types, "string") {
+		t.Fatalf("timeout type: got Type=%q Types=%v, want string", prop.Type, prop.Types)
+	}
+	if prop.Format != "duration" {
+		t.Fatalf("timeout format: got %q, want \"duration\"", prop.Format)
+	}
+	if prop.Items != nil {
+		t.Fatalf("timeout items: got %v, want nil", prop.Items)
 	}
 }
 
