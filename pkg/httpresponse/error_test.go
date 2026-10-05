@@ -2,6 +2,8 @@ package httpresponse
 
 import (
 	"encoding/json"
+	"errors"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -82,6 +84,41 @@ func Test_Error_With(t *testing.T) {
 		assert.Error(err)
 		assert.ErrorIs(err, ErrNotFound)
 		assert.Contains(err.Error(), `resource "abc" not found`)
+	})
+
+	t.Run("WithfWrap", func(t *testing.T) {
+		cause := &fs.PathError{Op: "open", Path: "file.txt", Err: fs.ErrNotExist}
+		err := ErrNotFound.Withf("%w", cause)
+		assert.Equal("Not Found: open file.txt: file does not exist", err.Error())
+		assert.ErrorIs(err, ErrNotFound)
+		assert.ErrorIs(err, fs.ErrNotExist)
+
+		var pathErr *fs.PathError
+		assert.ErrorAs(err, &pathErr)
+		assert.Equal("file.txt", pathErr.Path)
+
+		var code Err
+		assert.ErrorAs(err, &code)
+		assert.Equal(ErrNotFound, code)
+	})
+
+	t.Run("WithfWrapWithMessage", func(t *testing.T) {
+		cause := errors.New("cause")
+		err := ErrConflict.Withf("object %q: %w", "abc", cause)
+		assert.Equal(`Conflict: object "abc": cause`, err.Error())
+		assert.ErrorIs(err, ErrConflict)
+		assert.ErrorIs(err, cause)
+	})
+
+	t.Run("WithfWrapWritesStatus", func(t *testing.T) {
+		recorder := httptest.NewRecorder()
+		err := Error(recorder, ErrNotFound.Withf("%w", fs.ErrNotExist))
+		assert.NoError(err)
+		assert.Equal(http.StatusNotFound, recorder.Code)
+
+		var actual ErrResponse
+		assert.NoError(json.Unmarshal(recorder.Body.Bytes(), &actual))
+		assert.Equal("Not Found: file does not exist", actual.Reason)
 	})
 
 	t.Run("ErrorWritesWrappedErr", func(t *testing.T) {

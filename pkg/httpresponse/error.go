@@ -83,6 +83,9 @@ func (code Err) With(args ...interface{}) error {
 	return fmt.Errorf("%w: %s", code, fmt.Sprint(args...))
 }
 
+// Withf returns an error wrapping the status code, with a formatted message.
+// As with fmt.Errorf, the format may use %w to wrap errors, so that they can
+// still be matched with errors.Is and errors.As.
 func (code Err) Withf(format string, args ...interface{}) error {
-	return fmt.Errorf("%w: %s", code, fmt.Sprintf(format, args...))
+	return fmt.Errorf("%w: %w", code, fmt.Errorf(format, args...))
 }
