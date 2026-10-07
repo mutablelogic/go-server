@@ -318,6 +318,20 @@ func (m *mockPathItem) WrapHandler(method string, fn func(http.HandlerFunc) http
 	}
 }
 
+// headerSecurityScheme records that it was applied in a response header
+type headerSecurityScheme string
+
+func (headerSecurityScheme) Spec() openapi.SecurityScheme {
+	return openapi.SecurityScheme{Type: "http", Scheme: "bearer"}
+}
+
+func (h headerSecurityScheme) Wrap(handler http.HandlerFunc, scopes []string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Scheme-"+string(h), strings.Join(scopes, ","))
+		handler(w, r)
+	}
+}
+
 func (testSecurityScheme) Wrap(handler http.HandlerFunc, scopes []string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Security-Scopes", strings.Join(scopes, ","))
@@ -547,4 +561,35 @@ func Test_mockPathItem_WrapHandler_001(t *testing.T) {
 	assert.True(called)
 	assert.Equal(http.StatusNoContent, rec.Code)
 	assert.Equal("true", rec.Header().Get("X-Wrapped"))
+}
+
+func Test_RegisterPath_SecurityRequiresAllSchemes(t *testing.T) {
+	assert := assert.New(t)
+
+	router := newTestRouter(t, "/", "")
+	assert.NoError(router.RegisterSecurityScheme("apiKey", headerSecurityScheme("Apikey")))
+	assert.NoError(router.RegisterSecurityScheme("oauth", headerSecurityScheme("Oauth")))
+
+	item := httprequest.NewPathItem("Secure", "Secure route")
+	item.Get(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}, func(op httprequest.PathOperation) {
+		op.Summary("Get secure route").Security("apiKey").Security("oauth", "read")
+	})
+	assert.NoError(router.RegisterPath("secure", nil, item))
+
+	// Both schemes are applied at runtime
+	req := httptest.NewRequest(http.MethodGet, "/secure", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	assert.Equal(http.StatusNoContent, rec.Code)
+	assert.Contains(rec.Header(), "X-Scheme-Apikey")
+	assert.Equal("read", rec.Header().Get("X-Scheme-Oauth"))
+
+	// The specification documents both schemes as one requirement
+	op := router.Spec().Paths.MapOfPathItemValues["/secure"].Get
+	if assert.NotNil(op) && assert.Len(op.Security, 1) {
+		assert.Contains(op.Security[0], "apiKey")
+		assert.Contains(op.Security[0], "oauth")
+	}
 }

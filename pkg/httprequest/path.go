@@ -92,6 +92,8 @@ type PathOperation interface {
 
 	// Require the named security scheme, with optional scopes, for the operation.
 	// The scheme must be registered with the router before the path is registered.
+	// Calling Security more than once requires all of the named schemes, which
+	// the router enforces by applying each scheme's middleware in turn.
 	Security(scheme string, scopes ...string) PathOperation
 }
 
@@ -301,7 +303,14 @@ func (p *pathoperation) Security(scheme string, scopes ...string) PathOperation 
 	if scopes == nil {
 		scopes = []string{}
 	}
-	p.spec.Security = append(p.spec.Security, openapi.SecurityRequirement{scheme: scopes})
+
+	// In OpenAPI, separate security requirements are alternatives, and the
+	// schemes within one requirement are all required. The router applies
+	// every scheme, so all schemes go in a single requirement.
+	if len(p.spec.Security) == 0 {
+		p.spec.Security = []openapi.SecurityRequirement{{}}
+	}
+	p.spec.Security[0][scheme] = slices.Clone(scopes)
 	return p
 }
 

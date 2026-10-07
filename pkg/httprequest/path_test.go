@@ -133,3 +133,29 @@ func TestParametersFromPathWildcardSchema(t *testing.T) {
 		}
 	}
 }
+
+func TestSecurityRequiresAllSchemes(t *testing.T) {
+	// Chained schemes are all required, so they are documented as a single
+	// requirement rather than as alternatives
+	scopes := []string{"read"}
+	p := NewPathItem("summary", "description")
+	p.Get(func(http.ResponseWriter, *http.Request) {}, func(op PathOperation) {
+		op.Security("apiKey").Security("oauth", scopes...)
+	})
+	scopes[0] = "changed"
+
+	spec := p.Spec("resource", nil)
+	if spec == nil || spec.Get == nil {
+		t.Fatalf("Spec().Get = nil, want populated GET operation")
+	}
+	if len(spec.Get.Security) != 1 {
+		t.Fatalf("len(Security) = %d, want 1 requirement holding both schemes", len(spec.Get.Security))
+	}
+	requirement := spec.Get.Security[0]
+	if got, ok := requirement["apiKey"]; !ok || got == nil || len(got) != 0 {
+		t.Errorf("apiKey scopes = %#v, want empty, non-nil", got)
+	}
+	if got := requirement["oauth"]; len(got) != 1 || got[0] != "read" {
+		t.Errorf("oauth scopes = %#v, want [read], copied from the caller", got)
+	}
+}

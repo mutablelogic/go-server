@@ -283,10 +283,21 @@ func (s *Spec) AddPath(path string, item *PathItem) {
 }
 
 // PathTemplate converts a [http.ServeMux] pattern to an OpenAPI path
-// template. A wildcard which matches the rest of the path, "{name...}",
-// becomes "{name}", and "{$}", which only matches the end of the path, is
-// removed. Other segments are unchanged.
+// template. Any method and host before the path are removed, as OpenAPI
+// paths start with "/". A wildcard which matches the rest of the path,
+// "{name...}", becomes "{name}", and "{$}", which only matches the end of the
+// path, is removed. Other segments are unchanged.
 func PathTemplate(pattern string) string {
+	// Remove the method, which is separated from the rest by spaces or tabs
+	if i := strings.IndexAny(pattern, " \t"); i >= 0 {
+		pattern = strings.TrimLeft(pattern[i:], " \t")
+	}
+
+	// Remove the host, which is everything before the first "/"
+	if i := strings.IndexByte(pattern, '/'); i > 0 {
+		pattern = pattern[i:]
+	}
+
 	segments := strings.Split(pattern, "/")
 	for i, segment := range segments {
 		if segment == "{$}" {

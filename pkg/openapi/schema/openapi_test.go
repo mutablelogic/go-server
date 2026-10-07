@@ -273,6 +273,11 @@ func Test_PathTemplate(t *testing.T) {
 		{"/resource/{$}", "/resource/"},
 		{"/{$}", "/"},
 		{"/literal...}", "/literal...}"},
+		{"GET /files/{path...}", "/files/{path}"},
+		{"POST\t/resource/{id}", "/resource/{id}"},
+		{"example.com/files/{path...}", "/files/{path}"},
+		{"GET example.com/object/{volume}/{key...}", "/object/{volume}/{key}"},
+		{"GET  example.com/resource/{$}", "/resource/"},
 	}
 	for _, test := range tests {
 		if got := schema.PathTemplate(test.pattern); got != test.want {
