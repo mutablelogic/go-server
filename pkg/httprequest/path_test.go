@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	jsonschema "github.com/mutablelogic/go-server/pkg/jsonschema"
 	openapi "github.com/mutablelogic/go-server/pkg/openapi/schema"
 )
 
@@ -19,6 +20,9 @@ func TestParametersFromPath(t *testing.T) {
 		{name: "multiple parameters", path: "/resource/{id}/child/{name}", want: []string{"id", "name"}},
 		{name: "duplicate parameters ignored", path: "/resource/{id}/child/{id}", want: []string{"id"}},
 		{name: "invalid segments ignored", path: "/resource/{id}/child/{}/literal{bad}", want: []string{"id"}},
+		{name: "trailing wildcard", path: "/files/{path...}", want: []string{"path"}},
+		{name: "parameter and trailing wildcard", path: "/object/{volume}/{key...}", want: []string{"volume", "key"}},
+		{name: "end of path marker ignored", path: "/resource/{$}", want: nil},
 	}
 
 	for _, tt := range tests {
@@ -58,7 +62,7 @@ func TestNewPathItemParameters(t *testing.T) {
 
 func TestSpecReturnsPathAndOperations(t *testing.T) {
 	p := NewPathItem("summary", "description")
-	p.Get(func(http.ResponseWriter, *http.Request) {}, "get resource")
+	p.Get(func(http.ResponseWriter, *http.Request) {}, func(op PathOperation) { op.Summary("get resource") })
 
 	spec := p.Spec("resource/{id}", nil)
 	if spec == nil || spec.Get == nil {
@@ -79,7 +83,7 @@ func TestHandlerDispatchesMethod(t *testing.T) {
 	p.Get(func(w http.ResponseWriter, r *http.Request) {
 		called = true
 		w.WriteHeader(http.StatusNoContent)
-	}, "get resource")
+	}, func(op PathOperation) { op.Summary("get resource") })
 
 	spec := p.Spec("resource/{id}", nil)
 	if spec == nil || spec.Get == nil {
@@ -109,5 +113,23 @@ func TestHandlerMethodNotAllowed(t *testing.T) {
 	p.Handler()(res, req)
 	if res.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("response status = %d, want %d", res.Code, http.StatusMethodNotAllowed)
+	}
+}
+
+func TestParametersFromPathWildcardSchema(t *testing.T) {
+	// The schema property for a trailing wildcard is found by its name,
+	// without the "..." suffix
+	type params struct {
+		Volume string `json:"volume" help:"Volume name"`
+		Key    string `json:"key" help:"Object key"`
+	}
+	params_ := parametersFromPath("/object/{volume}/{key...}", jsonschema.MustFor[params]())
+	if len(params_) != 2 {
+		t.Fatalf("len(params) = %d, want 2", len(params_))
+	}
+	for i, want := range []string{"Volume name", "Object key"} {
+		if params_[i].Schema == nil || params_[i].Schema.Description != want {
+			t.Fatalf("params[%d] (%q) schema description = %v, want %q", i, params_[i].Name, params_[i].Schema, want)
+		}
 	}
 }

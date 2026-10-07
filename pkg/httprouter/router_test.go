@@ -14,7 +14,6 @@ import (
 	// Packages
 	httprequest "github.com/mutablelogic/go-server/pkg/httprequest"
 	jsonschema "github.com/mutablelogic/go-server/pkg/jsonschema"
-	openapi_op "github.com/mutablelogic/go-server/pkg/openapi"
 	openapi "github.com/mutablelogic/go-server/pkg/openapi/schema"
 	assert "github.com/stretchr/testify/assert"
 )
@@ -174,7 +173,7 @@ func Test_RegisterPath_UsingGet_001(t *testing.T) {
 	item.Get(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("hello world"))
-	}, "Get hello")
+	}, func(op httprequest.PathOperation) { op.Summary("Get hello") })
 	assert.NoError(router.RegisterPath("/hello", nil, item))
 
 	// Request the handler
@@ -202,7 +201,7 @@ func Test_RegisterPath_UsingGet_002(t *testing.T) {
 	item := httprequest.NewPathItem("Hello", "Hello route")
 	item.Get(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-	}, "Get hello")
+	}, func(op httprequest.PathOperation) { op.Summary("Get hello") })
 	assert.NoError(router.RegisterPath("/hello", nil, item))
 
 	req := httptest.NewRequest(http.MethodGet, "/hello", nil)
@@ -224,7 +223,7 @@ func Test_RegisterPath_UsingGet_003(t *testing.T) {
 	item.Get(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("items"))
-	}, "Get items")
+	}, func(op httprequest.PathOperation) { op.Summary("Get items") })
 	assert.NoError(router.RegisterPath("items", nil, item))
 
 	// Request using the full prefixed path
@@ -247,7 +246,7 @@ func Test_RegisterPath_UsingGet_004(t *testing.T) {
 	item.Get(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
-	}, "Get health")
+	}, func(op httprequest.PathOperation) { op.Summary("Get health") })
 	assert.NoError(router.RegisterPath("/health", nil, item))
 
 	// Request at the absolute path, not under the prefix
@@ -267,6 +266,34 @@ type mockPathItem struct {
 }
 
 type testSecurityScheme struct{}
+
+// The methods which register handlers are not used by the router, and do
+// nothing in the mock
+func (m *mockPathItem) Tag(...string) httprequest.PathItem { return m }
+func (m *mockPathItem) Get(http.HandlerFunc, func(httprequest.PathOperation)) httprequest.PathItem {
+	return m
+}
+func (m *mockPathItem) Put(http.HandlerFunc, func(httprequest.PathOperation)) httprequest.PathItem {
+	return m
+}
+func (m *mockPathItem) Post(http.HandlerFunc, func(httprequest.PathOperation)) httprequest.PathItem {
+	return m
+}
+func (m *mockPathItem) Delete(http.HandlerFunc, func(httprequest.PathOperation)) httprequest.PathItem {
+	return m
+}
+func (m *mockPathItem) Patch(http.HandlerFunc, func(httprequest.PathOperation)) httprequest.PathItem {
+	return m
+}
+func (m *mockPathItem) Options(http.HandlerFunc, func(httprequest.PathOperation)) httprequest.PathItem {
+	return m
+}
+func (m *mockPathItem) Head(http.HandlerFunc, func(httprequest.PathOperation)) httprequest.PathItem {
+	return m
+}
+func (m *mockPathItem) Trace(http.HandlerFunc, func(httprequest.PathOperation)) httprequest.PathItem {
+	return m
+}
 
 func (m *mockPathItem) Handler() http.HandlerFunc {
 	if len(m.handlers) == 0 {
@@ -428,7 +455,7 @@ func Test_RegisterPath_006(t *testing.T) {
 	item := httprequest.NewPathItem("Secure", "Secure route")
 	item.Get(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
-	}, "Get secure route", openapi_op.WithSecurity("bearerAuth", "read"))
+	}, func(op httprequest.PathOperation) { op.Summary("Get secure route").Security("bearerAuth", "read") })
 
 	assert.NoError(router.RegisterPath("secure", nil, item))
 
@@ -448,7 +475,7 @@ func Test_RegisterPath_007(t *testing.T) {
 	item := httprequest.NewPathItem("Secure", "Secure route")
 	item.Get(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
-	}, "Get secure route", openapi_op.WithSecurity("missingAuth", "read"))
+	}, func(op httprequest.PathOperation) { op.Summary("Get secure route").Security("missingAuth", "read") })
 
 	err := router.RegisterPath("secure", nil, item)
 	assert.Error(err)
@@ -463,7 +490,7 @@ func Test_RegisterPath_008(t *testing.T) {
 	item := httprequest.NewPathItem("Secure", "Secure route")
 	item.Get(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
-	}, "Get secure route", openapi_op.WithSecurity("missingAuth", "read"))
+	}, func(op httprequest.PathOperation) { op.Summary("Get secure route").Security("missingAuth", "read") })
 
 	err := router.RegisterPath("secure", nil, item)
 	assert.Error(err)

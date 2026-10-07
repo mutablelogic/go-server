@@ -8,6 +8,8 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
+	"sync"
 	"time"
 
 	// Packages
@@ -53,6 +55,7 @@ type global struct {
 	execName    string
 	version     string
 	description string
+	urlMu       sync.Mutex // guards url, which is set while the server starts
 	url         *url.URL
 
 	// Defaults store for command defaults management
@@ -117,14 +120,16 @@ func (g *global) ClientEndpoint() (string, []client.ClientOpt, error) {
 	if err != nil {
 		return "", nil, err
 	}
+	// The default ports are left out of the endpoint. An IPv6 address keeps
+	// its square brackets either way.
 	hostaddr := net.JoinHostPort(host, strconv.FormatUint(portn, 10))
 	switch portn {
 	case 80:
 		scheme = types.SchemeInsecure
-		hostaddr = host
+		hostaddr = hostWithoutPort(host)
 	case 443:
 		scheme = types.SchemeSecure
-		hostaddr = host
+		hostaddr = hostWithoutPort(host)
 	}
 	opts := []client.ClientOpt{}
 	if g.Debug || g.Verbose {
@@ -139,7 +144,18 @@ func (g *global) ClientEndpoint() (string, []client.ClientOpt, error) {
 	return fmt.Sprintf("%s://%s%s", scheme, hostaddr, g.HTTP.Prefix), opts, nil
 }
 
+// hostWithoutPort returns the host for a URL without a port, adding square
+// brackets to an IPv6 address
+func hostWithoutPort(host string) string {
+	if strings.Contains(host, ":") {
+		return "[" + host + "]"
+	}
+	return host
+}
+
 func (g *global) URL() *url.URL {
+	g.urlMu.Lock()
+	defer g.urlMu.Unlock()
 	if g.url == nil {
 		endpoint, _, err := g.ClientEndpoint()
 		if err != nil {
@@ -153,6 +169,8 @@ func (g *global) URL() *url.URL {
 }
 
 func (g *global) SetURL(url *url.URL) {
+	g.urlMu.Lock()
+	defer g.urlMu.Unlock()
 	g.url = url
 }
 

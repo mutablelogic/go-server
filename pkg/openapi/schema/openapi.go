@@ -9,6 +9,7 @@ package schema
 
 import (
 	"encoding/json"
+	"strings"
 
 	// Packages
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
@@ -268,7 +269,8 @@ func (p *Paths) UnmarshalYAML(value *yaml.Node) error {
 
 // AddPath registers a [PathItem] under the given path. If item is nil
 // the call is a no-op. Adding a path that already exists replaces the
-// previous entry.
+// previous entry. The path may be a [http.ServeMux] pattern, which is
+// converted to an OpenAPI path template with [PathTemplate].
 func (s *Spec) AddPath(path string, item *PathItem) {
 	if s.Paths == nil {
 		s.Paths = &Paths{
@@ -276,8 +278,24 @@ func (s *Spec) AddPath(path string, item *PathItem) {
 		}
 	}
 	if item != nil {
-		s.Paths.MapOfPathItemValues[path] = *item
+		s.Paths.MapOfPathItemValues[PathTemplate(path)] = *item
 	}
+}
+
+// PathTemplate converts a [http.ServeMux] pattern to an OpenAPI path
+// template. A wildcard which matches the rest of the path, "{name...}",
+// becomes "{name}", and "{$}", which only matches the end of the path, is
+// removed. Other segments are unchanged.
+func PathTemplate(pattern string) string {
+	segments := strings.Split(pattern, "/")
+	for i, segment := range segments {
+		if segment == "{$}" {
+			segments[i] = ""
+		} else if name, ok := strings.CutSuffix(segment, "...}"); ok && strings.HasPrefix(name, "{") {
+			segments[i] = name + "}"
+		}
+	}
+	return strings.Join(segments, "/")
 }
 
 // SetServers replaces the servers list in the spec.

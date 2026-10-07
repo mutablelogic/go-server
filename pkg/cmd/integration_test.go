@@ -112,7 +112,7 @@ func Test_RunServer_Run_Register(t *testing.T) {
 		item := httprequest.NewPathItem("Ping", "Integration test ping route")
 		item.Get(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusNoContent)
-		}, "Get ping")
+		}, func(op httprequest.PathOperation) { op.Summary("Get ping") })
 		return router.RegisterPath("ping", nil, item)
 	})
 

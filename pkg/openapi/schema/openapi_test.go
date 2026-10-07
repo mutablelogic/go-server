@@ -260,3 +260,32 @@ func Test_AddTag_003(t *testing.T) {
 	assert.Equal("users", decoded.Tags[0].Name)
 	assert.Equal("admin", decoded.Tags[1].Name)
 }
+
+func Test_PathTemplate(t *testing.T) {
+	tests := []struct {
+		pattern string
+		want    string
+	}{
+		{"/resource", "/resource"},
+		{"/resource/{id}", "/resource/{id}"},
+		{"/files/{path...}", "/files/{path}"},
+		{"/object/{volume}/{key...}", "/object/{volume}/{key}"},
+		{"/resource/{$}", "/resource/"},
+		{"/{$}", "/"},
+		{"/literal...}", "/literal...}"},
+	}
+	for _, test := range tests {
+		if got := schema.PathTemplate(test.pattern); got != test.want {
+			t.Errorf("PathTemplate(%q) = %q, want %q", test.pattern, got, test.want)
+		}
+	}
+}
+
+func Test_AddPath_Wildcard(t *testing.T) {
+	// Paths are added under their OpenAPI path template
+	spec := schema.NewSpec("test", "1.0")
+	spec.AddPath("/object/{volume}/{key...}", &schema.PathItem{Summary: "object"})
+	if _, ok := spec.Paths.MapOfPathItemValues["/object/{volume}/{key}"]; !ok {
+		t.Fatalf("path not added under its OpenAPI template: %v", spec.Paths.MapOfPathItemValues)
+	}
+}
