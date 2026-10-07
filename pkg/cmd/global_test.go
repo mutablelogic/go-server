@@ -61,10 +61,16 @@ func Test_ClientEndpoint(t *testing.T) {
 			wantEndpoint: "http://localhost:8084/api",
 		},
 		{
-			name:         "port 443 uses https",
+			name:         "port 443 uses https without the port",
 			addr:         "example.com:443",
 			prefix:       "/api",
-			wantEndpoint: "https://example.com:443/api",
+			wantEndpoint: "https://example.com/api",
+		},
+		{
+			name:         "port 80 uses http without the port",
+			addr:         "example.com:80",
+			prefix:       "/api",
+			wantEndpoint: "http://example.com/api",
 		},
 		{
 			name:         "ipv6 address",
@@ -76,7 +82,13 @@ func Test_ClientEndpoint(t *testing.T) {
 			name:         "ipv6 with port 443",
 			addr:         "[::1]:443",
 			prefix:       "/api",
-			wantEndpoint: "https://[::1]:443/api",
+			wantEndpoint: "https://[::1]/api",
+		},
+		{
+			name:         "ipv6 with port 80",
+			addr:         "[::1]:80",
+			prefix:       "/api",
+			wantEndpoint: "http://[::1]/api",
 		},
 		{
 			name:         "custom prefix",

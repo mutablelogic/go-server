@@ -9,6 +9,8 @@ package schema
 
 import (
 	"encoding/json"
+	"slices"
+	"strings"
 
 	// Packages
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
@@ -267,17 +269,104 @@ func (p *Paths) UnmarshalYAML(value *yaml.Node) error {
 }
 
 // AddPath registers a [PathItem] under the given path. If item is nil
-// the call is a no-op. Adding a path that already exists replaces the
-// previous entry.
+// the call is a no-op. The path may be a [http.ServeMux] pattern, which is
+// converted to an OpenAPI path template with [PathTemplate].
+//
+// Several patterns can have the same template, for example "GET /items" and
+// "POST /items", so adding a path that already exists merges the items: each
+// operation in item replaces the operation for the same method, and other
+// operations are kept. A summary or description in item replaces the existing
+// one, and path parameters are merged by name and location.
 func (s *Spec) AddPath(path string, item *PathItem) {
 	if s.Paths == nil {
 		s.Paths = &Paths{
 			MapOfPathItemValues: make(map[string]PathItem),
 		}
 	}
-	if item != nil {
+	if item == nil {
+		return
+	}
+	path = PathTemplate(path)
+	if existing, exists := s.Paths.MapOfPathItemValues[path]; exists {
+		s.Paths.MapOfPathItemValues[path] = mergePathItem(existing, *item)
+	} else {
 		s.Paths.MapOfPathItemValues[path] = *item
 	}
+}
+
+// mergePathItem merges item into existing, as described for [Spec.AddPath]
+func mergePathItem(existing, item PathItem) PathItem {
+	if item.Summary != "" {
+		existing.Summary = item.Summary
+	}
+	if item.Description != "" {
+		existing.Description = item.Description
+	}
+
+	// Merge operations, replacing those for the same method
+	for _, op := range []struct{ dst, src **Operation }{
+		{&existing.Get, &item.Get},
+		{&existing.Put, &item.Put},
+		{&existing.Post, &item.Post},
+		{&existing.Delete, &item.Delete},
+		{&existing.Options, &item.Options},
+		{&existing.Head, &item.Head},
+		{&existing.Patch, &item.Patch},
+		{&existing.Trace, &item.Trace},
+	} {
+		if *op.src != nil {
+			*op.dst = *op.src
+		}
+	}
+
+	// Merge parameters, replacing those with the same name and location. The
+	// existing parameters are copied, as they share storage with the item
+	// which added them.
+	if len(item.Parameters) > 0 {
+		existing.Parameters = slices.Clone(existing.Parameters)
+	}
+	for _, param := range item.Parameters {
+		replaced := false
+		for i := range existing.Parameters {
+			if existing.Parameters[i].Name == param.Name && existing.Parameters[i].In == param.In {
+				existing.Parameters[i] = param
+				replaced = true
+				break
+			}
+		}
+		if !replaced {
+			existing.Parameters = append(existing.Parameters, param)
+		}
+	}
+
+	return existing
+}
+
+// PathTemplate converts a [http.ServeMux] pattern to an OpenAPI path
+// template. Any method and host before the path are removed, as OpenAPI
+// paths start with "/". A wildcard which matches the rest of the path,
+// "{name...}", becomes "{name}", and "{$}", which only matches the end of the
+// path, is removed. Other segments are unchanged.
+func PathTemplate(pattern string) string {
+	// Remove the method, which is separated from the rest by spaces or tabs
+	if i := strings.IndexAny(pattern, " \t"); i >= 0 {
+		pattern = strings.TrimLeft(pattern[i:], " \t")
+	}
+
+	// Remove the host, which is everything before the first "/"
+	if i := strings.IndexByte(pattern, '/'); i > 0 {
+		pattern = pattern[i:]
+	}
+
+	segments := strings.Split(pattern, "/")
+	for i, segment := range segments {
+		if segment == "{$}" {
+			segments[i] = ""
+		} else if name, ok := strings.CutSuffix(segment, "...}"); ok && strings.HasPrefix(name, "{") {
+			segments[i] = name + "}"
+		}
+	}
+	return strings.Join(segments, "/")
 }
 
 // SetServers replaces the servers list in the spec.

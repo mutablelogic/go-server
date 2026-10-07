@@ -142,11 +142,15 @@ func Test_RunServer_AdvertisedURL(t *testing.T) {
 	g.HTTP.Prefix = "/api"
 
 	s := &RunServer{}
-	var registerURL string
+	// The URL seen during route registration, which happens on the server's
+	// goroutine
+	registered := make(chan string, 1)
 	s.Register(func(_ *httprouter.Router) error {
+		var registerURL string
 		if url := g.URL(); url != nil {
 			registerURL = url.String()
 		}
+		registered <- registerURL
 		return nil
 	})
 
@@ -155,7 +159,12 @@ func Test_RunServer_AdvertisedURL(t *testing.T) {
 		done <- s.Run(g)
 	}()
 
-	time.Sleep(100 * time.Millisecond)
+	var registerURL string
+	select {
+	case registerURL = <-registered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("routes were not registered")
+	}
 	if registerURL == "" {
 		t.Fatal("expected URL to be available during route registration")
 	}
@@ -191,11 +200,15 @@ func Test_RunServer_AdvertisedURL_TLSName(t *testing.T) {
 
 	s := &RunServer{}
 	s.TLS.ServerName = "auth.example.com"
-	var registerURL string
+	// The URL seen during route registration, which happens on the server's
+	// goroutine
+	registered := make(chan string, 1)
 	s.Register(func(_ *httprouter.Router) error {
+		var registerURL string
 		if url := g.URL(); url != nil {
 			registerURL = url.String()
 		}
+		registered <- registerURL
 		return nil
 	})
 
@@ -204,7 +217,12 @@ func Test_RunServer_AdvertisedURL_TLSName(t *testing.T) {
 		done <- s.Run(g)
 	}()
 
-	time.Sleep(100 * time.Millisecond)
+	var registerURL string
+	select {
+	case registerURL = <-registered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("routes were not registered")
+	}
 	if registerURL != "https://auth.example.com/api" {
 		t.Fatalf("register URL = %q, want %q", registerURL, "https://auth.example.com/api")
 	}

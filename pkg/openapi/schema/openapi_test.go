@@ -72,6 +72,76 @@ func Test_AddPath_004(t *testing.T) {
 	assert.Equal("second", spec.Paths.MapOfPathItemValues["/x"].Get.Summary)
 }
 
+func Test_AddPath_MergesMethods(t *testing.T) {
+	assert := assert.New(t)
+
+	// Patterns for different methods on the same path keep every operation
+	spec := schema.NewSpec("test", "1.0")
+	spec.AddPath("GET /items", &schema.PathItem{Get: &schema.Operation{Summary: "list"}})
+	spec.AddPath("POST /items", &schema.PathItem{Post: &schema.Operation{Summary: "create"}})
+
+	assert.Len(spec.Paths.MapOfPathItemValues, 1)
+	item := spec.Paths.MapOfPathItemValues["/items"]
+	if assert.NotNil(item.Get) && assert.NotNil(item.Post) {
+		assert.Equal("list", item.Get.Summary)
+		assert.Equal("create", item.Post.Summary)
+	}
+}
+
+func Test_AddPath_MergesSameTemplate(t *testing.T) {
+	assert := assert.New(t)
+
+	// "/a/{$}" and "/a/" have the same template
+	spec := schema.NewSpec("test", "1.0")
+	spec.AddPath("/a/{$}", &schema.PathItem{Get: &schema.Operation{Summary: "exact"}})
+	spec.AddPath("/a/", &schema.PathItem{Delete: &schema.Operation{Summary: "delete"}})
+
+	assert.Len(spec.Paths.MapOfPathItemValues, 1)
+	item := spec.Paths.MapOfPathItemValues["/a/"]
+	assert.NotNil(item.Get)
+	assert.NotNil(item.Delete)
+}
+
+func Test_AddPath_MergesMetadataAndParameters(t *testing.T) {
+	assert := assert.New(t)
+
+	spec := schema.NewSpec("test", "1.0")
+	first := []schema.Parameter{
+		{Name: "id", In: schema.ParameterInPath, Description: "first"},
+		{Name: "trace", In: "header"},
+	}
+	spec.AddPath("/items/{id}", &schema.PathItem{
+		Summary:     "Items",
+		Description: "First description",
+		Parameters:  first,
+		Get:         &schema.Operation{Summary: "get"},
+	})
+	spec.AddPath("/items/{id}", &schema.PathItem{
+		Description: "Second description",
+		Parameters: []schema.Parameter{
+			{Name: "id", In: schema.ParameterInPath, Description: "second"},
+			{Name: "id", In: "query"},
+		},
+		Put: &schema.Operation{Summary: "put"},
+	})
+
+	item := spec.Paths.MapOfPathItemValues["/items/{id}"]
+	assert.Equal("Items", item.Summary, "empty summary keeps the existing one")
+	assert.Equal("Second description", item.Description)
+	assert.NotNil(item.Get)
+	assert.NotNil(item.Put)
+
+	// Parameters are merged by name and location, with the new one replacing
+	if assert.Len(item.Parameters, 3) {
+		assert.Equal("second", item.Parameters[0].Description)
+		assert.Equal("trace", item.Parameters[1].Name)
+		assert.Equal("query", item.Parameters[2].In)
+	}
+
+	// The first item's parameters are not modified by the merge
+	assert.Equal("first", first[0].Description)
+}
+
 func Test_SetServers_001(t *testing.T) {
 	assert := assert.New(t)
 
@@ -259,4 +329,38 @@ func Test_AddTag_003(t *testing.T) {
 	assert.Len(decoded.Tags, 2)
 	assert.Equal("users", decoded.Tags[0].Name)
 	assert.Equal("admin", decoded.Tags[1].Name)
+}
+
+func Test_PathTemplate(t *testing.T) {
+	tests := []struct {
+		pattern string
+		want    string
+	}{
+		{"/resource", "/resource"},
+		{"/resource/{id}", "/resource/{id}"},
+		{"/files/{path...}", "/files/{path}"},
+		{"/object/{volume}/{key...}", "/object/{volume}/{key}"},
+		{"/resource/{$}", "/resource/"},
+		{"/{$}", "/"},
+		{"/literal...}", "/literal...}"},
+		{"GET /files/{path...}", "/files/{path}"},
+		{"POST\t/resource/{id}", "/resource/{id}"},
+		{"example.com/files/{path...}", "/files/{path}"},
+		{"GET example.com/object/{volume}/{key...}", "/object/{volume}/{key}"},
+		{"GET  example.com/resource/{$}", "/resource/"},
+	}
+	for _, test := range tests {
+		if got := schema.PathTemplate(test.pattern); got != test.want {
+			t.Errorf("PathTemplate(%q) = %q, want %q", test.pattern, got, test.want)
+		}
+	}
+}
+
+func Test_AddPath_Wildcard(t *testing.T) {
+	// Paths are added under their OpenAPI path template
+	spec := schema.NewSpec("test", "1.0")
+	spec.AddPath("/object/{volume}/{key...}", &schema.PathItem{Summary: "object"})
+	if _, ok := spec.Paths.MapOfPathItemValues["/object/{volume}/{key}"]; !ok {
+		t.Fatalf("path not added under its OpenAPI template: %v", spec.Paths.MapOfPathItemValues)
+	}
 }

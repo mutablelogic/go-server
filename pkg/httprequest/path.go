@@ -89,6 +89,12 @@ type PathOperation interface {
 	// Return a response for the operation with the given status code and content type.
 	// An optional description can be provided; if not, the default HTTP status text will be used.
 	Response(status int, contentType string, description ...string) PathOperation
+
+	// Require the named security scheme, with optional scopes, for the operation.
+	// The scheme must be registered with the router before the path is registered.
+	// Calling Security more than once requires all of the named schemes, which
+	// the router enforces by applying each scheme's middleware in turn.
+	Security(scheme string, scopes ...string) PathOperation
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -293,6 +299,21 @@ func (p *pathoperation) JSONResponse(status int, schema *jsonschema.Schema, desc
 	return p
 }
 
+func (p *pathoperation) Security(scheme string, scopes ...string) PathOperation {
+	if scopes == nil {
+		scopes = []string{}
+	}
+
+	// In OpenAPI, separate security requirements are alternatives, and the
+	// schemes within one requirement are all required. The router applies
+	// every scheme, so all schemes go in a single requirement.
+	if len(p.spec.Security) == 0 {
+		p.spec.Security = []openapi.SecurityRequirement{{}}
+	}
+	p.spec.Security[0][scheme] = slices.Clone(scopes)
+	return p
+}
+
 func (p *pathoperation) ErrorResponse(status int, description ...string) PathOperation {
 	return p.JSONResponse(status, jsonschema.MustFor[httpresponse.ErrResponse](), description...)
 }
@@ -349,8 +370,11 @@ func parametersFromPath(path string, schema *jsonschema.Schema) []openapi.Parame
 		if len(segment) < 3 || segment[0] != '{' || segment[len(segment)-1] != '}' {
 			continue
 		}
+		// A wildcard "{name...}" matches the rest of the path, and is named
+		// "name". "{$}" matches the end of the path, and is not a parameter.
 		name := strings.TrimSpace(segment[1 : len(segment)-1])
-		if name == "" {
+		name = strings.TrimSuffix(name, "...")
+		if name == "" || name == "$" {
 			continue
 		}
 		if _, ok := seen[name]; ok {
