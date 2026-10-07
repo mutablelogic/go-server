@@ -1,0 +1,22 @@
+version: 2
+updates:
+  # Go modules, checked monthly. OpenTelemetry releases update many modules
+  # at once, so they are grouped into a single pull request.
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      opentelemetry:
+        patterns:
+          - "go.opentelemetry.io/*"
+
+  # Actions used by the workflows, checked monthly in a single pull request
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      github-actions:
+        patterns:
+          - "*"
