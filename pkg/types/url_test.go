@@ -24,6 +24,8 @@ func TestFilePath(t *testing.T) {
 		{"localhost is case-insensitive", "file://LOCALHOST/tmp/sample.mp3", "/tmp/sample.mp3"},
 		{"wrong scheme returns empty", "https://example.com/sample.mp3", ""},
 		{"device scheme returns empty", "device://avfoundation/0:0", ""},
+		{"unc share path starting with a drive-letter-like segment isn't stripped", "file://server/C:/share/media.mp3", "//server/C:/share/media.mp3"},
+		{"opaque form with percent-encoding is decoded", "file:C:/Program%20Files/media.mp3", "C:/Program Files/media.mp3"},
 	}
 
 	for _, tc := range tests {
