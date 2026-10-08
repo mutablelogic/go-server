@@ -22,6 +22,8 @@ func TestFilePath(t *testing.T) {
 		{"unc path preserves the host", "file://server/share/media.mp3", "//server/share/media.mp3"},
 		{"explicit localhost authority is treated as local", "file://localhost/tmp/sample.mp3", "/tmp/sample.mp3"},
 		{"localhost is case-insensitive", "file://LOCALHOST/tmp/sample.mp3", "/tmp/sample.mp3"},
+		{"wrong scheme returns empty", "https://example.com/sample.mp3", ""},
+		{"device scheme returns empty", "device://avfoundation/0:0", ""},
 	}
 
 	for _, tc := range tests {
@@ -34,5 +36,11 @@ func TestFilePath(t *testing.T) {
 				t.Fatalf("FilePath(%q) = %q, want %q", tc.url, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestFilePath_Nil(t *testing.T) {
+	if got := types.FilePath(nil); got != "" {
+		t.Fatalf("FilePath(nil) = %q, want \"\"", got)
 	}
 }
