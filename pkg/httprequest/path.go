@@ -80,7 +80,15 @@ type PathOperation interface {
 
 	// Add a JSON response for the operation with the given status code and schema.
 	// An optional description can be provided; if not, the default HTTP status text will be used.
+	// A response with another content type for the same status code is kept, so a status code
+	// can have more than one content type.
 	JSONResponse(status int, schema *jsonschema.Schema, description ...string) PathOperation
+
+	// Add a text/event-stream response for the operation with the given status code, for a
+	// stream of server-sent events. An optional description can be provided; if not, the
+	// default HTTP status text will be used. A response with another content type for the
+	// same status code is kept.
+	TextStreamResponse(status int, description ...string) PathOperation
 
 	// Add an error response for the operation with the given status code.
 	// An optional description can be provided; if not, the default HTTP status text will be used.
@@ -88,6 +96,7 @@ type PathOperation interface {
 
 	// Return a response for the operation with the given status code and content type.
 	// An optional description can be provided; if not, the default HTTP status text will be used.
+	// A response with another content type for the same status code is kept.
 	Response(status int, contentType string, description ...string) PathOperation
 
 	// Require the named security scheme, with optional scopes, for the operation.
@@ -280,22 +289,12 @@ func (p *pathoperation) Deprecated() PathOperation {
 }
 
 func (p *pathoperation) JSONResponse(status int, schema *jsonschema.Schema, description ...string) PathOperation {
-	if p.spec.Responses == nil {
-		p.spec.Responses = make(map[string]openapi.Response)
-	}
-	statusNum := strconv.FormatInt(int64(status), 10)
-	descriptionText := strings.Join(description, " ")
-	if descriptionText == "" {
-		descriptionText = http.StatusText(status)
-	}
-	p.spec.Responses[statusNum] = openapi.Response{
-		Description: descriptionText,
-		Content: map[string]openapi.MediaType{
-			types.ContentTypeJSON: {
-				Schema: schema,
-			},
-		},
-	}
+	p.addResponse(status, types.ContentTypeJSON, schema, description...)
+	return p
+}
+
+func (p *pathoperation) TextStreamResponse(status int, description ...string) PathOperation {
+	p.addResponse(status, types.ContentTypeTextStream, jsonschema.MustFor[string](), description...)
 	return p
 }
 
@@ -319,21 +318,30 @@ func (p *pathoperation) ErrorResponse(status int, description ...string) PathOpe
 }
 
 func (p *pathoperation) Response(status int, contentType string, description ...string) PathOperation {
+	p.addResponse(status, contentType, nil, description...)
+	return p
+}
+
+// addResponse adds the content type, with its schema, to the response for
+// the status code. A response which already exists for the status code keeps
+// its other content types, and its description.
+func (p *pathoperation) addResponse(status int, contentType string, schema *jsonschema.Schema, description ...string) {
 	if p.spec.Responses == nil {
 		p.spec.Responses = make(map[string]openapi.Response)
 	}
 	statusNum := strconv.FormatInt(int64(status), 10)
-	descriptionText := strings.Join(description, " ")
-	if descriptionText == "" {
-		descriptionText = http.StatusText(status)
+	response, exists := p.spec.Responses[statusNum]
+	if !exists {
+		response.Description = strings.Join(description, " ")
+		if response.Description == "" {
+			response.Description = http.StatusText(status)
+		}
 	}
-	p.spec.Responses[statusNum] = openapi.Response{
-		Description: descriptionText,
-		Content: map[string]openapi.MediaType{
-			contentType: {},
-		},
+	if response.Content == nil {
+		response.Content = make(map[string]openapi.MediaType)
 	}
-	return p
+	response.Content[contentType] = openapi.MediaType{Schema: schema}
+	p.spec.Responses[statusNum] = response
 }
 
 func (p *pathoperation) RequestBody(schema *jsonschema.Schema, contentType ...string) PathOperation {
