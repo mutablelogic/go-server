@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	upstream "github.com/google/jsonschema-go/jsonschema"
 	"github.com/google/uuid"
 )
 
@@ -1137,14 +1138,13 @@ func TestFor_JSONRawMessage_TopLevel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.Type != "string" {
-		t.Fatalf("Type: got %q, want \"string\"", s.Type)
+	if !isAnySchema(&s.Schema) {
+		t.Fatalf("got %#v, want any JSON value", s.Schema)
 	}
-	if s.Format != "json" {
-		t.Fatalf("Format: got %q, want \"json\"", s.Format)
-	}
-	if s.Items != nil {
-		t.Fatalf("Items: got %v, want nil", s.Items)
+	for _, value := range []string{`"text"`, `42`, `true`, `null`, `[1,"a"]`, `{"a":1}`} {
+		if err := s.Validate(json.RawMessage(value)); err != nil {
+			t.Errorf("Validate(%s): %v", value, err)
+		}
 	}
 }
 
@@ -1157,14 +1157,8 @@ func TestFor_JSONRawMessage_StructField(t *testing.T) {
 	if prop == nil {
 		t.Fatal("expected property 'payload'")
 	}
-	if prop.Type != "string" && !sliceContains(prop.Types, "string") {
-		t.Fatalf("payload type: got Type=%q Types=%v, want string", prop.Type, prop.Types)
-	}
-	if prop.Format != "json" {
-		t.Fatalf("payload format: got %q, want \"json\"", prop.Format)
-	}
-	if prop.Items != nil {
-		t.Fatalf("payload items: got %v, want nil", prop.Items)
+	if !isAnySchema(prop) {
+		t.Fatalf("payload: got %#v, want any JSON value", prop)
 	}
 }
 
@@ -1968,14 +1962,8 @@ func TestFor_CustomJSONBytes_TopLevel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.Type != "string" {
-		t.Fatalf("type: got %q, want \"string\"", s.Type)
-	}
-	if s.Format != "json" {
-		t.Fatalf("format: got %q, want \"json\"", s.Format)
-	}
-	if s.Items != nil {
-		t.Fatalf("items: got %v, want nil", s.Items)
+	if !isAnySchema(&s.Schema) {
+		t.Fatalf("got %#v, want any JSON value", s.Schema)
 	}
 }
 
@@ -1988,14 +1976,8 @@ func TestFor_CustomJSONBytes_StructField(t *testing.T) {
 	if prop == nil {
 		t.Fatal("expected property 'payload'")
 	}
-	if prop.Type != "string" && !sliceContains(prop.Types, "string") {
-		t.Fatalf("payload type: got Type=%q Types=%v, want string", prop.Type, prop.Types)
-	}
-	if prop.Format != "json" {
-		t.Fatalf("payload format: got %q, want \"json\"", prop.Format)
-	}
-	if prop.Items != nil {
-		t.Fatalf("payload items: got %v, want nil", prop.Items)
+	if !isAnySchema(prop) {
+		t.Fatalf("payload: got %#v, want any JSON value", prop)
 	}
 }
 
@@ -2005,8 +1987,8 @@ func TestFor_EmbeddedSpecialStructFields(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if got := s.Properties["format"]; got == nil || got.Format != "json" || got.Type != "string" {
-		t.Fatalf("format property: got %#v, want type=string format=json", got)
+	if got := s.Properties["format"]; got == nil || !isAnySchema(got) {
+		t.Fatalf("format property: got %#v, want any JSON value", got)
 	}
 	if got := s.Properties["data"]; got == nil || got.Format != "byte" || got.Type != "string" {
 		t.Fatalf("data property: got %#v, want type=string format=byte", got)
@@ -2028,8 +2010,8 @@ func TestFor_SliceOfStructWithSpecialFields(t *testing.T) {
 		t.Fatalf("attachments schema: got %#v, want array items schema", attachments)
 	}
 	item := attachments.Items
-	if got := item.Properties["format"]; got == nil || got.Format != "json" || got.Type != "string" {
-		t.Fatalf("attachments.items.format: got %#v, want type=string format=json", got)
+	if got := item.Properties["format"]; got == nil || !isAnySchema(got) {
+		t.Fatalf("attachments.items.format: got %#v, want any JSON value", got)
 	}
 	if got := item.Properties["data"]; got == nil || got.Format != "byte" || got.Type != "string" {
 		t.Fatalf("attachments.items.data: got %#v, want type=string format=byte", got)
@@ -2160,4 +2142,96 @@ func TestFor_SliceOfPointerField_ItemsNoNull(t *testing.T) {
 	if len(nameProp.Examples) != 1 || nameProp.Examples[0] != "alice" {
 		t.Errorf("body.Items.Properties[name].Examples = %v, want [\"alice\"]", nameProp.Examples)
 	}
+}
+
+func TestFor_JSONRawMessage_MapAndSlice(t *testing.T) {
+	type rawContainers struct {
+		Meta  map[string]json.RawMessage `json:"meta,omitempty"`
+		List  []json.RawMessage          `json:"list,omitempty"`
+		Times map[string]time.Duration   `json:"times,omitempty"`
+		Data  [][]byte                   `json:"data,omitempty"`
+	}
+	s, err := For[rawContainers]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := s.Properties["meta"].AdditionalProperties; got == nil || !isAnySchema(got) {
+		t.Fatalf("meta.additionalProperties: got %#v, want any JSON value", got)
+	}
+	if got := s.Properties["list"].Items; got == nil || !isAnySchema(got) {
+		t.Fatalf("list.items: got %#v, want any JSON value", got)
+	}
+	if got := s.Properties["times"].AdditionalProperties; got == nil || got.Type != "string" || got.Format != "duration" {
+		t.Fatalf("times.additionalProperties: got %#v, want type=string format=duration", got)
+	}
+	if got := s.Properties["data"].Items; got == nil || got.Type != "string" || got.Format != "byte" {
+		t.Fatalf("data.items: got %#v, want type=string format=byte", got)
+	}
+
+	// Map values and slice items may be any JSON value
+	if err := s.Validate(json.RawMessage(`{"meta":{"a":1,"b":"two","c":[3],"d":{"e":true},"f":null},"list":[1,"a",{"b":2}],"times":{"a":"5s"}}`)); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+	if err := s.Validate(json.RawMessage(`{"times":{"a":5}}`)); err == nil {
+		t.Fatal("Validate: expected an error for a duration which isn't a string")
+	}
+}
+
+func TestFor_PointerMapValues(t *testing.T) {
+	type pointerMaps struct {
+		Times map[string]*time.Duration         `json:"times,omitempty"`
+		Names map[string]*string                `json:"names,omitempty"`
+		Raw   map[string]*json.RawMessage       `json:"raw,omitempty"`
+		Items map[string]*embeddedSpecialStruct `json:"items,omitempty"`
+	}
+	s, err := For[pointerMaps]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := s.Properties["times"].AdditionalProperties; got == nil || got.Format != "duration" || !sliceContains(got.Types, "null") || !sliceContains(got.Types, "string") {
+		t.Fatalf("times.additionalProperties: got %#v, want null or string, format=duration", got)
+	}
+	if got := s.Properties["raw"].AdditionalProperties; got == nil || !isAnySchema(got) {
+		t.Fatalf("raw.additionalProperties: got %#v, want any JSON value", got)
+	}
+
+	// A nil pointer value is encoded as null, so is valid
+	value := pointerMaps{
+		Times: map[string]*time.Duration{"a": nil},
+		Names: map[string]*string{"a": nil},
+		Raw:   map[string]*json.RawMessage{"a": nil},
+		Items: map[string]*embeddedSpecialStruct{"a": nil},
+	}
+	data, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Validate(data); err != nil {
+		t.Fatalf("Validate(%s): %v", data, err)
+	}
+	if err := s.Validate(json.RawMessage(`{"times":{"a":"5s"},"names":{"a":"x"}}`)); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+	if err := s.Validate(json.RawMessage(`{"times":{"a":5}}`)); err == nil {
+		t.Fatal("Validate: expected an error for a duration which isn't a string")
+	}
+}
+
+func TestFor_JSONRawMessage_TopLevelMap(t *testing.T) {
+	s, err := For[map[string]json.RawMessage]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := s.AdditionalProperties; got == nil || !isAnySchema(got) {
+		t.Fatalf("additionalProperties: got %#v, want any JSON value", got)
+	}
+	if err := s.Validate(json.RawMessage(`{"a":1,"b":"two"}`)); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+}
+
+// isAnySchema reports whether the schema accepts any JSON value
+func isAnySchema(s *upstream.Schema) bool {
+	return s.Type == "" && len(s.Types) == 0 && s.Format == "" &&
+		s.Items == nil && s.AdditionalProperties == nil && len(s.Properties) == 0
 }

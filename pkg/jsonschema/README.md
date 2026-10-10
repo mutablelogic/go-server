@@ -52,6 +52,8 @@ Fields with a `default:""` tag are automatically treated as optional so that def
 | `struct` | `{"type":"object","properties":{…}}` | struct tags are applied to properties |
 | `time.Time` | `{"type":"string","format":"date-time"}` | add `format:"date-time"` tag to advertise RFC 3339 — the format is advisory only, validation does not enforce it |
 | `time.Duration` | `{"type":"string","format":"duration"}` | values use Go duration syntax (e.g. `"5s"`, `"1h30m"`); `Decode` parses them automatically, including `default:""` tags |
+| `[]byte` | `{"type":"string","format":"byte"}` | base64-encoded |
+| `json.RawMessage` | `{}` | embedded JSON, so any JSON value, including as a map value or slice item |
 | `string` + `format:"uuid"` tag | `{"type":"string","format":"uuid"}` | add `format:"uuid"` to any `string` or `*string` field — the format is advisory; validation enforces the string type only |
 
 ## Supported struct tags

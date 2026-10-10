@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -45,7 +46,7 @@ var uuidType = reflect.TypeFor[uuid.UUID]()
 var urlType = reflect.TypeFor[url.URL]()
 
 // jsonType is the reflect.Type for json.RawMessage, used to detect JSON fields
-// and represent them as JSON strings with format "json".
+// and represent them as any JSON value.
 var jsonType = reflect.TypeFor[json.RawMessage]()
 
 // dataType is the reflect.Type for []byte, used to detect binary payload fields
@@ -173,6 +174,11 @@ func For[T any]() (*Schema, error) {
 		// "null" as a possibility leads tooling (e.g. example generators) to
 		// treat null as a valid, even preferred, response shape.
 		removeNullType(s)
+	} else if ft.Kind() == reflect.Map {
+		// T itself is a map, so enrich the schema for its values
+		if err := enrichMapValues(s, ft); err != nil {
+			return nil, err
+		}
 	}
 	res := &Schema{*s, nil}
 	resolved, err := res.Resolve(nil)
@@ -339,6 +345,10 @@ func enrichSchema(s *upstream.Schema, t reflect.Type) error {
 			if err := enrichArrayItems(prop, ft); err != nil {
 				return err
 			}
+		} else if !special && ft.Kind() == reflect.Map {
+			if err := enrichMapValues(prop, ft); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -354,17 +364,13 @@ func enrichArrayItems(prop *upstream.Schema, t reflect.Type) error {
 		elem = elem.Elem()
 	}
 
-	if elem.Kind() != reflect.Struct {
-		return nil
-	}
-
 	// A slice of pointers (e.g. []*Format) gets "null" added to each item's
 	// schema because a *Format can be nil - but a JSON array representing a
 	// dynamically-sized list never actually contains null placeholders for
 	// its elements, so left in, it leads tooling (e.g. example generators)
 	// to render a null element instead of a real one.
 	if prop.Items != nil {
-		if err := enrichSchema(prop.Items, elem); err != nil {
+		if err := enrichValue(prop.Items, elem); err != nil {
 			return err
 		}
 		if isPointer {
@@ -375,7 +381,7 @@ func enrichArrayItems(prop *upstream.Schema, t reflect.Type) error {
 		if item == nil {
 			continue
 		}
-		if err := enrichSchema(item, elem); err != nil {
+		if err := enrichValue(item, elem); err != nil {
 			return err
 		}
 		if isPointer {
@@ -384,6 +390,48 @@ func enrichArrayItems(prop *upstream.Schema, t reflect.Type) error {
 	}
 
 	return nil
+}
+
+// enrichMapValues enriches the schema for the values of a map, which the
+// upstream library describes with additionalProperties. Unlike slice items, a
+// nil pointer value is kept in a map, and encoded as null, so the value schema
+// allows null.
+func enrichMapValues(prop *upstream.Schema, t reflect.Type) error {
+	if prop.AdditionalProperties == nil {
+		return nil
+	}
+	elem := t.Elem()
+	isPointer := false
+	for elem.Kind() == reflect.Pointer {
+		isPointer = true
+		elem = elem.Elem()
+	}
+	if err := enrichValue(prop.AdditionalProperties, elem); err != nil {
+		return err
+	}
+	if isPointer {
+		addNullType(prop.AdditionalProperties)
+	}
+	return nil
+}
+
+// enrichValue enriches the schema for a slice item or map value of type t,
+// which is not a pointer: special types replace the upstream schema, struct
+// tags are applied to structs, and slices and maps are enriched recursively.
+func enrichValue(s *upstream.Schema, t reflect.Type) error {
+	if applySpecialTypeSchema(s, t) {
+		return nil
+	}
+	switch t.Kind() {
+	case reflect.Struct:
+		return enrichSchema(s, t)
+	case reflect.Slice, reflect.Array:
+		return enrichArrayItems(s, t)
+	case reflect.Map:
+		return enrichMapValues(s, t)
+	default:
+		return nil
+	}
 }
 
 func applySpecialTypeSchema(s *upstream.Schema, t reflect.Type) bool {
@@ -405,8 +453,8 @@ func applySpecialTypeSchema(s *upstream.Schema, t reflect.Type) bool {
 		resetToScalarStringSchema(s, "uri")
 		return true
 	case jsonType:
-		// json.RawMessage is represented as a JSON string placeholder.
-		resetToScalarStringSchema(s, "json")
+		// json.RawMessage is embedded JSON, so may be any JSON value.
+		resetToAnySchema(s)
 		return true
 	case dataType:
 		// []byte is represented as a byte-format string.
@@ -418,7 +466,7 @@ func applySpecialTypeSchema(s *upstream.Schema, t reflect.Type) bool {
 			return true
 		}
 		if isJSONBytesType(t) {
-			resetToScalarStringSchema(s, "json")
+			resetToAnySchema(s)
 			return true
 		}
 		if isDurationLikeType(t) {
@@ -458,9 +506,17 @@ func isDurationLikeType(t reflect.Type) bool {
 }
 
 func resetToScalarStringSchema(s *upstream.Schema, format string) {
+	resetToAnySchema(s)
 	s.Type = "string"
-	s.Types = nil
 	s.Format = format
+}
+
+// resetToAnySchema clears the type and the type-specific keywords, so the
+// schema accepts any JSON value.
+func resetToAnySchema(s *upstream.Schema) {
+	s.Type = ""
+	s.Types = nil
+	s.Format = ""
 
 	// Clear array-specific keywords.
 	s.PrefixItems = nil
@@ -596,6 +652,17 @@ func appendUnique(ss []string, s string) []string {
 // cases where the upstream library allows null (typically because the Go
 // zero value - a nil slice or pointer - permits it) but the JSON API
 // contract does not.
+// addNullType adds "null" to the types the schema allows, unless it allows
+// any type
+func addNullType(s *upstream.Schema) {
+	if s.Type != "" {
+		s.Types = []string{"null", s.Type}
+		s.Type = ""
+	} else if len(s.Types) > 0 && !slices.Contains(s.Types, "null") {
+		s.Types = append([]string{"null"}, s.Types...)
+	}
+}
+
 func removeNullType(s *upstream.Schema) {
 	s.Types = removeString(s.Types, "null")
 	if s.Type == "null" {
