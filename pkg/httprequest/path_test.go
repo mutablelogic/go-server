@@ -187,8 +187,8 @@ func TestResponseContentTypes(t *testing.T) {
 			t.Errorf("Content[%q] missing, have %v", contentType, response.Content)
 		}
 	}
-	if stream := response.Content["text/event-stream"]; stream.Schema == nil {
-		t.Errorf("text/event-stream schema = nil, want a string schema")
+	if stream := response.Content["text/event-stream"]; stream.Schema == nil || stream.Schema.Type != "string" {
+		t.Errorf("text/event-stream schema = %#v, want a string schema", stream.Schema)
 	}
 
 	// Another status code is a separate response, with its own description
@@ -206,7 +206,9 @@ func TestTextStreamResponseOnly(t *testing.T) {
 	if response.Description != http.StatusText(http.StatusOK) {
 		t.Errorf("Description = %q, want the default", response.Description)
 	}
-	if _, ok := response.Content["text/event-stream"]; !ok || len(response.Content) != 1 {
+	if stream, ok := response.Content["text/event-stream"]; !ok || len(response.Content) != 1 {
 		t.Errorf("Content = %v, want text/event-stream only", response.Content)
+	} else if stream.Schema == nil || stream.Schema.Type != "string" {
+		t.Errorf("text/event-stream schema = %#v, want a string schema", stream.Schema)
 	}
 }
