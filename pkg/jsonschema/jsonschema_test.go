@@ -2177,6 +2177,46 @@ func TestFor_JSONRawMessage_MapAndSlice(t *testing.T) {
 	}
 }
 
+func TestFor_PointerMapValues(t *testing.T) {
+	type pointerMaps struct {
+		Times map[string]*time.Duration         `json:"times,omitempty"`
+		Names map[string]*string                `json:"names,omitempty"`
+		Raw   map[string]*json.RawMessage       `json:"raw,omitempty"`
+		Items map[string]*embeddedSpecialStruct `json:"items,omitempty"`
+	}
+	s, err := For[pointerMaps]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := s.Properties["times"].AdditionalProperties; got == nil || got.Format != "duration" || !sliceContains(got.Types, "null") || !sliceContains(got.Types, "string") {
+		t.Fatalf("times.additionalProperties: got %#v, want null or string, format=duration", got)
+	}
+	if got := s.Properties["raw"].AdditionalProperties; got == nil || !isAnySchema(got) {
+		t.Fatalf("raw.additionalProperties: got %#v, want any JSON value", got)
+	}
+
+	// A nil pointer value is encoded as null, so is valid
+	value := pointerMaps{
+		Times: map[string]*time.Duration{"a": nil},
+		Names: map[string]*string{"a": nil},
+		Raw:   map[string]*json.RawMessage{"a": nil},
+		Items: map[string]*embeddedSpecialStruct{"a": nil},
+	}
+	data, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Validate(data); err != nil {
+		t.Fatalf("Validate(%s): %v", data, err)
+	}
+	if err := s.Validate(json.RawMessage(`{"times":{"a":"5s"},"names":{"a":"x"}}`)); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+	if err := s.Validate(json.RawMessage(`{"times":{"a":5}}`)); err == nil {
+		t.Fatal("Validate: expected an error for a duration which isn't a string")
+	}
+}
+
 func TestFor_JSONRawMessage_TopLevelMap(t *testing.T) {
 	s, err := For[map[string]json.RawMessage]()
 	if err != nil {

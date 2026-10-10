@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -392,16 +393,26 @@ func enrichArrayItems(prop *upstream.Schema, t reflect.Type) error {
 }
 
 // enrichMapValues enriches the schema for the values of a map, which the
-// upstream library describes with additionalProperties.
+// upstream library describes with additionalProperties. Unlike slice items, a
+// nil pointer value is kept in a map, and encoded as null, so the value schema
+// allows null.
 func enrichMapValues(prop *upstream.Schema, t reflect.Type) error {
 	if prop.AdditionalProperties == nil {
 		return nil
 	}
 	elem := t.Elem()
+	isPointer := false
 	for elem.Kind() == reflect.Pointer {
+		isPointer = true
 		elem = elem.Elem()
 	}
-	return enrichValue(prop.AdditionalProperties, elem)
+	if err := enrichValue(prop.AdditionalProperties, elem); err != nil {
+		return err
+	}
+	if isPointer {
+		addNullType(prop.AdditionalProperties)
+	}
+	return nil
 }
 
 // enrichValue enriches the schema for a slice item or map value of type t,
@@ -641,6 +652,17 @@ func appendUnique(ss []string, s string) []string {
 // cases where the upstream library allows null (typically because the Go
 // zero value - a nil slice or pointer - permits it) but the JSON API
 // contract does not.
+// addNullType adds "null" to the types the schema allows, unless it allows
+// any type
+func addNullType(s *upstream.Schema) {
+	if s.Type != "" {
+		s.Types = []string{"null", s.Type}
+		s.Type = ""
+	} else if len(s.Types) > 0 && !slices.Contains(s.Types, "null") {
+		s.Types = append([]string{"null"}, s.Types...)
+	}
+}
+
 func removeNullType(s *upstream.Schema) {
 	s.Types = removeString(s.Types, "null")
 	if s.Type == "null" {
