@@ -159,3 +159,56 @@ func TestSecurityRequiresAllSchemes(t *testing.T) {
 		t.Errorf("oauth scopes = %#v, want [read], copied from the caller", got)
 	}
 }
+
+func TestResponseContentTypes(t *testing.T) {
+	// A status code can have more than one content type, such as a JSON
+	// response, or a stream of server-sent events
+	p := NewPathItem("summary", "description")
+	p.Post(func(http.ResponseWriter, *http.Request) {}, func(op PathOperation) {
+		op.JSONResponse(http.StatusOK, jsonschema.MustFor[string](), "Model, or a stream of events")
+		op.TextStreamResponse(http.StatusOK, "ignored, as the response exists")
+		op.Response(http.StatusOK, "text/plain")
+		op.ErrorResponse(http.StatusBadRequest)
+	})
+
+	spec := p.Spec("resource", nil)
+	if spec == nil || spec.Post == nil {
+		t.Fatalf("Spec().Post = nil, want populated POST operation")
+	}
+	response, ok := spec.Post.Responses["200"]
+	if !ok {
+		t.Fatalf("Responses[200] missing")
+	}
+	if response.Description != "Model, or a stream of events" {
+		t.Errorf("Description = %q, want the first description", response.Description)
+	}
+	for _, contentType := range []string{"application/json", "text/event-stream", "text/plain"} {
+		if _, ok := response.Content[contentType]; !ok {
+			t.Errorf("Content[%q] missing, have %v", contentType, response.Content)
+		}
+	}
+	if stream := response.Content["text/event-stream"]; stream.Schema == nil || stream.Schema.Type != "string" {
+		t.Errorf("text/event-stream schema = %#v, want a string schema", stream.Schema)
+	}
+
+	// Another status code is a separate response, with its own description
+	if response := spec.Post.Responses["400"]; response.Description != http.StatusText(http.StatusBadRequest) || len(response.Content) != 1 {
+		t.Errorf("Responses[400] = %#v, want one content type, with the default description", response)
+	}
+}
+
+func TestTextStreamResponseOnly(t *testing.T) {
+	p := NewPathItem("summary", "description")
+	p.Get(func(http.ResponseWriter, *http.Request) {}, func(op PathOperation) {
+		op.TextStreamResponse(http.StatusOK)
+	})
+	response := p.Spec("resource", nil).Get.Responses["200"]
+	if response.Description != http.StatusText(http.StatusOK) {
+		t.Errorf("Description = %q, want the default", response.Description)
+	}
+	if stream, ok := response.Content["text/event-stream"]; !ok || len(response.Content) != 1 {
+		t.Errorf("Content = %v, want text/event-stream only", response.Content)
+	} else if stream.Schema == nil || stream.Schema.Type != "string" {
+		t.Errorf("text/event-stream schema = %#v, want a string schema", stream.Schema)
+	}
+}
