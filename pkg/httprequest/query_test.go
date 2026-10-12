@@ -1,6 +1,7 @@
 package httprequest_test
 
 import (
+	"fmt"
 	"net/url"
 	"testing"
 	"time"
@@ -209,6 +210,49 @@ func Test_Query_TextUnmarshaler(t *testing.T) {
 	t.Run("Invalid", func(t *testing.T) {
 		var p params
 		err := httprequest.Query(url.Values{"id": {"not-a-uuid"}}, &p)
+		assert.Error(err)
+	})
+}
+
+// status is a string which only accepts "on" or "off" as text
+type status string
+
+func (s *status) UnmarshalText(text []byte) error {
+	switch string(text) {
+	case "on", "off":
+		*s = status(text)
+		return nil
+	default:
+		return fmt.Errorf("invalid status %q", text)
+	}
+}
+
+func Test_Query_TextUnmarshalerScalar(t *testing.T) {
+	assert := assert.New(t)
+
+	// A type whose kind is otherwise decoded uses its UnmarshalText
+	type params struct {
+		Status   status   `json:"status"`
+		Statuses []status `json:"statuses"`
+	}
+
+	t.Run("Valid", func(t *testing.T) {
+		var p params
+		err := httprequest.Query(url.Values{"status": {"on"}, "statuses": {"on", "off"}}, &p)
+		assert.NoError(err)
+		assert.Equal(status("on"), p.Status)
+		assert.Equal([]status{"on", "off"}, p.Statuses)
+	})
+
+	t.Run("Invalid", func(t *testing.T) {
+		var p params
+		err := httprequest.Query(url.Values{"status": {"maybe"}}, &p)
+		assert.Error(err)
+	})
+
+	t.Run("InvalidSlice", func(t *testing.T) {
+		var p params
+		err := httprequest.Query(url.Values{"statuses": {"on", "maybe"}}, &p)
 		assert.Error(err)
 	})
 }

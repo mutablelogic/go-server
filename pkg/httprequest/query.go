@@ -144,6 +144,14 @@ func setQueryValue(tag string, v reflect.Value, value []string) error {
 }
 
 func setQueryScalar(tag string, v reflect.Value, value string) error {
+	// A type which implements encoding.TextUnmarshaler decodes its own text,
+	// apart from time.Time, which is decoded below
+	if v.Type() != typeTime {
+		if ok, err := setQueryText(tag, v, value); ok {
+			return err
+		}
+	}
+
 	// Set the value
 	switch v.Kind() {
 	case reflect.String:
@@ -182,15 +190,9 @@ func setQueryScalar(tag string, v reflect.Value, value string) error {
 			}
 			v.Set(reflect.ValueOf(t).Elem())
 		default:
-			if ok, err := setQueryText(tag, v, value); ok {
-				return err
-			}
 			return errBadRequest.Withf("%q: unsupported type (%q)", tag, v.Type())
 		}
 	default:
-		if ok, err := setQueryText(tag, v, value); ok {
-			return err
-		}
 		return errBadRequest.Withf("%q: unsupported kind (%q)", tag, v.Kind())
 	}
 
