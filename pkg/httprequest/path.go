@@ -94,6 +94,10 @@ type PathOperation interface {
 	// An optional description can be provided; if not, the default HTTP status text will be used.
 	ErrorResponse(status int, description ...string) PathOperation
 
+	// Add a 204 No Content response, without content, for the operation. An optional
+	// description can be provided; if not, the default HTTP status text will be used.
+	EmptyResponse(description ...string) PathOperation
+
 	// Return a response for the operation with the given status code and content type.
 	// An optional description can be provided; if not, the default HTTP status text will be used.
 	// A response with another content type for the same status code is kept.
@@ -322,10 +326,27 @@ func (p *pathoperation) Response(status int, contentType string, description ...
 	return p
 }
 
+func (p *pathoperation) EmptyResponse(description ...string) PathOperation {
+	p.response(http.StatusNoContent, description...)
+	return p
+}
+
 // addResponse adds the content type, with its schema, to the response for
 // the status code. A response which already exists for the status code keeps
 // its other content types, and its description.
 func (p *pathoperation) addResponse(status int, contentType string, schema *jsonschema.Schema, description ...string) {
+	response := p.response(status, description...)
+	if response.Content == nil {
+		response.Content = make(map[string]openapi.MediaType)
+	}
+	response.Content[contentType] = openapi.MediaType{Schema: schema}
+	p.spec.Responses[strconv.FormatInt(int64(status), 10)] = response
+}
+
+// response returns the response for the status code, adding it with the
+// description, or the default HTTP status text, when it doesn't exist. A
+// response which already exists keeps its description.
+func (p *pathoperation) response(status int, description ...string) openapi.Response {
 	if p.spec.Responses == nil {
 		p.spec.Responses = make(map[string]openapi.Response)
 	}
@@ -336,12 +357,9 @@ func (p *pathoperation) addResponse(status int, contentType string, schema *json
 		if response.Description == "" {
 			response.Description = http.StatusText(status)
 		}
+		p.spec.Responses[statusNum] = response
 	}
-	if response.Content == nil {
-		response.Content = make(map[string]openapi.MediaType)
-	}
-	response.Content[contentType] = openapi.MediaType{Schema: schema}
-	p.spec.Responses[statusNum] = response
+	return response
 }
 
 func (p *pathoperation) RequestBody(schema *jsonschema.Schema, contentType ...string) PathOperation {
