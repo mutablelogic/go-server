@@ -212,3 +212,49 @@ func TestTextStreamResponseOnly(t *testing.T) {
 		t.Errorf("text/event-stream schema = %#v, want a string schema", stream.Schema)
 	}
 }
+
+func TestEmptyResponse(t *testing.T) {
+	// A 204 No Content response, without content, alongside a JSON response
+	p := NewPathItem("summary", "description")
+	p.Post(func(http.ResponseWriter, *http.Request) {}, func(op PathOperation) {
+		op.JSONResponse(http.StatusOK, jsonschema.MustFor[string](), "Result")
+		op.EmptyResponse("No result")
+	})
+	responses := p.Spec("resource", nil).Post.Responses
+
+	response, ok := responses["204"]
+	if !ok {
+		t.Fatalf("Responses[204] missing")
+	}
+	if response.Description != "No result" {
+		t.Errorf("Description = %q, want %q", response.Description, "No result")
+	}
+	if len(response.Content) != 0 {
+		t.Errorf("Content = %v, want none", response.Content)
+	}
+
+	// The JSON response is unchanged
+	if response := responses["200"]; response.Description != "Result" || len(response.Content) != 1 {
+		t.Errorf("Responses[200] = %#v, want one content type", response)
+	}
+
+	// Without a description, the default HTTP status text is used
+	p = NewPathItem("summary", "description")
+	p.Delete(func(http.ResponseWriter, *http.Request) {}, func(op PathOperation) {
+		op.EmptyResponse()
+	})
+	if response := p.Spec("resource", nil).Delete.Responses["204"]; response.Description != http.StatusText(http.StatusNoContent) || len(response.Content) != 0 {
+		t.Errorf("Responses[204] = %#v, want no content, with the default description", response)
+	}
+
+	// Content added for a 204 response is removed, and the response keeps
+	// its description
+	p = NewPathItem("summary", "description")
+	p.Put(func(http.ResponseWriter, *http.Request) {}, func(op PathOperation) {
+		op.JSONResponse(http.StatusNoContent, jsonschema.MustFor[string](), "Nothing")
+		op.EmptyResponse("ignored, as the response exists")
+	})
+	if response := p.Spec("resource", nil).Put.Responses["204"]; response.Description != "Nothing" || len(response.Content) != 0 {
+		t.Errorf("Responses[204] = %#v, want no content, with the first description", response)
+	}
+}
