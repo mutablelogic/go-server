@@ -327,7 +327,11 @@ func (p *pathoperation) Response(status int, contentType string, description ...
 }
 
 func (p *pathoperation) EmptyResponse(description ...string) PathOperation {
-	p.response(http.StatusNoContent, description...)
+	// A 204 response has no content, so any content added for it is removed,
+	// and the response keeps its description
+	response := p.response(http.StatusNoContent, description...)
+	response.Content = nil
+	p.spec.Responses[strconv.FormatInt(http.StatusNoContent, 10)] = response
 	return p
 }
 

@@ -246,4 +246,15 @@ func TestEmptyResponse(t *testing.T) {
 	if response := p.Spec("resource", nil).Delete.Responses["204"]; response.Description != http.StatusText(http.StatusNoContent) || len(response.Content) != 0 {
 		t.Errorf("Responses[204] = %#v, want no content, with the default description", response)
 	}
+
+	// Content added for a 204 response is removed, and the response keeps
+	// its description
+	p = NewPathItem("summary", "description")
+	p.Put(func(http.ResponseWriter, *http.Request) {}, func(op PathOperation) {
+		op.JSONResponse(http.StatusNoContent, jsonschema.MustFor[string](), "Nothing")
+		op.EmptyResponse("ignored, as the response exists")
+	})
+	if response := p.Spec("resource", nil).Put.Responses["204"]; response.Description != "Nothing" || len(response.Content) != 0 {
+		t.Errorf("Responses[204] = %#v, want no content, with the first description", response)
+	}
 }
