@@ -1,11 +1,13 @@
 package httprequest_test
 
 import (
+	"fmt"
 	"net/url"
 	"testing"
 	"time"
 
 	// Packages
+	uuid "github.com/google/uuid"
 	httprequest "github.com/mutablelogic/go-server/pkg/httprequest"
 	assert "github.com/stretchr/testify/assert"
 )
@@ -159,6 +161,98 @@ func Test_Query_Time(t *testing.T) {
 	t.Run("Invalid", func(t *testing.T) {
 		var p params
 		err := httprequest.Query(url.Values{"created_at": {"not-a-date"}}, &p)
+		assert.Error(err)
+	})
+}
+
+func Test_Query_TextUnmarshaler(t *testing.T) {
+	assert := assert.New(t)
+
+	type params struct {
+		ID     uuid.UUID   `json:"id"`
+		Parent *uuid.UUID  `json:"parent"`
+		IDs    []uuid.UUID `json:"ids"`
+	}
+
+	t.Run("Value", func(t *testing.T) {
+		var p params
+		id := uuid.New()
+		err := httprequest.Query(url.Values{"id": {id.String()}}, &p)
+		assert.NoError(err)
+		assert.Equal(id, p.ID)
+	})
+
+	t.Run("Pointer", func(t *testing.T) {
+		var p params
+		id := uuid.New()
+		err := httprequest.Query(url.Values{"parent": {id.String()}}, &p)
+		assert.NoError(err)
+		if assert.NotNil(p.Parent) {
+			assert.Equal(id, *p.Parent)
+		}
+	})
+
+	t.Run("NilWhenMissing", func(t *testing.T) {
+		var p params
+		err := httprequest.Query(url.Values{}, &p)
+		assert.NoError(err)
+		assert.Nil(p.Parent)
+	})
+
+	t.Run("Slice", func(t *testing.T) {
+		var p params
+		a, b := uuid.New(), uuid.New()
+		err := httprequest.Query(url.Values{"ids": {a.String(), b.String()}}, &p)
+		assert.NoError(err)
+		assert.Equal([]uuid.UUID{a, b}, p.IDs)
+	})
+
+	t.Run("Invalid", func(t *testing.T) {
+		var p params
+		err := httprequest.Query(url.Values{"id": {"not-a-uuid"}}, &p)
+		assert.Error(err)
+	})
+}
+
+// status is a string which only accepts "on" or "off" as text
+type status string
+
+func (s *status) UnmarshalText(text []byte) error {
+	switch string(text) {
+	case "on", "off":
+		*s = status(text)
+		return nil
+	default:
+		return fmt.Errorf("invalid status %q", text)
+	}
+}
+
+func Test_Query_TextUnmarshalerScalar(t *testing.T) {
+	assert := assert.New(t)
+
+	// A type whose kind is otherwise decoded uses its UnmarshalText
+	type params struct {
+		Status   status   `json:"status"`
+		Statuses []status `json:"statuses"`
+	}
+
+	t.Run("Valid", func(t *testing.T) {
+		var p params
+		err := httprequest.Query(url.Values{"status": {"on"}, "statuses": {"on", "off"}}, &p)
+		assert.NoError(err)
+		assert.Equal(status("on"), p.Status)
+		assert.Equal([]status{"on", "off"}, p.Statuses)
+	})
+
+	t.Run("Invalid", func(t *testing.T) {
+		var p params
+		err := httprequest.Query(url.Values{"status": {"maybe"}}, &p)
+		assert.Error(err)
+	})
+
+	t.Run("InvalidSlice", func(t *testing.T) {
+		var p params
+		err := httprequest.Query(url.Values{"statuses": {"on", "maybe"}}, &p)
 		assert.Error(err)
 	})
 }

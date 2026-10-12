@@ -1,6 +1,7 @@
 package httprequest
 
 import (
+	"encoding"
 	"net/url"
 	"reflect"
 	"strconv"
@@ -20,7 +21,8 @@ const (
 )
 
 var (
-	typeTime = reflect.TypeOf(time.Time{})
+	typeTime            = reflect.TypeOf(time.Time{})
+	typeTextUnmarshaler = reflect.TypeOf((*encoding.TextUnmarshaler)(nil)).Elem()
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -142,6 +144,14 @@ func setQueryValue(tag string, v reflect.Value, value []string) error {
 }
 
 func setQueryScalar(tag string, v reflect.Value, value string) error {
+	// A type which implements encoding.TextUnmarshaler decodes its own text,
+	// apart from time.Time, which is decoded below
+	if v.Type() != typeTime {
+		if ok, err := setQueryText(tag, v, value); ok {
+			return err
+		}
+	}
+
 	// Set the value
 	switch v.Kind() {
 	case reflect.String:
@@ -188,4 +198,16 @@ func setQueryScalar(tag string, v reflect.Value, value string) error {
 
 	// Return success
 	return nil
+}
+
+// setQueryText sets the value from its text, when its type implements
+// encoding.TextUnmarshaler, such as a UUID. Returns false if it doesn't.
+func setQueryText(tag string, v reflect.Value, value string) (bool, error) {
+	if !v.CanAddr() || !v.Addr().Type().Implements(typeTextUnmarshaler) {
+		return false, nil
+	}
+	if err := v.Addr().Interface().(encoding.TextUnmarshaler).UnmarshalText([]byte(value)); err != nil {
+		return true, errBadRequest.Withf("%q: Parse error (%v)", tag, err)
+	}
+	return true, nil
 }
