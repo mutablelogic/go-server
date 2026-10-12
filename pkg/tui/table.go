@@ -5,6 +5,7 @@ import (
 	"io"
 
 	// Packages
+	glamour "github.com/charmbracelet/glamour"
 	lipgloss "github.com/charmbracelet/lipgloss"
 	lgtable "github.com/charmbracelet/lipgloss/table"
 )
@@ -14,12 +15,16 @@ import (
 
 type TableRow interface {
 	Header() []string
-	Cell(int) string
+	Cell(int) CellText
 	Width(int) int
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
+
+// CellText is the value of a table cell, which is either a string or
+// Markdown. Other values are formatted with fmt.Sprint.
+type CellText any
 
 type table[T TableRow] struct {
 	table  *lgtable.Table
@@ -87,16 +92,38 @@ func (t *table[T]) Write(w io.Writer, rows ...T) (int, error) {
 		t.widths[i] = t.rows[0].Width(i)
 	}
 	t.table.Headers(headers...)
-	for _, row := range t.rows {
-		cells := make([]string, len(headers))
-		for i := range headers {
-			cells[i] = row.Cell(i)
-		}
-		t.table.Row(cells...)
-	}
 	defer func() {
 		t.rows = nil
 	}()
+
+	var md *glamour.TermRenderer
+	for _, row := range t.rows {
+		cells := make([]string, len(headers))
+		for i := range headers {
+			switch v := row.Cell(i).(type) {
+			case nil:
+				// Empty cell
+			case string:
+				cells[i] = v
+			case Markdown:
+				if md == nil {
+					renderer, err := newMarkdownCell()
+					if err != nil {
+						return 0, err
+					}
+					md = renderer
+				}
+				text, err := renderMarkdownCell(md, v)
+				if err != nil {
+					return 0, err
+				}
+				cells[i] = text
+			default:
+				cells[i] = fmt.Sprint(v)
+			}
+		}
+		t.table.Row(cells...)
+	}
 
 	return io.WriteString(w, fmt.Sprintln(t.table.Render()))
 }
