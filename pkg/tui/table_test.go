@@ -17,7 +17,7 @@ func (r testRow) Header() []string {
 	return []string{"Value"}
 }
 
-func (r testRow) Cell(i int) string {
+func (r testRow) Cell(i int) CellText {
 	return r.value
 }
 
@@ -61,4 +61,35 @@ func TestTableWriteFlushesBufferedRows(t *testing.T) {
 	_, err = table.Write(&buffer)
 	require.NoError(t, err)
 	assert.Equal(t, "", buffer.String())
+}
+
+type testMarkdownRow struct {
+	value Markdown
+	count int
+}
+
+func (r testMarkdownRow) Header() []string {
+	return []string{"Value", "Count"}
+}
+
+func (r testMarkdownRow) Cell(i int) CellText {
+	if i == 0 {
+		return r.value
+	}
+	return r.count
+}
+
+func (r testMarkdownRow) Width(i int) int {
+	return 0
+}
+
+func TestTableWriteMarkdownCell(t *testing.T) {
+	var buffer bytes.Buffer
+
+	_, err := TableFor[testMarkdownRow]().Write(&buffer, testMarkdownRow{value: "- alpha\n- beta", count: 42})
+	require.NoError(t, err)
+	assert.Contains(t, buffer.String(), "• alpha")
+	assert.Contains(t, buffer.String(), "• beta")
+	assert.Contains(t, buffer.String(), "42")
+	t.Log("\n" + buffer.String())
 }
