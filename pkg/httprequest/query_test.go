@@ -6,6 +6,7 @@ import (
 	"time"
 
 	// Packages
+	uuid "github.com/google/uuid"
 	httprequest "github.com/mutablelogic/go-server/pkg/httprequest"
 	assert "github.com/stretchr/testify/assert"
 )
@@ -159,6 +160,55 @@ func Test_Query_Time(t *testing.T) {
 	t.Run("Invalid", func(t *testing.T) {
 		var p params
 		err := httprequest.Query(url.Values{"created_at": {"not-a-date"}}, &p)
+		assert.Error(err)
+	})
+}
+
+func Test_Query_TextUnmarshaler(t *testing.T) {
+	assert := assert.New(t)
+
+	type params struct {
+		ID     uuid.UUID   `json:"id"`
+		Parent *uuid.UUID  `json:"parent"`
+		IDs    []uuid.UUID `json:"ids"`
+	}
+
+	t.Run("Value", func(t *testing.T) {
+		var p params
+		id := uuid.New()
+		err := httprequest.Query(url.Values{"id": {id.String()}}, &p)
+		assert.NoError(err)
+		assert.Equal(id, p.ID)
+	})
+
+	t.Run("Pointer", func(t *testing.T) {
+		var p params
+		id := uuid.New()
+		err := httprequest.Query(url.Values{"parent": {id.String()}}, &p)
+		assert.NoError(err)
+		if assert.NotNil(p.Parent) {
+			assert.Equal(id, *p.Parent)
+		}
+	})
+
+	t.Run("NilWhenMissing", func(t *testing.T) {
+		var p params
+		err := httprequest.Query(url.Values{}, &p)
+		assert.NoError(err)
+		assert.Nil(p.Parent)
+	})
+
+	t.Run("Slice", func(t *testing.T) {
+		var p params
+		a, b := uuid.New(), uuid.New()
+		err := httprequest.Query(url.Values{"ids": {a.String(), b.String()}}, &p)
+		assert.NoError(err)
+		assert.Equal([]uuid.UUID{a, b}, p.IDs)
+	})
+
+	t.Run("Invalid", func(t *testing.T) {
+		var p params
+		err := httprequest.Query(url.Values{"id": {"not-a-uuid"}}, &p)
 		assert.Error(err)
 	})
 }

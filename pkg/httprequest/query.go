@@ -1,6 +1,7 @@
 package httprequest
 
 import (
+	"encoding"
 	"net/url"
 	"reflect"
 	"strconv"
@@ -20,7 +21,8 @@ const (
 )
 
 var (
-	typeTime = reflect.TypeOf(time.Time{})
+	typeTime            = reflect.TypeOf(time.Time{})
+	typeTextUnmarshaler = reflect.TypeOf((*encoding.TextUnmarshaler)(nil)).Elem()
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -180,12 +182,30 @@ func setQueryScalar(tag string, v reflect.Value, value string) error {
 			}
 			v.Set(reflect.ValueOf(t).Elem())
 		default:
+			if ok, err := setQueryText(tag, v, value); ok {
+				return err
+			}
 			return errBadRequest.Withf("%q: unsupported type (%q)", tag, v.Type())
 		}
 	default:
+		if ok, err := setQueryText(tag, v, value); ok {
+			return err
+		}
 		return errBadRequest.Withf("%q: unsupported kind (%q)", tag, v.Kind())
 	}
 
 	// Return success
 	return nil
+}
+
+// setQueryText sets the value from its text, when its type implements
+// encoding.TextUnmarshaler, such as a UUID. Returns false if it doesn't.
+func setQueryText(tag string, v reflect.Value, value string) (bool, error) {
+	if !v.CanAddr() || !v.Addr().Type().Implements(typeTextUnmarshaler) {
+		return false, nil
+	}
+	if err := v.Addr().Interface().(encoding.TextUnmarshaler).UnmarshalText([]byte(value)); err != nil {
+		return true, errBadRequest.Withf("%q: Parse error (%v)", tag, err)
+	}
+	return true, nil
 }
