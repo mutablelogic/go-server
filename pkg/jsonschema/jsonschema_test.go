@@ -24,6 +24,13 @@ type enumStruct struct {
 	Size  string `json:"size"  enum:"small, medium, large"`
 }
 
+// The enum of a slice applies to its items
+type enumSliceStruct struct {
+	Colors []string  `json:"colors" enum:"red,green,blue"`
+	Sizes  *[]string `json:"sizes,omitempty" enum:"small,large"`
+	Fixed  [2]string `json:"fixed" enum:"x,y"`
+}
+
 type noJSONTagStruct struct {
 	Title string
 	Body  string `json:"-"`
@@ -424,6 +431,40 @@ func TestFor_EnumTag(t *testing.T) {
 		if size.Enum[i] != v {
 			t.Errorf("size.Enum[%d]: got %v, want %v", i, size.Enum[i], v)
 		}
+	}
+}
+
+func TestFor_EnumTag_Slice(t *testing.T) {
+	s, err := For[enumSliceStruct]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, want := range map[string][]any{
+		"colors": {"red", "green", "blue"},
+		"sizes":  {"small", "large"},
+		"fixed":  {"x", "y"},
+	} {
+		prop := s.Properties[name]
+		if prop == nil {
+			t.Fatalf("expected property %q", name)
+		}
+		if prop.Enum != nil {
+			t.Errorf("%s: expected no enum on the slice, got %v", name, prop.Enum)
+		}
+		if prop.Items == nil {
+			t.Fatalf("%s: expected items", name)
+		}
+		if !reflect.DeepEqual(prop.Items.Enum, want) {
+			t.Errorf("%s: items enum: got %v, want %v", name, prop.Items.Enum, want)
+		}
+	}
+
+	// Each item is validated against the enum
+	if err := s.Validate(json.RawMessage(`{"colors":["red","blue"],"fixed":["x","y"]}`)); err != nil {
+		t.Errorf("expected valid items: %v", err)
+	}
+	if err := s.Validate(json.RawMessage(`{"colors":["red","purple"],"fixed":["x","y"]}`)); err == nil {
+		t.Error("expected an item which isn't in the enum to be invalid")
 	}
 }
 

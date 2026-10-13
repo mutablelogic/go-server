@@ -256,8 +256,14 @@ func enrichSchema(s *upstream.Schema, t reflect.Type) error {
 
 		special := applySpecialTypeSchema(prop, ft)
 
+		// The enum of a slice or array applies to its items, which are the
+		// values, rather than to the slice itself
 		if vals := parseEnumTag(field.Tag.Get("enum")); len(vals) > 0 {
-			prop.Enum = vals
+			if (ft.Kind() == reflect.Slice || ft.Kind() == reflect.Array) && prop.Items != nil {
+				prop.Items.Enum = vals
+			} else {
+				prop.Enum = vals
+			}
 		}
 		if v := field.Tag.Get("format"); v != "" {
 			prop.Format = v
