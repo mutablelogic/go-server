@@ -51,7 +51,7 @@ Fields with a `default:""` tag are automatically treated as optional so that def
 | `map[K]V` | `{"type":"object"}` | |
 | `struct` | `{"type":"object","properties":{…}}` | struct tags are applied to properties |
 | `time.Time` | `{"type":"string","format":"date-time"}` | add `format:"date-time"` tag to advertise RFC 3339 — the format is advisory only, validation does not enforce it |
-| `time.Duration` | `{"type":"string","format":"duration"}` | values use Go duration syntax (e.g. `"5s"`, `"1h30m"`); `Decode` parses them automatically, including `default:""` tags |
+| `time.Duration` | `{"type":["integer","string"],"format":"duration"}` | integer nanoseconds, as `encoding/json` encodes a `time.Duration`, or Go duration syntax (e.g. `"5s"`, `"1h30m"`); `Decode` parses duration strings automatically, including `default:""` tags. A named duration type with its own `MarshalJSON` is a string |
 | `[]byte` | `{"type":"string","format":"byte"}` | base64-encoded |
 | `json.RawMessage` | `{}` | embedded JSON, so any JSON value, including as a map value or slice item |
 | `string` + `format:"uuid"` tag | `{"type":"string","format":"uuid"}` | add `format:"uuid"` to any `string` or `*string` field — the format is advisory; validation enforces the string type only |

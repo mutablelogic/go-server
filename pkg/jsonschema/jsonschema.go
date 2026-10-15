@@ -73,7 +73,8 @@ func (s *Schema) Validate(data json.RawMessage) error {
 // Decode unmarshals data into v, applies schema defaults for any missing fields,
 // then validates the result. v must be a non-nil pointer; it may point to a
 // struct (in which case schema defaults are applied for missing fields), a
-// primitive (string, bool, numeric), a slice, or a *time.Duration.
+// primitive (string, bool, numeric), a slice, or a *time.Duration, which can
+// be a duration string, such as "5s", or integer nanoseconds.
 func (s *Schema) Decode(data json.RawMessage, v any) error {
 	var instance any
 	if err := json.Unmarshal(data, &instance); err != nil {
@@ -104,7 +105,8 @@ func (s *Schema) Decode(data json.RawMessage, v any) error {
 	if err := s.resolved.Validate(instance); err != nil {
 		return err
 	}
-	// time.Duration is encoded as a string; parse and assign directly.
+	// A time.Duration can be a duration string; parse and assign directly.
+	// Integer nanoseconds are decoded below.
 	if dp, ok := v.(*time.Duration); ok {
 		if str, ok := instance.(string); ok {
 			d, err := time.ParseDuration(str)
@@ -443,8 +445,9 @@ func enrichValue(s *upstream.Schema, t reflect.Type) error {
 func applySpecialTypeSchema(s *upstream.Schema, t reflect.Type) bool {
 	switch t {
 	case durationType:
-		// time.Duration is represented as a duration string.
-		resetToScalarStringSchema(s, "duration")
+		// time.Duration is encoded by encoding/json as integer nanoseconds,
+		// and decoded from a duration string, such as "5s", or nanoseconds.
+		resetToDurationSchema(s)
 		return true
 	case timeType:
 		// time.Time is represented as an RFC3339 string.
@@ -509,6 +512,15 @@ func isDurationLikeType(t reflect.Type) bool {
 		t.Kind() == reflect.Int64 &&
 		t.ConvertibleTo(durationType) &&
 		t.Implements(jsonMarshalerType)
+}
+
+// resetToDurationSchema sets the schema to a duration, which is integer
+// nanoseconds, as encoding/json encodes a time.Duration, or a duration
+// string, such as "5s", which Decode accepts
+func resetToDurationSchema(s *upstream.Schema) {
+	resetToAnySchema(s)
+	s.Types = []string{"integer", "string"}
+	s.Format = "duration"
 }
 
 func resetToScalarStringSchema(s *upstream.Schema, format string) {
