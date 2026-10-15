@@ -268,3 +268,98 @@ func Test_Read_JSON_Duration(t *testing.T) {
 		assert.Equal(t, `{"b": 1, "a": 2}`, string(p.Raw))
 	})
 }
+
+// customTimeout decodes itself from {"timeout":"5s"}, so must be given the
+// body as it was sent
+type customTimeout struct {
+	Timeout time.Duration
+}
+
+func (c *customTimeout) UnmarshalJSON(data []byte) error {
+	var v struct {
+		Timeout string `json:"timeout"`
+	}
+	if err := json.Unmarshal(data, &v); err != nil {
+		return err
+	}
+	d, err := time.ParseDuration(v.Timeout)
+	c.Timeout = d
+	return err
+}
+
+// Durations are decoded with encoding/json's rules for everything else
+func Test_Read_JSON_DurationRules(t *testing.T) {
+	read := func(t *testing.T, body string, v any) error {
+		t.Helper()
+		r, _ := http.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+		r.Header.Set("Content-Type", "application/json")
+		return httprequest.Read(r, v)
+	}
+
+	t.Run("Unmarshaler", func(t *testing.T) {
+		// A type with its own UnmarshalJSON is given the body as it was sent,
+		// at the top level, and nested
+		var top customTimeout
+		require.NoError(t, read(t, `{"timeout":"5s"}`, &top))
+		assert.Equal(t, 5*time.Second, top.Timeout)
+
+		var nested struct {
+			Custom customTimeout `json:"custom"`
+		}
+		require.NoError(t, read(t, `{"custom":{"timeout":"5s"}}`, &nested))
+		assert.Equal(t, 5*time.Second, nested.Custom.Timeout)
+	})
+
+	t.Run("Embedded", func(t *testing.T) {
+		// The fields of embedded structs with the same Go name and different
+		// JSON names are both decoded, and an ignored embedded struct isn't
+		type A struct {
+			Delay time.Duration `json:"a"`
+		}
+		type B struct {
+			Delay time.Duration `json:"b"`
+		}
+		type Ignored struct {
+			Delay time.Duration `json:"ignored"`
+		}
+		var v struct {
+			A
+			B
+			Ignored `json:"-"`
+		}
+		require.NoError(t, read(t, `{"a":"1s","b":"2s","ignored":"not a duration"}`, &v))
+		assert.Equal(t, time.Second, v.A.Delay)
+		assert.Equal(t, 2*time.Second, v.B.Delay)
+		assert.Zero(t, v.Ignored.Delay)
+	})
+
+	t.Run("CaseInsensitive", func(t *testing.T) {
+		var v struct {
+			Timeout time.Duration `json:"timeout"`
+		}
+		require.NoError(t, read(t, `{"TIMEOUT":"5s"}`, &v))
+		assert.Equal(t, 5*time.Second, v.Timeout)
+	})
+
+	t.Run("StringOption", func(t *testing.T) {
+		// A field with the string option is integer nanoseconds as a string
+		var v struct {
+			Timeout time.Duration  `json:"timeout,string"`
+			TTL     *time.Duration `json:"ttl,string"`
+		}
+		require.NoError(t, read(t, `{"timeout":"5000000000","ttl":"3600000000000"}`, &v))
+		assert.Equal(t, 5*time.Second, v.Timeout)
+		require.NotNil(t, v.TTL)
+		assert.Equal(t, time.Hour, *v.TTL)
+	})
+
+	t.Run("DuplicateKeys", func(t *testing.T) {
+		// The last of the keys which match a field wins
+		var v struct {
+			Timeout time.Duration `json:"timeout"`
+			Name    string        `json:"name"`
+		}
+		require.NoError(t, read(t, `{"timeout":1,"name":"first","Name":"last"}`, &v))
+		assert.Equal(t, "last", v.Name)
+	})
+}
