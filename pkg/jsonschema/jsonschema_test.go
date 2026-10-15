@@ -2,6 +2,7 @@ package jsonschema
 
 import (
 	"encoding/json"
+	"math"
 	"net/url"
 	"reflect"
 	"slices"
@@ -2292,4 +2293,67 @@ func TestFor_JSONRawMessage_TopLevelMap(t *testing.T) {
 func isAnySchema(s *upstream.Schema) bool {
 	return s.Type == "" && len(s.Types) == 0 && s.Format == "" &&
 		s.Items == nil && s.AdditionalProperties == nil && len(s.Properties) == 0
+}
+
+// Integers are decoded exactly, including durations larger than 2^53
+// nanoseconds, up to the largest duration, in struct fields and map values
+func TestDecode_LargeIntegers(t *testing.T) {
+	type Config struct {
+		Timeout time.Duration            `json:"timeout"`
+		Count   int64                    `json:"count"`
+		Times   map[string]time.Duration `json:"times,omitempty"`
+	}
+	schema, err := For[Config]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var c Config
+	if err := schema.Decode(json.RawMessage(`{"timeout":9007199254740993,"count":9007199254740993,"times":{"max":9223372036854775807}}`), &c); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if c.Timeout != time.Duration(9007199254740993) {
+		t.Errorf("timeout: got %d, want 9007199254740993", int64(c.Timeout))
+	}
+	if c.Count != 9007199254740993 {
+		t.Errorf("count: got %d, want 9007199254740993", c.Count)
+	}
+	if c.Times["max"] != time.Duration(math.MaxInt64) {
+		t.Errorf("times.max: got %d, want %d", int64(c.Times["max"]), int64(math.MaxInt64))
+	}
+}
+
+// Duration strings are decoded in embedded structs, slices and maps
+func TestDecode_DurationStrings(t *testing.T) {
+	type Meta struct {
+		TTL *time.Duration `json:"ttl,omitempty"`
+	}
+	type Config struct {
+		Meta
+		Delays []time.Duration           `json:"delays,omitempty"`
+		Times  map[string]time.Duration  `json:"times,omitempty"`
+		Next   map[string]*time.Duration `json:"next,omitempty"`
+	}
+	schema, err := For[Config]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var c Config
+	if err := schema.Decode(json.RawMessage(`{"ttl":"1h","delays":["1s",2000000000],"times":{"a":"3s"},"next":{"b":"4s"}}`), &c); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if c.TTL == nil || *c.TTL != time.Hour {
+		t.Errorf("ttl: got %v, want 1h", c.TTL)
+	}
+	if !slices.Equal(c.Delays, []time.Duration{time.Second, 2 * time.Second}) {
+		t.Errorf("delays: got %v, want [1s 2s]", c.Delays)
+	}
+	if c.Times["a"] != 3*time.Second {
+		t.Errorf("times.a: got %v, want 3s", c.Times["a"])
+	}
+	if c.Next["b"] == nil || *c.Next["b"] != 4*time.Second {
+		t.Errorf("next.b: got %v, want 4s", c.Next["b"])
+	}
+	if err := schema.Decode(json.RawMessage(`{"times":{"a":"soon"}}`), &c); err == nil {
+		t.Error("expected error for an invalid duration in a map, got nil")
+	}
 }
