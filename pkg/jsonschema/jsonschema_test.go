@@ -2357,3 +2357,77 @@ func TestDecode_DurationStrings(t *testing.T) {
 		t.Error("expected error for an invalid duration in a map, got nil")
 	}
 }
+
+// Numeric constraints are checked against the exact value, so an integer just
+// outside a bound larger than 2^53 is rejected
+func TestDecode_ExactConstraints(t *testing.T) {
+	type Config struct {
+		Count int64 `json:"count" max:"9007199254740992"`
+	}
+	schema, err := For[Config]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var c Config
+	if err := schema.Decode(json.RawMessage(`{"count":9007199254740992}`), &c); err != nil {
+		t.Fatalf("unexpected error at the maximum: %v", err)
+	}
+	if c.Count != 9007199254740992 {
+		t.Errorf("count: got %d, want 9007199254740992", c.Count)
+	}
+	if err := schema.Decode(json.RawMessage(`{"count":9007199254740993}`), &c); err == nil {
+		t.Errorf("expected an error for a count above the maximum, got %d", c.Count)
+	}
+}
+
+// A pointer to a duration can be null, unless it's required
+func TestFor_NullableDuration(t *testing.T) {
+	type Optional struct {
+		TTL *time.Duration `json:"ttl" optional:""`
+	}
+	type Required struct {
+		TTL *time.Duration `json:"ttl"`
+	}
+
+	// An optional field, which encodes nil as null
+	optional, err := For[Optional]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, _ := json.Marshal(Optional{})
+	if err := optional.Validate(data); err != nil {
+		t.Errorf("Validate(%s): %v", data, err)
+	}
+	for _, value := range []string{`{"ttl":"1s"}`, `{"ttl":1000000000}`} {
+		if err := optional.Validate(json.RawMessage(value)); err != nil {
+			t.Errorf("Validate(%s): %v", value, err)
+		}
+	}
+	var o Optional
+	if err := optional.Decode(json.RawMessage(`{"ttl":null}`), &o); err != nil || o.TTL != nil {
+		t.Errorf("Decode(null): got %v, %v, want nil", o.TTL, err)
+	}
+
+	// A required field can't be null
+	required, err := For[Required]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := required.Validate(json.RawMessage(`{"ttl":null}`)); err == nil {
+		t.Error("expected an error for a required duration which is null")
+	}
+	if err := required.Validate(json.RawMessage(`{"ttl":"1s"}`)); err != nil {
+		t.Errorf("Validate: %v", err)
+	}
+
+	// A pointer to a duration at the top level
+	top, err := For[*time.Duration]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, value := range []string{`null`, `"1s"`, `1000000000`} {
+		if err := top.Validate(json.RawMessage(value)); err != nil {
+			t.Errorf("Validate(%s): %v", value, err)
+		}
+	}
+}

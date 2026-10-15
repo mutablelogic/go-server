@@ -79,8 +79,10 @@ func (s *Schema) Validate(data json.RawMessage) error {
 // primitive (string, bool, numeric), a slice, or a *time.Duration, which can
 // be a duration string, such as "5s", or integer nanoseconds.
 func (s *Schema) Decode(data json.RawMessage, v any) error {
-	var instance any
-	if err := json.Unmarshal(data, &instance); err != nil {
+	// Decode with exact numbers, so integers larger than 2^53 are validated
+	// and decoded with their precision
+	instance, err := decodeExact(data)
+	if err != nil {
 		return err
 	}
 	// For objects, use a map[string]any intermediate so ApplyDefaults can fill
@@ -92,18 +94,8 @@ func (s *Schema) Decode(data json.RawMessage, v any) error {
 		if err := s.resolved.Validate(m); err != nil {
 			return err
 		}
-		// The validator needs float64 numbers, which lose the precision of
-		// integers larger than 2^53, so the target is decoded from a copy
-		// with exact numbers, which has the same defaults applied.
-		exact, err := decodeExact(data)
-		if err != nil {
-			return err
-		}
-		if err := s.resolved.ApplyDefaults(&exact); err != nil {
-			return err
-		}
 		// Re-encode the enriched map and decode into the typed target.
-		b, err := json.Marshal(exact)
+		b, err := json.Marshal(m)
 		if err != nil {
 			return err
 		}
@@ -514,8 +506,14 @@ func isDurationLikeType(t reflect.Type) bool {
 // nanoseconds, as encoding/json encodes a time.Duration, or a duration
 // string, such as "5s", which Decode accepts
 func resetToDurationSchema(s *upstream.Schema) {
+	// Keep null, such as for a pointer to a duration: a required field
+	// removes it afterwards
+	nullable := s.Type == "null" || slices.Contains(s.Types, "null")
 	resetToAnySchema(s)
 	s.Types = []string{"integer", "string"}
+	if nullable {
+		s.Types = []string{"null", "integer", "string"}
+	}
 	s.Format = "duration"
 }
 
@@ -694,16 +692,42 @@ func removeString(ss []string, s string) []string {
 	return out
 }
 
-// decodeExact decodes a JSON object with json.Number for its numbers, so
-// integers keep their precision
-func decodeExact(data json.RawMessage) (map[string]any, error) {
+// decodeExact decodes a JSON value with its numbers as int64 or uint64 when
+// they're integers which fit, so they're exact, and otherwise as float64. The
+// validator checks Go integers exactly, but treats a json.Number as a string.
+func decodeExact(data json.RawMessage) (any, error) {
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.UseNumber()
-	var m map[string]any
-	if err := decoder.Decode(&m); err != nil {
+	var value any
+	if err := decoder.Decode(&value); err != nil {
 		return nil, err
 	}
-	return m, nil
+	return exactNumbers(value), nil
+}
+
+// exactNumbers returns the value with its json.Number values converted to
+// int64, uint64 or float64
+func exactNumbers(value any) any {
+	switch value := value.(type) {
+	case json.Number:
+		if n, err := strconv.ParseInt(value.String(), 10, 64); err == nil {
+			return n
+		} else if n, err := strconv.ParseUint(value.String(), 10, 64); err == nil {
+			return n
+		} else if f, err := value.Float64(); err == nil {
+			return f
+		}
+		return value.String()
+	case map[string]any:
+		for key, item := range value {
+			value[key] = exactNumbers(item)
+		}
+	case []any:
+		for i, item := range value {
+			value[i] = exactNumbers(item)
+		}
+	}
+	return value
 }
 
 // unmarshal decodes the JSON into v, as encoding/json does, except that a
