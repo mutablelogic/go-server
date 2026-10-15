@@ -2,14 +2,18 @@ package httprequest_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"mime/multipart"
 	"net/http"
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/mutablelogic/go-server/pkg/httprequest"
+	"github.com/mutablelogic/go-server/pkg/httpresponse"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_Read_JSON(t *testing.T) {
@@ -178,5 +182,89 @@ func Test_Read_FormData_JSON(t *testing.T) {
 		err := httprequest.Read(r, &p)
 		assert.NoError(err)
 		assert.Equal("bob", p.Name)
+	})
+}
+
+func Test_Read_JSON_Duration(t *testing.T) {
+	type Inner struct {
+		Delay time.Duration `json:"delay"`
+	}
+	type Embedded struct {
+		TTL *time.Duration `json:"ttl,omitempty"`
+	}
+	type payload struct {
+		Embedded
+		Name     string                   `json:"name"`
+		Timeout  time.Duration            `json:"timeout"`
+		Inner    Inner                    `json:"inner"`
+		Pointer  *Inner                   `json:"pointer,omitempty"`
+		Delays   []time.Duration          `json:"delays,omitempty"`
+		Named    map[string]time.Duration `json:"named,omitempty"`
+		Count    int64                    `json:"count"`
+		Raw      json.RawMessage          `json:"raw,omitempty"`
+		Interval time.Duration            `json:"interval"`
+	}
+
+	// read decodes the body into a payload
+	read := func(t *testing.T, body string) (payload, error) {
+		t.Helper()
+		r, _ := http.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+		r.Header.Set("Content-Type", "application/json")
+		var p payload
+		return p, httprequest.Read(r, &p)
+	}
+
+	t.Run("Strings", func(t *testing.T) {
+		// Duration strings are decoded wherever there's a duration
+		p, err := read(t, `{"name":"a","ttl":"1h","timeout":"5s","inner":{"delay":"1m"},"pointer":{"delay":"2m"},"delays":["1s","2s"],"named":{"a":"3s"}}`)
+		require.NoError(t, err)
+		assert.Equal(t, "a", p.Name)
+		require.NotNil(t, p.TTL)
+		assert.Equal(t, time.Hour, *p.TTL)
+		assert.Equal(t, 5*time.Second, p.Timeout)
+		assert.Equal(t, time.Minute, p.Inner.Delay)
+		require.NotNil(t, p.Pointer)
+		assert.Equal(t, 2*time.Minute, p.Pointer.Delay)
+		assert.Equal(t, []time.Duration{time.Second, 2 * time.Second}, p.Delays)
+		assert.Equal(t, map[string]time.Duration{"a": 3 * time.Second}, p.Named)
+	})
+
+	t.Run("Integers", func(t *testing.T) {
+		// Integer nanoseconds, as a time.Duration is encoded
+		p, err := read(t, `{"ttl":3600000000000,"timeout":5000000000,"delays":[1000000000]}`)
+		require.NoError(t, err)
+		assert.Equal(t, time.Hour, *p.TTL)
+		assert.Equal(t, 5*time.Second, p.Timeout)
+		assert.Equal(t, []time.Duration{time.Second}, p.Delays)
+	})
+
+	t.Run("Exact", func(t *testing.T) {
+		// Other values are decoded exactly: large integers keep their
+		// precision, and raw JSON is kept
+		p, err := read(t, `{"count":9007199254740993,"raw":{"b":1,"a":2},"interval":"1s"}`)
+		require.NoError(t, err)
+		assert.Equal(t, int64(9007199254740993), p.Count)
+		assert.JSONEq(t, `{"b":1,"a":2}`, string(p.Raw))
+		assert.Equal(t, time.Second, p.Interval)
+	})
+
+	t.Run("Invalid", func(t *testing.T) {
+		_, err := read(t, `{"timeout":"soon"}`)
+		assert.ErrorIs(t, err, httpresponse.ErrBadRequest)
+		assert.ErrorContains(t, err, "timeout")
+		_, err = read(t, ``)
+		assert.ErrorIs(t, err, httpresponse.ErrBadRequest)
+	})
+
+	t.Run("NoDurations", func(t *testing.T) {
+		// A body without durations is decoded as it was sent
+		type raw struct {
+			Raw json.RawMessage `json:"raw"`
+		}
+		r, _ := http.NewRequest(http.MethodPost, "/", strings.NewReader(`{"raw":{"b": 1, "a": 2}}`))
+		r.Header.Set("Content-Type", "application/json")
+		var p raw
+		require.NoError(t, httprequest.Read(r, &p))
+		assert.Equal(t, `{"b": 1, "a": 2}`, string(p.Raw))
 	})
 }

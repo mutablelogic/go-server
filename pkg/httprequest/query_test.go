@@ -9,7 +9,9 @@ import (
 	// Packages
 	uuid "github.com/google/uuid"
 	httprequest "github.com/mutablelogic/go-server/pkg/httprequest"
+	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	assert "github.com/stretchr/testify/assert"
+	require "github.com/stretchr/testify/require"
 )
 
 func Test_Query_String(t *testing.T) {
@@ -425,4 +427,34 @@ func Test_Query_NoTagUsesFieldName(t *testing.T) {
 	err := httprequest.Query(url.Values{"Name": {"alice"}}, &p)
 	assert.NoError(err)
 	assert.Equal("alice", p.Name)
+}
+
+func Test_Query_Duration(t *testing.T) {
+	type query struct {
+		Timeout time.Duration   `json:"timeout"`
+		TTL     *time.Duration  `json:"ttl,omitempty"`
+		Delays  []time.Duration `json:"delays,omitempty"`
+	}
+
+	t.Run("String", func(t *testing.T) {
+		var q query
+		require.NoError(t, httprequest.Query(url.Values{"timeout": {"5s"}, "ttl": {"1h30m"}, "delays": {"1s", "2000000000"}}, &q))
+		assert.Equal(t, 5*time.Second, q.Timeout)
+		require.NotNil(t, q.TTL)
+		assert.Equal(t, 90*time.Minute, *q.TTL)
+		assert.Equal(t, []time.Duration{time.Second, 2 * time.Second}, q.Delays)
+	})
+
+	t.Run("Integer", func(t *testing.T) {
+		var q query
+		require.NoError(t, httprequest.Query(url.Values{"timeout": {"5000000000"}}, &q))
+		assert.Equal(t, 5*time.Second, q.Timeout)
+	})
+
+	t.Run("Invalid", func(t *testing.T) {
+		var q query
+		err := httprequest.Query(url.Values{"timeout": {"soon"}}, &q)
+		assert.ErrorIs(t, err, httpresponse.ErrBadRequest)
+		assert.ErrorContains(t, err, "timeout")
+	})
 }

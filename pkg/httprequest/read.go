@@ -52,10 +52,40 @@ func Read(r *http.Request, v interface{}) error {
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
+// readJson decodes the JSON body into v. A time.Duration in v can be integer
+// nanoseconds, or a duration string, such as "5s".
 func readJson(r *http.Request, v any) error {
-	if err := json.NewDecoder(r.Body).Decode(v); errors.Is(err, io.EOF) {
+	// Decode the body directly when v has no durations, so values such as a
+	// json.RawMessage are decoded exactly as they were sent
+	t := reflect.TypeOf(v)
+	if t == nil || !hasDuration(t) {
+		if err := json.NewDecoder(r.Body).Decode(v); errors.Is(err, io.EOF) {
+			return errBadRequest.With("Missing request body")
+		} else if err != nil {
+			return errBadRequest.With(err.Error())
+		}
+		return nil
+	}
+
+	// Decode the body as a JSON value, keeping numbers exactly, convert the
+	// duration strings to nanoseconds, and then decode it into v
+	decoder := json.NewDecoder(r.Body)
+	decoder.UseNumber()
+	var value any
+	if err := decoder.Decode(&value); errors.Is(err, io.EOF) {
 		return errBadRequest.With("Missing request body")
 	} else if err != nil {
+		return errBadRequest.With(err.Error())
+	}
+	value, err := durations("", value, t)
+	if err != nil {
+		return err
+	}
+	data, err := json.Marshal(value)
+	if err != nil {
+		return errBadRequest.With(err.Error())
+	}
+	if err := json.Unmarshal(data, v); err != nil {
 		return errBadRequest.With(err.Error())
 	}
 	return nil

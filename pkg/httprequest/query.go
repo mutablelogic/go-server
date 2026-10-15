@@ -152,6 +152,17 @@ func setQueryScalar(tag string, v reflect.Value, value string) error {
 		}
 	}
 
+	// A time.Duration is integer nanoseconds, or a duration string, such as
+	// "5s"
+	if v.Type() == typeDuration {
+		d, err := parseDuration(value)
+		if err != nil {
+			return errBadRequest.Withf("%q: Parse error (expected a duration value)", tag)
+		}
+		v.SetInt(int64(d))
+		return nil
+	}
+
 	// Set the value
 	switch v.Kind() {
 	case reflect.String:
