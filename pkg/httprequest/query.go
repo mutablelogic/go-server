@@ -9,7 +9,8 @@ import (
 	"time"
 
 	// Packages
-	"github.com/mutablelogic/go-server/pkg/httpresponse"
+	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
+	types "github.com/mutablelogic/go-server/pkg/types"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -22,6 +23,7 @@ const (
 
 var (
 	typeTime            = reflect.TypeOf(time.Time{})
+	typeDuration        = reflect.TypeOf(time.Duration(0))
 	typeTextUnmarshaler = reflect.TypeOf((*encoding.TextUnmarshaler)(nil)).Elem()
 )
 
@@ -150,6 +152,17 @@ func setQueryScalar(tag string, v reflect.Value, value string) error {
 		if ok, err := setQueryText(tag, v, value); ok {
 			return err
 		}
+	}
+
+	// A time.Duration is integer nanoseconds, or a duration string, such as
+	// "5s"
+	if v.Type() == typeDuration {
+		d, err := types.ParseDuration(value)
+		if err != nil {
+			return errBadRequest.Withf("%q: Parse error (expected a duration value)", tag)
+		}
+		v.SetInt(int64(d))
+		return nil
 	}
 
 	// Set the value

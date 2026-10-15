@@ -1,7 +1,9 @@
 package jsonschema
 
 import (
+	"bytes"
 	"encoding/json"
+	jsonv2 "encoding/json/v2"
 	"fmt"
 	"net/url"
 	"reflect"
@@ -14,6 +16,7 @@ import (
 	// Packages
 	upstream "github.com/google/jsonschema-go/jsonschema"
 	uuid "github.com/google/uuid"
+	types "github.com/mutablelogic/go-server/pkg/types"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -73,10 +76,13 @@ func (s *Schema) Validate(data json.RawMessage) error {
 // Decode unmarshals data into v, applies schema defaults for any missing fields,
 // then validates the result. v must be a non-nil pointer; it may point to a
 // struct (in which case schema defaults are applied for missing fields), a
-// primitive (string, bool, numeric), a slice, or a *time.Duration.
+// primitive (string, bool, numeric), a slice, or a *time.Duration, which can
+// be a duration string, such as "5s", or integer nanoseconds.
 func (s *Schema) Decode(data json.RawMessage, v any) error {
-	var instance any
-	if err := json.Unmarshal(data, &instance); err != nil {
+	// Decode with exact numbers, so integers larger than 2^53 are validated
+	// and decoded with their precision
+	instance, err := decodeExact(data)
+	if err != nil {
 		return err
 	}
 	// For objects, use a map[string]any intermediate so ApplyDefaults can fill
@@ -88,34 +94,18 @@ func (s *Schema) Decode(data json.RawMessage, v any) error {
 		if err := s.resolved.Validate(m); err != nil {
 			return err
 		}
-		// Convert duration strings (e.g. "5s") to int64 nanoseconds so that
-		// json.Unmarshal can correctly populate time.Duration struct fields.
-		if err := convertDurationFields(m, reflect.TypeOf(v)); err != nil {
-			return err
-		}
 		// Re-encode the enriched map and decode into the typed target.
 		b, err := json.Marshal(m)
 		if err != nil {
 			return err
 		}
-		return json.Unmarshal(b, v)
+		return unmarshal(b, v)
 	}
 	// For primitives and arrays, validate directly then decode into target.
 	if err := s.resolved.Validate(instance); err != nil {
 		return err
 	}
-	// time.Duration is encoded as a string; parse and assign directly.
-	if dp, ok := v.(*time.Duration); ok {
-		if str, ok := instance.(string); ok {
-			d, err := time.ParseDuration(str)
-			if err != nil {
-				return fmt.Errorf("invalid duration %q: %w", str, err)
-			}
-			*dp = d
-			return nil
-		}
-	}
-	return json.Unmarshal(data, v)
+	return unmarshal(data, v)
 }
 
 // FromJSON parses a JSON Schema document and returns a resolved *Schema ready
@@ -443,8 +433,9 @@ func enrichValue(s *upstream.Schema, t reflect.Type) error {
 func applySpecialTypeSchema(s *upstream.Schema, t reflect.Type) bool {
 	switch t {
 	case durationType:
-		// time.Duration is represented as a duration string.
-		resetToScalarStringSchema(s, "duration")
+		// time.Duration is encoded by encoding/json as integer nanoseconds,
+		// and decoded from a duration string, such as "5s", or nanoseconds.
+		resetToDurationSchema(s)
 		return true
 	case timeType:
 		// time.Time is represented as an RFC3339 string.
@@ -509,6 +500,21 @@ func isDurationLikeType(t reflect.Type) bool {
 		t.Kind() == reflect.Int64 &&
 		t.ConvertibleTo(durationType) &&
 		t.Implements(jsonMarshalerType)
+}
+
+// resetToDurationSchema sets the schema to a duration, which is integer
+// nanoseconds, as encoding/json encodes a time.Duration, or a duration
+// string, such as "5s", which Decode accepts
+func resetToDurationSchema(s *upstream.Schema) {
+	// Keep null, such as for a pointer to a duration: a required field
+	// removes it afterwards
+	nullable := s.Type == "null" || slices.Contains(s.Types, "null")
+	resetToAnySchema(s)
+	s.Types = []string{"integer", "string"}
+	if nullable {
+		s.Types = []string{"null", "integer", "string"}
+	}
+	s.Format = "duration"
 }
 
 func resetToScalarStringSchema(s *upstream.Schema, format string) {
@@ -686,51 +692,49 @@ func removeString(ss []string, s string) []string {
 	return out
 }
 
-// convertDurationFields walks the struct type of v and converts any time.Duration
-// field values in m from duration strings (e.g. "5s") to int64 nanoseconds, so
-// that json.Unmarshal can correctly populate time.Duration struct fields.
-// It recurses into nested struct fields whose map values are map[string]any.
-func convertDurationFields(m map[string]any, t reflect.Type) error {
-	for t.Kind() == reflect.Pointer {
-		t = t.Elem()
+// decodeExact decodes a JSON value with its numbers as int64 or uint64 when
+// they're integers which fit, so they're exact, and otherwise as float64. The
+// validator checks Go integers exactly, but treats a json.Number as a string.
+func decodeExact(data json.RawMessage) (any, error) {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+	var value any
+	if err := decoder.Decode(&value); err != nil {
+		return nil, err
 	}
-	if t.Kind() != reflect.Struct {
-		return nil
-	}
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
-		if !field.IsExported() {
-			continue
+	return exactNumbers(value), nil
+}
+
+// exactNumbers returns the value with its json.Number values converted to
+// int64, uint64 or float64
+func exactNumbers(value any) any {
+	switch value := value.(type) {
+	case json.Number:
+		if n, err := strconv.ParseInt(value.String(), 10, 64); err == nil {
+			return n
+		} else if n, err := strconv.ParseUint(value.String(), 10, 64); err == nil {
+			return n
+		} else if f, err := value.Float64(); err == nil {
+			return f
 		}
-		ft := field.Type
-		for ft.Kind() == reflect.Pointer {
-			ft = ft.Elem()
+		return value.String()
+	case map[string]any:
+		for key, item := range value {
+			value[key] = exactNumbers(item)
 		}
-		key := jsonFieldName(field)
-		if key == "" || key == "-" {
-			continue
-		}
-		val, ok := m[key]
-		if !ok {
-			continue
-		}
-		if ft == durationType {
-			if str, ok := val.(string); ok {
-				d, err := time.ParseDuration(str)
-				if err != nil {
-					return fmt.Errorf("field %q: invalid duration %q: %w", key, str, err)
-				}
-				m[key] = int64(d)
-			}
-		} else if ft.Kind() == reflect.Struct {
-			if nested, ok := val.(map[string]any); ok {
-				if err := convertDurationFields(nested, ft); err != nil {
-					return err
-				}
-			}
+	case []any:
+		for i, item := range value {
+			value[i] = exactNumbers(item)
 		}
 	}
-	return nil
+	return value
+}
+
+// unmarshal decodes the JSON into v, as encoding/json does, except that a
+// time.Duration in v can be a duration string, such as "5s", as well as
+// integer nanoseconds
+func unmarshal(data []byte, v any) error {
+	return jsonv2.Unmarshal(data, v, jsonv2.JoinOptions(json.DefaultOptionsV1(), jsonv2.WithUnmarshalers(types.DurationUnmarshalers)))
 }
 
 // parseEnumTag splits a comma-separated enum tag value into a slice of

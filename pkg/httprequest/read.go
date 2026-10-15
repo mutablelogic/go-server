@@ -1,7 +1,6 @@
 package httprequest
 
 import (
-	"encoding/json"
 	"errors"
 	"io"
 	"mime/multipart"
@@ -11,6 +10,9 @@ import (
 	"strings"
 
 	// Packages
+	jsonv1 "encoding/json"
+	jsontext "encoding/json/jsontext"
+	json "encoding/json/v2"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	types "github.com/mutablelogic/go-server/pkg/types"
 )
@@ -52,8 +54,12 @@ func Read(r *http.Request, v interface{}) error {
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
+// readJson decodes the JSON body into v, as encoding/json does, except that a
+// time.Duration in v can be a duration string, such as "5s", as well as
+// integer nanoseconds
 func readJson(r *http.Request, v any) error {
-	if err := json.NewDecoder(r.Body).Decode(v); errors.Is(err, io.EOF) {
+	opts := json.JoinOptions(jsonv1.DefaultOptionsV1(), json.WithUnmarshalers(types.DurationUnmarshalers))
+	if err := json.UnmarshalDecode(jsontext.NewDecoder(r.Body, opts), v, opts); errors.Is(err, io.EOF) {
 		return errBadRequest.With("Missing request body")
 	} else if err != nil {
 		return errBadRequest.With(err.Error())

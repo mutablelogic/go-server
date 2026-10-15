@@ -2,7 +2,7 @@ ARG OS
 ARG ARCH
 
 # Build stage
-FROM --platform=${OS}/${ARCH} golang:1.25 AS builder
+FROM --platform=${OS}/${ARCH} golang:1.27 AS builder
 ARG OS
 ARG ARCH
 WORKDIR /usr/src/app

@@ -2,8 +2,10 @@ package jsonschema
 
 import (
 	"encoding/json"
+	"math"
 	"net/url"
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -1096,6 +1098,8 @@ func TestDecode_ArraySchema(t *testing.T) {
 	}
 }
 
+// A time.Duration is integer nanoseconds, as encoding/json encodes it, or a
+// duration string
 func TestFor_TimeDuration_StringSchema(t *testing.T) {
 	schema, err := For[time.Duration]()
 	if err != nil {
@@ -1104,8 +1108,8 @@ func TestFor_TimeDuration_StringSchema(t *testing.T) {
 	b, _ := json.Marshal(schema)
 	var m map[string]any
 	_ = json.Unmarshal(b, &m)
-	if m["type"] != "string" {
-		t.Errorf("type: got %v, want string", m["type"])
+	if types, _ := m["type"].([]any); !slices.Equal(types, []any{"integer", "string"}) {
+		t.Errorf("type: got %v, want [integer string]", m["type"])
 	}
 	if m["format"] != "duration" {
 		t.Errorf("format: got %v, want duration", m["format"])
@@ -1125,8 +1129,8 @@ func TestFor_TimeDuration_StructField(t *testing.T) {
 	_ = json.Unmarshal(b, &m)
 	props := m["properties"].(map[string]any)
 	timeout := props["timeout"].(map[string]any)
-	if timeout["type"] != "string" {
-		t.Errorf("timeout type: got %v, want string", timeout["type"])
+	if types, _ := timeout["type"].([]any); !slices.Equal(types, []any{"integer", "string"}) {
+		t.Errorf("timeout type: got %v, want [integer string]", timeout["type"])
 	}
 	if timeout["format"] != "duration" {
 		t.Errorf("timeout format: got %v, want duration", timeout["format"])
@@ -1212,9 +1216,13 @@ func TestValidate_TimeDuration(t *testing.T) {
 	if err := schema.Validate(json.RawMessage(`"5s"`)); err != nil {
 		t.Errorf("expected no error for duration string, got: %v", err)
 	}
-	// Integer should fail (schema expects string).
-	if err := schema.Validate(json.RawMessage(`5000000000`)); err == nil {
-		t.Error("expected error for integer against duration schema, got nil")
+	// Integer nanoseconds, as encoding/json encodes a time.Duration.
+	if err := schema.Validate(json.RawMessage(`5000000000`)); err != nil {
+		t.Errorf("expected no error for integer nanoseconds, got: %v", err)
+	}
+	// Anything else should fail.
+	if err := schema.Validate(json.RawMessage(`true`)); err == nil {
+		t.Error("expected error for boolean against duration schema, got nil")
 	}
 }
 
@@ -1239,9 +1247,16 @@ func TestDecode_TimeDuration(t *testing.T) {
 	if err := schema.Decode(json.RawMessage(`"not-a-duration"`), &d); err == nil {
 		t.Error("expected error for invalid duration string, got nil")
 	}
-	// Integer should fail schema validation.
-	if err := schema.Decode(json.RawMessage(`5000000000`), &d); err == nil {
-		t.Error("expected error for integer against duration schema, got nil")
+	// Integer nanoseconds are decoded.
+	if err := schema.Decode(json.RawMessage(`5000000000`), &d); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if d != 5*time.Second {
+		t.Errorf("got %v, want 5s", d)
+	}
+	// A fractional number isn't a duration.
+	if err := schema.Decode(json.RawMessage(`1.5`), &d); err == nil {
+		t.Error("expected error for fractional number against duration schema, got nil")
 	}
 }
 
@@ -2202,8 +2217,8 @@ func TestFor_JSONRawMessage_MapAndSlice(t *testing.T) {
 	if got := s.Properties["list"].Items; got == nil || !isAnySchema(got) {
 		t.Fatalf("list.items: got %#v, want any JSON value", got)
 	}
-	if got := s.Properties["times"].AdditionalProperties; got == nil || got.Type != "string" || got.Format != "duration" {
-		t.Fatalf("times.additionalProperties: got %#v, want type=string format=duration", got)
+	if got := s.Properties["times"].AdditionalProperties; got == nil || !slices.Equal(got.Types, []string{"integer", "string"}) || got.Format != "duration" {
+		t.Fatalf("times.additionalProperties: got %#v, want integer or string, format=duration", got)
 	}
 	if got := s.Properties["data"].Items; got == nil || got.Type != "string" || got.Format != "byte" {
 		t.Fatalf("data.items: got %#v, want type=string format=byte", got)
@@ -2213,8 +2228,11 @@ func TestFor_JSONRawMessage_MapAndSlice(t *testing.T) {
 	if err := s.Validate(json.RawMessage(`{"meta":{"a":1,"b":"two","c":[3],"d":{"e":true},"f":null},"list":[1,"a",{"b":2}],"times":{"a":"5s"}}`)); err != nil {
 		t.Fatalf("Validate: %v", err)
 	}
-	if err := s.Validate(json.RawMessage(`{"times":{"a":5}}`)); err == nil {
-		t.Fatal("Validate: expected an error for a duration which isn't a string")
+	if err := s.Validate(json.RawMessage(`{"times":{"a":5000000000}}`)); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+	if err := s.Validate(json.RawMessage(`{"times":{"a":true}}`)); err == nil {
+		t.Fatal("Validate: expected an error for a duration which isn't an integer or string")
 	}
 }
 
@@ -2229,8 +2247,8 @@ func TestFor_PointerMapValues(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := s.Properties["times"].AdditionalProperties; got == nil || got.Format != "duration" || !sliceContains(got.Types, "null") || !sliceContains(got.Types, "string") {
-		t.Fatalf("times.additionalProperties: got %#v, want null or string, format=duration", got)
+	if got := s.Properties["times"].AdditionalProperties; got == nil || got.Format != "duration" || !sliceContains(got.Types, "null") || !sliceContains(got.Types, "integer") || !sliceContains(got.Types, "string") {
+		t.Fatalf("times.additionalProperties: got %#v, want null, integer or string, format=duration", got)
 	}
 	if got := s.Properties["raw"].AdditionalProperties; got == nil || !isAnySchema(got) {
 		t.Fatalf("raw.additionalProperties: got %#v, want any JSON value", got)
@@ -2253,8 +2271,8 @@ func TestFor_PointerMapValues(t *testing.T) {
 	if err := s.Validate(json.RawMessage(`{"times":{"a":"5s"},"names":{"a":"x"}}`)); err != nil {
 		t.Fatalf("Validate: %v", err)
 	}
-	if err := s.Validate(json.RawMessage(`{"times":{"a":5}}`)); err == nil {
-		t.Fatal("Validate: expected an error for a duration which isn't a string")
+	if err := s.Validate(json.RawMessage(`{"times":{"a":true}}`)); err == nil {
+		t.Fatal("Validate: expected an error for a duration which isn't an integer or string")
 	}
 }
 
@@ -2275,4 +2293,141 @@ func TestFor_JSONRawMessage_TopLevelMap(t *testing.T) {
 func isAnySchema(s *upstream.Schema) bool {
 	return s.Type == "" && len(s.Types) == 0 && s.Format == "" &&
 		s.Items == nil && s.AdditionalProperties == nil && len(s.Properties) == 0
+}
+
+// Integers are decoded exactly, including durations larger than 2^53
+// nanoseconds, up to the largest duration, in struct fields and map values
+func TestDecode_LargeIntegers(t *testing.T) {
+	type Config struct {
+		Timeout time.Duration            `json:"timeout"`
+		Count   int64                    `json:"count"`
+		Times   map[string]time.Duration `json:"times,omitempty"`
+	}
+	schema, err := For[Config]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var c Config
+	if err := schema.Decode(json.RawMessage(`{"timeout":9007199254740993,"count":9007199254740993,"times":{"max":9223372036854775807}}`), &c); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if c.Timeout != time.Duration(9007199254740993) {
+		t.Errorf("timeout: got %d, want 9007199254740993", int64(c.Timeout))
+	}
+	if c.Count != 9007199254740993 {
+		t.Errorf("count: got %d, want 9007199254740993", c.Count)
+	}
+	if c.Times["max"] != time.Duration(math.MaxInt64) {
+		t.Errorf("times.max: got %d, want %d", int64(c.Times["max"]), int64(math.MaxInt64))
+	}
+}
+
+// Duration strings are decoded in embedded structs, slices and maps
+func TestDecode_DurationStrings(t *testing.T) {
+	type Meta struct {
+		TTL *time.Duration `json:"ttl,omitempty"`
+	}
+	type Config struct {
+		Meta
+		Delays []time.Duration           `json:"delays,omitempty"`
+		Times  map[string]time.Duration  `json:"times,omitempty"`
+		Next   map[string]*time.Duration `json:"next,omitempty"`
+	}
+	schema, err := For[Config]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var c Config
+	if err := schema.Decode(json.RawMessage(`{"ttl":"1h","delays":["1s",2000000000],"times":{"a":"3s"},"next":{"b":"4s"}}`), &c); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if c.TTL == nil || *c.TTL != time.Hour {
+		t.Errorf("ttl: got %v, want 1h", c.TTL)
+	}
+	if !slices.Equal(c.Delays, []time.Duration{time.Second, 2 * time.Second}) {
+		t.Errorf("delays: got %v, want [1s 2s]", c.Delays)
+	}
+	if c.Times["a"] != 3*time.Second {
+		t.Errorf("times.a: got %v, want 3s", c.Times["a"])
+	}
+	if c.Next["b"] == nil || *c.Next["b"] != 4*time.Second {
+		t.Errorf("next.b: got %v, want 4s", c.Next["b"])
+	}
+	if err := schema.Decode(json.RawMessage(`{"times":{"a":"soon"}}`), &c); err == nil {
+		t.Error("expected error for an invalid duration in a map, got nil")
+	}
+}
+
+// Numeric constraints are checked against the exact value, so an integer just
+// outside a bound larger than 2^53 is rejected
+func TestDecode_ExactConstraints(t *testing.T) {
+	type Config struct {
+		Count int64 `json:"count" max:"9007199254740992"`
+	}
+	schema, err := For[Config]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var c Config
+	if err := schema.Decode(json.RawMessage(`{"count":9007199254740992}`), &c); err != nil {
+		t.Fatalf("unexpected error at the maximum: %v", err)
+	}
+	if c.Count != 9007199254740992 {
+		t.Errorf("count: got %d, want 9007199254740992", c.Count)
+	}
+	if err := schema.Decode(json.RawMessage(`{"count":9007199254740993}`), &c); err == nil {
+		t.Errorf("expected an error for a count above the maximum, got %d", c.Count)
+	}
+}
+
+// A pointer to a duration can be null, unless it's required
+func TestFor_NullableDuration(t *testing.T) {
+	type Optional struct {
+		TTL *time.Duration `json:"ttl" optional:""`
+	}
+	type Required struct {
+		TTL *time.Duration `json:"ttl"`
+	}
+
+	// An optional field, which encodes nil as null
+	optional, err := For[Optional]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, _ := json.Marshal(Optional{})
+	if err := optional.Validate(data); err != nil {
+		t.Errorf("Validate(%s): %v", data, err)
+	}
+	for _, value := range []string{`{"ttl":"1s"}`, `{"ttl":1000000000}`} {
+		if err := optional.Validate(json.RawMessage(value)); err != nil {
+			t.Errorf("Validate(%s): %v", value, err)
+		}
+	}
+	var o Optional
+	if err := optional.Decode(json.RawMessage(`{"ttl":null}`), &o); err != nil || o.TTL != nil {
+		t.Errorf("Decode(null): got %v, %v, want nil", o.TTL, err)
+	}
+
+	// A required field can't be null
+	required, err := For[Required]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := required.Validate(json.RawMessage(`{"ttl":null}`)); err == nil {
+		t.Error("expected an error for a required duration which is null")
+	}
+	if err := required.Validate(json.RawMessage(`{"ttl":"1s"}`)); err != nil {
+		t.Errorf("Validate: %v", err)
+	}
+
+	// A pointer to a duration at the top level
+	top, err := For[*time.Duration]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, value := range []string{`null`, `"1s"`, `1000000000`} {
+		if err := top.Validate(json.RawMessage(value)); err != nil {
+			t.Errorf("Validate(%s): %v", value, err)
+		}
+	}
 }
