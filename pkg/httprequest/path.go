@@ -74,8 +74,10 @@ type PathOperation interface {
 	// Mark the operation as deprecated.
 	Deprecated() PathOperation
 
-	// Add a request body for the operation with the given content type and schema.
-	// An optional description can be provided. If no content type is provided, "application/json" is used.
+	// Add a request body for the operation with the given schema, for each of the
+	// content types, or "application/json" if none is provided. It can be called
+	// more than once, to accept content types with different schemas, such as
+	// JSON and a multipart form.
 	RequestBody(schema *jsonschema.Schema, contentType ...string) PathOperation
 
 	// Add a JSON response for the operation with the given status code and schema.
@@ -100,7 +102,8 @@ type PathOperation interface {
 
 	// Return a response for the operation with the given status code and content type.
 	// An optional description can be provided; if not, the default HTTP status text will be used.
-	// A response with another content type for the same status code is kept.
+	// A response with another content type for the same status code is kept. An empty content
+	// type is a response without content, such as 304 Not Modified.
 	Response(status int, contentType string, description ...string) PathOperation
 
 	// Require the named security scheme, with optional scopes, for the operation.
@@ -322,7 +325,11 @@ func (p *pathoperation) ErrorResponse(status int, description ...string) PathOpe
 }
 
 func (p *pathoperation) Response(status int, contentType string, description ...string) PathOperation {
-	p.addResponse(status, contentType, nil, description...)
+	if contentType == "" {
+		p.response(status, description...)
+	} else {
+		p.addResponse(status, contentType, nil, description...)
+	}
 	return p
 }
 
@@ -367,16 +374,19 @@ func (p *pathoperation) response(status int, description ...string) openapi.Resp
 }
 
 func (p *pathoperation) RequestBody(schema *jsonschema.Schema, contentType ...string) PathOperation {
-	ct := types.ContentTypeJSON
-	if len(contentType) > 0 {
-		ct = contentType[0]
+	if len(contentType) == 0 {
+		contentType = []string{types.ContentTypeJSON}
 	}
-	p.spec.RequestBody = &openapi.RequestBody{
-		Content: map[string]openapi.MediaType{
-			ct: {
-				Schema: schema,
-			},
-		},
+	if p.spec.RequestBody == nil {
+		p.spec.RequestBody = &openapi.RequestBody{}
+	}
+	if p.spec.RequestBody.Content == nil {
+		p.spec.RequestBody.Content = make(map[string]openapi.MediaType, len(contentType))
+	}
+	for _, ct := range contentType {
+		p.spec.RequestBody.Content[ct] = openapi.MediaType{
+			Schema: schema,
+		}
 	}
 	return p
 }

@@ -56,6 +56,11 @@ var jsonType = reflect.TypeFor[json.RawMessage]()
 // and represent them as JSON strings with format "byte".
 var dataType = reflect.TypeFor[[]byte]()
 
+// fileType is the reflect.Type for types.File, a file uploaded in a
+// multipart form, used to represent it as a JSON string with format "binary",
+// as OpenAPI describes a file.
+var fileType = reflect.TypeFor[types.File]()
+
 // jsonMarshalerType is used to detect named []byte types like json.RawMessage
 // that marshal as embedded JSON rather than base64-encoded bytes.
 var jsonMarshalerType = reflect.TypeFor[json.Marshaler]()
@@ -456,6 +461,11 @@ func applySpecialTypeSchema(s *upstream.Schema, t reflect.Type) bool {
 	case dataType:
 		// []byte is represented as a byte-format string.
 		resetToScalarStringSchema(s, "byte")
+		return true
+	case fileType:
+		// types.File is a file in a multipart form, which OpenAPI describes
+		// as a binary-format string.
+		resetToScalarStringSchema(s, "binary")
 		return true
 	default:
 		if isUUIDLikeType(t) {

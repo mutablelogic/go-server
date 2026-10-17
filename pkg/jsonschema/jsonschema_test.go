@@ -11,6 +11,7 @@ import (
 
 	upstream "github.com/google/jsonschema-go/jsonschema"
 	"github.com/google/uuid"
+	types "github.com/mutablelogic/go-server/pkg/types"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2010,6 +2011,36 @@ func TestFor_ByteSlice_StructField(t *testing.T) {
 	}
 	if prop.Items != nil {
 		t.Errorf("data items: got %v, want nil", prop.Items)
+	}
+}
+
+func TestFor_File_StructField(t *testing.T) {
+	// A file in a multipart form is a binary-format string, and a list of
+	// files an array of them
+	type S struct {
+		File  types.File   `json:"file"`
+		Files []types.File `json:"files,omitempty"`
+	}
+	s, err := For[S]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	prop := s.Properties["file"]
+	if prop == nil {
+		t.Fatal("expected property 'file'")
+	}
+	if prop.Type != "string" || prop.Format != "binary" {
+		t.Errorf("file: got type %q format %q, want \"string\" \"binary\"", prop.Type, prop.Format)
+	}
+	if prop.Properties != nil || prop.Required != nil {
+		t.Errorf("file: got properties %v required %v, want none", prop.Properties, prop.Required)
+	}
+	prop = s.Properties["files"]
+	if prop == nil || prop.Items == nil {
+		t.Fatal("expected property 'files' with items")
+	}
+	if prop.Items.Type != "string" || prop.Items.Format != "binary" {
+		t.Errorf("files items: got type %q format %q, want \"string\" \"binary\"", prop.Items.Type, prop.Items.Format)
 	}
 }
 

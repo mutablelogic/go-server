@@ -199,6 +199,78 @@ func Test_Read_FormData_Files(t *testing.T) {
 		assert.Equal("contents of b", string(data1))
 	})
 
+	t.Run("WithUnnamedFile", func(t *testing.T) {
+		// A part without a filename is a value, which is read as a file
+		// without a name, and can be seeked
+		type payload struct {
+			Name string     `json:"name"`
+			File types.File `json:"file"`
+		}
+		var buf bytes.Buffer
+		w := multipart.NewWriter(&buf)
+		_ = w.WriteField("name", "doc")
+		_ = w.WriteField("file", "unnamed contents")
+		w.Close()
+		var p payload
+		err := Read(buildRequest(&buf, w), &p)
+		assert.NoError(err)
+		assert.Equal("doc", p.Name)
+		assert.Empty(p.File.Path)
+		if assert.NotNil(p.File.Body) {
+			defer p.File.Body.Close()
+			data, _ := io.ReadAll(p.File.Body)
+			assert.Equal("unnamed contents", string(data))
+			seeker, ok := p.File.Body.(io.Seeker)
+			if assert.True(ok) {
+				_, err := seeker.Seek(0, io.SeekStart)
+				assert.NoError(err)
+			}
+		}
+	})
+
+	t.Run("WithNamedAndUnnamedFiles", func(t *testing.T) {
+		// A single file field is the named file, and a slice has the named
+		// files and then the unnamed ones
+		type single struct {
+			File types.File `json:"file"`
+		}
+		type slice struct {
+			Files []types.File `json:"file"`
+		}
+		form := func() (*bytes.Buffer, *multipart.Writer) {
+			var buf bytes.Buffer
+			w := multipart.NewWriter(&buf)
+			_ = w.WriteField("file", "unnamed")
+			part, _ := w.CreateFormFile("file", "named.txt")
+			_, _ = part.Write([]byte("named"))
+			w.Close()
+			return &buf, w
+		}
+
+		var s single
+		buf, w := form()
+		assert.NoError(Read(buildRequest(buf, w), &s))
+		assert.Equal("named.txt", s.File.Path)
+		if assert.NotNil(s.File.Body) {
+			data, _ := io.ReadAll(s.File.Body)
+			assert.Equal("named", string(data))
+			s.File.Body.Close()
+		}
+
+		var l slice
+		buf, w = form()
+		assert.NoError(Read(buildRequest(buf, w), &l))
+		if assert.Len(l.Files, 2) {
+			assert.Equal("named.txt", l.Files[0].Path)
+			assert.Empty(l.Files[1].Path)
+			data, _ := io.ReadAll(l.Files[1].Body)
+			assert.Equal("unnamed", string(data))
+			for _, file := range l.Files {
+				file.Body.Close()
+			}
+		}
+	})
+
 	t.Run("WithSingleFileInSlice", func(t *testing.T) {
 		type payload struct {
 			Files []types.File `json:"file"`

@@ -7,6 +7,7 @@ import (
 
 	jsonschema "github.com/mutablelogic/go-server/pkg/jsonschema"
 	openapi "github.com/mutablelogic/go-server/pkg/openapi/schema"
+	types "github.com/mutablelogic/go-server/pkg/types"
 )
 
 func TestParametersFromPath(t *testing.T) {
@@ -194,6 +195,75 @@ func TestResponseContentTypes(t *testing.T) {
 	// Another status code is a separate response, with its own description
 	if response := spec.Post.Responses["400"]; response.Description != http.StatusText(http.StatusBadRequest) || len(response.Content) != 1 {
 		t.Errorf("Responses[400] = %#v, want one content type, with the default description", response)
+	}
+}
+
+func TestRequestBodyContentTypes(t *testing.T) {
+	// A request body can have more than one content type, each with its own
+	// schema, such as JSON, or a multipart form with a file
+	type create struct {
+		Name string `json:"name"`
+	}
+	type form struct {
+		Name string     `json:"name"`
+		File types.File `json:"file"`
+	}
+	p := NewPathItem("summary", "description")
+	p.Post(func(http.ResponseWriter, *http.Request) {}, func(op PathOperation) {
+		op.RequestBody(jsonschema.MustFor[create]())
+		op.RequestBody(jsonschema.MustFor[form](), types.ContentTypeFormData, types.ContentTypeForm)
+	})
+
+	spec := p.Spec("resource", nil)
+	if spec == nil || spec.Post == nil || spec.Post.RequestBody == nil {
+		t.Fatalf("Spec().Post.RequestBody = nil, want populated request body")
+	}
+	content := spec.Post.RequestBody.Content
+	if len(content) != 3 {
+		t.Fatalf("Content = %v, want three content types", content)
+	}
+	if schema := content[types.ContentTypeJSON].Schema; schema == nil || schema.Properties["file"] != nil {
+		t.Errorf("application/json schema = %#v, want the create schema", schema)
+	}
+	for _, contentType := range []string{types.ContentTypeFormData, types.ContentTypeForm} {
+		if schema := content[contentType].Schema; schema == nil || schema.Properties["file"] == nil {
+			t.Errorf("%s schema = %#v, want the form schema", contentType, schema)
+		}
+	}
+}
+
+func TestRequestBodyDefaultContentType(t *testing.T) {
+	p := NewPathItem("summary", "description")
+	p.Post(func(http.ResponseWriter, *http.Request) {}, func(op PathOperation) {
+		op.RequestBody(jsonschema.MustFor[string]())
+	})
+	spec := p.Spec("resource", nil)
+	if spec == nil || spec.Post == nil || spec.Post.RequestBody == nil {
+		t.Fatalf("Spec().Post.RequestBody = nil, want populated request body")
+	}
+	if content := spec.Post.RequestBody.Content; len(content) != 1 || content[types.ContentTypeJSON].Schema == nil {
+		t.Errorf("Content = %v, want application/json only", content)
+	}
+}
+
+func TestResponseWithoutContent(t *testing.T) {
+	// An empty content type is a response without content, which keeps any
+	// content added for the status code
+	p := NewPathItem("summary", "description")
+	p.Get(func(http.ResponseWriter, *http.Request) {}, func(op PathOperation) {
+		op.Response(http.StatusOK, "*/*", "Resource")
+		op.Response(http.StatusNotModified, "", "Not modified")
+		op.Response(http.StatusOK, "")
+	})
+	spec := p.Spec("resource", nil)
+	if spec == nil || spec.Get == nil {
+		t.Fatalf("Spec().Get = nil, want populated GET operation")
+	}
+	if response, ok := spec.Get.Responses["304"]; !ok || response.Description != "Not modified" || len(response.Content) != 0 {
+		t.Errorf("Responses[304] = %#v, want a response without content", response)
+	}
+	if response := spec.Get.Responses["200"]; len(response.Content) != 1 {
+		t.Errorf("Responses[200] = %#v, want its content kept", response)
 	}
 }
 
