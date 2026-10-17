@@ -5,6 +5,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"path"
 	"reflect"
 	"strings"
@@ -109,8 +110,18 @@ func readFormData(r *http.Request, v any) error {
 	cleanup := &multipartCleanup{form: r.MultipartForm}
 	defer cleanup.done() // calls RemoveAll immediately if no files were opened
 
-	// Set non-file fields
-	if err := Query(r.MultipartForm.Value, v); err != nil {
+	// Set non-file fields. A part without a filename is a value rather than a
+	// file, so a value for a file field is set as a file without a name.
+	values := make(url.Values, len(r.MultipartForm.Value))
+	unnamed := make(map[string][]string)
+	for key, vs := range r.MultipartForm.Value {
+		if field, err := writableFieldForName(v, key); err == nil && (field.Type() == typeFile || field.Type() == typeFileSlice) {
+			unnamed[key] = vs
+		} else {
+			values[key] = vs
+		}
+	}
+	if err := Query(values, v); err != nil {
 		return err
 	}
 
@@ -166,7 +177,41 @@ func readFormData(r *http.Request, v any) error {
 		}
 	}
 
+	// Set file fields from values, after any files with a name
+	for key, vs := range unnamed {
+		value, err := writableFieldForName(v, key)
+		if err != nil {
+			return err
+		}
+		switch value.Type() {
+		case typeFile:
+			if value.Interface().(types.File).Body == nil {
+				value.Set(reflect.ValueOf(types.File{Body: newValueBody(vs[0])}))
+			}
+		case typeFileSlice:
+			files := value.Interface().([]types.File)
+			for _, v := range vs {
+				files = append(files, types.File{Body: newValueBody(v)})
+			}
+			value.Set(reflect.ValueOf(files))
+		}
+	}
+
 	// Return success
+	return nil
+}
+
+// valueBody is the body of a file which was a value in a form, as its part
+// had no filename, which can be read and seeked like a file's body
+type valueBody struct {
+	*strings.Reader
+}
+
+func newValueBody(value string) io.ReadCloser {
+	return valueBody{strings.NewReader(value)}
+}
+
+func (valueBody) Close() error {
 	return nil
 }
 
