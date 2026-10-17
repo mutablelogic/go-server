@@ -246,6 +246,27 @@ func TestRequestBodyDefaultContentType(t *testing.T) {
 	}
 }
 
+func TestResponseWithoutContent(t *testing.T) {
+	// An empty content type is a response without content, which keeps any
+	// content added for the status code
+	p := NewPathItem("summary", "description")
+	p.Get(func(http.ResponseWriter, *http.Request) {}, func(op PathOperation) {
+		op.Response(http.StatusOK, "*/*", "Resource")
+		op.Response(http.StatusNotModified, "", "Not modified")
+		op.Response(http.StatusOK, "")
+	})
+	spec := p.Spec("resource", nil)
+	if spec == nil || spec.Get == nil {
+		t.Fatalf("Spec().Get = nil, want populated GET operation")
+	}
+	if response, ok := spec.Get.Responses["304"]; !ok || response.Description != "Not modified" || len(response.Content) != 0 {
+		t.Errorf("Responses[304] = %#v, want a response without content", response)
+	}
+	if response := spec.Get.Responses["200"]; len(response.Content) != 1 {
+		t.Errorf("Responses[200] = %#v, want its content kept", response)
+	}
+}
+
 func TestTextStreamResponseOnly(t *testing.T) {
 	p := NewPathItem("summary", "description")
 	p.Get(func(http.ResponseWriter, *http.Request) {}, func(op PathOperation) {

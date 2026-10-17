@@ -102,7 +102,8 @@ type PathOperation interface {
 
 	// Return a response for the operation with the given status code and content type.
 	// An optional description can be provided; if not, the default HTTP status text will be used.
-	// A response with another content type for the same status code is kept.
+	// A response with another content type for the same status code is kept. An empty content
+	// type is a response without content, such as 304 Not Modified.
 	Response(status int, contentType string, description ...string) PathOperation
 
 	// Require the named security scheme, with optional scopes, for the operation.
@@ -324,7 +325,11 @@ func (p *pathoperation) ErrorResponse(status int, description ...string) PathOpe
 }
 
 func (p *pathoperation) Response(status int, contentType string, description ...string) PathOperation {
-	p.addResponse(status, contentType, nil, description...)
+	if contentType == "" {
+		p.response(status, description...)
+	} else {
+		p.addResponse(status, contentType, nil, description...)
+	}
 	return p
 }
 
