@@ -9,7 +9,7 @@ go get github.com/mutablelogic/go-server
 ## Packages
 
 | Package | Description |
-|---------|-------------|
+| ------- | ----------- |
 | [`pkg/cmd`](pkg/cmd) | Command-line applications, with a server command, global flags and defaults which are kept between commands |
 | [`pkg/httpserver`](pkg/httpserver) | The HTTP server, with its timeouts |
 | [`pkg/httprouter`](pkg/httprouter) | The router, with cross-origin requests, and an OpenAPI specification of its paths |
@@ -29,7 +29,7 @@ go get github.com/mutablelogic/go-server
 You need [Go](https://go.dev/doc/install), the version in `go.mod`, and [Make](https://www.gnu.org/software/make/).
 
 | Target | Description |
-|--------|-------------|
+| ------ | ----------- |
 | `make test` | Runs go vet, and the unit and coverage tests |
 | `make vet` | Runs go vet |
 | `make unit-test` | Runs the unit tests, verbosely with `VERBOSE=1` |
