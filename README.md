@@ -1,83 +1,41 @@
 # go-server
 
-This is an opinionated HTTP server which is designed to be used as a base for building
-API and web applications. It is designed to be extensible and modular, allowing you to add
-new features and functionality as needed. By default the server includes the following
-features:
-
-* Anthentication of users using Cognito, Google and LDAP
-* Authorization of users using JWT tokens and API keys
-* Task queues for running background jobs
-* Connection to PostgreSQL databases
-* Ability to manage the PostgreSQL database roles, databases, schemas and connections
-* Prometheus metrics support
-
-The idea is that you can use this server as a base for your own applications, and add your own
-features and functionality as needed. More documentation soon on how to do that.
-
-## Using
-
-go-server is a Go module, which applications import, rather than an application or a docker image:
+go-server is a Go module of packages for building HTTP servers and their command-line clients. Applications import it:
 
 ```bash
 go get github.com/mutablelogic/go-server
 ```
 
-### Bootstrapping the database server and roles
+## Packages
 
-More information about setting up the databses TODO
+| Package | Description |
+|---------|-------------|
+| [`pkg/cmd`](pkg/cmd) | Command-line applications, with a server command, global flags and defaults which are kept between commands |
+| [`pkg/httpserver`](pkg/httpserver) | The HTTP server, with its timeouts |
+| [`pkg/httprouter`](pkg/httprouter) | The router, with cross-origin requests, and an OpenAPI specification of its paths |
+| [`pkg/httprequest`](pkg/httprequest) | Reading requests: JSON, forms, queries, and files streamed from the request |
+| [`pkg/httpresponse`](pkg/httpresponse) | Writing responses: JSON, errors, streams, and files, with their caching and preconditions |
+| [`pkg/jsonschema`](pkg/jsonschema) | JSON schemas of Go types, and validating JSON with them |
+| [`pkg/openapi`](pkg/openapi) | OpenAPI specifications, and their documentation in markdown |
+| [`pkg/otel`](pkg/otel) | OpenTelemetry tracing |
+| [`pkg/logger`](pkg/logger) | Structured logging |
+| [`pkg/tui`](pkg/tui) | Tables and other output for terminals |
+| [`pkg/provider`](pkg/provider), [`pkg/plugin`](pkg/plugin) | Providers of resources, and plugins which provide them |
+| [`pkg/types`](pkg/types) | Common types, such as files, content types and headers |
+| [`pkg/version`](pkg/version) | The version of a build |
 
-### Creating a new database
+## Building and testing
 
-Information about setting up a new database
-
-## Building
-
-### Download and build
-
-```bash
-git clone github.com/mutablelogic/go-server
-cd go-server
-make
-```
-
-The plugins and the `server` binary will be built in the `build` directory.
-
-### Build requirements
-
-You need the following three tools installed to build the server:
-
-* [Go](https://golang.org/doc/install/source), the version in `go.mod`
-* [Make](https://www.gnu.org/software/make/)
-
-### Makefile targets
-
-Binaries are placed in the `build` directory.
+You need [Go](https://go.dev/doc/install), the version in `go.mod`, and [Make](https://www.gnu.org/software/make/).
 
 | Target | Description |
 |--------|-------------|
-| `make all` | Build all plugins and the server |
-| `make cmd/server` | Build the server binary |
-| `make plugins` | Build the server binary |
-| `make test` | Runs go vet, and unit and coverage tests |
+| `make test` | Runs go vet, and the unit and coverage tests |
 | `make vet` | Runs go vet |
-| `make unit-test` | Runs unit tests |
-| `make race-test` | Runs unit tests with the race detector |
-| `VERBOSE=1 make unit-test` | Runs unit tests with verbose output |
-| `make coverage-test` | Reports code coverage |
+| `make unit-test` | Runs the unit tests, verbosely with `VERBOSE=1` |
+| `make race-test` | Runs the unit tests with the race detector |
+| `make coverage-test` | Reports the tests' coverage |
 | `make tidy` | Runs go mod tidy |
-| `make clean` | Removes binaries and distribution files |
+| `make clean` | Removes the build directory |
 
-You can also affect the build by setting the following environment variables. For example,
-
-```bash
-OS=linux ARCH=amd64 make
-```
-
-| Variable | Description |
-|----------|-------------|
-| `OS` | The target operating system for the build |
-| `ARCH` | The target architecture for the build |
-| `BUILD_DIR` | The target architecture for the build |
-| `VERBOSE` | Setting this flag will provide verbose output for unit tests |
-| `VERSION` | Explicitly set the version |
+The tests run in GitHub Actions for pull requests and pushes to `main`, on Linux and Windows, and for releases on macOS too.
