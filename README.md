@@ -20,7 +20,6 @@ go get github.com/mutablelogic/go-server
 | [`pkg/otel`](pkg/otel) | OpenTelemetry tracing |
 | [`pkg/logger`](pkg/logger) | Structured logging |
 | [`pkg/tui`](pkg/tui) | Tables and other output for terminals |
-| [`pkg/provider`](pkg/provider), [`pkg/plugin`](pkg/plugin) | Providers of resources, and plugins which provide them |
 | [`pkg/types`](pkg/types) | Common types, such as files, content types and headers |
 | [`pkg/version`](pkg/version) | The version of a build |
 
