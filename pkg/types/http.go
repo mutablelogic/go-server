@@ -19,6 +19,7 @@ const (
 	ContentPathHeader        = "X-Path"
 	ContentNameHeader        = "X-Name"
 	ContentDescriptionHeader = "X-Description"
+	ContentMetaHeader        = "X-Meta"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
