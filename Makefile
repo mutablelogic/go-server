@@ -1,6 +1,5 @@
 # Executables
 GO ?= $(shell which go 2>/dev/null)
-DOCKER ?= $(shell which docker 2>/dev/null)
 
 # Locations
 BUILD_DIR ?= build
@@ -26,11 +25,6 @@ BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/version.GitBranch=$(shell git name-rev 
 BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/version.BuildDate=$(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 BUILD_FLAGS = -ldflags "-s -w ${BUILD_LD_FLAGS}" 
 
-# Docker
-DOCKER_REPO ?= ghcr.io/mutablelogic/kaiak
-DOCKER_SOURCE ?= ${BUILD_MODULE}
-DOCKER_TAG = ${DOCKER_REPO}-${OS}-${ARCH}:${VERSION}
-
 ###############################################################################
 # ALL
 
@@ -40,13 +34,9 @@ all: build
 ###############################################################################
 # BUILD
 
-# Compile and build the commands in the cmd directory
+# Compile and build the commands in the cmd directory, and the plugins
 .PHONY: build
-build: build-docker
-
-# Build the commands in the cmd directory
-.PHONY: build-docker
-build-docker: tidy $(PLUGIN_DIR) $(CMD_DIR)
+build: tidy $(PLUGIN_DIR) $(CMD_DIR)
 
 # Build the commands
 $(CMD_DIR): go-dep mkdir
@@ -62,40 +52,26 @@ $(PLUGIN_DIR): go-dep mkdir
 	@echo Build plugin $(notdir $@) GOOS=${OS} GOARCH=${ARCH}
 	@GOOS=${OS} GOARCH=${ARCH} ${GO} build -buildmode=plugin ${BUILD_FLAGS} -o ${BUILD_DIR}/$(notdir $@).plugin ./$@
 
-# Build the docker image
-.PHONY: docker
-docker: docker-dep 
-	@echo build docker image ${DOCKER_TAG} OS=${OS} ARCH=${ARCH} SOURCE=${DOCKER_SOURCE} VERSION=${VERSION}
-	@${DOCKER} build \
-		--tag ${DOCKER_TAG} \
-		--provenance=false \
-		--build-arg ARCH=${ARCH} \
-		--build-arg OS=${OS} \
-		--build-arg SOURCE=${DOCKER_SOURCE} \
-		--build-arg VERSION=${VERSION} \
-		-f etc/docker/Dockerfile .
-
-# Push docker container
-.PHONY: docker-push
-docker-push: docker-dep 
-	@echo push docker image: ${DOCKER_TAG}
-	@${DOCKER} push ${DOCKER_TAG}
-
-# Print out the version
-.PHONY: docker-version
-docker-version: docker-dep 
-	@echo "tag=${VERSION}"
-
 ###############################################################################
 # TEST
 
 .PHONY: test
-test: unit-test coverage-test
+test: vet unit-test coverage-test
+
+.PHONY: vet
+vet: go-dep
+	@echo Vet
+	@${GO} vet ./...
 
 .PHONY: unit-test
 unit-test: go-dep
 	@echo Unit Tests
 	@${GO} test ${VERBOSE_FLAG} ./pkg/...
+
+.PHONY: race-test
+race-test: go-dep
+	@echo Race Tests
+	@${GO} test -race ${VERBOSE_FLAG} ./pkg/...
 
 .PHONY: coverage-test
 coverage-test: go-dep mkdir
@@ -126,7 +102,3 @@ clean:
 .PHONY: go-dep
 go-dep:
 	@test -f "${GO}" && test -x "${GO}"  || (echo "Missing go binary" && exit 1)
-
-.PHONY: docker-dep
-docker-dep:
-	@test -f "${DOCKER}" && test -x "${DOCKER}"  || (echo "Missing docker binary" && exit 1)
