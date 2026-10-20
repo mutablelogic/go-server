@@ -1,8 +1,8 @@
 name: Test
 
-# Pull requests, and pushes to main, are tested on Linux and Windows, where
-# paths are different. A published release, or a run by hand, is tested on
-# macOS too, as its runners cost more.
+# Pull requests, and pushes to main, are tested on Linux. A published
+# release, or a run by hand, is tested on Windows and macOS too, as their
+# runners cost more.
 on:
   push:
     branches: [main]
@@ -23,7 +23,7 @@ jobs:
       # Report results for every platform, even if one fails
       fail-fast: false
       matrix:
-        os: ${{ fromJSON((github.event_name == 'release' || github.event_name == 'workflow_dispatch') && '["ubuntu-latest", "windows-latest", "macos-latest"]' || '["ubuntu-latest", "windows-latest"]') }}
+        os: ${{ fromJSON((github.event_name == 'release' || github.event_name == 'workflow_dispatch') && '["ubuntu-latest", "windows-latest", "macos-latest"]' || '["ubuntu-latest"]') }}
     steps:
       - name: Configure git line endings
         shell: bash

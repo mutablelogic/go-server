@@ -37,4 +37,4 @@ You need [Go](https://go.dev/doc/install), the version in `go.mod`, and [Make](h
 | `make tidy` | Runs go mod tidy |
 | `make clean` | Removes the build directory |
 
-The tests run in GitHub Actions for pull requests and pushes to `main`, on Linux and Windows, and for releases on macOS too.
+The tests run in GitHub Actions for pull requests and pushes to `main` on Linux, and for releases on Windows and macOS too.
