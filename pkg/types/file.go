@@ -3,6 +3,7 @@ package types
 import (
 	"io"
 	"net/textproto"
+	"time"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -21,4 +22,5 @@ type File struct {
 	Body        io.ReadCloser
 	ContentType string               // optional MIME type
 	Header      textproto.MIMEHeader // all part-level MIME headers
+	ModTime     time.Time            // optional modified time, from a Last-Modified header
 }

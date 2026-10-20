@@ -1,0 +1,57 @@
+name: Test
+
+# Pull requests, and pushes to main, are tested on Linux. A published
+# release, or a run by hand, is tested on Windows and macOS too, as their
+# runners cost more.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # Report results for every platform, even if one fails
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON((github.event_name == 'release' || github.event_name == 'workflow_dispatch') && '["ubuntu-latest", "windows-latest", "macos-latest"]' || '["ubuntu-latest"]') }}
+    steps:
+      - name: Configure git line endings
+        shell: bash
+        run: git config --global core.autocrlf input
+
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Test (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: make test
+
+      - name: Race Test (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: make race-test
+
+      # Windows runners don't have make, so the tests are run with go, as
+      # make test runs them. The race detector needs cgo, so it isn't run.
+      - name: Test (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          go vet ./...
+          go test ./pkg/...
