@@ -6,7 +6,6 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/url"
-	"path"
 	"reflect"
 	"strings"
 
@@ -146,6 +145,7 @@ func readFormData(r *http.Request, v any) error {
 				Body:        body,
 				ContentType: values[0].Header.Get("Content-Type"),
 				Header:      values[0].Header,
+				ModTime:     modTime(values[0].Header),
 			}))
 		case typeFileSlice:
 			// Multi-file: open every part and collect into a slice.
@@ -169,6 +169,7 @@ func readFormData(r *http.Request, v any) error {
 					Body:        body,
 					ContentType: fh.Header.Get("Content-Type"),
 					Header:      fh.Header,
+					ModTime:     modTime(fh.Header),
 				})
 			}
 			value.Set(reflect.ValueOf(files))
@@ -228,28 +229,15 @@ func readFormURLEncoded(r *http.Request, v any) error {
 	return nil
 }
 
-// fileHeaderPath returns the sanitised logical path for a multipart file part.
-// It prefers the X-Path header (set by go-client when the path contains
-// directory components, since the stdlib strips directories from the
-// Content-Disposition filename per RFC 7578 §4.2) and falls back to
-// the base filename exposed by the stdlib parser.
-//
-// The X-Path value is normalised with path.Clean and stripped of any leading
-// slash. If the result is empty or escapes its root via .. segments, the
-// function falls back to fh.Filename (already basename-only per the stdlib)
-// to prevent path traversal attacks.
+// fileHeaderPath returns the path of a multipart file part, from its X-Path
+// header, as go-client sends a path with directories, or else the file name
+// in its Content-Disposition, with its directories, as a browser sends a
+// folder's files, which the standard library removes, or else its file name
+// (see filePath)
 func fileHeaderPath(fh *multipart.FileHeader) string {
-	p := fh.Header.Get(types.ContentPathHeader)
-	if p == "" {
-		return fh.Filename
+	filename := dispositionFilename(fh.Header)
+	if filename == "" {
+		filename = fh.Filename
 	}
-	// Resolve . and .. then strip any leading slash.
-	p = path.Clean(p)
-	p = strings.TrimPrefix(p, "/")
-	// If the cleaned path escapes the root or is degenerate, fall back to
-	// the stdlib-provided basename which is always safe.
-	if p == "." || p == "" || strings.HasPrefix(p, "..") {
-		return fh.Filename
-	}
-	return p
+	return filePath(fh.Header, filename)
 }
