@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"net/textproto"
 	"net/url"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -76,6 +77,18 @@ func readFiles(t *testing.T, req *http.Request) ([]upload, url.Values, error) {
 		return nil
 	})
 	return uploads, values, err
+}
+
+// countingReader counts the bytes read from its reader
+type countingReader struct {
+	io.Reader
+	n int64
+}
+
+func (r *countingReader) Read(p []byte) (int, error) {
+	n, err := r.Reader.Read(p)
+	r.n += int64(n)
+	return n, err
 }
 
 func cloneValues(values url.Values) url.Values {
@@ -165,6 +178,62 @@ func Test_Binary(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.Equal(t, []string{"a.txt", "b.txt"}, paths)
+	})
+
+	t.Run("WindowsPaths", func(t *testing.T) {
+		// A path with a drive letter, a colon or a reserved name isn't local
+		// on Windows, so it's the file name, or "file", and elsewhere it's
+		// a path
+		for filename, want := range map[string][2]string{
+			"C:/Windows/system32/x.dll": {"C:/Windows/system32/x.dll", "x.dll"},
+			"C:x.txt":                   {"C:x.txt", "file"},
+			"a/b:stream":                {"a/b:stream", "file"},
+			"docs/CON":                  {"docs/CON", "file"},
+			"docs/a.txt":                {"docs/a.txt", "docs/a.txt"},
+		} {
+			uploads, _, err := readFiles(t, formRequest(t, formPart{field: "file", filename: filename}))
+			require.NoError(t, err, filename)
+			require.Len(t, uploads, 1, filename)
+			if runtime.GOOS == "windows" {
+				assert.Equal(t, want[1], uploads[0].path, filename)
+			} else {
+				assert.Equal(t, want[0], uploads[0].path, filename)
+			}
+		}
+	})
+
+	t.Run("NotDrained", func(t *testing.T) {
+		// A file which fn rejects isn't read to its end
+		req := formRequest(t, formPart{field: "file", filename: "large.bin", value: strings.Repeat("x", 10<<20)})
+		body := &countingReader{Reader: req.Body}
+		req.Body = io.NopCloser(body)
+		_, err := httprequest.Binary(req, func(string, url.Values, types.File) error {
+			return errors.New("rejected")
+		})
+		require.Error(t, err)
+		assert.Less(t, body.n, int64(1<<20))
+	})
+
+	t.Run("Malformed", func(t *testing.T) {
+		// A form which ends without its final boundary, or never starts, is
+		// a bad request, and one which ends with it is a form without files
+		for name, body := range map[string]string{
+			"Garbage":         "not a form at all",
+			"Empty":           "",
+			"WrongBoundary":   "--abc\r\nContent-Disposition: form-data; name=\"a\"\r\n\r\nvalue\r\n--abc--\r\n",
+			"NoFinalBoundary": "--xyz\r\nContent-Disposition: form-data; name=\"a\"\r\n\r\nvalue\r\n",
+		} {
+			req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+			req.Header.Set("Content-Type", "multipart/form-data; boundary=xyz")
+			_, _, err := readFiles(t, req)
+			assert.ErrorIs(t, err, httpresponse.ErrBadRequest, name)
+		}
+		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("--xyz--\r\n"))
+		req.Header.Set("Content-Type", "multipart/form-data; boundary=xyz")
+		uploads, values, err := readFiles(t, req)
+		require.NoError(t, err)
+		assert.Empty(t, uploads)
+		assert.Empty(t, values)
 	})
 
 	t.Run("Errors", func(t *testing.T) {

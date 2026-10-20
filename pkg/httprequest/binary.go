@@ -1,13 +1,13 @@
 package httprequest
 
 import (
-	"errors"
 	"io"
 	"mime"
 	"net/http"
 	"net/textproto"
 	"net/url"
 	"path"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -73,18 +73,21 @@ func Binary(r *http.Request, fn func(field string, values url.Values, file types
 		return values, httpresponse.ErrBadRequest.Withf("%v", err)
 	}
 	for {
+		// The form ends with its final boundary, which is io.EOF itself,
+		// and a form which ends without it, or never starts, is an error
+		// which wraps io.EOF
 		part, err := reader.NextPart()
-		if errors.Is(err, io.EOF) {
+		if err == io.EOF {
 			return values, nil
 		} else if err != nil {
 			return values, httpresponse.ErrBadRequest.Withf("%v", err)
 		}
 
-		// A part without a file name is a value
+		// A part without a file name is a value. A part isn't closed on an
+		// error, as closing it reads the rest of it.
 		field, filename := part.FormName(), dispositionFilename(part.Header)
 		if filename == "" {
 			value, err := io.ReadAll(io.LimitReader(part, FormValueMaxSize+1))
-			part.Close()
 			if err != nil {
 				return values, httpresponse.ErrBadRequest.Withf("%v", err)
 			} else if len(value) > FormValueMaxSize {
@@ -94,18 +97,19 @@ func Binary(r *http.Request, fn func(field string, values url.Values, file types
 			continue
 		}
 
-		// A part with a file name is a file
-		err = fn(field, values, types.File{
+		// A part with a file name is a file. When fn returns an error, the
+		// rest of the request isn't read, so a file which is rejected,
+		// which can be large, isn't read to its end.
+		if err := fn(field, values, types.File{
 			Path:        filePath(part.Header, filename),
 			Body:        part,
 			ContentType: part.Header.Get(types.ContentTypeHeader),
 			Header:      part.Header,
 			ModTime:     modTime(part.Header),
-		})
-		part.Close()
-		if err != nil {
+		}); err != nil {
 			return values, err
 		}
+		part.Close()
 	}
 }
 
@@ -126,19 +130,28 @@ func dispositionFilename(header textproto.MIMEHeader) string {
 // filePath returns the path of a file part, from its X-Path header, or else
 // its file name, with a backslash, as some browsers send for Windows, as a
 // separator, cleaned, and without a leading slash. A path which is empty,
-// or would be above its root, isn't used, and when neither is, it's the file
-// name without its directories, or "file".
+// would be above its root, or isn't local on this system (see
+// filepath.IsLocal), such as one with a drive letter or a reserved name on
+// Windows, isn't used, and when neither is, it's the file name without its
+// directories, when that's local, or else "file".
 func filePath(header textproto.MIMEHeader, filename string) string {
 	filename = strings.ReplaceAll(filename, `\`, "/")
 	for _, p := range []string{header.Get(types.ContentPathHeader), filename} {
-		if p = strings.TrimPrefix(path.Clean(p), "/"); p != "" && p != "." && p != ".." && !strings.HasPrefix(p, "../") {
+		if p = strings.TrimPrefix(path.Clean(p), "/"); p != "" && isLocal(p) {
 			return p
 		}
 	}
-	if name := path.Base(filename); name != "" && name != "." && name != ".." && name != "/" {
+	if name := path.Base(filename); isLocal(name) {
 		return name
 	}
 	return "file"
+}
+
+// isLocal returns true when the path, separated by "/", is a path within a
+// directory on this system, which isn't empty, absolute, or above it, and
+// on Windows, doesn't have a drive letter, a colon, or a reserved name
+func isLocal(p string) bool {
+	return p != "" && p != "." && filepath.IsLocal(filepath.FromSlash(p))
 }
 
 // modTime returns the time of a Last-Modified header, or the zero time
