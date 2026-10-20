@@ -2,6 +2,7 @@ package httpresponse_test
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -33,6 +34,31 @@ func (r *slowReader) Read(p []byte) (int, error) {
 	n := copy(p[:1], r.data)
 	r.data = r.data[n:]
 	return n, nil
+}
+
+// errFailed is the error of failingReadSeeker and failingWriter
+var errFailed = errors.New("failed")
+
+// failingReadSeeker fails to read after its first read
+type failingReadSeeker struct {
+	io.ReadSeeker
+	reads int
+}
+
+func (r *failingReadSeeker) Read(p []byte) (int, error) {
+	if r.reads++; r.reads > 1 {
+		return 0, errFailed
+	}
+	return r.ReadSeeker.Read(p[:min(len(p), 4)])
+}
+
+// failingWriter fails to write the body of a response
+type failingWriter struct {
+	*httptest.ResponseRecorder
+}
+
+func (w *failingWriter) Write([]byte) (int, error) {
+	return 0, errFailed
 }
 
 func Test_Binary(t *testing.T) {
@@ -177,12 +203,99 @@ func Test_Binary(t *testing.T) {
 		assert.False(t, other.NotModified(req))
 	})
 
+	t.Run("Preconditions", func(t *testing.T) {
+		// If-Match, and without it, If-Unmodified-Since, are evaluated before
+		// If-None-Match, whatever the body is
+		for name, tt := range map[string]struct {
+			header http.Header
+			want   int
+		}{
+			"IfMatch":                {http.Header{"If-Match": {`"abc"`}}, http.StatusOK},
+			"IfMatchAny":             {http.Header{"If-Match": {"*"}}, http.StatusOK},
+			"IfMatchOther":           {http.Header{"If-Match": {`"other"`}}, http.StatusPreconditionFailed},
+			"IfMatchWeak":            {http.Header{"If-Match": {`W/"abc"`}}, http.StatusPreconditionFailed},
+			"IfMatchInvalid":         {http.Header{"If-Match": {`abc`}}, http.StatusPreconditionFailed},
+			"IfMatchBeforeNoneMatch": {http.Header{"If-Match": {`"other"`}, "If-None-Match": {`"abc"`}}, http.StatusPreconditionFailed},
+			"IfMatchThenNoneMatch":   {http.Header{"If-Match": {`"abc"`}, "If-None-Match": {`"abc"`}}, http.StatusNotModified},
+			"UnmodifiedSince":        {http.Header{"If-Unmodified-Since": {"Tue, 04 Mar 2014 05:42:08 GMT"}}, http.StatusOK},
+			"UnmodifiedSinceEarlier": {http.Header{"If-Unmodified-Since": {"Tue, 04 Mar 2014 05:42:07 GMT"}}, http.StatusPreconditionFailed},
+			"IfMatchBeforeSince":     {http.Header{"If-Match": {`"abc"`}, "If-Unmodified-Since": {"Tue, 04 Mar 2014 05:42:07 GMT"}}, http.StatusOK},
+		} {
+			t.Run(name, func(t *testing.T) {
+				for _, body := range []func() io.Reader{
+					func() io.Reader { return strings.NewReader(content) },
+					func() io.Reader { return onlyReader{strings.NewReader(content)} },
+				} {
+					rec := write(t, binary, http.MethodGet, tt.header, body())
+					assert.Equal(t, tt.want, rec.Code)
+				}
+				assert.Equal(t, tt.want, write(t, binary, http.MethodHead, tt.header, nil).Code)
+			})
+		}
+
+		// A precondition which fails has no content headers
+		rec := write(t, binary, http.MethodGet, http.Header{"If-Match": {`"other"`}}, strings.NewReader(content))
+		assert.Empty(t, rec.Header().Get("ETag"))
+		assert.Empty(t, rec.Header().Get("Content-Disposition"))
+		assert.NotContains(t, rec.Body.String(), content)
+	})
+
+	t.Run("ETagLists", func(t *testing.T) {
+		// A quoted tag can have commas, so *, within one, isn't a wildcard
+		rec := write(t, binary, http.MethodGet, http.Header{"If-None-Match": {`"def,*,ghi"`}}, strings.NewReader(content))
+		assert.Equal(t, http.StatusOK, rec.Code)
+
+		// An etag with commas matches its own quoted value, whatever the body
+		other := binary
+		other.ETag = "a,b"
+		for _, body := range []io.Reader{nil, onlyReader{strings.NewReader(content)}, strings.NewReader(content)} {
+			method := http.MethodGet
+			if body == nil {
+				method = http.MethodHead
+			}
+			rec := write(t, other, method, http.Header{"If-None-Match": {`"x", "a,b"`}}, body)
+			assert.Equal(t, http.StatusNotModified, rec.Code, "%T", body)
+		}
+
+		// A list which can't be parsed doesn't match
+		for _, match := range []string{`abc`, `"abc`, `"abc" x`, `W/abc`, `,`} {
+			rec := write(t, binary, http.MethodGet, http.Header{"If-None-Match": {match}}, strings.NewReader(content))
+			assert.Equal(t, http.StatusOK, rec.Code, match)
+		}
+	})
+
+	t.Run("Errors", func(t *testing.T) {
+		// An error reading the content is returned, whether it can seek
+		// or not
+		for _, body := range []io.Reader{
+			&failingReadSeeker{ReadSeeker: strings.NewReader(content)},
+			onlyReader{&failingReadSeeker{ReadSeeker: strings.NewReader(content)}},
+		} {
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			assert.ErrorIs(t, binary.Write(httptest.NewRecorder(), req, body), errFailed, "%T", body)
+		}
+
+		// An error writing the content is returned, whether it can seek or
+		// not
+		for _, body := range []io.Reader{strings.NewReader(content), onlyReader{strings.NewReader(content)}} {
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			assert.ErrorIs(t, binary.Write(&failingWriter{httptest.NewRecorder()}, req, body), errFailed, "%T", body)
+		}
+	})
+
 	t.Run("Range", func(t *testing.T) {
 		// Content which can seek can be requested in ranges
 		rec := write(t, binary, http.MethodGet, http.Header{"Range": {"bytes=7-"}}, strings.NewReader(content))
 		assert.Equal(t, http.StatusPartialContent, rec.Code)
 		assert.Equal(t, "world", rec.Body.String())
 		assert.Equal(t, "5", rec.Header().Get("Content-Length"))
+
+		// A range is only for the content with the etag in If-Range
+		rec = write(t, binary, http.MethodGet, http.Header{"Range": {"bytes=7-"}, "If-Range": {`"abc"`}}, strings.NewReader(content))
+		assert.Equal(t, http.StatusPartialContent, rec.Code)
+		rec = write(t, binary, http.MethodGet, http.Header{"Range": {"bytes=7-"}, "If-Range": {`"other"`}}, strings.NewReader(content))
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.Equal(t, content, rec.Body.String())
 
 		// Content which can't is written whole
 		rec = write(t, binary, http.MethodGet, http.Header{"Range": {"bytes=7-"}}, onlyReader{strings.NewReader(content)})

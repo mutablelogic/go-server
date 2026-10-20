@@ -68,10 +68,12 @@ const (
 // PUBLIC METHODS
 
 // Write responds with the content's headers, and for a GET request, its
-// content, read from body. When the content isn't modified (see
-// NotModified), it's 304 Not Modified, with its headers. For a HEAD request
-// it's its headers alone, and for a GET request without a body, 204 No
-// Content. Otherwise its content is written without the server's write
+// content, read from body. The request's preconditions are evaluated in the
+// order of RFC 9110: when If-Match, or without it, If-Unmodified-Since,
+// fails, it's 412 Precondition Failed, and when the content isn't modified
+// (see NotModified), it's 304 Not Modified, with its headers. For a HEAD
+// request it's its headers alone, and for a GET request without a body, 204
+// No Content. Otherwise its content is written without the server's write
 // timeout, as a large file, or a video a browser reads as it plays it, can
 // take longer, in ranges when body can seek, such as a file.
 //
@@ -82,9 +84,13 @@ const (
 // them when it's sandboxed.
 //
 // Returns an error, without writing the response, when the headers can't be
-// set, and otherwise any error writing the content, after which the response
-// can't be changed.
+// set, and otherwise any error reading or writing the content, after which
+// the response can't be changed.
 func (b Binary) Write(w http.ResponseWriter, r *http.Request, body io.Reader) error {
+	// A precondition which fails has no content
+	if !b.preconditions(r) {
+		return Error(w, Err(http.StatusPreconditionFailed))
+	}
 	if err := b.setHeaders(w.Header()); err != nil {
 		return err
 	}
@@ -109,10 +115,20 @@ func (b Binary) Write(w http.ResponseWriter, r *http.Request, body io.Reader) er
 	}
 
 	// Content which can seek is served in ranges, which also responds to
-	// If-Range, and otherwise the whole content is written
+	// If-Range, and otherwise the whole content is written. The request's
+	// preconditions have been evaluated, so ServeContent, which evaluates
+	// them again, with its own parsing of etags, doesn't have them. It
+	// doesn't return the errors reading or writing the content, so they're
+	// recorded.
 	if seeker, ok := body.(io.ReadSeeker); ok {
-		http.ServeContent(w, r, "", b.ModTime, seeker)
-		return nil
+		req := *r
+		req.Header = r.Header.Clone()
+		for _, key := range []string{"If-Match", "If-None-Match", "If-Modified-Since", "If-Unmodified-Since"} {
+			req.Header.Del(key)
+		}
+		reader, writer := &readSeekRecorder{ReadSeeker: seeker}, &writeRecorder{ResponseWriter: w}
+		http.ServeContent(writer, &req, "", b.ModTime, reader)
+		return errors.Join(reader.err, writer.err)
 	} else {
 		w.WriteHeader(http.StatusOK)
 		_, err := io.Copy(w, body)
@@ -121,20 +137,15 @@ func (b Binary) Write(w http.ResponseWriter, r *http.Request, body io.Reader) er
 }
 
 // NotModified returns true when a GET or HEAD request's If-None-Match has
-// the content's etag, or is *, or without If-None-Match, the content hasn't
-// been modified since If-Modified-Since, to the second, as HTTP dates are
+// the content's etag, by weak comparison, or is *, or without If-None-Match,
+// the content hasn't been modified since If-Modified-Since, to the second,
+// as HTTP dates are. An If-None-Match which can't be parsed doesn't match.
 func (b Binary) NotModified(r *http.Request) bool {
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		return false
 	}
 	if match := r.Header.Get("If-None-Match"); match != "" {
-		for _, etag := range strings.Split(match, ",") {
-			etag = strings.TrimPrefix(strings.TrimSpace(etag), "W/")
-			if etag == "*" || (b.ETag != "" && etag == `"`+b.ETag+`"`) {
-				return true
-			}
-		}
-		return false
+		return b.matches(match, false)
 	}
 	if b.ModTime.IsZero() {
 		return false
@@ -190,6 +201,91 @@ func (b Binary) setHeaders(header http.Header) error {
 	return nil
 }
 
+// preconditions returns false when the request's If-Match doesn't have the
+// content's etag, by strong comparison, and isn't *, or without If-Match,
+// the content has been modified since If-Unmodified-Since, or for a request
+// other than GET or HEAD, when its If-None-Match has the content's etag
+func (b Binary) preconditions(r *http.Request) bool {
+	if match := r.Header.Get("If-Match"); match != "" {
+		if !b.matches(match, true) {
+			return false
+		}
+	} else if since, err := http.ParseTime(r.Header.Get("If-Unmodified-Since")); err == nil && !b.ModTime.IsZero() {
+		if b.ModTime.Truncate(time.Second).After(since) {
+			return false
+		}
+	}
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		if match := r.Header.Get("If-None-Match"); match != "" && b.matches(match, false) {
+			return false
+		}
+	}
+	return true
+}
+
+// matches returns true when the list of entity tags in a header, such as
+// If-None-Match, is *, or has the content's etag. With strong comparison, a
+// weak tag doesn't match. A list which can't be parsed doesn't match.
+func (b Binary) matches(value string, strong bool) bool {
+	tags, all, ok := parseETags(value)
+	if !ok {
+		return false
+	} else if all {
+		return true
+	}
+	for _, tag := range tags {
+		if b.ETag != "" && tag.opaque == b.ETag && !(strong && tag.weak) {
+			return true
+		}
+	}
+	return false
+}
+
+// entityTag is an entity tag of a request's header, without its quotes,
+// which is weak when it starts with W/
+type entityTag struct {
+	opaque string
+	weak   bool
+}
+
+// parseETags returns the entity tags in a list of them, such as
+// "a", W/"b", whose quoted tags can have commas, or all when the list is *,
+// which matches every tag. Returns false when the list can't be parsed.
+func parseETags(value string) (tags []entityTag, all bool, ok bool) {
+	value = strings.TrimSpace(value)
+	if value == "*" {
+		return nil, true, true
+	}
+	for {
+		// Skip the separators, which can be empty elements
+		value = strings.TrimLeft(value, " \t,")
+		if value == "" {
+			return tags, false, len(tags) > 0
+		}
+
+		// A tag is weak with W/, and is quoted, without quotes in it
+		var tag entityTag
+		if rest, found := strings.CutPrefix(value, "W/"); found {
+			tag.weak, value = true, rest
+		}
+		if !strings.HasPrefix(value, `"`) {
+			return nil, false, false
+		}
+		end := strings.IndexByte(value[1:], '"')
+		if end < 0 {
+			return nil, false, false
+		}
+		tag.opaque, value = value[1:1+end], value[2+end:]
+		tags = append(tags, tag)
+
+		// A tag is followed by a separator, or the end of the list
+		value = strings.TrimLeft(value, " \t")
+		if value != "" && value[0] != ',' {
+			return nil, false, false
+		}
+	}
+}
+
 // headerJSON returns the value as JSON for a header, with the characters
 // which aren't ASCII escaped as \uXXXX, so it's ASCII, as browsers decode
 // headers as Latin-1, which would garble UTF-8. The escaped JSON decodes to
@@ -235,4 +331,49 @@ func scriptable(contentType string) bool {
 	default:
 		return false
 	}
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// RECORDERS
+
+// readSeekRecorder records the first error reading or seeking, other than
+// the end of the content
+type readSeekRecorder struct {
+	io.ReadSeeker
+	err error
+}
+
+func (r *readSeekRecorder) Read(p []byte) (int, error) {
+	n, err := r.ReadSeeker.Read(p)
+	if err != nil && !errors.Is(err, io.EOF) && r.err == nil {
+		r.err = err
+	}
+	return n, err
+}
+
+func (r *readSeekRecorder) Seek(offset int64, whence int) (int64, error) {
+	n, err := r.ReadSeeker.Seek(offset, whence)
+	if err != nil && r.err == nil {
+		r.err = err
+	}
+	return n, err
+}
+
+// writeRecorder records the first error writing a response, and unwraps to
+// it, for http.ResponseController
+type writeRecorder struct {
+	http.ResponseWriter
+	err error
+}
+
+func (w *writeRecorder) Write(p []byte) (int, error) {
+	n, err := w.ResponseWriter.Write(p)
+	if err != nil && w.err == nil {
+		w.err = err
+	}
+	return n, err
+}
+
+func (w *writeRecorder) Unwrap() http.ResponseWriter {
+	return w.ResponseWriter
 }
