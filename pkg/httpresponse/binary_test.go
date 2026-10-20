@@ -45,7 +45,7 @@ func Test_Binary(t *testing.T) {
 		ETag:         "abc",
 		Path:         "/docs/hello.txt",
 		Disposition:  httpresponse.DispositionInline,
-		CacheControl: "private, no-cache",
+		CacheControl: httpresponse.CacheControl{MaxAge: time.Hour},
 		Meta:         map[string]string{"title": "Café"},
 	}
 
@@ -69,7 +69,12 @@ func Test_Binary(t *testing.T) {
 		assert.Equal(t, "12", rec.Header().Get("Content-Length"))
 		assert.Equal(t, "Tue, 04 Mar 2014 05:42:08 GMT", rec.Header().Get("Last-Modified"))
 		assert.Equal(t, `"abc"`, rec.Header().Get("ETag"))
-		assert.Equal(t, "private, no-cache", rec.Header().Get("Cache-Control"))
+		assert.Equal(t, "private, max-age=3600", rec.Header().Get("Cache-Control"))
+
+		// Without a cache control, it's always checked
+		other := binary
+		other.CacheControl = httpresponse.CacheControl{}
+		assert.Equal(t, "private, no-cache", write(t, other, http.MethodHead, nil, nil).Header().Get("Cache-Control"))
 		assert.Equal(t, "inline; filename=hello.txt", rec.Header().Get("Content-Disposition"))
 		assert.Equal(t, "nosniff", rec.Header().Get("X-Content-Type-Options"))
 		assert.Empty(t, rec.Header().Get("Content-Security-Policy"))

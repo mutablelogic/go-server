@@ -47,8 +47,9 @@ type Binary struct {
 	// Content-Disposition, with the file name, when it isn't empty
 	Disposition Disposition
 
-	// CacheControl is the Cache-Control, when it isn't empty
-	CacheControl string
+	// CacheControl is how the response is cached, which is private,
+	// no-cache when it's the zero value
+	CacheControl CacheControl
 
 	// Meta is the metadata of the content, as JSON in the X-Meta header, when
 	// it isn't nil
@@ -112,10 +113,11 @@ func (b Binary) Write(w http.ResponseWriter, r *http.Request, body io.Reader) er
 	if seeker, ok := body.(io.ReadSeeker); ok {
 		http.ServeContent(w, r, "", b.ModTime, seeker)
 		return nil
+	} else {
+		w.WriteHeader(http.StatusOK)
+		_, err := io.Copy(w, body)
+		return err
 	}
-	w.WriteHeader(http.StatusOK)
-	_, err := io.Copy(w, body)
-	return err
 }
 
 // NotModified returns true when a GET or HEAD request's If-None-Match has
@@ -169,9 +171,7 @@ func (b Binary) setHeaders(header http.Header) error {
 	if b.ETag != "" {
 		header.Set(types.ContentHashHeader, `"`+b.ETag+`"`)
 	}
-	if b.CacheControl != "" {
-		header.Set("Cache-Control", b.CacheControl)
-	}
+	header.Set("Cache-Control", b.CacheControl.String())
 	if b.Disposition != "" {
 		params := map[string]string{}
 		if name := path.Base(b.Path); b.Path != "" && name != "." && name != "/" {
