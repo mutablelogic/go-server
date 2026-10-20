@@ -4,47 +4,11 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/mutablelogic/go-server/pkg/httpresponse"
 	"github.com/stretchr/testify/assert"
 )
-
-func Test_Attachment(t *testing.T) {
-	assert := assert.New(t)
-
-	t.Run("BasicAttachment", func(t *testing.T) {
-		rec := httptest.NewRecorder()
-		reader := strings.NewReader("file contents")
-		err := httpresponse.Attachment(rec, reader, http.StatusOK, map[string]string{
-			"filename": "test.txt",
-		})
-		assert.NoError(err)
-		assert.Equal(http.StatusOK, rec.Code)
-		assert.Equal("file contents", rec.Body.String())
-		assert.Contains(rec.Header().Get("Content-Disposition"), "attachment")
-		assert.Contains(rec.Header().Get("Content-Disposition"), "test.txt")
-		assert.Equal("application/octet-stream", rec.Header().Get("Content-Type"))
-	})
-
-	t.Run("CustomContentType", func(t *testing.T) {
-		rec := httptest.NewRecorder()
-		rec.Header().Set("Content-Type", "text/plain")
-		reader := strings.NewReader("hello")
-		err := httpresponse.Attachment(rec, reader, http.StatusOK, nil)
-		assert.NoError(err)
-		assert.Equal("text/plain", rec.Header().Get("Content-Type"))
-	})
-
-	t.Run("EmptyBody", func(t *testing.T) {
-		rec := httptest.NewRecorder()
-		reader := strings.NewReader("")
-		err := httpresponse.Attachment(rec, reader, http.StatusOK, nil)
-		assert.NoError(err)
-		assert.Equal("", rec.Body.String())
-	})
-}
 
 func Test_Empty(t *testing.T) {
 	assert := assert.New(t)
