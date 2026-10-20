@@ -21,14 +21,15 @@ import (
 
 const (
 	// FormValueMaxSize is the largest value of a form, other than a file,
-	// which ReadFiles reads
+	// which Binary reads
 	FormValueMaxSize = 1 << 20 // 1 MB
 )
 
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-// ReadFiles calls fn for each file uploaded with the request, in order, with
+// Binary reads the files uploaded with a request, as httpresponse.Binary
+// writes a file in a response. It calls fn for each file, in order, with
 // the name of its form field, the form's values which were before it, and
 // the file, whose body is streamed from the request, so it's only read in
 // fn, and isn't held in memory or in a temporary file, as Read holds it.
@@ -52,7 +53,7 @@ const (
 // Returns the form's values, which are all of them when there's no error,
 // and the error from fn, including an error reading a file's body, or
 // reading the form's parts or values, which is a bad request.
-func ReadFiles(r *http.Request, fn func(field string, values url.Values, file types.File) error) (url.Values, error) {
+func Binary(r *http.Request, fn func(field string, values url.Values, file types.File) error) (url.Values, error) {
 	values := url.Values{}
 
 	// A request which isn't a form is one file

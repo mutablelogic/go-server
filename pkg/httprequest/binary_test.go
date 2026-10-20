@@ -67,7 +67,7 @@ type upload struct {
 func readFiles(t *testing.T, req *http.Request) ([]upload, url.Values, error) {
 	t.Helper()
 	var uploads []upload
-	values, err := httprequest.ReadFiles(req, func(field string, values url.Values, file types.File) error {
+	values, err := httprequest.Binary(req, func(field string, values url.Values, file types.File) error {
 		data, err := io.ReadAll(file.Body)
 		if err != nil {
 			return err
@@ -86,7 +86,7 @@ func cloneValues(values url.Values) url.Values {
 	return result
 }
 
-func Test_ReadFiles(t *testing.T) {
+func Test_Binary(t *testing.T) {
 	mtime := time.Date(2014, 3, 4, 5, 42, 8, 0, time.UTC)
 
 	t.Run("Body", func(t *testing.T) {
@@ -159,7 +159,7 @@ func Test_ReadFiles(t *testing.T) {
 			formPart{field: "file", filename: "b.txt", value: "second"},
 		)
 		var paths []string
-		_, err := httprequest.ReadFiles(req, func(_ string, _ url.Values, file types.File) error {
+		_, err := httprequest.Binary(req, func(_ string, _ url.Values, file types.File) error {
 			paths = append(paths, file.Path)
 			return nil
 		})
@@ -172,7 +172,7 @@ func Test_ReadFiles(t *testing.T) {
 		failed := errors.New("failed")
 		req := formRequest(t, formPart{field: "file", filename: "a.txt"}, formPart{field: "file", filename: "b.txt"})
 		calls := 0
-		_, err := httprequest.ReadFiles(req, func(string, url.Values, types.File) error {
+		_, err := httprequest.Binary(req, func(string, url.Values, types.File) error {
 			calls++
 			return failed
 		})
@@ -205,7 +205,7 @@ func Test_ReadFiles(t *testing.T) {
 
 func Test_Read_FilePath(t *testing.T) {
 	// Read keeps a browser's folder path, and the modified time, as
-	// ReadFiles does
+	// Binary does
 	mtime := time.Date(2014, 3, 4, 5, 42, 8, 0, time.UTC)
 	var form struct {
 		File types.File `json:"file"`
