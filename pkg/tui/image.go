@@ -70,12 +70,12 @@ const (
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-// ImageFormatter returns a formatter which writes images to a terminal, to
+// Image returns a formatter which writes images to a terminal, to
 // fit its width and height, which are characters: as pixels, with the
 // graphics protocols of the terminals which have one, such as kitty's and
 // iTerm2's, or else as characters, two pixels to a character, in colour.
 // The protocol is chosen from the terminal's environment variables.
-func ImageFormatter(options ...Opt) *imageFormatter {
+func Image(options ...Opt) *imageFormatter {
 	var opts opts
 	for _, opt := range options {
 		if opt != nil {
