@@ -2,6 +2,7 @@ package types_test
 
 import (
 	json "encoding/json/v2"
+	"math"
 	"testing"
 	"time"
 
@@ -19,12 +20,24 @@ func Test_ParseDuration(t *testing.T) {
 		"0":                   0,
 		"-1s":                 -time.Second,
 		"9223372036854775807": time.Duration(1<<63 - 1),
+		"7d":                  7 * 24 * time.Hour,
+		"1w":                  7 * 24 * time.Hour,
+		"1w2d":                9 * 24 * time.Hour,
+		"1d12h":               36 * time.Hour,
+		"1.5d":                36 * time.Hour,
+		"-2d":                 -48 * time.Hour,
+		"1d30m15s":            24*time.Hour + 30*time.Minute + 15*time.Second,
+
+		// Every nanosecond is kept, up to the limits of a duration
+		"105d1ns":                     105*24*time.Hour + 1,
+		"106751d23h47m16.854775807s":  time.Duration(math.MaxInt64),
+		"-106751d23h47m16.854775808s": time.Duration(math.MinInt64),
 	} {
 		got, err := types.ParseDuration(value)
 		require.NoError(t, err, value)
 		assert.Equal(t, want, got, value)
 	}
-	for _, value := range []string{"", "soon", "1.5", "5 s"} {
+	for _, value := range []string{"", "soon", "1.5", "5 s", "d", "1x", "1d-12h", "12h1d", "1.2.3d", "1d12", "999999999w", "106751d23h47m16.854775808s", "-106751d23h47m16.854775809s"} {
 		_, err := types.ParseDuration(value)
 		assert.Error(t, err, value)
 	}

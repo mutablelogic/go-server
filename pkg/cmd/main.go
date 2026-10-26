@@ -2,18 +2,22 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"syscall"
+	"time"
 
 	// Packages
 	kong "github.com/alecthomas/kong"
 	server "github.com/mutablelogic/go-server"
 	logger "github.com/mutablelogic/go-server/pkg/logger"
 	otel "github.com/mutablelogic/go-server/pkg/otel"
+	types "github.com/mutablelogic/go-server/pkg/types"
 	otelslog "go.opentelemetry.io/contrib/bridges/otelslog"
 	term "golang.org/x/term"
 )
@@ -51,6 +55,7 @@ func Main[T any](cmds T, description, version string) error {
 		kong.ConfigureHelp(kong.HelpOptions{
 			Compact: true,
 		}),
+		kong.TypeMapper(reflect.TypeOf(time.Duration(0)), durationMapper()),
 	)
 
 	// Create logger
@@ -127,4 +132,31 @@ func TerminalWidth() int {
 		return 0
 	}
 	return width
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+// durationMapper parses a duration flag as types.ParseDuration does, so it
+// can have days and weeks, such as 7d, or be integer nanoseconds
+func durationMapper() kong.MapperFunc {
+	return func(ctx *kong.DecodeContext, target reflect.Value) error {
+		token, err := ctx.Scan.PopValue("duration")
+		if err != nil {
+			return err
+		}
+		var d time.Duration
+		switch v := token.Value.(type) {
+		case string:
+			if d, err = types.ParseDuration(v); err != nil {
+				return fmt.Errorf("expected duration but got %q: %w", v, err)
+			}
+		case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
+			d = reflect.ValueOf(v).Convert(reflect.TypeOf(time.Duration(0))).Interface().(time.Duration)
+		default:
+			return fmt.Errorf("expected duration but got %q", v)
+		}
+		target.Set(reflect.ValueOf(d))
+		return nil
+	}
 }

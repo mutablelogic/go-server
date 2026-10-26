@@ -5,6 +5,7 @@ import (
 	json "encoding/json/v2"
 	"errors"
 	"fmt"
+	"math/big"
 	"strconv"
 	"time"
 )
@@ -49,10 +50,66 @@ var DurationUnmarshalers = json.UnmarshalFromFunc(func(dec *jsontext.Decoder, d 
 // PUBLIC METHODS
 
 // ParseDuration parses a duration, which is integer nanoseconds, or a duration
-// string, such as "5s"
+// string, such as "5s", which can start with days and weeks, which are 24 and
+// 168 hours, such as "7d", "1w2d" or "1d12h"
 func ParseDuration(value string) (time.Duration, error) {
 	if n, err := strconv.ParseInt(value, 10, 64); err == nil {
 		return time.Duration(n), nil
 	}
-	return time.ParseDuration(value)
+
+	// The sign, and then the days and weeks, which are numbers, which can be
+	// fractions, followed by d or w. They're added as exact decimals, in
+	// nanoseconds, so none are lost.
+	s, negative := value, false
+	if s != "" && (s[0] == '-' || s[0] == '+') {
+		s, negative = s[1:], s[0] == '-'
+	}
+	total := new(big.Rat)
+	parsed := false
+	for {
+		i := 0
+		for i < len(s) && (s[i] >= '0' && s[i] <= '9' || s[i] == '.') {
+			i++
+		}
+		if i == 0 || i == len(s) || (s[i] != 'd' && s[i] != 'w') {
+			break
+		}
+		n, ok := new(big.Rat).SetString(s[:i])
+		if !ok {
+			return 0, fmt.Errorf("invalid duration %q", value)
+		}
+		unit := int64(24 * time.Hour)
+		if s[i] == 'w' {
+			unit *= 7
+		}
+		total.Add(total, n.Mul(n, new(big.Rat).SetInt64(unit)))
+		s, parsed = s[i+1:], true
+	}
+	if !parsed {
+		return time.ParseDuration(value)
+	}
+
+	// The rest, such as 12h, which has no sign of its own
+	var rest time.Duration
+	if s != "" {
+		if s[0] == '-' || s[0] == '+' {
+			return 0, fmt.Errorf("invalid duration %q", value)
+		}
+		var err error
+		if rest, err = time.ParseDuration(s); err != nil {
+			return 0, fmt.Errorf("invalid duration %q", value)
+		}
+	}
+	total.Add(total, new(big.Rat).SetInt64(int64(rest)))
+
+	// The nanoseconds, without the fraction of one, which must fit in a
+	// duration, which can be one more nanosecond negative than positive
+	ns := new(big.Int).Quo(total.Num(), total.Denom())
+	if negative {
+		ns.Neg(ns)
+	}
+	if !ns.IsInt64() {
+		return 0, fmt.Errorf("invalid duration %q: too long", value)
+	}
+	return time.Duration(ns.Int64()), nil
 }
