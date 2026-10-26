@@ -99,7 +99,11 @@ func Image(options ...Opt) *imageFormatter {
 // RENDER
 
 // Write writes the image to fit in the width and height, without making it
-// larger than it is, followed by a line break
+// larger than it is, followed by a line break. With a graphics protocol, an
+// image isn't larger than its pixels, in characters of the assumed size. As
+// characters, a pixel is at most half a character, which is the smallest
+// which can be drawn, so a small image is larger than it is with a graphics
+// protocol, rather than losing its detail.
 func (f *imageFormatter) Write(w io.Writer, img image.Image) (int, error) {
 	cw := &countingWriter{w: w}
 	err := f.write(cw, img)
@@ -124,7 +128,8 @@ func (f *imageFormatter) write(w io.Writer, img image.Image) error {
 		return writeITerm(w, data, c, r)
 	default:
 		// Two pixels to a character, which is twice as high as it's wide,
-		// so each pixel is square
+		// so each pixel is square, and the image isn't sampled with more
+		// pixels than it has
 		c, r := fit(bounds.Dx(), bounds.Dy(), f.width, f.height*2, 1, 1)
 		return writeBlocks(w, scale(img, c, r), f.protocol == imageBlocks256)
 	}
@@ -141,10 +146,11 @@ func (w *countingWriter) Write(p []byte) (int, error) {
 
 // detectImageProtocol returns the protocol of the terminal, from its
 // environment variables: kitty's or iTerm2's, which aren't used in tmux or
-// screen, as they don't pass them through, or else characters in 24-bit
-// colour, when the terminal has it, or in 256 colours
+// screen, as they don't pass them through, including in screen with another
+// terminal type, which STY shows, or else characters in 24-bit colour, when
+// the terminal has it, or in 256 colours
 func detectImageProtocol(getenv func(string) string) imageProtocol {
-	multiplexed := getenv("TMUX") != "" || strings.HasPrefix(getenv("TERM"), "screen") || strings.HasPrefix(getenv("TERM"), "tmux")
+	multiplexed := getenv("TMUX") != "" || getenv("STY") != "" || strings.HasPrefix(getenv("TERM"), "screen") || strings.HasPrefix(getenv("TERM"), "tmux")
 	switch {
 	case multiplexed:
 	case getenv("KITTY_WINDOW_ID") != "", getenv("TERM") == "xterm-kitty", getenv("TERM_PROGRAM") == "ghostty", getenv("TERM") == "xterm-ghostty":

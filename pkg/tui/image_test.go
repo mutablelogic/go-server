@@ -26,6 +26,7 @@ func TestImageProtocol(t *testing.T) {
 		{map[string]string{"TERM_PROGRAM": "iTerm.app"}, imageITerm},
 		{map[string]string{"LC_TERMINAL": "iTerm2"}, imageITerm},
 		{map[string]string{"TERM_PROGRAM": "iTerm.app", "TMUX": "/tmp/tmux", "COLORTERM": "truecolor"}, imageBlocks},
+		{map[string]string{"TERM": "xterm-256color", "KITTY_WINDOW_ID": "1", "STY": "1234.pts-0.host"}, imageBlocks256},
 		{map[string]string{"TERM_PROGRAM": "Apple_Terminal", "TERM": "xterm-256color"}, imageBlocks256},
 		{map[string]string{"TERM_PROGRAM": "vscode", "COLORTERM": "truecolor"}, imageBlocks},
 	} {
@@ -61,6 +62,25 @@ func TestImageBlocks(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "\x1b[48;2;0;0;255m\x1b[38;2;255;0;0m▀\x1b[49m\x1b[38;2;0;255;0m▄\x1b[0m\n", b.String())
 	assert.Equal(t, b.Len(), n)
+}
+
+func TestImageBlocksSize(t *testing.T) {
+	// As characters, a pixel is at most half a character, so a small image
+	// is drawn with a character for every two of its pixels, and a large one
+	// fits in the width and height
+	for _, test := range []struct {
+		width, height, wantLines, wantCols int
+	}{
+		{16, 32, 16, 16},
+		{1000, 500, 10, 40},
+	} {
+		var b strings.Builder
+		_, err := (&imageFormatter{width: 40, height: 24, protocol: imageBlocks256}).Write(&b, image.NewNRGBA(image.Rect(0, 0, test.width, test.height)))
+		require.NoError(t, err)
+		lines := strings.Split(strings.TrimSuffix(b.String(), "\n"), "\n")
+		assert.Len(t, lines, test.wantLines, "%dx%d", test.width, test.height)
+		assert.Equal(t, test.wantCols, strings.Count(lines[0], " "), "%dx%d", test.width, test.height)
+	}
 }
 
 func TestImage256(t *testing.T) {
