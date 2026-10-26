@@ -5,7 +5,7 @@ import (
 	json "encoding/json/v2"
 	"errors"
 	"fmt"
-	"math"
+	"math/big"
 	"strconv"
 	"time"
 )
@@ -58,12 +58,13 @@ func ParseDuration(value string) (time.Duration, error) {
 	}
 
 	// The sign, and then the days and weeks, which are numbers, which can be
-	// fractions, followed by d or w
+	// fractions, followed by d or w. They're added as exact decimals, in
+	// nanoseconds, so none are lost.
 	s, negative := value, false
 	if s != "" && (s[0] == '-' || s[0] == '+') {
 		s, negative = s[1:], s[0] == '-'
 	}
-	var days float64
+	total := new(big.Rat)
 	parsed := false
 	for {
 		i := 0
@@ -73,14 +74,16 @@ func ParseDuration(value string) (time.Duration, error) {
 		if i == 0 || i == len(s) || (s[i] != 'd' && s[i] != 'w') {
 			break
 		}
-		n, err := strconv.ParseFloat(s[:i], 64)
-		if err != nil {
+		n, ok := new(big.Rat).SetString(s[:i])
+		if !ok {
 			return 0, fmt.Errorf("invalid duration %q", value)
 		}
+		unit := int64(24 * time.Hour)
 		if s[i] == 'w' {
-			n *= 7
+			unit *= 7
 		}
-		days, s, parsed = days+n, s[i+1:], true
+		total.Add(total, n.Mul(n, new(big.Rat).SetInt64(unit)))
+		s, parsed = s[i+1:], true
 	}
 	if !parsed {
 		return time.ParseDuration(value)
@@ -97,12 +100,16 @@ func ParseDuration(value string) (time.Duration, error) {
 			return 0, fmt.Errorf("invalid duration %q", value)
 		}
 	}
-	total := days*float64(24*time.Hour) + float64(rest)
-	if total > float64(math.MaxInt64) {
+	total.Add(total, new(big.Rat).SetInt64(int64(rest)))
+
+	// The nanoseconds, without the fraction of one, which must fit in a
+	// duration, which can be one more nanosecond negative than positive
+	ns := new(big.Int).Quo(total.Num(), total.Denom())
+	if negative {
+		ns.Neg(ns)
+	}
+	if !ns.IsInt64() {
 		return 0, fmt.Errorf("invalid duration %q: too long", value)
 	}
-	if negative {
-		return -time.Duration(total), nil
-	}
-	return time.Duration(total), nil
+	return time.Duration(ns.Int64()), nil
 }
