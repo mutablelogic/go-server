@@ -19,12 +19,19 @@ func Test_ParseDuration(t *testing.T) {
 		"0":                   0,
 		"-1s":                 -time.Second,
 		"9223372036854775807": time.Duration(1<<63 - 1),
+		"7d":                  7 * 24 * time.Hour,
+		"1w":                  7 * 24 * time.Hour,
+		"1w2d":                9 * 24 * time.Hour,
+		"1d12h":               36 * time.Hour,
+		"1.5d":                36 * time.Hour,
+		"-2d":                 -48 * time.Hour,
+		"1d30m15s":            24*time.Hour + 30*time.Minute + 15*time.Second,
 	} {
 		got, err := types.ParseDuration(value)
 		require.NoError(t, err, value)
 		assert.Equal(t, want, got, value)
 	}
-	for _, value := range []string{"", "soon", "1.5", "5 s"} {
+	for _, value := range []string{"", "soon", "1.5", "5 s", "d", "1x", "1d-12h", "12h1d", "1.2.3d", "1d12", "999999999w"} {
 		_, err := types.ParseDuration(value)
 		assert.Error(t, err, value)
 	}
