@@ -86,7 +86,23 @@ func Test_Read_TextPlain_UnsupportedType(t *testing.T) {
 	r.Header.Set("Content-Type", "text/plain")
 	var i int
 	err := httprequest.Read(r, &i)
-	assert.Error(err)
+	assert.ErrorIs(err, httpresponse.ErrBadRequest)
+}
+
+func Test_Read_TextPlain_Struct(t *testing.T) {
+	assert := assert.New(t)
+
+	// A text body read into a struct, as for a JSON body, is a bad request
+	type payload struct {
+		Name string `json:"name"`
+	}
+	body := strings.NewReader(`{"name":"test"}`)
+	r, _ := http.NewRequest(http.MethodPost, "/", body)
+	r.Header.Set("Content-Type", "text/plain")
+	var p payload
+	err := httprequest.Read(r, &p)
+	assert.ErrorIs(err, httpresponse.ErrBadRequest)
+	assert.Zero(p)
 }
 
 func Test_Read_NoContentType(t *testing.T) {

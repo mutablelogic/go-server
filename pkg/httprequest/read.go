@@ -84,7 +84,9 @@ func readString(r *http.Request, v any) error {
 		*v = string(data)
 		return nil
 	default:
-		return httpresponse.ErrInternalError.Withf("cannot read %T as string", v)
+		// The body is text, but the handler reads it into another type, such
+		// as a struct for a JSON body, so the content type is unexpected
+		return errBadRequest.Withf("unexpected content type %q", types.ContentTypeTextPlain)
 	}
 }
 
