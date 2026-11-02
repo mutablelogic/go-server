@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -144,5 +145,13 @@ func attrs(attrs []slog.Attr, r slog.Record) ([]byte, error) {
 		return true
 	})
 
-	return json.Marshal(kv)
+	// Encode them without escaping HTML, so values such as URLs are as they
+	// are, without the trailing newline
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(kv); err != nil {
+		return nil, err
+	}
+	return bytes.TrimSuffix(buf.Bytes(), []byte("\n")), nil
 }
