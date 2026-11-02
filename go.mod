@@ -9,7 +9,7 @@ require (
 	github.com/charmbracelet/x/term v0.2.2
 	github.com/google/jsonschema-go v0.4.3
 	github.com/google/uuid v1.6.0
-	github.com/mutablelogic/go-client v1.4.12
+	github.com/mutablelogic/go-client v1.4.13
 	github.com/mutablelogic/go-tokenizer v0.0.3
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
 	github.com/stretchr/testify v1.12.1
