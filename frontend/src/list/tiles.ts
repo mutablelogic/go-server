@@ -111,14 +111,18 @@ export class TilesElement<T = unknown> extends LitElement {
             font-size: 0.75rem;
         }
 
-        /* The name shrinks after the badge, so a long badge, such as an
-           owner, is cut short before it is */
         .name {
-            flex: 0 0 auto;
-            max-width: 70%;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
+        }
+
+        /* Beside a badge, the name shrinks after it, so a long badge, such
+           as an owner, is cut short before it is. A name without one has the
+           label's width. */
+        .label.badged .name {
+            flex: 0 0 auto;
+            max-width: 70%;
         }
 
         .label cds-tag {
@@ -214,7 +218,7 @@ export class TilesElement<T = unknown> extends LitElement {
         return html`
             <button type="button" aria-pressed=${pressed ? 'true' : 'false'} title=${tile.title ?? nothing}
                 @click=${() => !pressed && this.dispatchEvent(new CustomEvent(TileSelectEvent, { detail: tile.value, bubbles: true, composed: true }))}>
-                <span class="label">
+                <span class="label ${tile.badge ? 'badged' : ''}">
                     <span class="name">${tile.label}</span>
                     ${tile.badge ? html`
                         <cds-tag size="sm" type=${pressed ? 'blue' : 'cool-gray'} title=${tile.badgeTitle ?? nothing}>
