@@ -131,11 +131,11 @@ func Test_Broadcaster(t *testing.T) {
 		_, err = b.Watch(ctx, schema.ChangeFilter{}, ch)
 		assert.ErrorIs(t, err, httpresponse.ErrServiceUnavailable)
 
-		// And it's started, so it's watched at once, and runs again, until
-		// it's stopped, which is waited for, so it doesn't outlast the test
-		b.Start()
+		// And it runs again, so it's watched once it's running, until it's
+		// stopped, which is waited for, so it doesn't outlast the test
 		runCtx, stop = context.WithCancel(ctx)
 		go func() { running <- b.Run(runCtx) }()
+		require.Eventually(t, b.Running, time.Second, time.Millisecond)
 		done, err = b.Watch(ctx, schema.ChangeFilter{}, make(chan schema.Change))
 		require.NoError(t, err)
 		stop()
@@ -143,23 +143,20 @@ func Test_Broadcaster(t *testing.T) {
 		assert.ErrorIs(t, <-done, httpresponse.ErrServiceUnavailable)
 	})
 
-	t.Run("Start", func(t *testing.T) {
-		// A broadcaster which has stopped is watched once it's started,
-		// before it runs, and a new one is watched before it's started
+	t.Run("Running", func(t *testing.T) {
+		// A broadcaster which has never run is watched, but isn't running,
+		// and it's running while it runs, and not once it has stopped
 		b := broadcaster.New()
+		assert.False(t, b.Running())
 		_, err := b.Watch(ctx, schema.ChangeFilter{}, make(chan schema.Change))
 		require.NoError(t, err)
 		runCtx, stop := context.WithCancel(ctx)
+		running := make(chan error)
+		go func() { running <- b.Run(runCtx) }()
+		require.Eventually(t, b.Running, time.Second, time.Millisecond)
 		stop()
-		require.NoError(t, b.Run(runCtx))
-		_, err = b.Watch(ctx, schema.ChangeFilter{}, make(chan schema.Change))
-		assert.ErrorIs(t, err, httpresponse.ErrServiceUnavailable)
-		b.Start()
-		watchCtx, cancel := context.WithCancel(ctx)
-		done, err := b.Watch(watchCtx, schema.ChangeFilter{}, make(chan schema.Change))
-		require.NoError(t, err)
-		cancel()
-		assert.NoError(t, <-done)
+		require.NoError(t, <-running)
+		assert.False(t, b.Running())
 	})
 
 	t.Run("Full", func(t *testing.T) {

@@ -6,6 +6,7 @@ package broadcaster
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 
 	// Packages
 	schema "github.com/mutablelogic/go-server/broadcaster/schema"
@@ -20,6 +21,7 @@ import (
 type Broadcaster struct {
 	mu       sync.Mutex
 	stopped  bool
+	running  atomic.Bool
 	channels map[chan<- schema.Change]*watch
 }
 
@@ -51,24 +53,21 @@ func New() *Broadcaster {
 // when the server is stopping, and it isn't watched again until it runs
 // again. It returns nil.
 func (b *Broadcaster) Run(ctx context.Context) error {
-	b.Start()
+	b.mu.Lock()
+	b.stopped = false
+	b.running.Store(true)
+	b.mu.Unlock()
 	<-ctx.Done()
 	b.stop()
 	return nil
 }
 
-// Start makes a broadcaster which has stopped running watched again, before
-// it runs, so a watch made once Start returns isn't refused, as it would be
-// while Run is still starting, such as in a goroutine. Run starts it too, so
-// it's only needed by a caller which watches it as soon as it has started
-// it, such as with:
-//
-//	b.Start()
-//	go b.Run(ctx)
-func (b *Broadcaster) Start() {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	b.stopped = false
+// Running reports whether the broadcaster is running, so it's watched, such
+// as once Run, which is started in a goroutine, has started, and until it
+// stops. A broadcaster which has stopped isn't watched until it's running
+// again. One which has never run is watched, but isn't running.
+func (b *Broadcaster) Running() bool {
+	return b.running.Load()
 }
 
 // Watch sends the changes which are published, and match the filter, to the
@@ -160,6 +159,7 @@ func (b *Broadcaster) stop() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.stopped = true
+	b.running.Store(false)
 	for ch, w := range b.channels {
 		close(w.stop)
 		delete(b.channels, ch)
