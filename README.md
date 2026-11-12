@@ -11,6 +11,7 @@ go get github.com/mutablelogic/go-server
 | Package | Description |
 | ------- | ----------- |
 | [`broadcaster`](broadcaster) | Publishes changes, such as to the rows of a server's tables, and streams them to clients at `/changes`, with a client and a `changes` command |
+| [`test`](test) | A HTTP test server of an API, which checks every request and response against its OpenAPI specification |
 | [`pkg/cmd`](pkg/cmd) | Command-line applications, with a server command, global flags and defaults which are kept between commands |
 | [`pkg/httpserver`](pkg/httpserver) | The HTTP server, with its timeouts |
 | [`pkg/httprouter`](pkg/httprouter) | The router, with cross-origin requests, and an OpenAPI specification of its paths |

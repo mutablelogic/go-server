@@ -13,7 +13,7 @@ import (
 	httpclient "github.com/mutablelogic/go-server/broadcaster/httpclient"
 	httphandler "github.com/mutablelogic/go-server/broadcaster/httphandler"
 	schema "github.com/mutablelogic/go-server/broadcaster/schema"
-	test "github.com/mutablelogic/go-server/broadcaster/test"
+	test "github.com/mutablelogic/go-server/test"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	httprouter "github.com/mutablelogic/go-server/pkg/httprouter"
 	assert "github.com/stretchr/testify/assert"
@@ -25,7 +25,7 @@ import (
 func newClient(t *testing.T) (*httpclient.Client, *broadcaster.Broadcaster) {
 	t.Helper()
 	b := broadcaster.New()
-	server := test.NewServerFunc(t, func(router *httprouter.Router) error {
+	server := test.NewServer(t, func(router *httprouter.Router) error {
 		return httphandler.RegisterHandlers(b, router)
 	})
 	client, err := httpclient.New(server.URL + test.Prefix)

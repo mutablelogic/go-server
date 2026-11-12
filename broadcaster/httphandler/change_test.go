@@ -13,7 +13,7 @@ import (
 	broadcaster "github.com/mutablelogic/go-server/broadcaster"
 	httphandler "github.com/mutablelogic/go-server/broadcaster/httphandler"
 	schema "github.com/mutablelogic/go-server/broadcaster/schema"
-	test "github.com/mutablelogic/go-server/broadcaster/test"
+	test "github.com/mutablelogic/go-server/test"
 	httprouter "github.com/mutablelogic/go-server/pkg/httprouter"
 	types "github.com/mutablelogic/go-server/pkg/types"
 	assert "github.com/stretchr/testify/assert"
@@ -29,7 +29,7 @@ type streamed struct {
 // newServer returns a test server of the broadcaster's API
 func newServer(t *testing.T, b *broadcaster.Broadcaster) *test.Server {
 	t.Helper()
-	return test.NewServerFunc(t, func(router *httprouter.Router) error {
+	return test.NewServer(t, func(router *httprouter.Router) error {
 		return httphandler.RegisterHandlers(b, router)
 	})
 }
