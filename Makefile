@@ -66,17 +66,17 @@ vet: go-dep
 .PHONY: unit-test
 unit-test: go-dep
 	@echo Unit Tests
-	@${GO} test ${VERBOSE_FLAG} ./pkg/...
+	@${GO} test ${VERBOSE_FLAG} ./...
 
 .PHONY: race-test
 race-test: go-dep
 	@echo Race Tests
-	@${GO} test -race ${VERBOSE_FLAG} ./pkg/...
+	@${GO} test -race ${VERBOSE_FLAG} ./...
 
 .PHONY: coverage-test
 coverage-test: go-dep mkdir
 	@echo Test Coverage
-	@${GO} test -coverprofile ${BUILD_DIR}/coverprofile.out ./pkg/...
+	@${GO} test -coverprofile ${BUILD_DIR}/coverprofile.out ./...
 
 ###############################################################################
 # CLEAN
