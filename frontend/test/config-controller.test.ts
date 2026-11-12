@@ -60,6 +60,24 @@ test('ConfigController', async (t) => {
         notifications.clear();
     });
 
+    await t.test('config', async () => {
+        // A configuration the page has read is up, and isn't read again when
+        // the server is connected
+        const server = fakeServer();
+        let reads = 0;
+        const fetch = (async () => {
+            reads++;
+            return new Response(JSON.stringify(v1), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }) as typeof globalThis.fetch;
+        const config = new ConfigController(server, { config: v1, fetch });
+        assert.equal(config.status, 'up');
+        assert.deepEqual(config.config, v1);
+        server.fire('connect');
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        assert.equal(config.status, 'up');
+        assert.equal(reads, 0);
+    });
+
     await t.test('upgraded', async () => {
         // A server which is up again, with another version, was upgraded,
         // which is said, with an action which refreshes the page
@@ -81,6 +99,23 @@ test('ConfigController', async (t) => {
         assert.equal(upgraded.timeout, null);
         upgraded.action.run();
         assert.equal(reloads, 1);
+        notifications.clear();
+    });
+
+    await t.test('rebuilt', async () => {
+        // A server which is up again, with the same version, but built again,
+        // was upgraded, which says it's been rebuilt
+        const server = fakeServer();
+        const notifications = new NotificationController();
+        const built = { ...v1, build: '2026-11-12T18:00:00Z' };
+        const rebuilt = { ...v1, build: '2026-11-12T19:00:00Z' };
+        const config = new ConfigController(server, { fetch: fakeConfig(built, rebuilt), notifications });
+        await config.load();
+        server.fire('disconnect');
+        server.fire('connect');
+        await waitFor(() => config.status === 'upgraded');
+        const upgraded = notifications.notifications.find((n) => n.title === 'The server was upgraded');
+        assert.equal(upgraded?.subtitle, "It's been rebuilt. Refresh the page to use it.");
         notifications.clear();
     });
 

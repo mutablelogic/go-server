@@ -18,7 +18,7 @@ import (
 func Test_RegisterHandler(t *testing.T) {
 	// The configuration is served at /config.json, beside the API rather than
 	// beneath its prefix, and conforms to its documentation
-	want := config.Config{Prefix: "/api", Name: "server", Version: "1.2.3", OpenAPI: "/api/openapi.html", Endpoint: "https://example.com/api"}
+	want := config.Config{Prefix: "/api", Name: "server", Version: "1.2.3", Build: "2026-11-12T18:00:00Z", OpenAPI: "/api/openapi.html", Endpoint: "https://example.com/api"}
 	server := test.NewServer(t, func(router *httprouter.Router) error {
 		return config.RegisterHandler(router, want)
 	})
