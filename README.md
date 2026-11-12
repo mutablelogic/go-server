@@ -11,7 +11,8 @@ go get github.com/mutablelogic/go-server
 | Package | Description |
 | ------- | ----------- |
 | [`broadcaster`](broadcaster) | Publishes changes, such as to the rows of a server's tables, and streams them to clients at `/changes`, with a client and a `changes` command |
-| [`frontend`](frontend) | The `@mutablelogic/go-server` TypeScript package, of the broadcaster's changes, for the frontends of servers built on go-server |
+| [`config`](config) | Serves the server's configuration at `/config.json`, for its frontend: its API's prefix, its name, its version, its documentation, and its public endpoint |
+| [`frontend`](frontend) | The `@mutablelogic/go-server` TypeScript package, of the configuration and the broadcaster's changes, for the frontends of servers built on go-server |
 | [`test`](test) | A HTTP test server of an API, which checks every request and response against its OpenAPI specification |
 | [`pkg/cmd`](pkg/cmd) | Command-line applications, with a server command, global flags and defaults which are kept between commands |
 | [`pkg/httpserver`](pkg/httpserver) | The HTTP server, with its timeouts |

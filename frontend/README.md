@@ -9,6 +9,7 @@ TypeScript clients of go-server's APIs, for the frontends of servers built on it
 |---|---|
 | `@mutablelogic/go-server/api` | `requestStream`, which reads a stream of server-sent events, `ApiError`, and `Client`, which is where an API is |
 | `@mutablelogic/go-server/broadcaster` | The broadcaster's `Change` schema, `watchChanges`, and `ChangesController`, which other controllers subscribe to |
+| `@mutablelogic/go-server/config` | `getConfig`, which reads the server's `/config.json`, and `configClient`, which is the client of the API it says is at its prefix |
 
 ## Installing
 
@@ -28,6 +29,21 @@ The package is on GitHub Packages, which needs a token with `read:packages` to i
     ```
 
 Locally, `GITHUB_TOKEN` can be `$(gh auth token)`. In GitHub Actions, it's the workflow's `GITHUB_TOKEN`, with `packages: read`. A Docker build which runs `npm ci` needs it as a build secret.
+
+## Finding the API
+
+A server with go-server's `config` package serves `/config.json`, which says where its API is, so a frontend doesn't assume its prefix:
+
+```ts
+import { configClient, getConfig } from '@mutablelogic/go-server/config';
+import { ChangesController } from '@mutablelogic/go-server/broadcaster';
+
+// { prefix: '/api', name: 'server', version: 'v1.7.21', openapi: '/api/openapi.html' }
+const config = await getConfig();
+const changes = new ChangesController(configClient(config));
+```
+
+`getConfig` reads `config.json` beside the page, without the cache, so a page sees a server which was updated. Its `endpoint` is the server's public URL, such as `https://example.com/api`, when it was given its public name.
 
 ## Watching changes
 
