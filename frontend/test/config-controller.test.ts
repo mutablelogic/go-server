@@ -64,12 +64,18 @@ test('ConfigController', async (t) => {
         // A configuration the page has read is up, and isn't read again when
         // the server is connected
         const server = fakeServer();
-        const config = new ConfigController(server, { config: v1, fetch: fakeConfig() });
+        let reads = 0;
+        const fetch = (async () => {
+            reads++;
+            return new Response(JSON.stringify(v1), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }) as typeof globalThis.fetch;
+        const config = new ConfigController(server, { config: v1, fetch });
         assert.equal(config.status, 'up');
         assert.deepEqual(config.config, v1);
         server.fire('connect');
         await new Promise((resolve) => setTimeout(resolve, 10));
         assert.equal(config.status, 'up');
+        assert.equal(reads, 0);
     });
 
     await t.test('upgraded', async () => {

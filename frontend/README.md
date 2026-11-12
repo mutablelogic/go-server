@@ -66,7 +66,7 @@ A `ConfigController` follows the server with the `ChangesController`. Its status
 | `down` | when the server says it's stopping, or the changes can't be watched |
 | `upgraded` | when the server is back, with another version than the page's, or the same version built again, until the page is refreshed |
 
-A server says when it was built, as `build`, from `pkg/version`'s `BuildDate`, which its Makefile sets with `-ldflags "-X github.com/mutablelogic/go-server/pkg/version.BuildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)"`. Without it, a server rebuilt with the same version, such as while it's developed, isn't known to be upgraded.
+A server says when it was built, as `build`, from `pkg/version`'s `BuildDate`, which its Makefile sets with `-ldflags "-X github.com/mutablelogic/go-server/pkg/version.BuildDate=$(shell date -u +%Y-%m-%dT%H:%M:%SZ)"`, as go-server's own does. Without it, a server rebuilt with the same version, such as while it's developed, isn't known to be upgraded.
 
 With a `NotificationController`, it says when the server is down, until it's back, that it's back, and that it was upgraded, with a Refresh action, which reloads the page. `gs-server-status` shows the same, for a sidebar:
 
