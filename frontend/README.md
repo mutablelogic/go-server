@@ -257,7 +257,7 @@ roles.subscribe(({ selected }) => selected && panel.open(selected));
 - **Sorting:** `setSort({ key, direction })` loads the first page, and `list` gets the sort. A column with a `sort` key sorts the list when its header is clicked, descending first unless its `sortFirst` is ascending. Carbon's own sorting, which only sorts the page, is turned off.
 - **Another list:** `reset` loads the first page, showing the views loading, and closes the open item, such as when a filter which `list` reads changes.
 - **The open item:** `open` and `close`. It's kept current as the page loads, or loaded with `get` when it's left the page, and closed when it's gone (a 404).
-- **Tiles:** `gs-tiles` shows a list as tiles, with a `tile` function, and an `all` tile before them. It fires `gs-tile-select` with the value of a tile which is clicked, and the app sets `selected`.
+- **Tiles:** `gs-tiles` shows a list as tiles, with a `tile` function, and an `all` tile before them. It fires `gs-tile-select` with the value of a tile which is clicked, and the app sets `selected`. A tile's `badge`, such as an owner, can have a `badgeIcon`, such as Carbon's 16px user icon, which is shown at 12px, and a `badgeTitle`, such as Owner, which is shown when it's hovered, and read by screen readers.
 
 ## Routing
 

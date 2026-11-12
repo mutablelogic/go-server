@@ -14,12 +14,16 @@ import '@carbon/web-components/es/components/skeleton-placeholder/index.js';
 import '@carbon/web-components/es/components/tag/tag.js';
 
 // Tile is an item's tile: its value, which is chosen, its label, a badge
-// beside it, such as its owner, its text, such as its size, which is
+// beside it, such as its owner, with an icon in it, such as a person, and
+// what the badge is, such as Owner, which is shown when it's hovered, and
+// said to assistive technology, its text, such as its size, which is
 // prominent, and what it is, which is shown when it's hovered
 export interface Tile {
     value: string;
     label: string;
     badge?: string;
+    badgeIcon?: unknown;
+    badgeTitle?: string;
     text?: string;
     title?: string;
 }
@@ -107,14 +111,44 @@ export class TilesElement<T = unknown> extends LitElement {
             font-size: 0.75rem;
         }
 
+        /* The name shrinks after the badge, so a long badge, such as an
+           owner, is cut short before it is */
         .name {
+            flex: 0 0 auto;
+            max-width: 70%;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
         }
 
         .label cds-tag {
+            flex: 0 1 auto;
+            min-width: 0;
             margin: 0;
+        }
+
+        /* A badge's icon, before its text, as a small tag has no icon of
+           its own, which is a rendered icon, such as Carbon's 16px one,
+           shown at 12px */
+        .badge-icon {
+            display: inline-flex;
+            margin-right: 0.125rem;
+            vertical-align: -2px;
+        }
+
+        .badge-icon svg {
+            width: 12px;
+            height: 12px;
+            fill: currentColor;
+        }
+
+        .visually-hidden {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+            clip: rect(0 0 0 0);
+            white-space: nowrap;
         }
 
         .text {
@@ -182,7 +216,11 @@ export class TilesElement<T = unknown> extends LitElement {
                 @click=${() => !pressed && this.dispatchEvent(new CustomEvent(TileSelectEvent, { detail: tile.value, bubbles: true, composed: true }))}>
                 <span class="label">
                     <span class="name">${tile.label}</span>
-                    ${tile.badge ? html`<cds-tag size="sm" type=${pressed ? 'blue' : 'cool-gray'}>${tile.badge}</cds-tag>` : nothing}
+                    ${tile.badge ? html`
+                        <cds-tag size="sm" type=${pressed ? 'blue' : 'cool-gray'} title=${tile.badgeTitle ?? nothing}>
+                            ${tile.badgeIcon ? html`<span class="badge-icon" aria-hidden="true">${tile.badgeIcon}</span>` : nothing}${tile.badgeTitle ? html`<span class="visually-hidden">${tile.badgeTitle}: </span>` : nothing}${tile.badge}
+                        </cds-tag>
+                    ` : nothing}
                 </span>
                 <span class="text ${tile.text ? '' : 'empty'}">${tile.text || '–'}</span>
             </button>
