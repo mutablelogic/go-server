@@ -14,7 +14,8 @@ Changes are streamed to a client as they happen, such as to the rows of the serv
 Watch the changes, as a stream of server-sent events, until the client closes the connection.
 
 - Each change is a `change` event, whose data is the change, as JSON, such as `{"action":"create","schema":"llm","table":"provider","row":"ollama"}`.
+- With `schema`, `table` or `action`, only the changes with them are streamed, such as `?table=session&action=update`. Each matches any when it's left out.
 - The stream is watching once it has started, so a client which then loads what it shows misses no changes.
 - When the server is stopping, a `shutdown` event is sent, and the stream ends, as there will be no more changes.
 - A client which doesn't read its changes has up to 16 kept for it, and misses those after them.
-- Returns 406 if the client doesn't accept `text/event-stream`, or 503 if the server is stopping.
+- Returns 400 if the action isn't `create`, `update` or `delete`, 406 if the client doesn't accept `text/event-stream`, or 503 if the server is stopping.

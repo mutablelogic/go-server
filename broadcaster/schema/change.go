@@ -4,6 +4,7 @@ package schema
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 
 	// Packages
 	types "github.com/mutablelogic/go-server/pkg/types"
@@ -26,6 +27,14 @@ type Change struct {
 
 // ChangeAction is how something changed: it was created, updated or deleted
 type ChangeAction string
+
+// ChangeFilter matches changes: those of its schema, table and action, each
+// of which matches any when it's empty
+type ChangeFilter struct {
+	Schema string       `json:"schema,omitempty" name:"schema" help:"Only the changes of the schema" optional:""`
+	Table  string       `json:"table,omitempty" name:"table" help:"Only the changes of the table" optional:""`
+	Action ChangeAction `json:"action,omitempty" name:"action" help:"Only the changes with the action: create, update or delete" optional:""`
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // GLOBALS
@@ -55,6 +64,47 @@ func (a ChangeAction) String() string {
 	return string(a)
 }
 
+func (f ChangeFilter) String() string {
+	return types.Stringify(f)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS
+
+// Validate returns an error when the filter's action, when it has one,
+// isn't one of the actions
+func (f ChangeFilter) Validate() error {
+	switch f.Action {
+	case "", ChangeCreate, ChangeUpdate, ChangeDelete:
+		return nil
+	default:
+		return fmt.Errorf("unknown change action: %q", f.Action)
+	}
+}
+
+// Matches returns true when the change has the filter's schema, table and
+// action, each of which matches any when it's empty
+func (f ChangeFilter) Matches(change Change) bool {
+	return (f.Schema == "" || f.Schema == change.Schema) &&
+		(f.Table == "" || f.Table == change.Table) &&
+		(f.Action == "" || f.Action == change.Action)
+}
+
+// Query returns the filter as the query of a request to watch changes
+func (f ChangeFilter) Query() url.Values {
+	values := url.Values{}
+	if f.Schema != "" {
+		values.Set("schema", f.Schema)
+	}
+	if f.Table != "" {
+		values.Set("table", f.Table)
+	}
+	if f.Action != "" {
+		values.Set("action", string(f.Action))
+	}
+	return values
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // JSONIFY
 
@@ -64,11 +114,17 @@ func (a *ChangeAction) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &s); err != nil {
 		return err
 	}
-	switch action := ChangeAction(s); action {
+	return a.UnmarshalText([]byte(s))
+}
+
+// UnmarshalText decodes an action, such as of a flag, or a query, which must
+// be one of the actions
+func (a *ChangeAction) UnmarshalText(data []byte) error {
+	switch action := ChangeAction(data); action {
 	case ChangeCreate, ChangeUpdate, ChangeDelete:
 		*a = action
 	default:
-		return fmt.Errorf("unknown change action: %q", s)
+		return fmt.Errorf("unknown change action: %q", string(data))
 	}
 	return nil
 }

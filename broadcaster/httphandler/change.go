@@ -12,6 +12,7 @@ import (
 	httprequest "github.com/mutablelogic/go-server/pkg/httprequest"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	httprouter "github.com/mutablelogic/go-server/pkg/httprouter"
+	jsonschema "github.com/mutablelogic/go-server/pkg/jsonschema"
 	openapi "github.com/mutablelogic/go-server/pkg/openapi"
 	types "github.com/mutablelogic/go-server/pkg/types"
 )
@@ -39,8 +40,9 @@ func changeHandlers(b *broadcaster.Broadcaster, router *httprouter.Router, docum
 		path.Get(changeWatchHandler(b), func(op httprequest.PathOperation) {
 			op.Summary("Watch Changes")
 			op.Description(documentation.Section(3, "GET /changes").Body)
+			op.Query(jsonschema.MustFor[schema.ChangeFilter]())
 			op.TextStreamResponse(http.StatusOK)
-			op.ErrorResponse(http.StatusBadRequest, "Invalid request")
+			op.ErrorResponse(http.StatusBadRequest, "Invalid request, such as an unknown action")
 			op.ErrorResponse(http.StatusNotAcceptable, "The response can't be any of the accepted types")
 			op.ErrorResponse(http.StatusServiceUnavailable, "The server is stopping")
 		})
@@ -61,6 +63,13 @@ func changeWatchHandler(b *broadcaster.Broadcaster) http.HandlerFunc {
 			return
 		}
 
+		// The changes which are streamed
+		var filter schema.ChangeFilter
+		if err := httprequest.Query(r.URL.Query(), &filter); err != nil {
+			httpresponse.Error(w, badRequest(err))
+			return
+		}
+
 		// Watch the broadcaster, until the client goes away, before the stream
 		// starts, so a client which loads what it shows once the stream has
 		// started misses no changes
@@ -71,7 +80,7 @@ func changeWatchHandler(b *broadcaster.Broadcaster) http.HandlerFunc {
 		// The server is stopping when the broadcaster has stopped, so the
 		// client isn't streamed to, and its connection is closed, so the
 		// server isn't kept waiting for it
-		done, err := b.Watch(ctx, ch)
+		done, err := b.Watch(ctx, filter, ch)
 		if err != nil {
 			if errors.Is(err, httpresponse.ErrServiceUnavailable) {
 				w.Header().Set("Connection", "close")
@@ -119,4 +128,14 @@ func changeWatchHandler(b *broadcaster.Broadcaster) http.HandlerFunc {
 			}
 		}
 	}
+}
+
+// badRequest returns the error as a bad request, unless it has its status
+// already, such as an error of a query
+func badRequest(err error) error {
+	var status httpresponse.Err
+	if errors.As(err, &status) {
+		return err
+	}
+	return httpresponse.ErrBadRequest.With(err.Error())
 }

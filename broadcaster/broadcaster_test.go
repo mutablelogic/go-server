@@ -19,7 +19,7 @@ func watch(t *testing.T, b *broadcaster.Broadcaster) chan schema.Change {
 	t.Helper()
 	ch := make(chan schema.Change, 16)
 	ctx, cancel := context.WithCancel(context.Background())
-	done, err := b.Watch(ctx, ch)
+	done, err := b.Watch(ctx, schema.ChangeFilter{}, ch)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		cancel()
@@ -56,16 +56,44 @@ func Test_Broadcaster(t *testing.T) {
 		assert.Equal(t, []schema.Change{created, deleted}, events(c))
 	})
 
+	t.Run("Filter", func(t *testing.T) {
+		// A watcher is sent the changes which match its filter, and
+		// Publish returns how many watchers missed a change, as their
+		// channels were full
+		b := broadcaster.New()
+		all := watch(t, b)
+		providers := make(chan schema.Change, 1)
+		watchCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		_, err := b.Watch(watchCtx, schema.ChangeFilter{Table: "provider", Action: schema.ChangeDelete}, providers)
+		require.NoError(t, err)
+
+		assert.Zero(t, b.Publish(created))
+		assert.Zero(t, b.Publish(deleted))
+		assert.Equal(t, []schema.Change{created, deleted}, events(all))
+		assert.Equal(t, []schema.Change{deleted}, events(providers))
+
+		// The filtered channel holds one change, so the second is missed
+		assert.Zero(t, b.Publish(deleted))
+		assert.Equal(t, 1, b.Publish(deleted))
+		events(all)
+		events(providers)
+
+		// An unknown action isn't a filter
+		_, err = b.Watch(watchCtx, schema.ChangeFilter{Action: "INSERT"}, make(chan schema.Change))
+		assert.ErrorIs(t, err, httpresponse.ErrBadRequest)
+	})
+
 	t.Run("Errors", func(t *testing.T) {
 		b := broadcaster.New()
-		_, err := b.Watch(ctx, nil)
+		_, err := b.Watch(ctx, schema.ChangeFilter{}, nil)
 		assert.ErrorIs(t, err, httpresponse.ErrBadRequest)
 		watchCtx, cancel := context.WithCancel(ctx)
 		defer cancel()
 		ch := make(chan schema.Change, 1)
-		_, err = b.Watch(watchCtx, ch)
+		_, err = b.Watch(watchCtx, schema.ChangeFilter{}, ch)
 		require.NoError(t, err)
-		_, err = b.Watch(watchCtx, ch)
+		_, err = b.Watch(watchCtx, schema.ChangeFilter{}, ch)
 		assert.ErrorIs(t, err, httpresponse.ErrConflict)
 	})
 
@@ -75,7 +103,7 @@ func Test_Broadcaster(t *testing.T) {
 		b := broadcaster.New()
 		ch := make(chan schema.Change, 16)
 		watchCtx, cancel := context.WithCancel(ctx)
-		done, err := b.Watch(watchCtx, ch)
+		done, err := b.Watch(watchCtx, schema.ChangeFilter{}, ch)
 		require.NoError(t, err)
 		cancel()
 		require.NoError(t, <-done)
@@ -95,12 +123,12 @@ func Test_Broadcaster(t *testing.T) {
 		running := make(chan error)
 		go func() { running <- b.Run(runCtx) }()
 		ch := make(chan schema.Change, 16)
-		done, err := b.Watch(ctx, ch)
+		done, err := b.Watch(ctx, schema.ChangeFilter{}, ch)
 		require.NoError(t, err)
 		stop()
 		require.NoError(t, <-running)
 		assert.ErrorIs(t, <-done, httpresponse.ErrServiceUnavailable)
-		_, err = b.Watch(ctx, ch)
+		_, err = b.Watch(ctx, schema.ChangeFilter{}, ch)
 		assert.ErrorIs(t, err, httpresponse.ErrServiceUnavailable)
 
 		// And it runs again, until it's stopped, which is waited for, so it
@@ -108,7 +136,7 @@ func Test_Broadcaster(t *testing.T) {
 		runCtx, stop = context.WithCancel(ctx)
 		go func() { running <- b.Run(runCtx) }()
 		require.Eventually(t, func() bool {
-			done, err := b.Watch(runCtx, make(chan schema.Change))
+			done, err := b.Watch(runCtx, schema.ChangeFilter{}, make(chan schema.Change))
 			if err == nil {
 				go func() { <-done }()
 			}
@@ -124,7 +152,7 @@ func Test_Broadcaster(t *testing.T) {
 		b := broadcaster.New()
 		watchCtx, cancel := context.WithCancel(ctx)
 		defer cancel()
-		_, err := b.Watch(watchCtx, make(chan schema.Change))
+		_, err := b.Watch(watchCtx, schema.ChangeFilter{}, make(chan schema.Change))
 		require.NoError(t, err)
 		published := make(chan struct{})
 		go func() { b.Publish(created); close(published) }()

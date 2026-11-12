@@ -12,8 +12,8 @@ import (
 	broadcaster "github.com/mutablelogic/go-server/broadcaster"
 	httpclient "github.com/mutablelogic/go-server/broadcaster/httpclient"
 	httphandler "github.com/mutablelogic/go-server/broadcaster/httphandler"
-	test "github.com/mutablelogic/go-server/broadcaster/test"
 	schema "github.com/mutablelogic/go-server/broadcaster/schema"
+	test "github.com/mutablelogic/go-server/broadcaster/test"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	httprouter "github.com/mutablelogic/go-server/pkg/httprouter"
 	assert "github.com/stretchr/testify/assert"
@@ -44,11 +44,17 @@ func status(t *testing.T, err error) int {
 // watchChanges watches the changes with the client, until the returned
 // function is called, which returns what WatchChanges returned
 func watchChanges(client *httpclient.Client, fn func(schema.Change) error) (<-chan schema.Change, func() error) {
+	return watchFiltered(client, schema.ChangeFilter{}, fn)
+}
+
+// watchFiltered watches the changes which match the filter, as
+// watchChanges does
+func watchFiltered(client *httpclient.Client, filter schema.ChangeFilter, fn func(schema.Change) error) (<-chan schema.Change, func() error) {
 	events := make(chan schema.Change, 16)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() {
-		done <- client.WatchChanges(ctx, func(event schema.Change) error {
+		done <- client.WatchChanges(ctx, filter, func(event schema.Change) error {
 			events <- event
 			if fn != nil {
 				return fn(event)
@@ -107,8 +113,28 @@ func Test_WatchChanges(t *testing.T) {
 		assert.ErrorIs(t, stop(), errStop)
 	})
 
+	t.Run("Filter", func(t *testing.T) {
+		// Only the changes which match the filter are received: a session
+		// is published until it's received, after providers, which aren't
+		events, stop := watchFiltered(client, schema.ChangeFilter{Table: "session"}, nil)
+		session := schema.Change{Action: schema.ChangeUpdate, Table: "session", Row: "3"}
+		var received schema.Change
+		require.Eventually(t, func() bool {
+			b.Publish(created)
+			b.Publish(session)
+			select {
+			case received = <-events:
+				return true
+			case <-time.After(100 * time.Millisecond):
+				return false
+			}
+		}, 10*time.Second, 10*time.Millisecond)
+		assert.Equal(t, session, received)
+		assert.NoError(t, stop())
+	})
+
 	t.Run("NoFunction", func(t *testing.T) {
-		assert.ErrorIs(t, client.WatchChanges(t.Context(), nil), httpresponse.ErrBadRequest)
+		assert.ErrorIs(t, client.WatchChanges(t.Context(), schema.ChangeFilter{}, nil), httpresponse.ErrBadRequest)
 	})
 }
 
@@ -123,7 +149,7 @@ func Test_WatchChangesShutdown(t *testing.T) {
 	events := make(chan schema.Change, 16)
 	done := make(chan error, 1)
 	go func() {
-		done <- client.WatchChanges(context.Background(), func(event schema.Change) error {
+		done <- client.WatchChanges(context.Background(), schema.ChangeFilter{}, func(event schema.Change) error {
 			events <- event
 			return nil
 		})
@@ -139,6 +165,6 @@ func Test_WatchChangesShutdown(t *testing.T) {
 	}
 
 	// And it can't watch again, until the broadcaster runs again
-	err := client.WatchChanges(context.Background(), func(schema.Change) error { return nil })
+	err := client.WatchChanges(context.Background(), schema.ChangeFilter{}, func(schema.Change) error { return nil })
 	assert.Equal(t, http.StatusServiceUnavailable, status(t, err))
 }

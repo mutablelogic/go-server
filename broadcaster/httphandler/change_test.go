@@ -12,8 +12,8 @@ import (
 	// Packages
 	broadcaster "github.com/mutablelogic/go-server/broadcaster"
 	httphandler "github.com/mutablelogic/go-server/broadcaster/httphandler"
-	test "github.com/mutablelogic/go-server/broadcaster/test"
 	schema "github.com/mutablelogic/go-server/broadcaster/schema"
+	test "github.com/mutablelogic/go-server/broadcaster/test"
 	httprouter "github.com/mutablelogic/go-server/pkg/httprouter"
 	types "github.com/mutablelogic/go-server/pkg/types"
 	assert "github.com/stretchr/testify/assert"
@@ -39,9 +39,16 @@ func newServer(t *testing.T, b *broadcaster.Broadcaster) *test.Server {
 // stream ends
 func watch(t *testing.T, server *test.Server, accept string) (*http.Response, <-chan streamed) {
 	t.Helper()
+	return watchQuery(t, server, accept, "")
+}
+
+// watchQuery requests the broadcaster's changes, as watch does, with the
+// query, such as ?table=provider
+func watchQuery(t *testing.T, server *test.Server, accept, query string) (*http.Response, <-chan streamed) {
+	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, server.URL+test.Prefix+"/changes", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, server.URL+test.Prefix+"/changes"+query, nil)
 	require.NoError(t, err)
 	req.Header.Set("Accept", accept)
 	resp, err := http.DefaultClient.Do(req)
@@ -113,6 +120,22 @@ func Test_WatchChanges(t *testing.T) {
 	t.Run("NotAcceptable", func(t *testing.T) {
 		resp, _ := watch(t, server, types.ContentTypeJSON)
 		assert.Equal(t, http.StatusNotAcceptable, resp.StatusCode)
+	})
+
+	t.Run("Filter", func(t *testing.T) {
+		// Only the changes which match the query are streamed
+		resp, events := watchQuery(t, server, types.ContentTypeTextStream, "?schema=llm&table=session&action=update")
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		other := schema.Change{Action: schema.ChangeUpdate, Schema: "llm", Table: "provider", Row: "chat"}
+		session := schema.Change{Action: schema.ChangeUpdate, Schema: "llm", Table: "session", Row: "2"}
+		b.Publish(other)
+		b.Publish(session)
+		assert.Equal(t, session, decode(t, next(t, events)))
+	})
+
+	t.Run("BadFilter", func(t *testing.T) {
+		resp, _ := watchQuery(t, server, types.ContentTypeTextStream, "?action=INSERT")
+		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	})
 }
 

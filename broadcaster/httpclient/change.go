@@ -14,12 +14,13 @@ import (
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-// WatchChanges calls the function with each of the broadcaster's changes,
-// as the server streams them, such as when a row is created, updated or
-// deleted, until the context is cancelled, when it returns nil, or the
+// WatchChanges calls the function with each of the broadcaster's changes
+// which match the filter, which are all of them when it's empty, as the
+// server streams them, such as when a row is created, updated or deleted,
+// until the context is cancelled, when it returns nil, or the
 // function returns an error, which it returns, or the stream ends. When the
 // server stops, it returns ErrServiceUnavailable.
-func (c *Client) WatchChanges(ctx context.Context, fn func(schema.Change) error) error {
+func (c *Client) WatchChanges(ctx context.Context, filter schema.ChangeFilter, fn func(schema.Change) error) error {
 	if fn == nil {
 		return httpresponse.ErrBadRequest.With("missing function")
 	}
@@ -43,6 +44,7 @@ func (c *Client) WatchChanges(ctx context.Context, fn func(schema.Change) error)
 	}
 	err := c.DoWithContext(ctx, client.MethodGet, nil,
 		client.OptPath("changes"),
+		client.OptQuery(filter.Query()),
 		client.OptReqHeader("Accept", types.ContentTypeTextStream),
 		client.OptTextStreamCallback(callback),
 		client.OptNoTimeout(),

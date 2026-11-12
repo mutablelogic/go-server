@@ -15,13 +15,20 @@ import (
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-// Broadcaster sends the events which are published to each channel which is
-// watching it. It's watched from when it's made, until it stops running,
-// and again when it runs again. It's safe to use concurrently.
+// Broadcaster sends the changes which are published to each channel which is
+// watching it, whose filter they match. It's watched from when it's made,
+// until it stops running, and again when it runs again. It's safe to use
+// concurrently.
 type Broadcaster struct {
 	mu       sync.Mutex
 	stopped  bool
-	channels map[chan<- schema.Change]chan struct{}
+	channels map[chan<- schema.Change]*watch
+}
+
+// watch is a channel's watch: the changes it's sent, and when it ends
+type watch struct {
+	filter schema.ChangeFilter
+	stop   chan struct{}
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -35,7 +42,7 @@ var errStopped = httpresponse.ErrServiceUnavailable.With("broadcaster stopped")
 
 // New returns a broadcaster, which can be watched
 func New() *Broadcaster {
-	return &Broadcaster{channels: make(map[chan<- schema.Change]chan struct{})}
+	return &Broadcaster{channels: make(map[chan<- schema.Change]*watch)}
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -54,24 +61,31 @@ func (b *Broadcaster) Run(ctx context.Context) error {
 	return nil
 }
 
-// Watch sends the events which are published to the channel, from when it
+// Watch sends the changes which are published, and match the filter, to the
+// channel, which are all of them when the filter is empty, from when it
 // returns, as it's watching before it does, until the context is cancelled,
-// or the broadcaster stops running, as there will be no more events. It
-// returns a channel which is sent nil when the context is cancelled, or
+// or the broadcaster stops running, as there will be no more changes.
+//
+// It returns a channel which is sent nil when the context is cancelled, or
 // ErrServiceUnavailable when the broadcaster stops running, once the watch
-// has ended, after which no more events are sent to the channel, so it can
+// has ended, after which no more changes are sent to the channel, so it can
 // be closed. A broadcaster which has stopped running isn't watched, and
-// returns ErrServiceUnavailable, until it runs again. An event isn't waited
-// for the channel to receive, so a channel which is full misses it, and one
-// which needs every event should be buffered. Returns ErrBadParameter when
-// there's no channel, and ErrConflict when the channel is watching already.
-func (b *Broadcaster) Watch(ctx context.Context, ch chan<- schema.Change) (<-chan error, error) {
+// returns ErrServiceUnavailable, until it runs again.
+//
+// A change isn't waited for the channel to receive, so a channel which is
+// full misses it, and one which needs every change should be buffered.
+// Returns ErrBadRequest when there's no channel, or the filter's action
+// isn't one of the actions, and ErrConflict when the channel is watching
+// already.
+func (b *Broadcaster) Watch(ctx context.Context, filter schema.ChangeFilter, ch chan<- schema.Change) (<-chan error, error) {
 	if ch == nil {
 		return nil, httpresponse.ErrBadRequest.With("missing channel")
+	} else if err := filter.Validate(); err != nil {
+		return nil, httpresponse.ErrBadRequest.With(err.Error())
 	}
 
 	// Add the channel, which is watching once at a time
-	stop := make(chan struct{})
+	w := &watch{filter: filter, stop: make(chan struct{})}
 	b.mu.Lock()
 	if b.stopped {
 		b.mu.Unlock()
@@ -80,9 +94,9 @@ func (b *Broadcaster) Watch(ctx context.Context, ch chan<- schema.Change) (<-cha
 		b.mu.Unlock()
 		return nil, httpresponse.ErrConflict.With("channel is watching already")
 	} else if b.channels == nil {
-		b.channels = make(map[chan<- schema.Change]chan struct{})
+		b.channels = make(map[chan<- schema.Change]*watch)
 	}
-	b.channels[ch] = stop
+	b.channels[ch] = w
 	b.mu.Unlock()
 
 	// The watch ends when the context is cancelled, or the broadcaster
@@ -93,11 +107,11 @@ func (b *Broadcaster) Watch(ctx context.Context, ch chan<- schema.Change) (<-cha
 		var err error
 		select {
 		case <-ctx.Done():
-		case <-stop:
+		case <-w.stop:
 			err = errStopped
 		}
 		b.mu.Lock()
-		if b.channels[ch] == stop {
+		if b.channels[ch] == w {
 			delete(b.channels, ch)
 		}
 		b.mu.Unlock()
@@ -106,18 +120,25 @@ func (b *Broadcaster) Watch(ctx context.Context, ch chan<- schema.Change) (<-cha
 	return done, nil
 }
 
-// Publish sends the event to each channel which is watching, which can
-// receive it now. It never waits, so it can be called under a lock, which
-// keeps the events in the order of the changes.
-func (b *Broadcaster) Publish(event schema.Change) {
+// Publish sends the change to each channel which is watching, whose filter
+// it matches, which can receive it now, and returns how many couldn't, as
+// their channels were full, so they missed it. It never waits, so it can be
+// called under a lock, which keeps the changes in the order they happened.
+func (b *Broadcaster) Publish(change schema.Change) int {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	for ch := range b.channels {
+	var missed int
+	for ch, w := range b.channels {
+		if !w.filter.Matches(change) {
+			continue
+		}
 		select {
-		case ch <- event:
+		case ch <- change:
 		default:
+			missed++
 		}
 	}
+	return missed
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -129,8 +150,8 @@ func (b *Broadcaster) stop() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.stopped = true
-	for ch, stop := range b.channels {
-		close(stop)
+	for ch, w := range b.channels {
+		close(w.stop)
 		delete(b.channels, ch)
 	}
 }
