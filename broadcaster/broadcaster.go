@@ -16,9 +16,7 @@ import (
 // TYPES
 
 // Broadcaster sends the changes which are published to each channel which is
-// watching it, whose filter they match. It's watched from when it's made,
-// until it stops running, and again when it runs again. It's safe to use
-// concurrently.
+// watching it, whose filter they match. It's watched until it stops running.
 type Broadcaster struct {
 	mu       sync.Mutex
 	stopped  bool
