@@ -76,6 +76,11 @@ export class NotificationsElement extends LitElement {
                 @cds-notification-closed=${() => this.controller?.close(notification.id)}>
                 ${notification.link ? html`<a href=${notification.link.href}
                     @click=${() => this.controller?.close(notification.id)}>${notification.link.text}</a>` : nothing}
+                ${notification.action ? html`<a href="#" role="button" @click=${(event: Event) => {
+                    event.preventDefault();
+                    this.controller?.close(notification.id);
+                    notification.action?.run();
+                }}>${notification.action.text}</a>` : nothing}
             </cds-toast-notification>
         `)}`;
     }

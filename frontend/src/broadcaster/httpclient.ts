@@ -1,4 +1,5 @@
-// The broadcaster's API, which streams its changes at changes
+// The broadcaster's HTTP client, of its API, which streams its changes at
+// changes
 
 import { requestStream, type Client } from '../api/stream.ts';
 import { ChangeName, ChangeShutdown, type Change, type ChangeFilter } from './schema.ts';

@@ -13,7 +13,7 @@
 //   in it, with the last, as a burst of changes is one change to load.
 
 import type { Client } from '../api/stream.ts';
-import { watchChanges } from './api.ts';
+import { watchChanges } from './httpclient.ts';
 import { changeMatches, type Change, type ChangeFilter } from './schema.ts';
 
 // ChangeListener is called with a change which matches its filters, or with

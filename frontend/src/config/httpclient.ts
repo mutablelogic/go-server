@@ -1,5 +1,5 @@
-// The server's configuration, which its frontend reads, to know where its
-// API is
+// The HTTP client of the server's configuration, which its frontend reads,
+// to know where its API is
 
 import { errorResponse } from '../api/error.ts';
 import type { Client } from '../api/stream.ts';

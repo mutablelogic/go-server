@@ -13,7 +13,8 @@
 // --gs-panel-top, below a 3rem header by default, --gs-panel-width and
 // --gs-panel-z-index.
 
-import { LitElement, css, html, nothing, svg, type PropertyValues } from 'lit';
+import { LitElement, css, html, nothing, type PropertyValues } from 'lit';
+import { closeIcon } from '../internal/icons.ts';
 import type { PanelController } from './controller.ts';
 import type { PanelActionState, PanelState } from './schema.ts';
 
@@ -24,9 +25,6 @@ import '@carbon/web-components/es/components/inline-loading/index.js';
 
 // PanelTag is the element's tag
 export const PanelTag = 'gs-panel';
-
-// closeIcon is Carbon's close icon, at 16px
-const closeIcon = svg`<svg slot="icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M17.4141 16 24 9.4141 22.5859 8 16 14.5859 9.4143 8 8 9.4141 14.5859 16 8 22.5859 9.4143 24 16 17.4141 22.5859 24 24 22.5859 17.4141 16z"/></svg>`;
 
 export class PanelElement extends LitElement {
     static override properties = {

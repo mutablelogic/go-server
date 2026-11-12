@@ -14,7 +14,8 @@ TypeScript clients of go-server's APIs, for the frontends of servers built on it
 | `@mutablelogic/go-server/notification/view` | The `gs-notifications` element, which shows a controller's notifications as Carbon toasts |
 | `@mutablelogic/go-server/panel` | `PanelController`, which keeps a panel's item, header and actions, such as Save and Cancel, which close it, and runs them |
 | `@mutablelogic/go-server/panel/view` | The `gs-panel` element, which shows a controller's panel on the right of the page, with its header, its body, which is the element's content, and its actions |
-| `@mutablelogic/go-server/config` | `getConfig`, which reads the server's `/config.json`, and `configClient`, which is the client of the API it says is at its prefix |
+| `@mutablelogic/go-server/config` | `getConfig`, which reads the server's `/config.json`, `configClient`, which is the client of the API it says is at its prefix, and `ConfigController`, which follows the server, as it goes down, comes back, and is upgraded |
+| `@mutablelogic/go-server/config/view` | The `gs-server-status` element, for a sidebar, which shows the server's version, that it's down, or upgraded, and links to its documentation |
 
 ## Installing
 
@@ -49,6 +50,41 @@ const changes = new ChangesController(configClient(config));
 ```
 
 `getConfig` reads `config.json` beside the page, without the cache, so a page sees a server which was updated. Its `endpoint` is the server's public URL, such as `https://example.com/api`, when it was given its public name.
+
+## Following the server
+
+A `ConfigController` follows the server with the `ChangesController`. Its status is:
+
+| Status | When |
+|---|---|
+| `loading` | until the configuration is read |
+| `up` | once it's read, or the server is back, with the page's version |
+| `down` | when the server says it's stopping, or the changes can't be watched |
+| `upgraded` | when the server is back, with another version than the page's, until the page is refreshed |
+
+With a `NotificationController`, it says when the server is down, until it's back, that it's back, and that it was upgraded, with a Refresh action, which reloads the page. `gs-server-status` shows the same, for a sidebar:
+
+```ts
+import { ChangesController } from '@mutablelogic/go-server/broadcaster';
+import { ConfigController, configClient, getConfig } from '@mutablelogic/go-server/config';
+import { ServerStatusTag } from '@mutablelogic/go-server/config/view';
+
+const changes = new ChangesController(configClient(await getConfig()));
+const config = new ConfigController(changes, { notifications })
+    .onUp(() => void reloadEverything())
+    .onUpgrade((latest) => console.log('the server is now', latest.version));
+await config.load();
+changes.start();
+
+const status = document.createElement(ServerStatusTag);
+status.controller = config;
+status.repository = 'https://github.com/mutablelogic/go-server';
+document.querySelector('cds-side-nav')?.append(status);
+```
+
+- **The view:** the page's version, a warning while the server is down, and, when it was upgraded, a button which refreshes the page. It links to the OpenAPI documentation, when the server serves it, and to the `repository`, when it's set.
+- **Callbacks:** `onDown`, `onUp` and `onUpgrade`, and `subscribe`, for other views.
+- **Testing:** the controller takes anything with `onConnect`, `onDisconnect` and `onShutdown`, so a test can follow a fake server.
 
 ## Watching changes
 
@@ -140,7 +176,7 @@ notifications.push({ kind: 'info', title: 'A reminder fired', link: { href: '#ch
 ```
 
 - **Kinds:** `error`, `warning`, `info` or `success`, which set a toast's colour and icon.
-- **Fields:** a `subtitle`, a `caption`, such as when it happened, and a `link`, which closes it when it's followed.
+- **Fields:** a `subtitle`, a `caption`, such as when it happened, a `link`, and an `action`, such as `{ text: 'Refresh', run }`, each of which closes it when it's followed.
 - **Closing:** closing a toast closes it in the controller. `push` returns an id, which `close` closes it by.
 - **Position:** `--gs-notifications-top`, below a 3rem header by default, `--gs-notifications-right`, and `--gs-notifications-z-index`.
 - **Other views:** `subscribe` calls a function with the notifications now, and whenever they change, until the function it returns is called.

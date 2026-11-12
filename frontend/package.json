@@ -22,6 +22,10 @@
             "types": "./dist/config/index.d.ts",
             "import": "./dist/config/index.js"
         },
+        "./config/view": {
+            "types": "./dist/config/view.d.ts",
+            "import": "./dist/config/view.js"
+        },
         "./notification": {
             "types": "./dist/notification/index.d.ts",
             "import": "./dist/notification/index.js"
