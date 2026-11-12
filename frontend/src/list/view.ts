@@ -2,7 +2,8 @@
 // table, with its columns, and pagination beneath it, which loads the page,
 // or the page's size, which is changed. A column which has a sort key sorts
 // the list, by the server, when its header is clicked. Clicking a row opens
-// its item in the controller, and the item which is opened is selected. It
+// its item in the controller, as does its first cell, which is a button, from
+// the keyboard, and the item which is opened is selected. It
 // shows a skeleton until it has items, and the items as unavailable while
 // the server can't be reached. It needs lit and @carbon/web-components,
 // which are the package's optional peer dependencies.
@@ -69,6 +70,27 @@ export class TableElement<T = unknown> extends LitElement {
             background: var(--cds-layer-selected, #e0e0e0);
         }
 
+        /* The first cell of a row is a button, which opens its item from the
+           keyboard, and looks like the other cells. Its click is the row's. */
+        button.open {
+            all: unset;
+            cursor: pointer;
+        }
+
+        button.open:focus-visible {
+            outline: 2px solid var(--cds-focus, #0f62fe);
+            outline-offset: 2px;
+        }
+
+        /* What's shown, across the table, when there are no items */
+        .empty {
+            padding: 1rem;
+            background: var(--cds-layer-01, #f4f4f4);
+            border-bottom: 1px solid var(--cds-border-subtle-01, #c6c6c6);
+            color: var(--cds-text-secondary, #525252);
+            font-size: 0.875rem;
+        }
+
         /* The items, while the server can't be reached */
         :host([unavailable]) cds-table-body {
             opacity: 0.5;
@@ -115,15 +137,14 @@ export class TableElement<T = unknown> extends LitElement {
                     </cds-table-header-row>
                 </cds-table-head>
                 <cds-table-body>
-                    ${state.items.length === 0
-                        ? html`<cds-table-row><cds-table-cell>${this.empty}</cds-table-cell></cds-table-row>`
-                        : state.items.map((item) => html`
-                            <cds-table-row ?data-selected=${state.selected === item} @click=${() => this.controller?.open(item)}>
-                                ${this.columns.map((column) => html`<cds-table-cell>${column.cell(item)}</cds-table-cell>`)}
-                            </cds-table-row>
-                        `)}
+                    ${state.items.map((item) => html`
+                        <cds-table-row ?data-selected=${state.selected === item} @click=${() => this.controller?.open(item)}>
+                            ${this.columns.map((column, index) => html`<cds-table-cell>${index === 0 ? html`<button type="button" class="open">${column.cell(item)}</button>` : column.cell(item)}</cds-table-cell>`)}
+                        </cds-table-row>
+                    `)}
                 </cds-table-body>
             </cds-table>
+            ${state.items.length === 0 ? html`<div class="empty">${this.empty}</div>` : nothing}
             ${state.total > 0 ? html`
                 <cds-pagination .page=${state.page} .pageSize=${state.pageSize} .start=${(state.page - 1) * state.pageSize}
                     .totalItems=${state.total}

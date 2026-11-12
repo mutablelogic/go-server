@@ -78,9 +78,18 @@ export class ListController<T> {
     private refreshing?: Promise<void>;
     private again = false;
 
+    // The list's generation, which changes when what's listed does, such as
+    // its page, or its sort, so a response to a request of an earlier one
+    // is ignored, and the list is loaded again
+    private generation = 0;
+
     constructor(options: ListOptions<T>) {
         this.options = options;
-        this.state = { page: 1, pageSize: options.pageSize ?? 25, total: 0, sort: options.sort, unavailable: false };
+        // It's unavailable from the start when the changes have started, and
+        // can't be watched, as it's told when they can be, but not again that
+        // they can't be
+        const unavailable = options.changes ? options.changes.started && !options.changes.connected : false;
+        this.state = { page: 1, pageSize: options.pageSize ?? 25, total: 0, sort: options.sort, unavailable };
         if (options.changes) {
             options.changes.on(options.filter ?? {}, () => void this.refresh());
             options.changes.onDisconnect(() => this.update({ unavailable: true }));
@@ -103,6 +112,7 @@ export class ListController<T> {
 
     // load shows the views loading, and loads the page
     load(): Promise<void> {
+        this.generation++;
         this.update({ items: undefined });
         return this.refresh();
     }
@@ -111,6 +121,7 @@ export class ListController<T> {
     // item which is opened, as what's listed is another list, such as the
     // objects of another database
     reset(): Promise<void> {
+        this.generation++;
         this.update({ items: undefined, page: 1, total: 0, selected: undefined });
         return this.refresh();
     }
@@ -118,6 +129,8 @@ export class ListController<T> {
     // refresh loads the page again, keeping the items which are shown until
     // it's loaded. A page beyond the last, as items were deleted, is the
     // last. While a refresh is in progress, it's refreshed once more after.
+    // A response to an earlier generation, or with the item which is opened
+    // changed while it was loaded, isn't shown, as it's out of date.
     refresh(): Promise<void> {
         if (this.refreshing) {
             this.again = true;
@@ -127,8 +140,13 @@ export class ListController<T> {
             do {
                 this.again = false;
                 const { page, pageSize, sort } = this.state;
+                const generation = this.generation;
                 try {
                     const list = await this.options.list((page - 1) * pageSize, pageSize, sort);
+                    if (generation !== this.generation) {
+                        this.again = true;
+                        continue;
+                    }
                     const last = Math.max(1, Math.ceil(list.count / pageSize));
                     if (page > last) {
                         this.update({ page: last });
@@ -136,8 +154,18 @@ export class ListController<T> {
                         continue;
                     }
                     const items = list.body ?? [];
-                    this.update({ items, total: list.count, selected: await this.reloadSelected(items) });
+                    const selected = this.state.selected;
+                    const reloaded = await this.reloadSelected(items);
+                    if (generation !== this.generation) {
+                        this.again = true;
+                        continue;
+                    }
+                    this.update({ items, total: list.count, selected: this.state.selected === selected ? reloaded : this.state.selected });
                 } catch (error) {
+                    if (generation !== this.generation) {
+                        this.again = true;
+                        continue;
+                    }
                     this.update({ items: this.state.items ?? [] });
                     this.options.notifications?.error(`${this.options.name} couldn't be loaded`, error);
                 }
@@ -149,18 +177,21 @@ export class ListController<T> {
 
     // setPage loads the page, from 1
     setPage(page: number) {
+        this.generation++;
         this.update({ page });
         void this.refresh();
     }
 
     // setSort loads the first page, sorted by the sort, or unsorted
     setSort(sort?: Sort) {
+        this.generation++;
         this.update({ page: 1, sort });
         void this.refresh();
     }
 
     // setPageSize loads the first page of the size
     setPageSize(pageSize: number) {
+        this.generation++;
         this.update({ page: 1, pageSize });
         void this.refresh();
     }

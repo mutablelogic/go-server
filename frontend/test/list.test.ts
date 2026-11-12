@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ApiError } from '../src/api/index.ts';
 import { ListController, type ListState } from '../src/list/index.ts';
+import { waitFor } from './fake.ts';
 
 interface Item { name: string; n?: number }
 
@@ -108,6 +109,64 @@ test('ListController', async (t) => {
         other = undefined;
         await list.refresh();
         assert.equal(list.current.selected, undefined);
+    });
+
+    await t.test('stale', async () => {
+        // A response to a request before the list was reset, of the page it
+        // was on then, isn't shown, nor does it change the page, and the
+        // list is loaded again, from its first page
+        const requests: { offset: number; resolve: (page: { count: number; body: Item[] }) => void }[] = [];
+        const list = new ListController<Item>({
+            name: 'Items',
+            list: (offset) => new Promise((resolve) => requests.push({ offset, resolve })),
+            same: (a, b) => a.name === b.name,
+            pageSize: 10,
+        });
+        list.setPage(3);
+        await waitFor(() => requests.length === 1);
+        const done = list.reset();
+        requests[0].resolve({ count: 15, body: [{ name: 'old' }] });
+        await waitFor(() => requests.length === 2);
+        assert.equal(list.current.page, 1);
+        assert.equal(list.current.items, undefined);
+        assert.equal(requests[1].offset, 0);
+        requests[1].resolve({ count: 1, body: [{ name: 'new' }] });
+        await done;
+        assert.deepEqual(list.current.items, [{ name: 'new' }]);
+        assert.equal(list.current.page, 1);
+    });
+
+    await t.test('selected while loading', async () => {
+        // An item which is opened, or closed, while the one which was open is
+        // loaded again, stays as it is
+        let resolve: ((item: Item) => void) | undefined;
+        const list = new ListController<Item>({
+            name: 'Items',
+            list: pages([{ name: 'a' }]),
+            get: () => new Promise((r) => { resolve = r; }),
+            same: (a, b) => a.name === b.name,
+        });
+        await list.load();
+        list.open({ name: 'b' });
+        const done = list.refresh();
+        await waitFor(() => resolve !== undefined);
+        list.close();
+        resolve!({ name: 'b', n: 2 });
+        await done;
+        assert.equal(list.current.selected, undefined);
+    });
+
+    await t.test('unavailable', () => {
+        // A list made while the changes can't be watched is unavailable from
+        // the start, and one made before they're started isn't
+        const changes = (started: boolean, connected: boolean) => ({
+            started, connected,
+            on() { return this; }, onConnect() { return this; }, onDisconnect() { return this; },
+        }) as never;
+        const make = (c: never) => new ListController<Item>({ name: 'Items', list: pages([]), same: () => true, changes: c });
+        assert.equal(make(changes(true, false)).current.unavailable, true);
+        assert.equal(make(changes(true, true)).current.unavailable, false);
+        assert.equal(make(changes(false, false)).current.unavailable, false);
     });
 
     await t.test('error', async () => {
