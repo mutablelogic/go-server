@@ -51,12 +51,24 @@ func New() *Broadcaster {
 // when the server is stopping, and it isn't watched again until it runs
 // again. It returns nil.
 func (b *Broadcaster) Run(ctx context.Context) error {
-	b.mu.Lock()
-	b.stopped = false
-	b.mu.Unlock()
+	b.Start()
 	<-ctx.Done()
 	b.stop()
 	return nil
+}
+
+// Start makes a broadcaster which has stopped running watched again, before
+// it runs, so a watch made once Start returns isn't refused, as it would be
+// while Run is still starting, such as in a goroutine. Run starts it too, so
+// it's only needed by a caller which watches it as soon as it has started
+// it, such as with:
+//
+//	b.Start()
+//	go b.Run(ctx)
+func (b *Broadcaster) Start() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.stopped = false
 }
 
 // Watch sends the changes which are published, and match the filter, to the
