@@ -2,13 +2,16 @@
 
 TypeScript clients of go-server's APIs, for the frontends of servers built on it.
 
-- It's plain TypeScript, with no framework, so it works with Lit, or anything else.
+- Its clients and controllers are plain TypeScript, with no framework, so they work with Lit, or anything else.
+- Its views are Lit elements, with Carbon's web components. `lit` and `@carbon/web-components` are optional peer dependencies, which only an app which uses a view installs.
 - It's published to GitHub Packages with each go-server release, at the release's version.
 
 | Module | What it has |
 |---|---|
 | `@mutablelogic/go-server/api` | `requestStream`, which reads a stream of server-sent events, `ApiError`, and `Client`, which is where an API is |
 | `@mutablelogic/go-server/broadcaster` | The broadcaster's `Change` schema, `watchChanges`, and `ChangesController`, which other controllers subscribe to |
+| `@mutablelogic/go-server/notification` | `NotificationController`, which keeps notifications, such as errors, until they time out, or are closed, and tells the views which subscribe to it |
+| `@mutablelogic/go-server/notification/view` | The `gs-notifications` element, which shows a controller's notifications as Carbon toasts |
 | `@mutablelogic/go-server/config` | `getConfig`, which reads the server's `/config.json`, and `configClient`, which is the client of the API it says is at its prefix |
 
 ## Installing
@@ -113,6 +116,32 @@ const stopping = await watchChanges({ base: '/api' }, (change) => console.log(ch
 ```
 
 `filter` is sent as the stream's query, so the server only sends the changes which match it.
+
+## Notifications
+
+A `NotificationController` keeps notifications until they time out, 8s by default, or are closed. The `gs-notifications` element shows them as toasts, stacked at the top right:
+
+```ts
+import { NotificationController } from '@mutablelogic/go-server/notification';
+import { NotificationsTag } from '@mutablelogic/go-server/notification/view';
+
+const notifications = new NotificationController();
+const element = document.createElement(NotificationsTag);
+element.controller = notifications;
+document.body.append(element);
+
+// Show the errors watching changes
+changes.onError((error) => notifications.error("Changes couldn't be watched", error));
+
+// A notification which stays until it's closed, with a link
+notifications.push({ kind: 'info', title: 'A reminder fired', link: { href: '#chat/1', text: 'Open the chat' }, timeout: null });
+```
+
+- **Kinds:** `error`, `warning`, `info` or `success`, which set a toast's colour and icon.
+- **Fields:** a `subtitle`, a `caption`, such as when it happened, and a `link`, which closes it when it's followed.
+- **Closing:** closing a toast closes it in the controller. `push` returns an id, which `close` closes it by.
+- **Position:** `--gs-notifications-top`, below a 3rem header by default, `--gs-notifications-right`, and `--gs-notifications-z-index`.
+- **Other views:** `subscribe` calls a function with the notifications now, and whenever they change, until the function it returns is called.
 
 ## Developing
 
