@@ -78,6 +78,21 @@ test('ChangesController', async (t) => {
         assert.deepEqual(sessions, [undefined, last]);
     });
 
+    await t.test('late subscriber', async () => {
+        // A listener which subscribes once the stream has started is called,
+        // so it loads what it shows
+        const fake = fakeFetch({ open: true });
+        const controller = new ChangesController({ base: '/api', fetch: fake.fetch, interval: 10 });
+        controller.start();
+        await waitFor(() => controller.connected);
+        const calls: (Change | undefined)[] = [];
+        const unsubscribe = controller.subscribe({ table: 'session' }, (change) => calls.push(change));
+        await waitFor(() => calls.length === 1);
+        assert.deepEqual(calls, [undefined]);
+        unsubscribe();
+        controller.stop();
+    });
+
     await t.test('reconnect', async () => {
         // A stream which fails is an error, said once, and a disconnect,
         // and it's watched again, after a delay, until it starts

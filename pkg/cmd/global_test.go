@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"context"
+	"net/url"
 	"os"
 	"testing"
 
@@ -251,5 +253,28 @@ func Test_Defaults_UninitializedSet(t *testing.T) {
 	if err := d.Set("k", "v"); err == nil {
 		// save will fail because d.path is empty — that's fine, no panic
 		_ = err
+	}
+}
+
+func Test_WithContext_SetURL(t *testing.T) {
+	// A command with another context, such as a server's, sets the URL of
+	// the command it has the context of, so both have the server's URL,
+	// such as its public name
+	g := &global{}
+	child := g.WithContext(context.Background())
+	setter, ok := child.(interface{ SetURL(*url.URL) })
+	if !ok {
+		t.Fatal("the child can't set its URL")
+	}
+	u, err := url.Parse("https://example.com/api")
+	if err != nil {
+		t.Fatal(err)
+	}
+	setter.SetURL(u)
+	if got := child.URL(); got == nil || got.String() != "https://example.com/api" {
+		t.Errorf("the child's URL is %v", got)
+	}
+	if got := g.URL(); got == nil || got.String() != "https://example.com/api" {
+		t.Errorf("the command's URL is %v", got)
 	}
 }

@@ -62,12 +62,19 @@ export class ChangesController {
 
     // subscribe calls the function with each change which matches the
     // filter, or any of the filters, or with no change when changes may have
-    // been missed, until the function it returns is called, which
+    // been missed, such as when the stream starts, or when it subscribes,
+    // once it has started, until the function it returns is called, which
     // unsubscribes. It's called once for a burst of changes which match any
     // of them, such as when a change is to more than one table.
     subscribe(filter: ChangeFilter | ChangeFilter[], fn: ChangeListener): () => void {
         const listener = new Listener([filter].flat(), fn, this.interval);
         this.listeners.add(listener);
+
+        // A listener which subscribes once the stream has started is called,
+        // as every listener is when it starts, so it loads what it shows
+        if (this.isConnected) {
+            listener.call();
+        }
         return () => {
             listener.cancel();
             this.listeners.delete(listener);

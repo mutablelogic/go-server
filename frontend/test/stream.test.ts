@@ -29,3 +29,32 @@ test('requestStream error', async () => {
         (error: unknown) => error instanceof ApiError && error.status === 503 && error.message.includes('broadcaster stopped'),
     );
 });
+
+test('requestStream CRLF', async () => {
+    // A CRLF which is split across chunks is one line's end, and a CR at
+    // the end of the stream ends its line
+    const fake = fakeFetch({ chunks: ['event: change\r', '\ndata: {"a":1}\r\n\r', '\nevent: last\rdata: 2\r\r'] });
+    const events: [string, unknown][] = [];
+    await requestStream({ base: '/api', fetch: fake.fetch }, 'changes', (name, data) => events.push([name, data]));
+    assert.deepEqual(events, [['change', { a: 1 }], ['last', 2]]);
+});
+
+test('requestStream cancels', async () => {
+    // When an event can't be parsed, or the function throws, the stream is
+    // cancelled, with the error, which is thrown
+    for (const [chunks, fn] of [
+        [['event: change\ndata: {not json\n\n'], () => {}],
+        [['event: change\ndata: 1\n\n'], () => { throw new Error('listener failed'); }],
+    ] as [string[], () => void][]) {
+        let cancelled: unknown;
+        const fetch = (async () => new Response(new ReadableStream<Uint8Array>({
+            start(controller) {
+                chunks.forEach((chunk) => controller.enqueue(new TextEncoder().encode(chunk)));
+            },
+            cancel(reason) {
+                cancelled = reason;
+            },
+        }), { status: 200 })) as typeof globalThis.fetch;
+        await assert.rejects(requestStream({ base: '/api', fetch }, 'changes', fn), (error: unknown) => error === cancelled);
+    }
+});
