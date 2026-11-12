@@ -2,7 +2,9 @@ package httpclient
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 
 	// Packages
 	client "github.com/mutablelogic/go-client"
@@ -56,7 +58,22 @@ func (c *Client) WatchChanges(ctx context.Context, filter schema.ChangeFilter, f
 		return nil
 	case shutdown != nil:
 		return shutdown
+	case isUnavailable(err):
+		// The server was stopping before the stream started, so it's
+		// ErrServiceUnavailable, as when it stops while streaming, with the
+		// response's error
+		return errors.Join(httpresponse.ErrServiceUnavailable.With("server is stopping"), err)
 	default:
 		return err
 	}
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+// isUnavailable returns true when the error is a response whose status is
+// 503 Service Unavailable
+func isUnavailable(err error) bool {
+	var response httpresponse.ErrResponse
+	return errors.As(err, &response) && response.Code == http.StatusServiceUnavailable
 }

@@ -13,9 +13,9 @@ import (
 	httpclient "github.com/mutablelogic/go-server/broadcaster/httpclient"
 	httphandler "github.com/mutablelogic/go-server/broadcaster/httphandler"
 	schema "github.com/mutablelogic/go-server/broadcaster/schema"
-	test "github.com/mutablelogic/go-server/test"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	httprouter "github.com/mutablelogic/go-server/pkg/httprouter"
+	test "github.com/mutablelogic/go-server/test"
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
 )
@@ -164,7 +164,9 @@ func Test_WatchChangesShutdown(t *testing.T) {
 		t.Fatal("watching didn't stop")
 	}
 
-	// And it can't watch again, until the broadcaster runs again
+	// And it can't watch again, until the broadcaster runs again, which is
+	// ErrServiceUnavailable too, with the response's status
 	err := client.WatchChanges(context.Background(), schema.ChangeFilter{}, func(schema.Change) error { return nil })
+	assert.ErrorIs(t, err, httpresponse.ErrServiceUnavailable)
 	assert.Equal(t, http.StatusServiceUnavailable, status(t, err))
 }

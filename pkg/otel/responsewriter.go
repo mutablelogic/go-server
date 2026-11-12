@@ -102,9 +102,15 @@ func (rw *responseWriter) ReadFrom(r io.Reader) (int64, error) {
 // Flush preserves streaming semantics when middleware wraps a response writer
 // that already supports flushing.
 func (rw *responseWriter) Flush() {
-	if flusher, ok := rw.ResponseWriter.(http.Flusher); ok {
-		flusher.Flush()
-	}
+	_ = rw.FlushError()
+}
+
+// FlushError flushes the response, and returns the error flushing it, such
+// as when the client has gone away, which an http.ResponseController's Flush
+// returns, as Flush can't. It returns http.ErrNotSupported when the response
+// writer it wraps can't be flushed.
+func (rw *responseWriter) FlushError() error {
+	return http.NewResponseController(rw.ResponseWriter).Flush()
 }
 
 // Satisfy http.ResponseController support (Go 1.20+)

@@ -13,9 +13,9 @@ import (
 	broadcaster "github.com/mutablelogic/go-server/broadcaster"
 	httphandler "github.com/mutablelogic/go-server/broadcaster/httphandler"
 	schema "github.com/mutablelogic/go-server/broadcaster/schema"
-	test "github.com/mutablelogic/go-server/test"
 	httprouter "github.com/mutablelogic/go-server/pkg/httprouter"
 	types "github.com/mutablelogic/go-server/pkg/types"
+	test "github.com/mutablelogic/go-server/test"
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
 )
@@ -120,6 +120,21 @@ func Test_WatchChanges(t *testing.T) {
 	t.Run("NotAcceptable", func(t *testing.T) {
 		resp, _ := watch(t, server, types.ContentTypeJSON)
 		assert.Equal(t, http.StatusNotAcceptable, resp.StatusCode)
+		resp, _ = watch(t, server, "text/event-stream;q=0")
+		assert.Equal(t, http.StatusNotAcceptable, resp.StatusCode)
+	})
+
+	t.Run("Accept", func(t *testing.T) {
+		// A client which accepts a stream by any of its media ranges, or a
+		// wildcard, is streamed to
+		for _, accept := range []string{"application/json, text/event-stream", "text/*", "*/*;q=0.5"} {
+			resp, _ := watch(t, server, accept)
+			assert.Equal(t, http.StatusOK, resp.StatusCode, accept)
+		}
+
+		// An Accept header which can't be parsed is a bad request
+		resp, _ := watch(t, server, "text/event-stream;q=x")
+		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	})
 
 	t.Run("Filter", func(t *testing.T) {

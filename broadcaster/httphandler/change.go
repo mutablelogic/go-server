@@ -54,12 +54,13 @@ func changeHandlers(b *broadcaster.Broadcaster, router *httprouter.Router, docum
 // server is stopping, when a shutdown event is sent before the stream ends
 func changeWatchHandler(b *broadcaster.Broadcaster) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Changes are only streamed
-		if accept, err := types.AcceptContentType(r); err != nil {
+		// Changes are only streamed, so the client must accept a stream, by
+		// any of its media ranges, such as text/event-stream, text/* or */*
+		if accepts, err := types.AcceptsContentType(r, types.ContentTypeTextStream); err != nil {
 			httpresponse.Error(w, httpresponse.ErrBadRequest.With(err.Error()))
 			return
-		} else if accept != "" && accept != types.ContentTypeAny && accept != types.ContentTypeTextStream {
-			httpresponse.Error(w, httpresponse.Err(http.StatusNotAcceptable).Withf("cannot respond with %q", accept))
+		} else if !accepts {
+			httpresponse.Error(w, httpresponse.Err(http.StatusNotAcceptable).Withf("cannot respond with %q", types.ContentTypeTextStream))
 			return
 		}
 
