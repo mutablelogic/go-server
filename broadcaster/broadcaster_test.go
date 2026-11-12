@@ -131,19 +131,32 @@ func Test_Broadcaster(t *testing.T) {
 		_, err = b.Watch(ctx, schema.ChangeFilter{}, ch)
 		assert.ErrorIs(t, err, httpresponse.ErrServiceUnavailable)
 
-		// And it runs again, until it's stopped, which is waited for, so it
-		// doesn't outlast the test
+		// And it runs again, so it's watched once it's running, until it's
+		// stopped, which is waited for, so it doesn't outlast the test
 		runCtx, stop = context.WithCancel(ctx)
 		go func() { running <- b.Run(runCtx) }()
-		require.Eventually(t, func() bool {
-			done, err := b.Watch(runCtx, schema.ChangeFilter{}, make(chan schema.Change))
-			if err == nil {
-				go func() { <-done }()
-			}
-			return err == nil
-		}, time.Second, time.Millisecond)
+		require.Eventually(t, b.Running, time.Second, time.Millisecond)
+		done, err = b.Watch(ctx, schema.ChangeFilter{}, make(chan schema.Change))
+		require.NoError(t, err)
 		stop()
 		require.NoError(t, <-running)
+		assert.ErrorIs(t, <-done, httpresponse.ErrServiceUnavailable)
+	})
+
+	t.Run("Running", func(t *testing.T) {
+		// A broadcaster which has never run is watched, but isn't running,
+		// and it's running while it runs, and not once it has stopped
+		b := broadcaster.New()
+		assert.False(t, b.Running())
+		_, err := b.Watch(ctx, schema.ChangeFilter{}, make(chan schema.Change))
+		require.NoError(t, err)
+		runCtx, stop := context.WithCancel(ctx)
+		running := make(chan error)
+		go func() { running <- b.Run(runCtx) }()
+		require.Eventually(t, b.Running, time.Second, time.Millisecond)
+		stop()
+		require.NoError(t, <-running)
+		assert.False(t, b.Running())
 	})
 
 	t.Run("Full", func(t *testing.T) {
