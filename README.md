@@ -11,6 +11,8 @@ go get github.com/mutablelogic/go-server
 | Package | Description |
 | ------- | ----------- |
 | [`broadcaster`](broadcaster) | Publishes changes, such as to the rows of a server's tables, and streams them to clients at `/changes`, with a client and a `changes` command |
+| [`config`](config) | Serves the server's configuration at `/config.json`, for its frontend: its API's prefix, its name, its version, its documentation, and its public endpoint |
+| [`frontend`](frontend) | The `@mutablelogic/go-server` TypeScript package, of the configuration, the broadcaster's changes, notifications and panels, for the frontends of servers built on go-server |
 | [`test`](test) | A HTTP test server of an API, which checks every request and response against its OpenAPI specification |
 | [`pkg/cmd`](pkg/cmd) | Command-line applications, with a server command, global flags and defaults which are kept between commands |
 | [`pkg/httpserver`](pkg/httpserver) | The HTTP server, with its timeouts |
@@ -38,6 +40,8 @@ You need [Go](https://go.dev/doc/install), the version in `go.mod`, and [Make](h
 | `make race-test` | Runs the unit tests with the race detector |
 | `make coverage-test` | Reports the tests' coverage, in `build/coverage.txt` |
 | `make tidy` | Runs go mod tidy |
+| `make frontend` | Builds the TypeScript package, with npm |
+| `make frontend-test` | Tests the TypeScript package |
 | `make clean` | Removes the build directory |
 
 Go runs with `GOWORK=off`, so a Go workspace doesn't change what's built. Set `GOWORK` to use one.

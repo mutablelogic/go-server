@@ -1,0 +1,78 @@
+{
+    "name": "@mutablelogic/go-server",
+    "version": "0.0.0",
+    "description": "TypeScript clients and controllers of go-server's APIs, such as its configuration, the broadcaster's stream of changes, and notifications",
+    "license": "Apache-2.0",
+    "type": "module",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/mutablelogic/go-server.git",
+        "directory": "frontend"
+    },
+    "exports": {
+        "./api": {
+            "types": "./dist/api/index.d.ts",
+            "import": "./dist/api/index.js"
+        },
+        "./broadcaster": {
+            "types": "./dist/broadcaster/index.d.ts",
+            "import": "./dist/broadcaster/index.js"
+        },
+        "./config": {
+            "types": "./dist/config/index.d.ts",
+            "import": "./dist/config/index.js"
+        },
+        "./config/view": {
+            "types": "./dist/config/view.d.ts",
+            "import": "./dist/config/view.js"
+        },
+        "./notification": {
+            "types": "./dist/notification/index.d.ts",
+            "import": "./dist/notification/index.js"
+        },
+        "./notification/view": {
+            "types": "./dist/notification/view.d.ts",
+            "import": "./dist/notification/view.js"
+        },
+        "./panel": {
+            "types": "./dist/panel/index.d.ts",
+            "import": "./dist/panel/index.js"
+        },
+        "./panel/view": {
+            "types": "./dist/panel/view.d.ts",
+            "import": "./dist/panel/view.js"
+        }
+    },
+    "files": [
+        "dist"
+    ],
+    "scripts": {
+        "build": "tsc -p tsconfig.build.json",
+        "check": "tsc -p tsconfig.json",
+        "test": "node --test 'test/**/*.test.ts'"
+    },
+    "publishConfig": {
+        "registry": "https://npm.pkg.github.com"
+    },
+    "engines": {
+        "node": ">=22.18"
+    },
+    "peerDependencies": {
+        "@carbon/web-components": "^2.65.0",
+        "lit": "^3.0.0"
+    },
+    "peerDependenciesMeta": {
+        "@carbon/web-components": {
+            "optional": true
+        },
+        "lit": {
+            "optional": true
+        }
+    },
+    "devDependencies": {
+        "@carbon/web-components": "^2.67.0",
+        "@types/node": "^24.0.0",
+        "lit": "^3.3.3",
+        "typescript": "^5.9.0"
+    }
+}

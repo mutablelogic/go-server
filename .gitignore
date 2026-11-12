@@ -5,3 +5,6 @@ _old
 node_modules
 package-lock.json
 dist
+
+# The frontend package's lockfile is kept
+!frontend/package-lock.json

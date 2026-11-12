@@ -3,11 +3,13 @@
 
 # Executables
 GO ?= $(shell which go 2>/dev/null)
+NPM ?= $(shell which npm 2>/dev/null)
 GOWORK ?= off
 
 # Locations
 BUILD_DIR ?= build
 CMD_DIR := $(wildcard cmd/*)
+TS_DIR := frontend
 
 # Set OS and Architecture
 ARCH ?= $(shell arch | tr A-Z a-z | sed 's/x86_64/amd64/' | sed 's/i386/amd64/' | sed 's/armv7l/arm/' | sed 's/aarch64/arm64/')
@@ -41,6 +43,13 @@ $(CMD_DIR): go-dep mkdir tidy
 	@echo Build $(notdir $@) GOOS=${OS} GOARCH=${ARCH}
 	@GOWORK=${GOWORK} GOOS=${OS} GOARCH=${ARCH} ${GO} build ${BUILD_FLAGS} -o ${BUILD_DIR}/$(notdir $@) ./$@
 
+# Build the TypeScript package into frontend/dist, from package-lock.json,
+# once it's type checked
+.PHONY: frontend
+frontend: npm-dep
+	@echo Build frontend
+	@cd $(TS_DIR) && ${NPM} ci --silent && ${NPM} run --silent check && ${NPM} run --silent build
+
 ###############################################################################
 # TEST
 
@@ -61,6 +70,12 @@ unit-test: go-dep
 race-test: go-dep
 	@echo Race Tests
 	@GOWORK=${GOWORK} ${GO} test -race ${TEST_FLAGS} ./...
+
+# Test the TypeScript package
+.PHONY: frontend-test
+frontend-test: npm-dep
+	@echo Frontend Tests
+	@cd $(TS_DIR) && ${NPM} ci --silent && ${NPM} run --silent check && ${NPM} test --silent
 
 .PHONY: coverage-test
 coverage-test: go-dep mkdir
@@ -83,11 +98,15 @@ tidy: go-dep
 .PHONY: clean
 clean:
 	@echo 'clean'
-	@rm -fr $(BUILD_DIR)
+	@rm -fr $(BUILD_DIR) $(TS_DIR)/dist
 	@$(GO) clean
 
 ###############################################################################
 # DEPENDENCIES
+
+.PHONY: npm-dep
+npm-dep:
+	@test -f "${NPM}" && test -x "${NPM}"  || (echo "Missing npm binary, which builds the frontend" && exit 1)
 
 .PHONY: go-dep
 go-dep:

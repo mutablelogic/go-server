@@ -10,7 +10,9 @@ import (
 	server "github.com/mutablelogic/go-server"
 	broadcaster "github.com/mutablelogic/go-server/broadcaster"
 	broadcastercmd "github.com/mutablelogic/go-server/broadcaster/cmd"
+	config "github.com/mutablelogic/go-server/config"
 	servercmd "github.com/mutablelogic/go-server/pkg/cmd"
+	httprouter "github.com/mutablelogic/go-server/pkg/httprouter"
 	version "github.com/mutablelogic/go-server/pkg/version"
 	errgroup "golang.org/x/sync/errgroup"
 )
@@ -51,9 +53,13 @@ func main() {
 ///////////////////////////////////////////////////////////////////////////////
 // COMMANDS
 
-// Run runs the server, with the broadcaster's stream of changes, until it's
-// interrupted, when the broadcaster stops, so its streams end
+// Run runs the server, with its configuration, at /config.json, and the
+// broadcaster's stream of changes, until it's interrupted, when the
+// broadcaster stops, so its streams end
 func (runner *RunServer) Run(ctx server.Cmd) error {
+	runner.Register(func(router *httprouter.Router) error {
+		return config.RegisterHandler(router, config.New(ctx, router, runner.OpenAPI))
+	})
 	return runner.Broadcaster.WithBroadcaster(ctx, &runner.RunServer, func(b *broadcaster.Broadcaster) error {
 		group, groupCtx := errgroup.WithContext(ctx.Context())
 		group.Go(func() error {

@@ -93,6 +93,15 @@ func (c *child) Context() context.Context {
 	return c.ctx
 }
 
+// SetURL sets the URL of the command which the child has the context of,
+// such as when its server is listening, so the child's URL, and the
+// command's, are the server's
+func (c *child) SetURL(u *url.URL) {
+	if setter, ok := c.Cmd.(interface{ SetURL(*url.URL) }); ok {
+		setter.SetURL(u)
+	}
+}
+
 func (g *global) Logger() *slog.Logger {
 	return g.logger
 }

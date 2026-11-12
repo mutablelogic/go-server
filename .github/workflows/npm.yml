@@ -1,0 +1,46 @@
+name: Publish frontend
+
+# The TypeScript package in frontend is published to GitHub Packages when a
+# release is published, with the release's version, such as 1.7.21 for
+# v1.7.21. A pre-release is published with the "next" tag, so it isn't
+# installed as the latest.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    name: Publish @mutablelogic/go-server
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.x"
+          registry-url: https://npm.pkg.github.com
+          scope: "@mutablelogic"
+
+      - name: Test and build
+        run: |
+          npm ci
+          npm run check
+          npm test
+          npm run build
+
+      - name: Set the version
+        run: npm version --no-git-tag-version "${GITHUB_REF_NAME#v}"
+
+      - name: Publish
+        run: npm publish --tag "${{ github.event.release.prerelease && 'next' || 'latest' }}"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
