@@ -29,6 +29,14 @@
         "./notification/view": {
             "types": "./dist/notification/view.d.ts",
             "import": "./dist/notification/view.js"
+        },
+        "./panel": {
+            "types": "./dist/panel/index.d.ts",
+            "import": "./dist/panel/index.js"
+        },
+        "./panel/view": {
+            "types": "./dist/panel/view.d.ts",
+            "import": "./dist/panel/view.js"
         }
     },
     "files": [

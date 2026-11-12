@@ -3,7 +3,7 @@
 TypeScript clients of go-server's APIs, for the frontends of servers built on it.
 
 - Its clients and controllers are plain TypeScript, with no framework, so they work with Lit, or anything else.
-- Its views are Lit elements, with Carbon's web components. `lit` and `@carbon/web-components` are optional peer dependencies, which only an app which uses a view installs.
+- Its views are Lit elements, with Carbon's web components. `lit` and `@carbon/web-components` are optional peer dependencies, which only an app which uses a view installs. Carbon's types need `skipLibCheck` in the app's `tsconfig.json`.
 - It's published to GitHub Packages with each go-server release, at the release's version.
 
 | Module | What it has |
@@ -12,6 +12,8 @@ TypeScript clients of go-server's APIs, for the frontends of servers built on it
 | `@mutablelogic/go-server/broadcaster` | The broadcaster's `Change` schema, `watchChanges`, and `ChangesController`, which other controllers subscribe to |
 | `@mutablelogic/go-server/notification` | `NotificationController`, which keeps notifications, such as errors, until they time out, or are closed, and tells the views which subscribe to it |
 | `@mutablelogic/go-server/notification/view` | The `gs-notifications` element, which shows a controller's notifications as Carbon toasts |
+| `@mutablelogic/go-server/panel` | `PanelController`, which keeps a panel's item, header and actions, such as Save and Cancel, which close it, and runs them |
+| `@mutablelogic/go-server/panel/view` | The `gs-panel` element, which shows a controller's panel on the right of the page, with its header, its body, which is the element's content, and its actions |
 | `@mutablelogic/go-server/config` | `getConfig`, which reads the server's `/config.json`, and `configClient`, which is the client of the API it says is at its prefix |
 
 ## Installing
@@ -142,6 +144,42 @@ notifications.push({ kind: 'info', title: 'A reminder fired', link: { href: '#ch
 - **Closing:** closing a toast closes it in the controller. `push` returns an id, which `close` closes it by.
 - **Position:** `--gs-notifications-top`, below a 3rem header by default, `--gs-notifications-right`, and `--gs-notifications-z-index`.
 - **Other views:** `subscribe` calls a function with the notifications now, and whenever they change, until the function it returns is called.
+
+## Panels
+
+A `PanelController` keeps a panel: the item it shows, while it's open, its header, and the actions in its footer. The `gs-panel` element shows it on the right of the page, over the page, which is darkened, as a modal dialog. Its body is the element's content, which the app renders from the item.
+
+```ts
+import { PanelController } from '@mutablelogic/go-server/panel';
+import { PanelTag } from '@mutablelogic/go-server/panel/view';
+
+const panel = new PanelController<Agent>()
+    .onClose((agent) => console.log('closed', agent.name))
+    .onError((error, action) => notifications.error(`It couldn't ${action.label.toLowerCase()}`, error));
+
+panel.setHeader({ title: 'Edit agent', subtitle: 'builtin:segment' });
+panel.setActions([
+    { label: 'Save', run: () => saveAgent(form) },
+    { label: 'Cancel', kind: 'secondary' },
+]);
+
+const element = document.createElement(PanelTag);
+element.controller = panel;
+document.body.append(element);
+
+// Render the agent into the element, and open the panel
+render(html`<agent-form .agent=${agent}></agent-form>`, element);
+panel.open(agent);
+```
+
+- **Header:** a `title`, a `subtitle`, an `icon`, which is a URL, such as of a logo, and a close button, when it's `closable`, which it is by default. It's left out when it has none of them. The element's `title` and `subtitle` slots take the place of the controller's text.
+- **Actions:** each is a Carbon button, which runs its `run` when it's clicked, until what it returns settles, and then closes the panel. While it runs, it shows it's running, and the others are disabled.
+  - An action without `run`, such as Cancel, closes the panel.
+  - An action which fails leaves the panel open, and calls `onError`.
+  - An action with `close: false` leaves it open.
+- **Closing:** by its close button, the escape key, or clicking the page beside it, when it's closable. `onClose` is called with its item.
+- **Focus:** the page beside it is inert while it's open, except for regions which announce, such as `gs-notifications`, and what was focused before is focused again when it closes.
+- **Position:** `--gs-panel-top`, below a 3rem header by default, `--gs-panel-width`, 28rem by default, and `--gs-panel-z-index`.
 
 ## Developing
 
