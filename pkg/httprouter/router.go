@@ -148,10 +148,13 @@ func (r *Router) safeHandle(pattern string, handler http.HandlerFunc) (err error
 	return nil
 }
 
-// RegisterCatchAll registers a structured-404 handler at the literal "/" path
-// in the underlying ServeMux. Because http.ServeMux treats "/" as a catch-all
-// that matches any request not handled by a more-specific pattern, this ensures
-// unmatched requests return a JSON 404 instead of Go's plain-text response.
+// RegisterCatchAll registers a structured-404 handler of the path, and of
+// every path beneath it, which another handler doesn't match, so they're
+// JSON, rather than Go's plain text. The path "/" is every path, as
+// http.ServeMux treats it as a catch-all. Another path, such as the API's
+// prefix, /api, is caught, and so is the subtree beneath it, /api/, so an
+// unknown path of the API, such as /api/unknown, is JSON, even when the UI,
+// at /, is served by a file server.
 func (r *Router) RegisterCatchAll(path string, middleware bool) error {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		_ = httpresponse.Error(w, httpresponse.ErrNotFound, req.RequestURI)
@@ -159,11 +162,15 @@ func (r *Router) RegisterCatchAll(path string, middleware bool) error {
 	if middleware {
 		handler = r.middleware.Wrap(handler)
 	}
-	if err := r.safeHandle(types.NormalisePath(path), handler); err != nil {
-		if errors.Is(err, httpresponse.ErrConflict) {
-			return nil
+	path = types.NormalisePath(path)
+	patterns := []string{path}
+	if path != "/" {
+		patterns = append(patterns, path+"/")
+	}
+	for _, pattern := range patterns {
+		if err := r.safeHandle(pattern, handler); err != nil && !errors.Is(err, httpresponse.ErrConflict) {
+			return err
 		}
-		return err
 	}
 	return nil
 }

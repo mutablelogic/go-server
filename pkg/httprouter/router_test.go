@@ -16,6 +16,7 @@ import (
 	jsonschema "github.com/mutablelogic/go-server/pkg/jsonschema"
 	openapi "github.com/mutablelogic/go-server/pkg/openapi/schema"
 	assert "github.com/stretchr/testify/assert"
+	require "github.com/stretchr/testify/require"
 )
 
 func newTestRouter(t *testing.T, prefix, origin string, middleware ...HTTPMiddlewareFunc) *Router {
@@ -592,4 +593,43 @@ func Test_RegisterPath_SecurityRequiresAllSchemes(t *testing.T) {
 		assert.Contains(op.Security[0], "apiKey")
 		assert.Contains(op.Security[0], "oauth")
 	}
+}
+
+func Test_RegisterCatchAll_Subtree(t *testing.T) {
+	// The prefix, and every path beneath it, which no handler matches, is
+	// a JSON 404, even when a file server serves the root, which serves the
+	// paths outside the prefix
+	router := newTestRouter(t, "/api", "")
+	require.NoError(t, router.Register("thing", nil, func(path httprequest.PathItem) {
+		path.Get(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNoContent)
+		}, nil)
+	}))
+	require.NoError(t, router.RegisterFS("/", fstest.MapFS{"index.html": {Data: []byte("<html></html>")}}, false, nil))
+	require.NoError(t, router.RegisterCatchAll("/api", false))
+	require.NoError(t, router.RegisterCatchAll("/api", false), "registering it again isn't an error")
+
+	for path, want := range map[string]int{
+		"/api/thing":       http.StatusNoContent,
+		"/api":             http.StatusNotFound,
+		"/api/":            http.StatusNotFound,
+		"/api/unknown":     http.StatusNotFound,
+		"/api/unknown/too": http.StatusNotFound,
+	} {
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+		assert.Equal(t, want, rec.Code, path)
+		if want == http.StatusNotFound {
+			assert.Contains(t, rec.Header().Get("Content-Type"), "application/json", path)
+		}
+	}
+
+	// The root is the file server's
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	assert.Equal(t, http.StatusOK, rec.Code)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/missing.css", nil))
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+	assert.NotContains(t, rec.Header().Get("Content-Type"), "application/json")
 }
