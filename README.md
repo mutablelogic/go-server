@@ -10,11 +10,13 @@ go get github.com/mutablelogic/go-server
 
 | Package | Description |
 | ------- | ----------- |
+| [`broadcaster`](broadcaster) | Publishes changes, such as to the rows of a server's tables, and streams them to clients at `/changes`, with a client and a `changes` command |
+| [`test`](test) | A HTTP test server of an API, which checks every request and response against its OpenAPI specification |
 | [`pkg/cmd`](pkg/cmd) | Command-line applications, with a server command, global flags and defaults which are kept between commands |
 | [`pkg/httpserver`](pkg/httpserver) | The HTTP server, with its timeouts |
 | [`pkg/httprouter`](pkg/httprouter) | The router, with cross-origin requests, and an OpenAPI specification of its paths |
 | [`pkg/httprequest`](pkg/httprequest) | Reading requests: JSON, forms, queries, and files streamed from the request |
-| [`pkg/httpresponse`](pkg/httpresponse) | Writing responses: JSON, errors, streams, and files, with their caching and preconditions |
+| [`pkg/httpresponse`](pkg/httpresponse) | Writing responses: JSON, errors, streams with a deadline for each write, and files, with their caching and preconditions |
 | [`pkg/jsonschema`](pkg/jsonschema) | JSON schemas of Go types, and validating JSON with them |
 | [`pkg/openapi`](pkg/openapi) | OpenAPI specifications, and their documentation in markdown |
 | [`pkg/otel`](pkg/otel) | OpenTelemetry tracing |
@@ -29,12 +31,17 @@ You need [Go](https://go.dev/doc/install), the version in `go.mod`, and [Make](h
 
 | Target | Description |
 | ------ | ----------- |
+| `make` | Builds the commands in `cmd` into `build`, such as `build/server` |
 | `make test` | Runs go vet, and the unit and coverage tests |
 | `make vet` | Runs go vet |
-| `make unit-test` | Runs the unit tests, verbosely with `VERBOSE=1` |
+| `make unit-test` | Runs the unit tests, with `TEST_FLAGS`, such as `TEST_FLAGS=-v` |
 | `make race-test` | Runs the unit tests with the race detector |
-| `make coverage-test` | Reports the tests' coverage |
+| `make coverage-test` | Reports the tests' coverage, in `build/coverage.txt` |
 | `make tidy` | Runs go mod tidy |
 | `make clean` | Removes the build directory |
+
+Go runs with `GOWORK=off`, so a Go workspace doesn't change what's built. Set `GOWORK` to use one.
+
+`build/server` runs a server with go-server's APIs, such as the broadcaster's stream of changes, with `server run`, and is their client, such as with `server changes`.
 
 The tests run in GitHub Actions for pull requests and pushes to `main` on Linux, and for releases on Windows and macOS too.

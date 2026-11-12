@@ -158,3 +158,25 @@ func TestWrappedResponseWriterSupportsJSONStream(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.Equal(t, "application/ndjson", rec.Header().Get("Content-Type"))
 }
+
+// flushFailer is a response writer whose flush fails, as when the client
+// has gone away
+type flushFailer struct {
+	http.ResponseWriter
+}
+
+func (f flushFailer) FlushError() error {
+	return io.ErrClosedPipe
+}
+
+func TestWrappedResponseWriterFlushError(t *testing.T) {
+	// A response controller's flush of the wrapped writer returns the error
+	// flushing the writer it wraps, rather than dropping it
+	wrapped := otel.NewResponseWriter(flushFailer{httptest.NewRecorder()})
+	assert.ErrorIs(t, http.NewResponseController(wrapped).Flush(), io.ErrClosedPipe)
+
+	// A writer which flushes, flushes
+	rec := httptest.NewRecorder()
+	assert.NoError(t, http.NewResponseController(otel.NewResponseWriter(rec)).Flush())
+	assert.True(t, rec.Flushed)
+}
