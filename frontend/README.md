@@ -8,7 +8,7 @@ TypeScript clients of go-server's APIs, for the frontends of servers built on it
 
 | Module | What it has |
 |---|---|
-| `@mutablelogic/go-server/api` | `requestStream`, which reads a stream of server-sent events, `ApiError`, and `Client`, which is where an API is |
+| `@mutablelogic/go-server/api` | `request`, a JSON request, `requestStream`, which reads a stream of server-sent events, `ApiError`, and `Client`, which is where an API is |
 | `@mutablelogic/go-server/broadcaster` | The broadcaster's `Change` schema, `watchChanges`, and `ChangesController`, which other controllers subscribe to |
 | `@mutablelogic/go-server/notification` | `NotificationController`, which keeps notifications, such as errors, until they time out, or are closed, and tells the views which subscribe to it |
 | `@mutablelogic/go-server/notification/view` | The `gs-notifications` element, which shows a controller's notifications as Carbon toasts |
@@ -16,6 +16,10 @@ TypeScript clients of go-server's APIs, for the frontends of servers built on it
 | `@mutablelogic/go-server/panel/view` | The `gs-panel` element, which shows a controller's panel on the right of the page, with its header, its body, which is the element's content, and its actions |
 | `@mutablelogic/go-server/config` | `getConfig`, which reads the server's `/config.json`, `configClient`, which is the client of the API it says is at its prefix, and `ConfigController`, which follows the server, as it goes down, comes back, and is upgraded |
 | `@mutablelogic/go-server/config/view` | The `gs-server-status` element, for a sidebar, which shows the server's version, that it's down, or upgraded, and links to its documentation |
+| `@mutablelogic/go-server/list` | `ListController`, which keeps a list an API returns a page at a time, sorted by the server, and follows its changes |
+| `@mutablelogic/go-server/list/view` | The `gs-table` element, a Carbon data table of a list's page, with sortable columns and pagination, whose rows open their items |
+| `@mutablelogic/go-server/list/tiles` | The `gs-tiles` element, a row of tiles of a list, after one for all of them, of which one is chosen |
+| `@mutablelogic/go-server/router` | `Router`, which shows the page of the location's hash, such as `#database/shop` |
 
 ## Installing
 
@@ -216,6 +220,54 @@ panel.open(agent);
 - **Closing:** by its close button, the escape key, or clicking the page beside it, when it's closable. `onClose` is called with its item.
 - **Focus:** the page beside it is inert while it's open, except for regions which announce, such as `gs-notifications`, and what was focused before is focused again when it closes.
 - **Position:** `--gs-panel-top`, below a 3rem header by default, `--gs-panel-width`, 28rem by default, and `--gs-panel-z-index`.
+
+## Lists
+
+A `ListController` keeps a list which an API returns a page at a time, as `{ count, body }`. It loads a page, sorted when it has a sort, and keeps what's shown until the next page is loaded. With a `ChangesController`, it loads the page again when a change matches its filter, and marks the list unavailable while the server can't be reached.
+
+```ts
+import { request } from '@mutablelogic/go-server/api';
+import { ListController } from '@mutablelogic/go-server/list';
+import { TableTag, type Column } from '@mutablelogic/go-server/list/view';
+
+const roles = new ListController<Role>({
+    name: 'Roles',
+    list: (offset, limit, sort) => request(client, 'GET', 'role', { query: { offset, limit, sort: sort?.key } }),
+    get: (role) => request(client, 'GET', `role/${role.name}`),
+    same: (a, b) => a.name === b.name,
+    notifications, changes, filter: { table: 'role' },
+});
+
+const columns: Column<Role>[] = [
+    { header: 'Role', cell: (role) => role.name, sort: 'name', sortFirst: 'ascending' },
+    { header: 'Connections', cell: (role) => role.connections, sort: 'connections' },
+];
+const table = document.createElement(TableTag);
+table.controller = roles;
+table.columns = columns;
+table.empty = 'No roles';
+
+// Show the role which is opened in a panel
+roles.subscribe(({ selected }) => selected && panel.open(selected));
+```
+
+- **Pages:** `setPage`, `setPageSize`, and `refresh`, which loads the page again. A page beyond the last, as items were deleted, becomes the last.
+- **Sorting:** `setSort({ key, direction })` loads the first page, and `list` gets the sort. A column with a `sort` key sorts the list when its header is clicked, descending first unless its `sortFirst` is ascending. Carbon's own sorting, which only sorts the page, is turned off.
+- **Another list:** `reset` loads the first page, showing the views loading, and closes the open item, such as when a filter which `list` reads changes.
+- **The open item:** `open` and `close`. It's kept current as the page loads, or loaded with `get` when it's left the page, and closed when it's gone (a 404).
+- **Tiles:** `gs-tiles` shows a list as tiles, with a `tile` function, and an `all` tile before them. It fires `gs-tile-select` with the value of a tile which is clicked, and the app sets `selected`.
+
+## Routing
+
+`Router` shows the page of the location's hash and hides the others. `#database/shop` is the page `database` with the parameter `shop`. A hash which isn't a page shows the default.
+
+```ts
+new Router('databases')
+    .add('databases', document.getElementById('databases'))
+    .add('database', document.getElementById('database'), (route) => showDatabase(route.params[0]))
+    .onRoute((route) => nav.setActive(route.page))
+    .start();
+```
 
 ## Developing
 

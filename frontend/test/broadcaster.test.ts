@@ -49,7 +49,9 @@ test('ChangesController', async (t) => {
         controller.onConnect(() => connects++);
         controller.on({ table: 'provider' }, (change) => providers.push(change));
         const unsubscribe = controller.subscribe([{ table: 'session' }, { table: 'nothing' }], (change) => sessions.push(change));
+        assert.ok(!controller.started);
         controller.start();
+        assert.ok(controller.started);
         await waitFor(() => providers.length > 0 && sessions.length > 0);
         assert.equal(connects, 1);
         assert.ok(controller.connected);
@@ -61,6 +63,7 @@ test('ChangesController', async (t) => {
         unsubscribe();
         controller.stop();
         assert.ok(!controller.connected);
+        assert.ok(!controller.started);
     });
 
     await t.test('burst', async () => {

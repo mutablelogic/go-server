@@ -60,6 +60,12 @@ export class ChangesController {
         return this.isConnected;
     }
 
+    // started is true from when it's started until it's stopped, whether or
+    // not the stream can be watched
+    get started(): boolean {
+        return this.request !== undefined;
+    }
+
     // subscribe calls the function with each change which matches the
     // filter, or any of the filters, or with no change when changes may have
     // been missed, such as when the stream starts, or when it subscribes,
