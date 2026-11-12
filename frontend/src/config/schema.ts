@@ -11,6 +11,10 @@ export interface Config {
     // The version of the server
     version?: string;
 
+    // When the server was built, such as 2026-11-12T18:00:00Z, so a server
+    // which was rebuilt is known, even with the same version
+    build?: string;
+
     // The path of the API's documentation, when the server serves it
     openapi?: string;
 

@@ -32,10 +32,12 @@ export type ConfigListener = (state: ConfigState) => void;
 // broadcaster's ChangesController is
 export type ConfigServer = Pick<ChangesController, 'onConnect' | 'onDisconnect' | 'onShutdown'>;
 
-// ConfigControllerOptions are where the configuration is, and the
-// notification controller which is told when the server is down, up again,
-// or upgraded, when there is one
+// ConfigControllerOptions are where the configuration is, or the
+// configuration, when the page has read it, and the notification controller
+// which is told when the server is down, up again, or upgraded, when there
+// is one
 export interface ConfigControllerOptions extends ConfigOptions {
+    config?: Config;
     notifications?: NotificationController;
     reload?: () => void;
 }
@@ -56,6 +58,9 @@ export class ConfigController {
 
     constructor(server: ConfigServer, options: ConfigControllerOptions = {}) {
         this.options = options;
+        if (options.config) {
+            this.state = { config: options.config, latest: options.config, status: 'up' };
+        }
         server.onShutdown(() => this.down());
         server.onDisconnect(() => this.down());
         server.onConnect(() => void this.connected());
@@ -162,13 +167,19 @@ export class ConfigController {
         }
         const notifications = this.options.notifications;
         this.closeDown();
-        if ((latest.version ?? '') !== (this.state.config.version ?? '')) {
+        // It was upgraded when its version, or when it was built, changed,
+        // as a server which is developed is rebuilt with the same version
+        const config = this.state.config;
+        const version = (latest.version ?? '') !== (config.version ?? '');
+        if (version || (latest.build ?? '') !== (config.build ?? '')) {
             this.update({ latest, status: 'upgraded' });
             this.upgrades.forEach((fn) => fn(latest));
             notifications?.push({
                 kind: 'info',
                 title: 'The server was upgraded',
-                subtitle: `It's now ${latest.version || 'another version'}. Refresh the page to use it.`,
+                subtitle: version
+                    ? `It's now ${latest.version || 'another version'}. Refresh the page to use it.`
+                    : "It's been rebuilt. Refresh the page to use it.",
                 action: { text: 'Refresh', run: () => this.refresh() },
                 timeout: null,
             });

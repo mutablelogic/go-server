@@ -61,10 +61,12 @@ A `ConfigController` follows the server with the `ChangesController`. Its status
 
 | Status | When |
 |---|---|
-| `loading` | until the configuration is read |
+| `loading` | until the configuration is read, unless it's given, as `config`, when the page has read it |
 | `up` | once it's read, or the server is back, with the page's version |
 | `down` | when the server says it's stopping, or the changes can't be watched |
-| `upgraded` | when the server is back, with another version than the page's, until the page is refreshed |
+| `upgraded` | when the server is back, with another version than the page's, or the same version built again, until the page is refreshed |
+
+A server says when it was built, as `build`, from `pkg/version`'s `BuildDate`, which its Makefile sets with `-ldflags "-X github.com/mutablelogic/go-server/pkg/version.BuildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)"`. Without it, a server rebuilt with the same version, such as while it's developed, isn't known to be upgraded.
 
 With a `NotificationController`, it says when the server is down, until it's back, that it's back, and that it was upgraded, with a Refresh action, which reloads the page. `gs-server-status` shows the same, for a sidebar:
 
@@ -73,11 +75,11 @@ import { ChangesController } from '@mutablelogic/go-server/broadcaster';
 import { ConfigController, configClient, getConfig } from '@mutablelogic/go-server/config';
 import { ServerStatusTag } from '@mutablelogic/go-server/config/view';
 
-const changes = new ChangesController(configClient(await getConfig()));
-const config = new ConfigController(changes, { notifications })
+const page = await getConfig();
+const changes = new ChangesController(configClient(page));
+const config = new ConfigController(changes, { config: page, notifications })
     .onUp(() => void reloadEverything())
     .onUpgrade((latest) => console.log('the server is now', latest.version));
-await config.load();
 changes.start();
 
 const status = document.createElement(ServerStatusTag);
