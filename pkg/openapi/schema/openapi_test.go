@@ -364,3 +364,39 @@ func Test_AddPath_Wildcard(t *testing.T) {
 		t.Fatalf("path not added under its OpenAPI template: %v", spec.Paths.MapOfPathItemValues)
 	}
 }
+
+func Test_AddTagGroup(t *testing.T) {
+	order := []string{"Providers", "Models", "Sessions", "Tools", "Changes"}
+	for name, adds := range map[string][][]string{
+		"GroupFirst": {order, {"Tools"}},
+		"TagFirst":   {{"Tools"}, order},
+	} {
+		// The group is ordered by the module which adds every tag, whether
+		// it adds them before, or after, one which adds one of them, and
+		// other groups are kept
+		spec := &schema.Spec{}
+		spec.AddTagGroup("Other", "OpenAPI")
+		for _, tags := range adds {
+			spec.AddTagGroup("Main", tags...)
+		}
+		assert.Equal(t, []schema.TagGroup{
+			{Name: "Other", Tags: []string{"OpenAPI"}},
+			{Name: "Main", Tags: order},
+		}, spec.TagGroups, name)
+	}
+
+	// A tag which the group doesn't have is added, before those it has, and
+	// one which it has isn't added again
+	spec := &schema.Spec{}
+	spec.AddTagGroup("Main", "Providers")
+	spec.AddTagGroup("Main", "Agents")
+	spec.AddTagGroup("Main", "Providers")
+	assert.Equal(t, []string{"Agents", "Providers"}, spec.TagGroups[0].Tags)
+
+	// The tags which are given aren't kept, so changing them doesn't change
+	// the group
+	tags := []string{"One"}
+	spec.AddTagGroup("Copy", tags...)
+	tags[0] = "Two"
+	assert.Equal(t, []string{"One"}, spec.TagGroups[1].Tags)
+}

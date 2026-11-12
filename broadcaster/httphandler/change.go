@@ -32,9 +32,9 @@ var changeWriteTimeout = 30 * time.Second
 // PRIVATE METHODS
 
 func changeHandlers(b *broadcaster.Broadcaster, router *httprouter.Router, documentation *openapi.MarkdownDoc) error {
-	router.Spec().AddTag("Changes", documentation.Section(2, "Change Operations").Body)
+	router.Spec().AddTag(Tag, documentation.Section(2, "Change Operations").Body)
 	return router.Register("changes", nil, func(path httprequest.PathItem) {
-		path.Tag("Changes")
+		path.Tag(Tag)
 
 		// GET
 		path.Get(changeWatchHandler(b), func(op httprequest.PathOperation) {

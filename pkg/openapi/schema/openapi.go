@@ -392,17 +392,33 @@ func (s *Spec) AddTag(name, description string) {
 	s.Tags = append(s.Tags, Tag{Name: name, Description: description})
 }
 
-// AddTagGroup appends a [TagGroup] that groups the given tags under a sidebar
-// heading in Redoc. If a group with the same name already exists, its tags
-// are replaced.
+// AddTagGroup adds the tags to the [TagGroup] with the name, which groups
+// them under a sidebar heading in Redoc, and is created when there's none.
+// Redoc doesn't show a tag which isn't in a group, once there are groups.
+//
+// The tags are added to those the group has, so the modules of a server,
+// which register their handlers on their own, in any order, can share a
+// group. When the group has every tag, it's kept as it is. Otherwise its
+// tags are those, in their order, and then those it had, so a module which
+// adds every tag of the group, in order, orders it, whether it adds them
+// before, or after, a module which adds one of them.
 func (s *Spec) AddTagGroup(name string, tags ...string) {
-	for i, g := range s.TagGroups {
-		if g.Name == name {
-			s.TagGroups[i].Tags = tags
-			return
+	i := slices.IndexFunc(s.TagGroups, func(g TagGroup) bool { return g.Name == name })
+	if i < 0 {
+		s.TagGroups = append(s.TagGroups, TagGroup{Name: name, Tags: slices.Clone(tags)})
+		return
+	}
+	existing := s.TagGroups[i].Tags
+	if !slices.ContainsFunc(tags, func(tag string) bool { return !slices.Contains(existing, tag) }) {
+		return
+	}
+	result := slices.Clone(tags)
+	for _, tag := range existing {
+		if !slices.Contains(result, tag) {
+			result = append(result, tag)
 		}
 	}
-	s.TagGroups = append(s.TagGroups, TagGroup{Name: name, Tags: tags})
+	s.TagGroups[i].Tags = result
 }
 
 // AddSecurityScheme registers a named [SecurityScheme] under components.
