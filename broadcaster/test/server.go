@@ -1,4 +1,5 @@
-// Package test has a HTTP test server of the broadcaster's API
+// Package test has a HTTP test server of the broadcaster's API, for the
+// tests of the broadcaster, and of servers which use it
 package test
 
 import (

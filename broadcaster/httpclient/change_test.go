@@ -12,7 +12,7 @@ import (
 	broadcaster "github.com/mutablelogic/go-server/broadcaster"
 	httpclient "github.com/mutablelogic/go-server/broadcaster/httpclient"
 	httphandler "github.com/mutablelogic/go-server/broadcaster/httphandler"
-	test "github.com/mutablelogic/go-server/broadcaster/internal/test"
+	test "github.com/mutablelogic/go-server/broadcaster/test"
 	schema "github.com/mutablelogic/go-server/broadcaster/schema"
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	httprouter "github.com/mutablelogic/go-server/pkg/httprouter"

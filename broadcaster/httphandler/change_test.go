@@ -12,7 +12,7 @@ import (
 	// Packages
 	broadcaster "github.com/mutablelogic/go-server/broadcaster"
 	httphandler "github.com/mutablelogic/go-server/broadcaster/httphandler"
-	test "github.com/mutablelogic/go-server/broadcaster/internal/test"
+	test "github.com/mutablelogic/go-server/broadcaster/test"
 	schema "github.com/mutablelogic/go-server/broadcaster/schema"
 	httprouter "github.com/mutablelogic/go-server/pkg/httprouter"
 	types "github.com/mutablelogic/go-server/pkg/types"
