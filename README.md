@@ -30,12 +30,17 @@ You need [Go](https://go.dev/doc/install), the version in `go.mod`, and [Make](h
 
 | Target | Description |
 | ------ | ----------- |
+| `make` | Builds the commands in `cmd` into `build`, such as `build/server` |
 | `make test` | Runs go vet, and the unit and coverage tests |
 | `make vet` | Runs go vet |
-| `make unit-test` | Runs the unit tests, verbosely with `VERBOSE=1` |
+| `make unit-test` | Runs the unit tests, with `TEST_FLAGS`, such as `TEST_FLAGS=-v` |
 | `make race-test` | Runs the unit tests with the race detector |
-| `make coverage-test` | Reports the tests' coverage |
+| `make coverage-test` | Reports the tests' coverage, in `build/coverage.txt` |
 | `make tidy` | Runs go mod tidy |
 | `make clean` | Removes the build directory |
+
+Go runs with `GOWORK=off`, so a Go workspace doesn't change what's built. Set `GOWORK` to use one.
+
+`build/server` runs a server with go-server's APIs, such as the broadcaster's stream of changes, with `server run`, and is their client, such as with `server changes`.
 
 The tests run in GitHub Actions for pull requests and pushes to `main` on Linux, and for releases on Windows and macOS too.
