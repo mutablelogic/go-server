@@ -37,6 +37,15 @@ test('runAction', async (t) => {
         assert.deepEqual(r.errors, [error]);
     });
 
+    await t.test('a promise of another realm, which has a then, is one too', async () => {
+        const r = record();
+        const error = new Error('elsewhere');
+        const thenable: PromiseLike<unknown> = { then: (_ok, fail) => Promise.reject(error).then(undefined, fail) };
+        await runAction({ label: 'Go', run: () => thenable }, r.onBusy, r.onError);
+        assert.deepEqual(r.busy, [true, false]);
+        assert.deepEqual(r.errors, [error]);
+    });
+
     await t.test('reports what it throws', async () => {
         const r = record();
         const error = new Error('thrown');

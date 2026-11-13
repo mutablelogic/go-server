@@ -160,8 +160,13 @@ export class PageHeaderElement extends LitElement {
     }
 
     // run runs an action, with its button disabled while its promise is
-    // pending, and fires PageActionErrorEvent when it fails
+    // pending, and fires PageActionErrorEvent when it fails. An action
+    // which is disabled, or busy, isn't run, even when it's clicked again
+    // before its button is rendered disabled.
     private run(action: PageAction) {
+        if (action.disabled || this.busy.has(action)) {
+            return;
+        }
         void runAction(action, (busy) => {
             const next = new Set(this.busy);
             if (busy) {
