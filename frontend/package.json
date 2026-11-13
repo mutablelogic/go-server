@@ -54,6 +54,14 @@
             "types": "./dist/panel/view.d.ts",
             "import": "./dist/panel/view.js"
         },
+        "./page": {
+            "types": "./dist/page/index.d.ts",
+            "import": "./dist/page/index.js"
+        },
+        "./page/view": {
+            "types": "./dist/page/view.d.ts",
+            "import": "./dist/page/view.js"
+        },
         "./router": {
             "types": "./dist/router/index.d.ts",
             "import": "./dist/router/index.js"
