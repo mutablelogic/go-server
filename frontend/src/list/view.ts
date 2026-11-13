@@ -100,21 +100,27 @@ export class TableElement<T = unknown> extends LitElement {
 
         aside {
             align-self: start;
-            padding: 1rem;
             background: var(--cds-layer-01, #f4f4f4);
             color: var(--cds-text-primary, #161616);
             font-size: 0.875rem;
             line-height: 1.28572;
         }
 
+        /* The legend's title is a bar, as the table's header is */
         aside h2 {
-            margin: 0 0 0.75rem;
+            display: flex;
+            align-items: center;
+            min-height: 3rem;
+            margin: 0;
+            padding: 0 1rem;
+            background: var(--cds-layer-accent-01, #e0e0e0);
             font-size: 0.875rem;
             font-weight: 600;
         }
 
         aside dl {
             margin: 0;
+            padding: 1rem;
         }
 
         aside dt {
