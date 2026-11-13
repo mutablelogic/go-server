@@ -176,7 +176,7 @@ export class ConfigController {
             this.upgrades.forEach((fn) => fn(latest));
             notifications?.push({
                 kind: 'info',
-                title: 'The server was upgraded',
+                title: 'The application was upgraded',
                 subtitle: version
                     ? `It's now ${latest.version || 'another version'}. Refresh the page to use it.`
                     : "It's been rebuilt. Refresh the page to use it.",

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"io/fs"
 	"net/http"
+	"path"
 	"strings"
 	"time"
 
@@ -205,6 +206,12 @@ func (r *Router) RegisterOpenAPI(path string, middleware bool) error {
 // When spec is non-nil the corresponding [openapi.PathItem] is added to the
 // router's OpenAPI specification under the resolved path. When middleware is
 // true the handler is wrapped by the router's middleware chain.
+//
+// Files are served with a Last-Modified of the build time. A page's own
+// files, its HTML, scripts and styles, and a directory, which serves its
+// index.html, are also served with Cache-Control: no-cache, so a browser
+// checks them before it uses its copy, and a new build is used as soon as
+// it's served. Others, such as fonts and images, can be used without.
 func (r *Router) RegisterFS(path string, fs fs.FS, middleware bool, spec *openapi.PathItem) error {
 	prefix := r.resolvePath(path)
 	if prefix != "/" {
@@ -213,7 +220,7 @@ func (r *Router) RegisterFS(path string, fs fs.FS, middleware bool, spec *openap
 	if spec != nil {
 		r.spec.AddPath(r.resolvePath(path), spec)
 	}
-	handler := withLastModified(version.BuildTime(), http.StripPrefix(prefix, http.FileServer(http.FS(fs)))).ServeHTTP
+	handler := withPageNoCache(withLastModified(version.BuildTime(), http.StripPrefix(prefix, http.FileServer(http.FS(fs))))).ServeHTTP
 	if middleware {
 		handler = r.middleware.Wrap(handler)
 	}
@@ -289,6 +296,22 @@ func (r *Router) RegisterPath(path string, params *jsonschema.Schema, pathitem h
 
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
+
+// pageExts are the extensions of a page's own files, which change with each
+// build, and whose names don't
+var pageExts = map[string]bool{".html": true, ".htm": true, ".js": true, ".mjs": true, ".css": true}
+
+// withPageNoCache serves a page's own files, and a directory, which serves
+// its index.html, with Cache-Control: no-cache, so a browser revalidates
+// them before it uses its copy
+func withPageNoCache(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if p := req.URL.Path; strings.HasSuffix(p, "/") || pageExts[strings.ToLower(path.Ext(p))] {
+			w.Header().Set("Cache-Control", "no-cache")
+		}
+		next.ServeHTTP(w, req)
+	})
+}
 
 func withLastModified(modified time.Time, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {

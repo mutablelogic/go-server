@@ -94,7 +94,7 @@ test('ConfigController', async (t) => {
         assert.deepEqual(config.current.latest, v2);
         assert.deepEqual(config.config, v1);
         assert.deepEqual(upgrades, [v2]);
-        const upgraded = notifications.notifications.find((n) => n.title === 'The server was upgraded');
+        const upgraded = notifications.notifications.find((n) => n.title === 'The application was upgraded');
         assert.ok(upgraded?.action);
         assert.equal(upgraded.timeout, null);
         upgraded.action.run();
@@ -114,7 +114,7 @@ test('ConfigController', async (t) => {
         server.fire('disconnect');
         server.fire('connect');
         await waitFor(() => config.status === 'upgraded');
-        const upgraded = notifications.notifications.find((n) => n.title === 'The server was upgraded');
+        const upgraded = notifications.notifications.find((n) => n.title === 'The application was upgraded');
         assert.equal(upgraded?.subtitle, "It's been rebuilt. Refresh the page to use it.");
         notifications.clear();
     });

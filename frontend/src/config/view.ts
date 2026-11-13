@@ -137,7 +137,7 @@ export class ServerStatusElement extends LitElement {
             case 'upgraded':
                 return html`
                     <cds-icon-button kind="ghost" size="sm" align="top-start" @click=${() => this.controller?.refresh()}>
-                        <span slot="icon" class="icon upgraded">${renewIcon}<span class="visually-hidden">The server was upgraded</span></span>
+                        <span slot="icon" class="icon upgraded">${renewIcon}<span class="visually-hidden">The application was upgraded</span></span>
                         <span slot="tooltip-content">${state.latest?.version === state.config?.version
                             ? "The server's been rebuilt"
                             : `The server is now ${state.latest?.version || 'another version'}`}. Refresh the page to use it.</span>
