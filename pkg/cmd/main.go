@@ -114,6 +114,10 @@ func Main[T any](cmds T, description, version string) error {
 		}
 	}
 
+	// OpenTelemetry's own errors, such as a failing metrics callback, go to
+	// the logger, now it's set up
+	setOTelErrorHandler(globals.logger)
+
 	// Bind the global context to the server.Cmd interface for command Run() methods.
 	kongctx.BindTo(&globals.global, (*server.Cmd)(nil))
 
