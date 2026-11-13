@@ -5,8 +5,10 @@
 // its item in the controller, as does its first cell, which is a button, from
 // the keyboard, and the item which is opened is selected. It
 // shows a skeleton until it has items, and the items as unavailable while
-// the server can't be reached. It needs lit and @carbon/web-components,
-// which are the package's optional peer dependencies.
+// the server can't be reached. It can have a legend, to the right of the
+// table, or beneath it, when the element is narrow, which explains what's in
+// it, such as its tags. It needs lit and @carbon/web-components, which are
+// the package's optional peer dependencies.
 
 import { LitElement, css, html, nothing } from 'lit';
 import type { ListController, ListState, Sort } from './controller.ts';
@@ -25,6 +27,19 @@ export interface Column<T> {
     sortFirst?: Sort['direction'];
 }
 
+// LegendItem is what a legend explains, such as a tag, as it's shown in the
+// table, and what it means
+export interface LegendItem {
+    term: unknown;
+    description: string;
+}
+
+// Legend explains what's in a table, with a title, such as Context
+export interface Legend {
+    title?: string;
+    items: LegendItem[];
+}
+
 // TableTag is the element's tag
 export const TableTag = 'gs-table';
 
@@ -32,6 +47,7 @@ export class TableElement<T = unknown> extends LitElement {
     static override properties = {
         controller: { attribute: false },
         columns: { attribute: false },
+        legend: { attribute: false },
         empty: { type: String },
         state: { state: true },
     };
@@ -41,6 +57,9 @@ export class TableElement<T = unknown> extends LitElement {
 
     // columns are the table's columns
     declare columns: Column<T>[];
+
+    // legend explains what's in the table, beside it, when it's set
+    declare legend?: Legend;
 
     // empty is what's shown when there are no items, such as No roles
     declare empty: string;
@@ -53,7 +72,62 @@ export class TableElement<T = unknown> extends LitElement {
     static override styles = css`
         :host {
             display: block;
+            container-type: inline-size;
+        }
+
+        /* The table scrolls when it's too wide, beside its legend, which is
+           beneath it, when the element is narrow */
+        .layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr);
+            gap: 1rem;
+        }
+
+        .layout.legend {
+            grid-template-columns: minmax(0, 1fr) var(--gs-table-legend-width, 16rem);
+        }
+
+        @container (max-width: 48rem) {
+            .layout.legend {
+                grid-template-columns: minmax(0, 1fr);
+            }
+        }
+
+        .table {
             overflow-x: auto;
+            min-width: 0;
+        }
+
+        aside {
+            align-self: start;
+            padding: 1rem;
+            background: var(--cds-layer-01, #f4f4f4);
+            color: var(--cds-text-primary, #161616);
+            font-size: 0.875rem;
+            line-height: 1.28572;
+        }
+
+        aside h2 {
+            margin: 0 0 0.75rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+
+        aside dl {
+            margin: 0;
+        }
+
+        aside dt {
+            margin-top: 0.75rem;
+        }
+
+        aside dt:first-child {
+            margin-top: 0;
+        }
+
+        aside dd {
+            margin: 0.25rem 0 0;
+            color: var(--cds-text-secondary, #525252);
         }
 
         /* A cell is one line, and the table scrolls when it's too wide */
@@ -122,6 +196,25 @@ export class TableElement<T = unknown> extends LitElement {
     }
 
     protected override render() {
+        if (!this.legend?.items.length) {
+            return html`<div class="layout"><div class="table">${this.renderTable()}</div></div>`;
+        }
+        return html`
+            <div class="layout legend">
+                <div class="table">${this.renderTable()}</div>
+                <aside aria-label=${this.legend.title ?? 'Legend'}>
+                    ${this.legend.title ? html`<h2>${this.legend.title}</h2>` : nothing}
+                    <dl>
+                        ${this.legend.items.map((item) => html`<dt>${item.term}</dt><dd>${item.description}</dd>`)}
+                    </dl>
+                </aside>
+            </div>
+        `;
+    }
+
+    // renderTable returns the table, with its pagination, or a skeleton,
+    // until it has items
+    private renderTable() {
         const state = this.state;
         if (!state?.items) {
             // Carbon's skeleton re-renders forever when it has no headers
