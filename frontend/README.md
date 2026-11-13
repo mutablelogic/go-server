@@ -19,6 +19,8 @@ TypeScript clients of go-server's APIs, for the frontends of servers built on it
 | `@mutablelogic/go-server/list` | `ListController`, which keeps a list an API returns a page at a time, sorted by the server, and follows its changes |
 | `@mutablelogic/go-server/list/view` | The `gs-table` element, a Carbon data table of a list's page, with sortable columns and pagination, whose rows open their items |
 | `@mutablelogic/go-server/list/tiles` | The `gs-tiles` element, a row of tiles of a list, after one for all of them, of which one is chosen |
+| `@mutablelogic/go-server/page` | `PageAction`, an action of a page's header, and `runAction`, which runs one, busy while its promise is pending |
+| `@mutablelogic/go-server/page/view` | The `gs-page-header` element, the dark header at the top of a page, with an icon, a title, a subtitle or details, and actions on the right |
 | `@mutablelogic/go-server/router` | `Router`, which shows the page of the location's hash, such as `#database/shop` |
 
 ## Installing
@@ -259,6 +261,32 @@ roles.subscribe(({ selected }) => selected && panel.open(selected));
 - **The open item:** `open` and `close`. It's kept current as the page loads, or loaded with `get` when it's left the page, and closed when it's gone (a 404).
 - **Legend:** a table's `legend`, `{ title, items: [{ term, description }] }`, explains what's in it, such as its tags, to the right of the table, or beneath it when the element is narrower than 48rem. A `term` is any template, such as a tag, as it's shown in the table. Its width is `--gs-table-legend-width`, 16rem by default.
 - **Tiles:** `gs-tiles` shows a list as tiles, with a `tile` function, and an `all` tile before them. It fires `gs-tile-select` with the value of a tile which is clicked, and the app sets `selected`. A tile's `badge`, such as an owner, can have a `badgeIcon`, such as Carbon's 16px user icon, which is shown at 12px, and a `badgeTitle`, such as Owner, which is shown when it's hovered, and read by screen readers.
+
+## Page headers
+
+`gs-page-header` is the dark header at the top of a page, in Carbon's g90 theme, with an icon, a title, a subtitle beneath it, and actions on the right.
+
+```ts
+import AddIcon from '@carbon/icons/es/add/16.js';
+import DataBaseIcon from '@carbon/icons/es/data-base/32.js';
+import { PageActionErrorEvent, PageHeaderTag } from '@mutablelogic/go-server/page/view';
+
+const header = document.createElement(PageHeaderTag);
+header.heading = 'Databases';
+header.subtitle = 'The databases on the server';
+header.icon = DataBaseIcon;
+header.actions = [{ label: 'Create a database', icon: AddIcon, run: () => createDatabase() }];
+header.addEventListener(PageActionErrorEvent, (event) => notifications.error("It couldn't be done", event.detail.error));
+```
+
+- **Details:** `details`, a template, replaces the subtitle, such as a description, an owner and a size.
+- **Icons:** `icon` (32px) and an action's `icon` (16px) are Carbon icon descriptors, or icons which are rendered already.
+- **Actions:**
+  - `kind` is Carbon's button kind, primary by default, and `disabled` disables one.
+  - When `run` returns a promise, its button is disabled until it settles.
+  - When it throws, or rejects, the header fires `gs-page-action-error`, with the action and the error.
+- **Controls:** what's in its default slot, such as a search, sits beside the title.
+- **Spacing:** `--gs-page-header-margin` sets its margin, such as the negative of the page's padding, so it spans the page.
 
 ## Routing
 
