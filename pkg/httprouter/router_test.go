@@ -633,3 +633,34 @@ func Test_RegisterCatchAll_Subtree(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, rec.Code)
 	assert.NotContains(t, rec.Header().Get("Content-Type"), "application/json")
 }
+
+// A page's own files, and a directory, which serves its index.html, are
+// revalidated before they're used, and others, such as fonts, aren't
+func Test_RegisterFS_003(t *testing.T) {
+	assert := assert.New(t)
+	router := newTestRouter(t, "/", "")
+	fsys := fstest.MapFS{
+		"index.html":         &fstest.MapFile{Data: []byte("<html></html>")},
+		"index.js":           &fstest.MapFile{Data: []byte("console.log(1)")},
+		"index.css":          &fstest.MapFile{Data: []byte("body{}")},
+		"fonts/plex.woff2":   &fstest.MapFile{Data: []byte("font")},
+		"images/logo.svg":    &fstest.MapFile{Data: []byte("<svg/>")},
+		"docs/INDEX.HTML":    &fstest.MapFile{Data: []byte("<html></html>")},
+		"docs/sub/index.htm": &fstest.MapFile{Data: []byte("<html></html>")},
+	}
+	assert.NoError(router.RegisterFS("/", fs.FS(fsys), false, nil))
+
+	for path, want := range map[string]string{
+		"/":                 "no-cache",
+		"/index.js":         "no-cache",
+		"/index.css":        "no-cache",
+		"/docs/INDEX.HTML":  "no-cache",
+		"/fonts/plex.woff2": "",
+		"/images/logo.svg":  "",
+	} {
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+		assert.Equal(http.StatusOK, rec.Code, path)
+		assert.Equal(want, rec.Header().Get("Cache-Control"), path)
+	}
+}
