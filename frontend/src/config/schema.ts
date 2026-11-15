@@ -21,4 +21,17 @@ export interface Config {
     // The server's public endpoint, such as https://example.com/api, when
     // it was given its public name, such as that of a proxy it's behind
     endpoint?: string;
+
+    // What the server's modules say of themselves, by their names, such as
+    // what they can do, which configSection returns
+    modules?: Record<string, unknown>;
+}
+
+// configSection returns what a module says of itself, by its name, such as
+// credential, or nothing, when the server doesn't say, such as when it's
+// older, or doesn't have the module. It isn't checked: the server documents
+// its type.
+export function configSection<T>(config: Config | undefined, name: string): T | undefined {
+    const section = config?.modules?.[name];
+    return section === undefined || section === null ? undefined : section as T;
 }
