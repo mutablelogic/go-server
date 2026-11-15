@@ -67,6 +67,10 @@ abstract class ShellElement extends LitElement {
 }
 
 export class HeaderElement extends ShellElement {
+    // The active section's item is current, as true, rather than page, as
+    // Carbon's header item only shows it's current, with is-active, when
+    // aria-current isn't page, which it doesn't pass to its link, whose
+    // styles show it then
     protected override render() {
         const state = this.state;
         if (!state) {
@@ -80,7 +84,7 @@ export class HeaderElement extends ShellElement {
                 ${sections.length ? html`
                     <cds-header-nav menu-bar-label=${state.name}>
                         ${sections.map((section) => html`
-                            <cds-header-nav-item href=${section.href} ?is-active=${section.active} aria-current=${section.active ? 'page' : 'false'}>${section.label}</cds-header-nav-item>
+                            <cds-header-nav-item href=${section.href} ?is-active=${section.active} aria-current=${section.active ? 'true' : nothing}>${section.label}</cds-header-nav-item>
                         `)}
                     </cds-header-nav>
                 ` : nothing}
