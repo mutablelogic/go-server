@@ -8,14 +8,20 @@
 // the server can't be reached. It can have a legend, to the right of the
 // table, or beneath it, when the element is narrow, which explains what's in
 // it, such as its tags. Its rows can be expanded, to show what's beneath an
-// item, such as its history, when expand is set. It needs lit and
+// item, such as its history, when expand is set, and selected, for its batch
+// actions, such as Delete, when actions are set. It needs lit and
 // @carbon/web-components, which are the package's optional peer
 // dependencies.
 
 import { LitElement, css, html, nothing } from 'lit';
+import iconLoader from '@carbon/web-components/es/globals/internal/icon-loader.js';
+import type { CarbonIconDescriptor } from '@carbon/web-components/es/globals/internal/icon-loader-utils.js';
+import { runAction } from '../page/action.ts';
 import type { ListController, ListState, Sort } from './controller.ts';
 
 // Carbon components
+import '@carbon/web-components/es/components/button/index.js';
+import '@carbon/web-components/es/components/checkbox/index.js';
 import '@carbon/web-components/es/components/data-table/index.js';
 import '@carbon/web-components/es/components/pagination/index.js';
 
@@ -42,6 +48,38 @@ export interface Legend {
     items: LegendItem[];
 }
 
+// TableAction is a batch action of a table's selected items, such as
+// Delete: its label, its kind, which is primary by default, its icon, a
+// 16px Carbon icon descriptor, or a rendered icon, and what it runs, with
+// the items. When run returns a promise, the actions are disabled until it
+// settles. The selection is cleared when it succeeds.
+export interface TableAction<T> {
+    label: string;
+    kind?: 'primary' | 'secondary' | 'tertiary' | 'ghost' | 'danger';
+    icon?: unknown;
+    run: (items: T[]) => void | PromiseLike<unknown>;
+}
+
+// TableActionErrorEvent is fired, with the action and its error, when a
+// batch action's run throws, or its promise rejects, and the selection is
+// kept
+export const TableActionErrorEvent = 'gs-table-action-error';
+
+// TableActionError is the detail of a TableActionErrorEvent
+export interface TableActionError<T = unknown> {
+    action: TableAction<T>;
+    error: unknown;
+}
+
+// TableSelectionEvent is fired, with the selected items, when the
+// selection changes
+export const TableSelectionEvent = 'gs-table-selection';
+
+// TableSelection is the detail of a TableSelectionEvent
+export interface TableSelection<T = unknown> {
+    items: T[];
+}
+
 // TableTag is the element's tag
 export const TableTag = 'gs-table';
 
@@ -52,9 +90,12 @@ export class TableElement<T = unknown> extends LitElement {
         legend: { attribute: false },
         expand: { attribute: false },
         itemKey: { attribute: false },
+        actions: { attribute: false },
         empty: { type: String },
         state: { state: true },
         expanded: { state: true },
+        selected: { state: true },
+        busy: { state: true },
     };
 
     // controller is the list controller whose page is shown
@@ -72,9 +113,15 @@ export class TableElement<T = unknown> extends LitElement {
     // then, such as with lit's until directive.
     declare expand?: (item: T) => unknown;
 
-    // itemKey identifies an item, so its row stays expanded when the page is
-    // loaded again, which otherwise has new items, whose rows aren't
+    // itemKey identifies an item, so its row stays expanded, or selected,
+    // when the page is loaded again, which otherwise has new items, whose
+    // rows aren't
     declare itemKey?: (item: T) => string;
+
+    // actions are the batch actions of the selected items, which make the
+    // rows selectable, with a checkbox, when they're set. The selection is
+    // kept across pages, and shown, with the actions, above the table.
+    declare actions?: TableAction<T>[];
 
     // empty is what's shown when there are no items, such as No roles
     declare empty: string;
@@ -82,6 +129,11 @@ export class TableElement<T = unknown> extends LitElement {
 
     // expanded are the expanded rows' items, or their keys
     declare private expanded: Set<unknown>;
+
+    // selected are the selected items, by their keys, or themselves, and
+    // busy is true while a batch action runs
+    declare private selected: Map<unknown, T>;
+    declare private busy: boolean;
     private unsubscribe?: () => void;
 
     // The sizes of a page which can be chosen
@@ -164,6 +216,14 @@ export class TableElement<T = unknown> extends LitElement {
         }
 
         /* The item which is opened */
+        /* The checkboxes which select rows, for batch actions, are a narrow
+           column */
+        cds-table-header-cell.select,
+        cds-table-cell.select {
+            width: 3rem;
+            padding-right: 0;
+        }
+
         cds-table-row[data-selected] cds-table-cell {
             background: var(--cds-layer-selected, #e0e0e0);
         }
@@ -200,6 +260,18 @@ export class TableElement<T = unknown> extends LitElement {
         this.columns = [];
         this.empty = 'Nothing';
         this.expanded = new Set();
+        this.selected = new Map();
+        this.busy = false;
+    }
+
+    // selection is the selected items, which batch actions run with
+    get selection(): T[] {
+        return [...this.selected.values()];
+    }
+
+    // clearSelection deselects every item
+    clearSelection() {
+        this.select(new Map());
     }
 
     override connectedCallback() {
@@ -249,12 +321,37 @@ export class TableElement<T = unknown> extends LitElement {
         }
         // An expandable table's rows have a button which expands them, which
         // doesn't open the row's item, and each is followed by a row which
-        // shows what's beneath it, when it's expanded
+        // shows what's beneath it, when it's expanded. A table with batch
+        // actions has a checkbox in each row, and one in the header, which
+        // selects the page, and the actions above it, while there's a
+        // selection.
         const expand = this.expand;
+        const selectable = !!this.actions?.length;
+        const items = state.items;
+        const onPage = items.filter((item) => this.selected.has(this.keyOf(item))).length;
         return html`
+            ${selectable && this.selected.size ? html`
+                <cds-table-toolbar>
+                    <cds-table-batch-actions active selected-rows-count=${this.selected.size}
+                        @cds-table-batch-actions-cancel-clicked=${() => this.clearSelection()}>
+                        ${this.actions!.map((action) => html`
+                            <cds-button kind=${action.kind ?? 'primary'} ?disabled=${this.busy} @click=${() => this.run(action)}>
+                                ${action.label}${action.icon ? renderIcon(action.icon) : nothing}
+                            </cds-button>
+                        `)}
+                    </cds-table-batch-actions>
+                </cds-table-toolbar>
+            ` : nothing}
             <cds-table ?expandable=${!!expand}>
                 <cds-table-head>
                     <cds-table-header-row ?expandable=${!!expand}>
+                        ${selectable ? html`
+                            <cds-table-header-cell class="select">
+                                <cds-checkbox hide-label ?checked=${onPage > 0 && onPage === state.items.length}
+                                    ?indeterminate=${onPage > 0 && onPage < state.items.length} ?disabled=${!state.items.length}
+                                    @cds-checkbox-changed=${(event: CustomEvent<{ checked: boolean }>) => this.selectPage(items, event.detail.checked)}>Select all</cds-checkbox>
+                            </cds-table-header-cell>
+                        ` : nothing}
                         ${this.columns.map((column) => this.renderHeader(column, state.sort))}
                     </cds-table-header-row>
                 </cds-table-head>
@@ -262,17 +359,24 @@ export class TableElement<T = unknown> extends LitElement {
                     ${state.items.map((item) => {
                         const expanded = !!expand && this.expanded.has(this.keyOf(item));
                         return html`
-                            <cds-table-row ?data-selected=${state.selected === item} ?expandable=${!!expand} ?expanded=${expanded}
+                            <cds-table-row ?data-selected=${state.selected === item} ?selected=${selectable && this.selected.has(this.keyOf(item))}
+                                ?expandable=${!!expand} ?expanded=${expanded}
                                 @click=${(event: Event) => {
                                     if (!expanderClicked(event)) {
                                         this.controller?.open(item);
                                     }
                                 }}
                                 @cds-table-row-expando-toggled=${(event: CustomEvent<{ expanded: boolean }>) => this.toggle(item, event.detail.expanded)}>
+                                ${selectable ? html`
+                                    <cds-table-cell class="select" @click=${(event: Event) => event.stopPropagation()}>
+                                        <cds-checkbox hide-label ?checked=${this.selected.has(this.keyOf(item))}
+                                            @cds-checkbox-changed=${(event: CustomEvent<{ checked: boolean }>) => this.selectItem(item, event.detail.checked)}>Select</cds-checkbox>
+                                    </cds-table-cell>
+                                ` : nothing}
                                 ${this.columns.map((column, index) => html`<cds-table-cell>${index === 0 ? html`<button type="button" class="open">${column.cell(item)}</button>` : column.cell(item)}</cds-table-cell>`)}
                             </cds-table-row>
                             ${expand ? html`
-                                <cds-table-expanded-row ?expanded=${expanded} colspan=${this.columns.length + 1}>
+                                <cds-table-expanded-row ?expanded=${expanded} colspan=${this.columns.length + 1 + (selectable ? 1 : 0)}>
                                     ${expanded ? expand(item) : nothing}
                                 </cds-table-expanded-row>
                             ` : nothing}
@@ -313,6 +417,56 @@ export class TableElement<T = unknown> extends LitElement {
         `;
     }
 
+    // selectItem selects or deselects an item
+    private selectItem(item: T, selected: boolean) {
+        const next = new Map(this.selected);
+        if (selected) {
+            next.set(this.keyOf(item), item);
+        } else {
+            next.delete(this.keyOf(item));
+        }
+        this.select(next);
+    }
+
+    // selectPage selects or deselects the page's items, and keeps the
+    // selection of the other pages
+    private selectPage(items: readonly T[], selected: boolean) {
+        const next = new Map(this.selected);
+        for (const item of items) {
+            if (selected) {
+                next.set(this.keyOf(item), item);
+            } else {
+                next.delete(this.keyOf(item));
+            }
+        }
+        this.select(next);
+    }
+
+    // select sets the selection, and fires TableSelectionEvent
+    private select(selected: Map<unknown, T>) {
+        this.selected = selected;
+        this.dispatchEvent(new CustomEvent<TableSelection<T>>(TableSelectionEvent, { detail: { items: this.selection }, bubbles: true, composed: true }));
+    }
+
+    // run runs a batch action with the selected items, while the actions are
+    // disabled, and clears the selection when it succeeds, or else fires
+    // TableActionErrorEvent, and keeps it
+    private run(action: TableAction<T>) {
+        if (this.busy) {
+            return;
+        }
+        const items = this.selection;
+        let failed = false;
+        void runAction({ label: action.label, run: () => action.run(items) }, (busy) => { this.busy = busy; }, (error) => {
+            failed = true;
+            this.dispatchEvent(new CustomEvent<TableActionError<T>>(TableActionErrorEvent, { detail: { action, error }, bubbles: true, composed: true }));
+        }).then(() => {
+            if (!failed) {
+                this.clearSelection();
+            }
+        });
+    }
+
     // keyOf is what identifies an item's row as expanded: its key, or else
     // the item
     private keyOf(item: T): unknown {
@@ -330,14 +484,35 @@ export class TableElement<T = unknown> extends LitElement {
         this.expanded = next;
     }
 
-    // watch shows the controller's page, while the element is in the page
+    // watch shows the controller's page, while the element is in the page,
+    // and keeps the selected items which are on it current
     private watch() {
         this.unsubscribe?.();
-        this.unsubscribe = this.isConnected ? this.controller?.subscribe((state) => { this.state = state; }) : undefined;
+        this.unsubscribe = this.isConnected ? this.controller?.subscribe((state) => {
+            this.state = state;
+            if (this.selected.size && state.items?.some((item) => this.selected.has(this.keyOf(item)))) {
+                const next = new Map(this.selected);
+                for (const item of state.items) {
+                    if (next.has(this.keyOf(item))) {
+                        next.set(this.keyOf(item), item);
+                    }
+                }
+                this.selected = next;
+            }
+        }) : undefined;
         if (!this.unsubscribe) {
             this.state = undefined;
         }
     }
+}
+
+// renderIcon renders a Carbon icon descriptor, in a button's icon slot, or
+// else an icon which is rendered already
+function renderIcon(icon: unknown) {
+    if (typeof icon === 'object' && icon !== null && 'elem' in icon) {
+        return iconLoader(icon as CarbonIconDescriptor, { slot: 'icon' });
+    }
+    return html`<span slot="icon">${icon}</span>`;
 }
 
 // expanderClicked is true when the event is a click on a row's expand
@@ -353,5 +528,9 @@ if (!customElements.get(TableTag)) {
 declare global {
     interface HTMLElementTagNameMap {
         [TableTag]: TableElement;
+    }
+    interface HTMLElementEventMap {
+        [TableActionErrorEvent]: CustomEvent<TableActionError>;
+        [TableSelectionEvent]: CustomEvent<TableSelection>;
     }
 }
