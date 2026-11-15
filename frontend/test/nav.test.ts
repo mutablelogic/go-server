@@ -74,3 +74,30 @@ test('NavController sections', async (t) => {
         assert.deepEqual(nav.sections.map((section) => section.label), ['Credentials', 'Users']);
     });
 });
+
+test('NavController pages without a section', () => {
+    // A page without a section is a section of its own, even when its label
+    // is a named section's, or another page's
+    const nav = new NavController({
+        name: 'app',
+        href: '#',
+        pages: [
+            { id: 'credentials', label: 'Credentials', href: '#credentials', section: 'Credentials' },
+            { id: 'about', label: 'Credentials', href: '#about' },
+            { id: 'help', label: 'Help', href: '#help' },
+            { id: 'help2', label: 'Help', href: '#help2' },
+        ],
+    });
+    assert.deepEqual(nav.sections.map((section) => [section.label, section.href, section.pages.map((page) => page.id)]), [
+        ['Credentials', '#credentials', ['credentials']],
+        ['Credentials', '#about', ['about']],
+        ['Help', '#help', ['help']],
+        ['Help', '#help2', ['help2']],
+    ]);
+
+    // Replacing a section leaves the page without a section of its label
+    nav.setSection('Credentials', [{ id: 'all', label: 'All', href: '#all' }]);
+    assert.deepEqual(nav.current.pages.map((page) => page.id), ['all', 'about', 'help', 'help2']);
+    nav.setActive('about');
+    assert.equal(nav.activeSection?.href, '#about');
+});

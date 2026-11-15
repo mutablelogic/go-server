@@ -51,13 +51,18 @@ export class NavController {
     // which is its first page's. Pages without a section are a section of
     // their own, with their label.
     get sections(): NavSection[] {
+        // Pages are grouped by their sections, and a page without one is a
+        // section of its own, even when its label is another's
         const sections: NavSection[] = [];
+        const named = new Map<string, NavSection>();
         for (const page of this.state.pages) {
-            const label = page.section ?? page.label;
-            let section = sections.find((section) => section.label === label);
+            let section = page.section === undefined ? undefined : named.get(page.section);
             if (!section) {
-                section = { label, href: page.href, pages: [], active: false };
+                section = { label: page.section ?? page.label, href: page.href, pages: [], active: false };
                 sections.push(section);
+                if (page.section !== undefined) {
+                    named.set(page.section, section);
+                }
             }
             section.pages = [...section.pages, page];
             section.active ||= page.id === this.state.active;
@@ -87,13 +92,14 @@ export class NavController {
 
     // setSection replaces the pages of the section, such as a module's, which
     // owns it, keeping the other sections' pages, and where the section is in
-    // the menu, or adding it at the end. The pages are given the section.
+    // the menu, or adding it at the end. The pages are given the section, and
+    // pages without a section are never replaced, even with its label.
     setSection(section: string, pages: NavPage[]) {
         const owned = pages.map((page) => ({ ...page, section }));
         const result: NavPage[] = [];
         let placed = false;
         for (const page of this.state.pages) {
-            if ((page.section ?? page.label) !== section) {
+            if (page.section !== section) {
                 result.push(page);
             } else if (!placed) {
                 result.push(...owned);

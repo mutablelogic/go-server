@@ -313,7 +313,7 @@ document.querySelector('gs-header')!.controller = nav;
 document.querySelector('gs-side-nav')!.controller = nav;
 ```
 
-- **Sections:** a section links to its first page. A page without a section is a section of its own. `activeSection` is the active page's section, or the first, when no page is active.
+- **Sections:** a section links to its first page. A page without a section is a section of its own, even when its label matches another's. `activeSection` is the active page's section, or the first, when no page is active.
 - **Modules:** `setSection(section, pages)` replaces a section's pages, keeping where it is in the menu bar, or adds it at the end, so a module can change its own pages without the others'. No pages removes it.
 - **Pages:** `setPages` replaces them all, and `setActive` makes one active.
 - **Theme:** the elements render without a shadow root, so a Carbon theme class on the element they're in, such as `cds--g100`, applies, and Carbon's ui-shell opens the sidebar from the header's menu button.
