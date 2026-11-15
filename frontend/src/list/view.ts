@@ -7,8 +7,10 @@
 // shows a skeleton until it has items, and the items as unavailable while
 // the server can't be reached. It can have a legend, to the right of the
 // table, or beneath it, when the element is narrow, which explains what's in
-// it, such as its tags. It needs lit and @carbon/web-components, which are
-// the package's optional peer dependencies.
+// it, such as its tags. Its rows can be expanded, to show what's beneath an
+// item, such as its history, when expand is set. It needs lit and
+// @carbon/web-components, which are the package's optional peer
+// dependencies.
 
 import { LitElement, css, html, nothing } from 'lit';
 import type { ListController, ListState, Sort } from './controller.ts';
@@ -48,8 +50,11 @@ export class TableElement<T = unknown> extends LitElement {
         controller: { attribute: false },
         columns: { attribute: false },
         legend: { attribute: false },
+        expand: { attribute: false },
+        itemKey: { attribute: false },
         empty: { type: String },
         state: { state: true },
+        expanded: { state: true },
     };
 
     // controller is the list controller whose page is shown
@@ -61,9 +66,22 @@ export class TableElement<T = unknown> extends LitElement {
     // legend explains what's in the table, beside it, when it's set
     declare legend?: Legend;
 
+    // expand returns what's shown beneath an item's row, when it's expanded,
+    // such as its history, and makes the rows expandable, when it's set. It's
+    // only called for a row which is expanded, so what it shows can be loaded
+    // then, such as with lit's until directive.
+    declare expand?: (item: T) => unknown;
+
+    // itemKey identifies an item, so its row stays expanded when the page is
+    // loaded again, which otherwise has new items, whose rows aren't
+    declare itemKey?: (item: T) => string;
+
     // empty is what's shown when there are no items, such as No roles
     declare empty: string;
     declare private state?: ListState<T>;
+
+    // expanded are the expanded rows' items, or their keys
+    declare private expanded: Set<unknown>;
     private unsubscribe?: () => void;
 
     // The sizes of a page which can be chosen
@@ -181,6 +199,7 @@ export class TableElement<T = unknown> extends LitElement {
         super();
         this.columns = [];
         this.empty = 'Nothing';
+        this.expanded = new Set();
     }
 
     override connectedCallback() {
@@ -228,19 +247,37 @@ export class TableElement<T = unknown> extends LitElement {
             const headers = this.columns.length ? this.columns.map((column) => column.header) : [''];
             return html`<cds-table-skeleton .headers=${headers} row-count="3"></cds-table-skeleton>`;
         }
+        // An expandable table's rows have a button which expands them, which
+        // doesn't open the row's item, and each is followed by a row which
+        // shows what's beneath it, when it's expanded
+        const expand = this.expand;
         return html`
-            <cds-table>
+            <cds-table ?expandable=${!!expand}>
                 <cds-table-head>
-                    <cds-table-header-row>
+                    <cds-table-header-row ?expandable=${!!expand}>
                         ${this.columns.map((column) => this.renderHeader(column, state.sort))}
                     </cds-table-header-row>
                 </cds-table-head>
                 <cds-table-body>
-                    ${state.items.map((item) => html`
-                        <cds-table-row ?data-selected=${state.selected === item} @click=${() => this.controller?.open(item)}>
-                            ${this.columns.map((column, index) => html`<cds-table-cell>${index === 0 ? html`<button type="button" class="open">${column.cell(item)}</button>` : column.cell(item)}</cds-table-cell>`)}
-                        </cds-table-row>
-                    `)}
+                    ${state.items.map((item) => {
+                        const expanded = !!expand && this.expanded.has(this.keyOf(item));
+                        return html`
+                            <cds-table-row ?data-selected=${state.selected === item} ?expandable=${!!expand} ?expanded=${expanded}
+                                @click=${(event: Event) => {
+                                    if (!expanderClicked(event)) {
+                                        this.controller?.open(item);
+                                    }
+                                }}
+                                @cds-table-row-expando-toggled=${(event: CustomEvent<{ expanded: boolean }>) => this.toggle(item, event.detail.expanded)}>
+                                ${this.columns.map((column, index) => html`<cds-table-cell>${index === 0 ? html`<button type="button" class="open">${column.cell(item)}</button>` : column.cell(item)}</cds-table-cell>`)}
+                            </cds-table-row>
+                            ${expand ? html`
+                                <cds-table-expanded-row ?expanded=${expanded} colspan=${this.columns.length + 1}>
+                                    ${expanded ? expand(item) : nothing}
+                                </cds-table-expanded-row>
+                            ` : nothing}
+                        `;
+                    })}
                 </cds-table-body>
             </cds-table>
             ${state.items.length === 0 ? html`<div class="empty">${this.empty}</div>` : nothing}
@@ -276,6 +313,23 @@ export class TableElement<T = unknown> extends LitElement {
         `;
     }
 
+    // keyOf is what identifies an item's row as expanded: its key, or else
+    // the item
+    private keyOf(item: T): unknown {
+        return this.itemKey ? this.itemKey(item) : item;
+    }
+
+    // toggle expands or collapses an item's row
+    private toggle(item: T, expanded: boolean) {
+        const next = new Set(this.expanded);
+        if (expanded) {
+            next.add(this.keyOf(item));
+        } else {
+            next.delete(this.keyOf(item));
+        }
+        this.expanded = next;
+    }
+
     // watch shows the controller's page, while the element is in the page
     private watch() {
         this.unsubscribe?.();
@@ -284,6 +338,12 @@ export class TableElement<T = unknown> extends LitElement {
             this.state = undefined;
         }
     }
+}
+
+// expanderClicked is true when the event is a click on a row's expand
+// button, which isn't a click on the row
+function expanderClicked(event: Event): boolean {
+    return event.composedPath().some((node) => node instanceof HTMLElement && node.classList.contains('cds--table-expand__button'));
 }
 
 if (!customElements.get(TableTag)) {
