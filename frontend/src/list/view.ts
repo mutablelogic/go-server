@@ -269,6 +269,17 @@ export class TableElement<T = unknown> extends LitElement {
             padding-right: 0;
         }
 
+        /* What's said to assistive technology, but not shown, such as
+           whether a setting is on */
+        .visually-hidden {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+            clip: rect(0 0 0 0);
+            white-space: nowrap;
+        }
+
         /* A setting in the toolbar's menu has a checkmark when it's on, and
            space for one when it isn't */
         .setting {
@@ -353,11 +364,11 @@ export class TableElement<T = unknown> extends LitElement {
 
     protected override render() {
         if (!this.legend?.items.length) {
-            return html`<div class="layout"><div class="table">${this.renderTable()}</div></div>`;
+            return html`<div class="layout"><div class="table">${this.renderToolbar()}${this.renderTable()}</div></div>`;
         }
         return html`
             <div class="layout legend">
-                <div class="table">${this.renderTable()}</div>
+                <div class="table">${this.renderToolbar()}${this.renderTable()}</div>
                 <aside aria-label=${this.legend.title ?? 'Legend'}>
                     ${this.legend.title ? html`<h2>${this.legend.title}</h2>` : nothing}
                     <dl>
@@ -389,19 +400,6 @@ export class TableElement<T = unknown> extends LitElement {
         const items = state.items;
         const onPage = items.filter((item) => this.selected.has(this.keyOf(item))).length;
         return html`
-            ${(selectable && this.selected.size) || this.search || this.settings?.length ? html`
-                <cds-table-toolbar>
-                    ${this.renderToolbarContent()}
-                    <cds-table-batch-actions ?active=${selectable && this.selected.size > 0} selected-rows-count=${this.selected.size}
-                        @cds-table-batch-actions-cancel-clicked=${() => this.clearSelection()}>
-                        ${this.actions!.map((action) => html`
-                            <cds-button kind=${action.kind ?? 'primary'} ?disabled=${this.busy} @click=${() => this.run(action)}>
-                                ${action.label}${action.icon ? renderIcon(action.icon) : nothing}
-                            </cds-button>
-                        `)}
-                    </cds-table-batch-actions>
-                </cds-table-toolbar>
-            ` : nothing}
             <cds-table ?expandable=${!!expand}>
                 <cds-table-head>
                     <cds-table-header-row ?expandable=${!!expand}>
@@ -456,6 +454,32 @@ export class TableElement<T = unknown> extends LitElement {
         `;
     }
 
+    // renderToolbar returns the toolbar, with its search and settings, and
+    // the batch actions bar over it, while items are selected. It's apart
+    // from the table, so it stays while the table is loading, as when the
+    // list is filtered by its search, which keeps what's typed, and focus.
+    private renderToolbar() {
+        const selectable = !!this.actions?.length;
+        if (!(selectable && this.selected.size) && !this.search && !this.settings?.length) {
+            return nothing;
+        }
+        return html`
+            <cds-table-toolbar>
+                ${this.renderToolbarContent()}
+                ${selectable ? html`
+                    <cds-table-batch-actions ?active=${this.selected.size > 0} selected-rows-count=${this.selected.size}
+                        @cds-table-batch-actions-cancel-clicked=${() => this.clearSelection()}>
+                        ${this.actions!.map((action) => html`
+                            <cds-button kind=${action.kind ?? 'primary'} ?disabled=${this.busy} @click=${() => this.run(action)}>
+                                ${action.label}${action.icon ? renderIcon(action.icon) : nothing}
+                            </cds-button>
+                        `)}
+                    </cds-table-batch-actions>
+                ` : nothing}
+            </cds-table-toolbar>
+        `;
+    }
+
     // renderToolbarContent returns the toolbar's search and settings, which
     // are outside Carbon's table, which would otherwise filter its rows
     // itself, rather than the app filtering the list
@@ -479,7 +503,7 @@ export class TableElement<T = unknown> extends LitElement {
                                     detail: { key: setting.key, checked: !setting.checked }, bubbles: true, composed: true,
                                 }))}>
                                     <span class="setting">
-                                        <span class="check">${setting.checked ? checkmarkIcon : nothing}</span>${setting.label}
+                                        <span class="check">${setting.checked ? checkmarkIcon : nothing}</span>${setting.label}<span class="visually-hidden">, ${setting.checked ? 'on' : 'off'}</span>
                                     </span>
                                 </cds-overflow-menu-item>
                             `)}
