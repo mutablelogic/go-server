@@ -14,8 +14,9 @@ export interface NavPage {
     section?: string;
 }
 
-// NavState is the app's name, and its prefix, such as pg and manager, its
-// pages, and the active page's id
+// NavState is the app's name, and its prefix, such as auth and go, which
+// the menu bar shows joined, as goauth, with the prefix lighter, its pages,
+// and the active page's id
 export interface NavState {
     name: string;
     prefix?: string;
