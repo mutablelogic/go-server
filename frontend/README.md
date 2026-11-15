@@ -59,6 +59,19 @@ const changes = new ChangesController(configClient(config));
 
 `getConfig` reads `config.json` beside the page, without the cache, so a page sees a server which was updated. Its `endpoint` is the server's public URL, such as `https://example.com/api`, when it was given its public name.
 
+A module of the server, such as go-auth's credentials, can say what it can do, in its section of `modules`, which the server adds with `config.WithSection`, and documents by its type. `configSection` returns one, or nothing, when the server doesn't say, such as when it's older:
+
+```go
+config.RegisterHandler(router, config.New(ctx, router, openapi),
+    config.WithSection("credential", Features{Decrypt: true, Rotate: true}),
+)
+```
+
+```ts
+// { prefix: '/api', ..., modules: { credential: { decrypt: true, rotate: true } } }
+const features = configSection<{ decrypt: boolean; rotate: boolean }>(config, 'credential');
+```
+
 ## Following the server
 
 A `ConfigController` follows the server with the `ChangesController`. Its status is:

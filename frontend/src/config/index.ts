@@ -4,4 +4,4 @@
 
 export { configClient, getConfig, type ConfigOptions } from './httpclient.ts';
 export { ConfigController, type ConfigControllerOptions, type ConfigListener, type ConfigServer, type ConfigState, type ServerStatus } from './controller.ts';
-export type { Config } from './schema.ts';
+export { configSection, type Config } from './schema.ts';
