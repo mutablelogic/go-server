@@ -114,8 +114,9 @@ export class TableElement<T = unknown> extends LitElement {
     declare expand?: (item: T) => unknown;
 
     // itemKey identifies an item, so its row stays expanded, or selected,
-    // when the page is loaded again, which otherwise has new items, whose
-    // rows aren't
+    // when the page is loaded again, and the selection is kept across pages.
+    // Without it, an item is itself, and only what's on the page is expanded,
+    // or selected, as a page which is loaded again has new items.
     declare itemKey?: (item: T) => string;
 
     // actions are the batch actions of the selected items, which make the
@@ -417,6 +418,18 @@ export class TableElement<T = unknown> extends LitElement {
         `;
     }
 
+    // prune keeps only the items on the page expanded, or selected, and fires
+    // TableSelectionEvent when the selection changes
+    private prune(items: readonly T[]) {
+        const present = new Set<unknown>(items);
+        if ([...this.expanded].some((item) => !present.has(item))) {
+            this.expanded = new Set([...this.expanded].filter((item) => present.has(item)));
+        }
+        if ([...this.selected.keys()].some((item) => !present.has(item))) {
+            this.select(new Map([...this.selected].filter(([item]) => present.has(item))));
+        }
+    }
+
     // selectItem selects or deselects an item
     private selectItem(item: T, selected: boolean) {
         const next = new Map(this.selected);
@@ -490,6 +503,15 @@ export class TableElement<T = unknown> extends LitElement {
         this.unsubscribe?.();
         this.unsubscribe = this.isConnected ? this.controller?.subscribe((state) => {
             this.state = state;
+
+            // Without keys, an item is itself, and a page which is loaded
+            // again has new ones, so what's expanded, or selected, is only
+            // what's on the page, rather than items which are gone, which
+            // would otherwise be kept forever
+            if (!this.itemKey && state.items) {
+                this.prune(state.items);
+                return;
+            }
             if (this.selected.size && state.items?.some((item) => this.selected.has(this.keyOf(item)))) {
                 const next = new Map(this.selected);
                 for (const item of state.items) {
