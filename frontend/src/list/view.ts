@@ -9,13 +9,15 @@
 // table, or beneath it, when the element is narrow, which explains what's in
 // it, such as its tags. Its rows can be expanded, to show what's beneath an
 // item, such as its history, when expand is set, and selected, for its batch
-// actions, such as Delete, when actions are set. It needs lit and
+// actions, such as Delete, when actions are set. It has a toolbar, with a
+// search, and a menu of settings, such as Show disabled, when they're set. It needs lit and
 // @carbon/web-components, which are the package's optional peer
 // dependencies.
 
 import { LitElement, css, html, nothing } from 'lit';
 import iconLoader from '@carbon/web-components/es/globals/internal/icon-loader.js';
 import type { CarbonIconDescriptor } from '@carbon/web-components/es/globals/internal/icon-loader-utils.js';
+import { checkmarkIcon, settingsIcon } from '../internal/icons.ts';
 import { runAction } from '../page/action.ts';
 import type { ListController, ListState, Sort } from './controller.ts';
 
@@ -23,6 +25,7 @@ import type { ListController, ListState, Sort } from './controller.ts';
 import '@carbon/web-components/es/components/button/index.js';
 import '@carbon/web-components/es/components/checkbox/index.js';
 import '@carbon/web-components/es/components/data-table/index.js';
+import '@carbon/web-components/es/components/overflow-menu/index.js';
 import '@carbon/web-components/es/components/pagination/index.js';
 
 // Column is a column of the table: its header, its cell of an item, and
@@ -80,6 +83,33 @@ export interface TableSelection<T = unknown> {
     items: T[];
 }
 
+// TableSetting is a setting in a table's toolbar's menu, such as Show
+// disabled, which is checked when it's on
+export interface TableSetting {
+    key: string;
+    label: string;
+    checked: boolean;
+}
+
+// TableSearchEvent is fired, with what's typed in the toolbar's search,
+// once typing pauses, so the app can filter the list
+export const TableSearchEvent = 'gs-table-search';
+
+// TableSearch is the detail of a TableSearchEvent
+export interface TableSearch {
+    value: string;
+}
+
+// TableSettingEvent is fired, with a setting's key and whether it's now
+// checked, when it's chosen, so the app can set the settings again
+export const TableSettingEvent = 'gs-table-setting';
+
+// TableSettingChange is the detail of a TableSettingEvent
+export interface TableSettingChange {
+    key: string;
+    checked: boolean;
+}
+
 // TableTag is the element's tag
 export const TableTag = 'gs-table';
 
@@ -91,6 +121,8 @@ export class TableElement<T = unknown> extends LitElement {
         expand: { attribute: false },
         itemKey: { attribute: false },
         actions: { attribute: false },
+        search: { type: String },
+        settings: { attribute: false },
         empty: { type: String },
         state: { state: true },
         expanded: { state: true },
@@ -123,6 +155,18 @@ export class TableElement<T = unknown> extends LitElement {
     // rows selectable, with a checkbox, when they're set. The selection is
     // kept across pages, and shown, with the actions, above the table.
     declare actions?: TableAction<T>[];
+
+    // search is the placeholder of a search in the toolbar, such as Search
+    // certificates, which shows it, when it's set, and fires
+    // TableSearchEvent, once typing pauses
+    declare search?: string;
+
+    // settings are the toolbar's menu of settings, which shows it, when
+    // they're set, and fires TableSettingEvent when one is chosen
+    declare settings?: TableSetting[];
+
+    // searching waits for typing to pause, before a search is fired
+    private searching?: ReturnType<typeof setTimeout>;
 
     // empty is what's shown when there are no items, such as No roles
     declare empty: string;
@@ -225,6 +269,30 @@ export class TableElement<T = unknown> extends LitElement {
             padding-right: 0;
         }
 
+        /* What's said to assistive technology, but not shown, such as
+           whether a setting is on */
+        .visually-hidden {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+            clip: rect(0 0 0 0);
+            white-space: nowrap;
+        }
+
+        /* A setting in the toolbar's menu has a checkmark when it's on, and
+           space for one when it isn't */
+        .setting {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .setting .check {
+            display: inline-flex;
+            width: 1rem;
+        }
+
         cds-table-row[data-selected] cds-table-cell {
             background: var(--cds-layer-selected, #e0e0e0);
         }
@@ -281,6 +349,7 @@ export class TableElement<T = unknown> extends LitElement {
     }
 
     override disconnectedCallback() {
+        clearTimeout(this.searching);
         this.unsubscribe?.();
         this.unsubscribe = undefined;
         super.disconnectedCallback();
@@ -295,11 +364,11 @@ export class TableElement<T = unknown> extends LitElement {
 
     protected override render() {
         if (!this.legend?.items.length) {
-            return html`<div class="layout"><div class="table">${this.renderTable()}</div></div>`;
+            return html`<div class="layout"><div class="table">${this.renderToolbar()}${this.renderTable()}</div></div>`;
         }
         return html`
             <div class="layout legend">
-                <div class="table">${this.renderTable()}</div>
+                <div class="table">${this.renderToolbar()}${this.renderTable()}</div>
                 <aside aria-label=${this.legend.title ?? 'Legend'}>
                     ${this.legend.title ? html`<h2>${this.legend.title}</h2>` : nothing}
                     <dl>
@@ -331,18 +400,6 @@ export class TableElement<T = unknown> extends LitElement {
         const items = state.items;
         const onPage = items.filter((item) => this.selected.has(this.keyOf(item))).length;
         return html`
-            ${selectable && this.selected.size ? html`
-                <cds-table-toolbar>
-                    <cds-table-batch-actions active selected-rows-count=${this.selected.size}
-                        @cds-table-batch-actions-cancel-clicked=${() => this.clearSelection()}>
-                        ${this.actions!.map((action) => html`
-                            <cds-button kind=${action.kind ?? 'primary'} ?disabled=${this.busy} @click=${() => this.run(action)}>
-                                ${action.label}${action.icon ? renderIcon(action.icon) : nothing}
-                            </cds-button>
-                        `)}
-                    </cds-table-batch-actions>
-                </cds-table-toolbar>
-            ` : nothing}
             <cds-table ?expandable=${!!expand}>
                 <cds-table-head>
                     <cds-table-header-row ?expandable=${!!expand}>
@@ -395,6 +452,74 @@ export class TableElement<T = unknown> extends LitElement {
                 </cds-pagination>
             ` : nothing}
         `;
+    }
+
+    // renderToolbar returns the toolbar, with its search and settings, and
+    // the batch actions bar over it, while items are selected. It's apart
+    // from the table, so it stays while the table is loading, as when the
+    // list is filtered by its search, which keeps what's typed, and focus.
+    private renderToolbar() {
+        const selectable = !!this.actions?.length;
+        if (!(selectable && this.selected.size) && !this.search && !this.settings?.length) {
+            return nothing;
+        }
+        return html`
+            <cds-table-toolbar>
+                ${this.renderToolbarContent()}
+                ${selectable ? html`
+                    <cds-table-batch-actions ?active=${this.selected.size > 0} selected-rows-count=${this.selected.size}
+                        @cds-table-batch-actions-cancel-clicked=${() => this.clearSelection()}>
+                        ${this.actions!.map((action) => html`
+                            <cds-button kind=${action.kind ?? 'primary'} ?disabled=${this.busy} @click=${() => this.run(action)}>
+                                ${action.label}${action.icon ? renderIcon(action.icon) : nothing}
+                            </cds-button>
+                        `)}
+                    </cds-table-batch-actions>
+                ` : nothing}
+            </cds-table-toolbar>
+        `;
+    }
+
+    // renderToolbarContent returns the toolbar's search and settings, which
+    // are outside Carbon's table, which would otherwise filter its rows
+    // itself, rather than the app filtering the list
+    private renderToolbarContent() {
+        if (!this.search && !this.settings?.length) {
+            return nothing;
+        }
+        return html`
+            <cds-table-toolbar-content>
+                ${this.search ? html`
+                    <cds-table-toolbar-search persistent placeholder=${this.search}
+                        @cds-search-input=${(event: CustomEvent<{ value: string }>) => this.searched(event.detail.value)}></cds-table-toolbar-search>
+                ` : nothing}
+                ${this.settings?.length ? html`
+                    <cds-overflow-menu toolbar-action>
+                        ${settingsIcon}
+                        <span slot="tooltip-content">Settings</span>
+                        <cds-overflow-menu-body flipped>
+                            ${this.settings.map((setting) => html`
+                                <cds-overflow-menu-item @click=${() => this.dispatchEvent(new CustomEvent<TableSettingChange>(TableSettingEvent, {
+                                    detail: { key: setting.key, checked: !setting.checked }, bubbles: true, composed: true,
+                                }))}>
+                                    <span class="setting">
+                                        <span class="check">${setting.checked ? checkmarkIcon : nothing}</span>${setting.label}<span class="visually-hidden">, ${setting.checked ? 'on' : 'off'}</span>
+                                    </span>
+                                </cds-overflow-menu-item>
+                            `)}
+                        </cds-overflow-menu-body>
+                    </cds-overflow-menu>
+                ` : nothing}
+            </cds-table-toolbar-content>
+        `;
+    }
+
+    // searched fires TableSearchEvent with what's typed, once typing pauses
+    private searched(value: string) {
+        clearTimeout(this.searching);
+        this.searching = setTimeout(() => {
+            this.dispatchEvent(new CustomEvent<TableSearch>(TableSearchEvent, { detail: { value: value.trim() }, bubbles: true, composed: true }));
+        }, 300);
     }
 
     // renderHeader returns a column's header, which sorts the list, by the
@@ -554,5 +679,7 @@ declare global {
     interface HTMLElementEventMap {
         [TableActionErrorEvent]: CustomEvent<TableActionError>;
         [TableSelectionEvent]: CustomEvent<TableSelection>;
+        [TableSearchEvent]: CustomEvent<TableSearch>;
+        [TableSettingEvent]: CustomEvent<TableSettingChange>;
     }
 }
