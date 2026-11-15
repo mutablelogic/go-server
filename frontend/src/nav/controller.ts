@@ -1,7 +1,9 @@
-// The navigation controller keeps an app's name, and its pages, in sections, and which is
-// active, which the router sets, and tells the views which subscribe to it,
-// such as gs-header, whose menu bar is the sections, and gs-side-nav, whose
-// sidebar is the pages, whenever it changes
+// The navigation controller keeps an app's name, and its pages, in sections,
+// and which is active, which the router sets, and tells the views which
+// subscribe to it, such as gs-header, whose menu bar is the sections, and
+// gs-side-nav, whose sidebar is the active section's pages, whenever it
+// changes. An app can be composed of modules, which each own a section, and
+// its pages, which setSection replaces.
 
 // NavPage is a page of the app: its id, which the router routes to, its
 // label, its link, and its section, such as Databases
@@ -63,6 +65,13 @@ export class NavController {
         return sections;
     }
 
+    // activeSection is the section of the active page, or the first section,
+    // when no page is active, whose pages the sidebar shows
+    get activeSection(): NavSection | undefined {
+        const sections = this.sections;
+        return sections.find((section) => section.active) ?? sections[0];
+    }
+
     // setActive makes the page with the id active, such as when it's routed
     // to, or none
     setActive(id?: string) {
@@ -74,6 +83,27 @@ export class NavController {
     // setPages sets the app's pages, such as once it knows what it can show
     setPages(pages: NavPage[]) {
         this.update({ pages: [...pages] });
+    }
+
+    // setSection replaces the pages of the section, such as a module's, which
+    // owns it, keeping the other sections' pages, and where the section is in
+    // the menu, or adding it at the end. The pages are given the section.
+    setSection(section: string, pages: NavPage[]) {
+        const owned = pages.map((page) => ({ ...page, section }));
+        const result: NavPage[] = [];
+        let placed = false;
+        for (const page of this.state.pages) {
+            if ((page.section ?? page.label) !== section) {
+                result.push(page);
+            } else if (!placed) {
+                result.push(...owned);
+                placed = true;
+            }
+        }
+        if (!placed) {
+            result.push(...owned);
+        }
+        this.update({ pages: result });
     }
 
     // subscribe calls the function with the state, now, and whenever it

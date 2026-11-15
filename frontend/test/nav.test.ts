@@ -31,3 +31,46 @@ test('NavController', () => {
     nav.setPages([{ id: 'roles', label: 'Roles', href: '#roles' }]);
     assert.deepEqual(nav.sections.map((section) => section.label), ['Roles']);
 });
+
+test('NavController sections', async (t) => {
+    const nav = new NavController({
+        name: 'app',
+        href: '#',
+        pages: [
+            { id: 'credentials', label: 'Credentials', href: '#credentials', section: 'Credentials' },
+            { id: 'queues', label: 'Queues', href: '#queues', section: 'Queues' },
+            { id: 'tasks', label: 'Tasks', href: '#tasks', section: 'Queues' },
+        ],
+    });
+
+    await t.test('the active section is the first, until a page is active', () => {
+        assert.equal(nav.activeSection?.label, 'Credentials');
+        nav.setActive('tasks');
+        assert.equal(nav.activeSection?.label, 'Queues');
+        assert.deepEqual(nav.activeSection?.pages.map((page) => page.id), ['queues', 'tasks']);
+    });
+
+    await t.test('a module replaces its own section, which stays where it is', () => {
+        const states: NavState[] = [];
+        const unsubscribe = nav.subscribe((state) => states.push(state));
+        nav.setSection('Credentials', [
+            { id: 'credentials', label: 'All', href: '#credentials' },
+            { id: 'rotate', label: 'Needs rotation', href: '#rotate' },
+        ]);
+        unsubscribe();
+        assert.deepEqual(nav.sections.map((section) => [section.label, section.pages.map((page) => page.id)]), [
+            ['Credentials', ['credentials', 'rotate']],
+            ['Queues', ['queues', 'tasks']],
+        ]);
+        assert.equal(nav.current.pages[1].section, 'Credentials', 'the pages are given the section');
+        assert.equal(states.length, 2, 'subscribers are told');
+        assert.equal(nav.current.active, 'tasks', 'the active page is kept');
+    });
+
+    await t.test('a new section is added at the end, and an empty one removed', () => {
+        nav.setSection('Users', [{ id: 'users', label: 'Users', href: '#users' }]);
+        assert.deepEqual(nav.sections.map((section) => section.label), ['Credentials', 'Queues', 'Users']);
+        nav.setSection('Queues', []);
+        assert.deepEqual(nav.sections.map((section) => section.label), ['Credentials', 'Users']);
+    });
+});

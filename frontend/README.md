@@ -20,7 +20,7 @@ TypeScript clients of go-server's APIs, for the frontends of servers built on it
 | `@mutablelogic/go-server/list/view` | The `gs-table` element, a Carbon data table of a list's page, with sortable columns and pagination, whose rows open their items |
 | `@mutablelogic/go-server/list/tiles` | The `gs-tiles` element, a row of tiles of a list, after one for all of them, of which one is chosen |
 | `@mutablelogic/go-server/nav` | `NavController`, which keeps an app's name, and its pages, in sections, and which is active |
-| `@mutablelogic/go-server/nav/view` | The `gs-header` and `gs-side-nav` elements, the app's menu bar of its sections, and its sidebar of its pages |
+| `@mutablelogic/go-server/nav/view` | The `gs-header` and `gs-side-nav` elements, the app's menu bar of its sections, and its sidebar of the active section's pages |
 | `@mutablelogic/go-server/page` | `PageAction`, an action of a page's header, and `runAction`, which runs one, busy while its promise is pending |
 | `@mutablelogic/go-server/page/view` | The `gs-page-header` element, the dark header at the top of a page, with an icon, a title, a subtitle or details, and actions on the right |
 | `@mutablelogic/go-server/router` | `Router`, which shows the page of the location's hash, such as `#database/shop` |
@@ -292,7 +292,9 @@ header.addEventListener(PageActionErrorEvent, (event) => notifications.error("It
 
 ## Navigation
 
-A `NavController` keeps an app's name, and its pages, each with an `id`, a `label`, a link, and an optional `section`. `gs-header` is the menu bar at the top, with the app's name, and a menu of the sections, when there's more than one. `gs-side-nav` is the sidebar of the pages, under their sections. Both show the active page, which the router sets.
+A `NavController` keeps an app's name, and its pages, each with an `id`, a `label`, a link, and an optional `section`. `gs-header` is the menu bar at the top, with the app's name, and a menu of the sections, when there's more than one. `gs-side-nav` is the sidebar of the active section's pages. Both show the active page, which the router sets.
+
+An app can be composed of modules, such as Credentials, which each own a section: its item in the menu bar, and the sidebar, while it's active.
 
 ```ts
 import { NavController } from '@mutablelogic/go-server/nav';
@@ -311,8 +313,9 @@ document.querySelector('gs-header')!.controller = nav;
 document.querySelector('gs-side-nav')!.controller = nav;
 ```
 
-- **Sections:** a section links to its first page. A page without a section is a section of its own.
-- **Pages:** `setPages` replaces them, such as once the app knows what it can show, and `setActive` makes one active.
+- **Sections:** a section links to its first page. A page without a section is a section of its own. `activeSection` is the active page's section, or the first, when no page is active.
+- **Modules:** `setSection(section, pages)` replaces a section's pages, keeping where it is in the menu bar, or adds it at the end, so a module can change its own pages without the others'. No pages removes it.
+- **Pages:** `setPages` replaces them all, and `setActive` makes one active.
 - **Theme:** the elements render without a shadow root, so a Carbon theme class on the element they're in, such as `cds--g100`, applies, and Carbon's ui-shell opens the sidebar from the header's menu button.
 - **The sidebar's content:** what's inside `gs-side-nav`, such as `gs-server-status`, is kept at the bottom of the sidebar.
 

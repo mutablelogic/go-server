@@ -2,9 +2,10 @@
 // Carbon header, with its menu button, which opens the sidebar on small
 // screens, the app's name, and a menu of the sections, which link to their
 // first pages, of which the active page's is selected. gs-side-nav is the
-// sidebar: a Carbon side navigation, of the pages, under their sections,
-// when there's more than one, of which the active page is selected, and the
-// element's own content, such as gs-server-status, at its bottom.
+// sidebar: a Carbon side navigation, of the active section's pages, which
+// the module which owns the section, such as Credentials, sets, of which
+// the active page is selected, and the element's own content, such as
+// gs-server-status, at its bottom.
 //
 // They render without a shadow root, so Carbon's theme, such as the class
 // cds--g100 of the element they're in, and its ui-shell, which opens the
@@ -107,21 +108,12 @@ export class SideNavElement extends ShellElement {
         if (!state) {
             return nothing;
         }
-        const sections = this.controller?.sections ?? [];
-        const link = (page: NavState['pages'][number]) => html`
-            <cds-side-nav-link href=${page.href} ?active=${page.id === state.active} aria-current=${page.id === state.active ? 'page' : 'false'}>${page.label}</cds-side-nav-link>
-        `;
+        const section = this.controller?.activeSection;
         return html`
             <cds-side-nav-items>
-                ${sections.length > 1
-                    ? sections.map((section) => html`
-                        <cds-side-nav-menu title=${section.label} ?expanded=${true} ?active=${section.active}>
-                            ${section.pages.map((page) => html`
-                                <cds-side-nav-menu-item href=${page.href} ?active=${page.id === state.active}>${page.label}</cds-side-nav-menu-item>
-                            `)}
-                        </cds-side-nav-menu>
-                    `)
-                    : state.pages.map(link)}
+                ${(section?.pages ?? []).map((page) => html`
+                    <cds-side-nav-link href=${page.href} ?active=${page.id === state.active} aria-current=${page.id === state.active ? 'page' : 'false'}>${page.label}</cds-side-nav-link>
+                `)}
             </cds-side-nav-items>
         `;
     }
