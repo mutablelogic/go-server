@@ -385,6 +385,14 @@ export class TableElement<T = unknown> extends LitElement {
         this.toggleAttribute('unavailable', this.state?.unavailable ?? false);
     }
 
+    // An expandable table's rows' chevrons point right, when they're
+    // collapsed, and down, when they're expanded
+    protected override updated() {
+        if (this.expand) {
+            this.renderRoot.querySelectorAll('cds-table-row, cds-table-header-row').forEach((row) => disclose(row));
+        }
+    }
+
     protected override render() {
         if (!this.legend?.items.length) {
             return html`<div class="layout"><div class="table">${this.renderToolbar()}${this.renderTable()}</div></div>`;
@@ -704,6 +712,33 @@ export class TableElement<T = unknown> extends LitElement {
 
 // renderIcon renders a Carbon icon descriptor, in a button's icon slot, or
 // else an icon which is rendered already
+// disclosure turns a row's expand chevron, which Carbon points down when
+// it's collapsed, and up when it's expanded, to point right, then down, as
+// a disclosure does. Carbon's row doesn't expose its chevron as a part, so
+// it's added to the row's shadow root.
+const disclosure = css`
+    .cds--table-expand__svg {
+        transform: rotate(0deg) !important;
+    }
+
+    :host([expanded]) .cds--table-expand__svg {
+        transform: rotate(90deg) !important;
+    }
+`;
+
+// disclose adds the disclosure to a row's shadow root, once it's rendered,
+// when constructable stylesheets are supported
+function disclose(row: Element) {
+    const sheet = disclosure.styleSheet;
+    const ready = (row as Element & { updateComplete?: Promise<unknown> }).updateComplete ?? Promise.resolve();
+    void ready.then(() => {
+        const root = row.shadowRoot;
+        if (sheet && root && !root.adoptedStyleSheets.includes(sheet)) {
+            root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
+        }
+    });
+}
+
 function renderIcon(icon: unknown) {
     if (typeof icon === 'object' && icon !== null && 'elem' in icon) {
         return iconLoader(icon as CarbonIconDescriptor, { slot: 'icon' });
