@@ -1,7 +1,8 @@
 // The app's shell, of a navigation controller. gs-header is the menu bar at the top: a
 // Carbon header, with its menu button, which opens the sidebar on small
 // screens, the app's name, and a menu of the sections, which link to their
-// first pages, of which the active page's is selected. gs-side-nav is the
+// first pages, of which the active page's is selected, so each module of an
+// app has its item, even when there's only one. gs-side-nav is the
 // sidebar: a Carbon side navigation, of the active section's pages, which
 // the module which owns the section, such as Credentials, sets, of which
 // the active page is selected, and the element's own content, such as
@@ -76,7 +77,7 @@ export class HeaderElement extends ShellElement {
             <cds-header aria-label=${state.name}>
                 <cds-header-menu-button button-label-active="Close menu" button-label-inactive="Open menu"></cds-header-menu-button>
                 <cds-header-name href=${state.href} prefix=${state.prefix ?? ''}>${state.name}</cds-header-name>
-                ${sections.length > 1 ? html`
+                ${sections.length ? html`
                     <cds-header-nav menu-bar-label=${state.name}>
                         ${sections.map((section) => html`
                             <cds-header-nav-item href=${section.href} ?is-active=${section.active} aria-current=${section.active ? 'page' : 'false'}>${section.label}</cds-header-nav-item>

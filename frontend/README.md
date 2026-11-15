@@ -292,7 +292,7 @@ header.addEventListener(PageActionErrorEvent, (event) => notifications.error("It
 
 ## Navigation
 
-A `NavController` keeps an app's name, and its pages, each with an `id`, a `label`, a link, and an optional `section`. `gs-header` is the menu bar at the top, with the app's name, and a menu of the sections, when there's more than one. `gs-side-nav` is the sidebar of the active section's pages. Both show the active page, which the router sets.
+A `NavController` keeps an app's name, and its pages, each with an `id`, a `label`, a link, and an optional `section`. `gs-header` is the menu bar at the top, with the app's name, and a menu of the sections, so each module has its item, even when there's only one. `gs-side-nav` is the sidebar of the active section's pages. Both show the active page, which the router sets.
 
 An app can be composed of modules, such as Credentials, which each own a section: its item in the menu bar, and the sidebar, while it's active.
 
