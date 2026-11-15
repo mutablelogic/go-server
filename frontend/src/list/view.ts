@@ -63,14 +63,27 @@ export interface TableAction<T> {
     run: (items: T[]) => void | PromiseLike<unknown>;
 }
 
+// TableToolbarAction is a button in a table's toolbar, such as Create: its
+// label, its kind, which is primary by default, its icon, a 16px Carbon icon
+// descriptor, or a rendered icon, whether it's disabled, and what it runs,
+// when it's clicked. When run returns a promise, its button is disabled
+// until it settles.
+export interface TableToolbarAction {
+    label: string;
+    kind?: 'primary' | 'secondary' | 'tertiary' | 'ghost' | 'danger';
+    icon?: unknown;
+    disabled?: boolean;
+    run: () => void | PromiseLike<unknown>;
+}
+
 // TableActionErrorEvent is fired, with the action and its error, when a
-// batch action's run throws, or its promise rejects, and the selection is
-// kept
+// batch action's, or a toolbar action's, run throws, or its promise rejects.
+// A batch action's selection is kept.
 export const TableActionErrorEvent = 'gs-table-action-error';
 
 // TableActionError is the detail of a TableActionErrorEvent
 export interface TableActionError<T = unknown> {
-    action: TableAction<T>;
+    action: TableAction<T> | TableToolbarAction;
     error: unknown;
 }
 
@@ -123,6 +136,8 @@ export class TableElement<T = unknown> extends LitElement {
         actions: { attribute: false },
         search: { type: String },
         settings: { attribute: false },
+        toolbarActions: { attribute: false },
+        running: { state: true },
         empty: { type: String },
         state: { state: true },
         expanded: { state: true },
@@ -164,6 +179,13 @@ export class TableElement<T = unknown> extends LitElement {
     // settings are the toolbar's menu of settings, which shows it, when
     // they're set, and fires TableSettingEvent when one is chosen
     declare settings?: TableSetting[];
+
+    // toolbarActions are buttons at the toolbar's end, such as Create, which
+    // show it, when they're set
+    declare toolbarActions?: TableToolbarAction[];
+
+    // running are the toolbar's actions whose promises are pending
+    declare private running: Set<TableToolbarAction>;
 
     // searching waits for typing to pause, before a search is fired
     private searching?: ReturnType<typeof setTimeout>;
@@ -331,6 +353,7 @@ export class TableElement<T = unknown> extends LitElement {
         this.expanded = new Set();
         this.selected = new Map();
         this.busy = false;
+        this.running = new Set();
     }
 
     // selection is the selected items, which batch actions run with
@@ -460,7 +483,7 @@ export class TableElement<T = unknown> extends LitElement {
     // list is filtered by its search, which keeps what's typed, and focus.
     private renderToolbar() {
         const selectable = !!this.actions?.length;
-        if (!(selectable && this.selected.size) && !this.search && !this.settings?.length) {
+        if (!(selectable && this.selected.size) && !this.search && !this.settings?.length && !this.toolbarActions?.length) {
             return nothing;
         }
         return html`
@@ -484,7 +507,7 @@ export class TableElement<T = unknown> extends LitElement {
     // are outside Carbon's table, which would otherwise filter its rows
     // itself, rather than the app filtering the list
     private renderToolbarContent() {
-        if (!this.search && !this.settings?.length) {
+        if (!this.search && !this.settings?.length && !this.toolbarActions?.length) {
             return nothing;
         }
         return html`
@@ -510,8 +533,34 @@ export class TableElement<T = unknown> extends LitElement {
                         </cds-overflow-menu-body>
                     </cds-overflow-menu>
                 ` : nothing}
+                ${(this.toolbarActions ?? []).map((action) => html`
+                    <cds-button kind=${action.kind ?? 'primary'} ?disabled=${action.disabled || this.running.has(action)} @click=${() => this.runToolbar(action)}>
+                        ${action.label}${action.icon ? renderIcon(action.icon) : nothing}
+                    </cds-button>
+                `)}
             </cds-table-toolbar-content>
         `;
+    }
+
+    // runToolbar runs a toolbar action, while its button is disabled, and
+    // fires TableActionErrorEvent when it fails. One which is disabled, or
+    // running, isn't run, even when it's clicked again before its button is
+    // rendered disabled.
+    private runToolbar(action: TableToolbarAction) {
+        if (action.disabled || this.running.has(action)) {
+            return;
+        }
+        void runAction(action, (busy) => {
+            const next = new Set(this.running);
+            if (busy) {
+                next.add(action);
+            } else {
+                next.delete(action);
+            }
+            this.running = next;
+        }, (error) => {
+            this.dispatchEvent(new CustomEvent<TableActionError<T>>(TableActionErrorEvent, { detail: { action, error }, bubbles: true, composed: true }));
+        });
     }
 
     // searched fires TableSearchEvent with what's typed, once typing pauses
