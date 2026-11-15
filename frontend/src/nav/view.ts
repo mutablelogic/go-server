@@ -1,14 +1,12 @@
-// The app's shell, of a navigation controller. gs-header is the menu bar at
-// the top: a Carbon header, with its menu button, which opens the sidebar on
-// small screens, the app's name, after its prefix, joined, in a lighter
-// weight, such as goauth, rather than Carbon's prefix, which a space
-// separates from the name, and a menu of the sections, which link to their
+// The app's shell, of a navigation controller. gs-header is the menu bar at the top: a
+// Carbon header, with its menu button, which opens the sidebar on small
+// screens, the app's name, and a menu of the sections, which link to their
 // first pages, of which the active page's is selected, so each module of an
-// app has its item, even when there's only one. gs-side-nav is the sidebar:
-// a Carbon side navigation, of the active section's pages, which the module
-// which owns the section, such as Credentials, sets, of which the active
-// page is selected, and the element's own content, such as gs-server-status,
-// at its bottom.
+// app has its item, even when there's only one. gs-side-nav is the
+// sidebar: a Carbon side navigation, of the active section's pages, which
+// the module which owns the section, such as Credentials, sets, of which
+// the active page is selected, and the element's own content, such as
+// gs-server-status, at its bottom.
 //
 // They render without a shadow root, so Carbon's theme, such as the class
 // cds--g100 of the element they're in, and its ui-shell, which opens the
@@ -78,7 +76,7 @@ export class HeaderElement extends ShellElement {
         return html`
             <cds-header aria-label=${state.name}>
                 <cds-header-menu-button button-label-active="Close menu" button-label-inactive="Open menu"></cds-header-menu-button>
-                <cds-header-name href=${state.href}>${state.prefix ? html`<span class="gs-header-prefix" style="font-weight: 400">${state.prefix}</span>` : nothing}${state.name}</cds-header-name>
+                <cds-header-name href=${state.href} prefix=${state.prefix ?? ''}>${state.name}</cds-header-name>
                 ${sections.length ? html`
                     <cds-header-nav menu-bar-label=${state.name}>
                         ${sections.map((section) => html`
