@@ -31,4 +31,12 @@ test('configSection', () => {
     assert.equal(configSection(config, 'empty'), undefined);
     assert.equal(configSection({ prefix: '/api' }, 'credential'), undefined, 'an older server has no modules');
     assert.equal(configSection(undefined, 'credential'), undefined);
+
+    // Only the modules' own sections, not what every object inherits, even
+    // from JSON
+    const parsed = JSON.parse('{"prefix":"/api","modules":{"credential":{"decrypt":true}}}') as Config;
+    for (const name of ['constructor', 'toString', '__proto__', 'hasOwnProperty']) {
+        assert.equal(configSection(parsed, name), undefined, name);
+    }
+    assert.deepEqual(configSection(parsed, 'credential'), { decrypt: true });
 });

@@ -83,6 +83,12 @@ func Test_Sections(t *testing.T) {
 		require.Contains(t, credential.Properties, "rotate")
 		assert.Equal(t, "Whether a value can be rotated to the latest passphrase", credential.Properties["rotate"].Description)
 
+		// The schema validates the sections by their own schemas, so a
+		// section of the wrong type isn't valid
+		assert.NoError(t, schema.Validate(json.RawMessage(`{"prefix":"/api","modules":{"credential":{"decrypt":true,"rotate":false},"queue":{"workers":4}}}`)))
+		assert.Error(t, schema.Validate(json.RawMessage(`{"prefix":"/api","modules":{"credential":{"decrypt":"yes","rotate":false},"queue":{"workers":4}}}`)), "decrypt is a boolean")
+		assert.Error(t, schema.Validate(json.RawMessage(`{"prefix":"/api","modules":{"queue":{"workers":4}}}`)), "credential is required")
+
 		// The schema of Config, which is cached, isn't changed
 		base := jsonschema.MustFor[config.Config]().Properties["modules"]
 		assert.NotContains(t, base.Properties, "credential")

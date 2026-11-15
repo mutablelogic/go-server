@@ -5,6 +5,7 @@
 package config
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
@@ -150,6 +151,12 @@ func RegisterHandler(router *httprouter.Router, config Config, options ...Opt) e
 		}
 	}
 
+	// The schema of the configuration, with the sections'
+	schema, err := responseSchema(o.sections)
+	if err != nil {
+		return err
+	}
+
 	return router.Register(Path, nil, func(path httprequest.PathItem) {
 		path.Tag(Tag)
 
@@ -159,18 +166,19 @@ func RegisterHandler(router *httprouter.Router, config Config, options ...Opt) e
 		}, func(op httprequest.PathOperation) {
 			op.Summary("Get Configuration")
 			op.Description("The server's configuration, for its frontend: the path prefix of the API, the server's name and version, the path of the API's documentation, when it's served, the server's public endpoint, when it was given its public name, and what its modules say of themselves.")
-			op.JSONResponse(http.StatusOK, responseSchema(o.sections), "Configuration")
+			op.JSONResponse(http.StatusOK, schema, "Configuration")
 		})
 	})
 }
 
 // responseSchema returns the configuration's schema, whose modules are the
 // sections, by their names, each with its own schema. The schema of Config
-// is cached, so it's copied, rather than changed.
-func responseSchema(sections []section) *jsonschema.Schema {
+// is cached, so it's copied, rather than changed, and the copy is resolved
+// again, from its JSON, so it validates the sections by their own schemas.
+func responseSchema(sections []section) (*jsonschema.Schema, error) {
 	base := jsonschema.MustFor[Config]()
 	if len(sections) == 0 {
-		return base
+		return base, nil
 	}
 	modules := &upstream.Schema{
 		Type:       "object",
@@ -183,10 +191,20 @@ func responseSchema(sections []section) *jsonschema.Schema {
 		modules.Properties[section.name] = &section.schema.Schema
 		modules.Required = append(modules.Required, section.name)
 	}
-	schema := *base
+	schema := base.Schema
 	schema.Properties = maps.Clone(base.Properties)
 	schema.Properties["modules"] = modules
-	return &schema
+
+	// Resolve the schema, so it validates
+	data, err := json.Marshal(&schema)
+	if err != nil {
+		return nil, fmt.Errorf("config: schema: %w", err)
+	}
+	resolved, err := jsonschema.FromJSON(data)
+	if err != nil {
+		return nil, fmt.Errorf("config: schema: %w", err)
+	}
+	return resolved, nil
 }
 
 // PublicEndpoint returns the URL, when it's https, as it is when the server

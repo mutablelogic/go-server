@@ -32,6 +32,12 @@ export interface Config {
 // older, or doesn't have the module. It isn't checked: the server documents
 // its type.
 export function configSection<T>(config: Config | undefined, name: string): T | undefined {
-    const section = config?.modules?.[name];
+    // Only the modules' own sections, not what every object inherits, such
+    // as constructor, or __proto__
+    const modules = config?.modules;
+    if (!modules || !Object.hasOwn(modules, name)) {
+        return undefined;
+    }
+    const section = modules[name];
     return section === undefined || section === null ? undefined : section as T;
 }
