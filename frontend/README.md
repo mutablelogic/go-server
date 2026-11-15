@@ -326,7 +326,6 @@ document.querySelector('gs-header')!.controller = nav;
 document.querySelector('gs-side-nav')!.controller = nav;
 ```
 
-- **The app's name:** its `prefix` is shown before it, joined, in a lighter weight, such as **pg**manager's pg, rather than with a space, as Carbon's header shows a prefix.
 - **Sections:** a section links to its first page. A page without a section is a section of its own, even when its label matches another's. `activeSection` is the active page's section, or the first, when no page is active.
 - **Modules:** `setSection(section, pages)` replaces a section's pages, keeping where it is in the menu bar, or adds it at the end, so a module can change its own pages without the others'. No pages removes it.
 - **Pages:** `setPages` replaces them all, and `setActive` makes one active.
