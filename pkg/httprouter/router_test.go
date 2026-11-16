@@ -3,6 +3,7 @@ package httprouter
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
@@ -596,6 +597,23 @@ func Test_RegisterPath_SecurityAlternatives(t *testing.T) {
 	}
 }
 
+// httprouterWithContextCheck returns a router whose route needs either
+// scheme, and whose handler writes its context's error
+func httprouterWithContextCheck(t *testing.T, token, key *grantScheme) http.Handler {
+	t.Helper()
+	router := newTestRouter(t, "/", "")
+	require.NoError(t, router.RegisterSecurityScheme("token", token))
+	require.NoError(t, router.RegisterSecurityScheme("key", key))
+	require.NoError(t, router.Register("secure", nil, func(path httprequest.PathItem) {
+		path.Get(func(w http.ResponseWriter, r *http.Request) {
+			_, _ = fmt.Fprintf(w, "context: %v", r.Context().Err())
+		}, func(op httprequest.PathOperation) {
+			op.Security("token", "read").Security("key", "read")
+		})
+	}))
+	return router
+}
+
 // grantScheme grants access to a request with its header, which is valid,
 // and the scopes in X-Scopes, after its delay, and puts its name in the
 // request's context, or blocks until its context is cancelled, when it's
@@ -605,6 +623,9 @@ type grantScheme struct {
 	delay        time.Duration
 	block        bool
 	cancelled    chan struct{}
+	panic        any    // panics with it, after its delay
+	strip        string // deletes the header from its request
+	derive       bool   // calls the handler with a context it cancels after
 }
 
 type grantedKey struct{}
@@ -622,6 +643,17 @@ func (s *grantScheme) Wrap(handler http.HandlerFunc, scopes []string) http.Handl
 			return
 		}
 		time.Sleep(s.delay)
+		if s.panic != nil {
+			panic(s.panic)
+		}
+		if s.strip != "" {
+			r.Header.Del(s.strip)
+		}
+		if s.derive {
+			ctx, cancel := context.WithCancel(r.Context())
+			defer cancel()
+			r = r.WithContext(ctx)
+		}
 		switch {
 		case r.Header.Get(s.header) == "":
 			w.WriteHeader(http.StatusUnauthorized)
@@ -703,6 +735,40 @@ func Test_SecurityAlternatives(t *testing.T) {
 		slow := serve(t, &grantScheme{name: "token", header: "X-Token", delay: 50 * time.Millisecond}, &grantScheme{name: "key", header: "X-Key"})
 		rec := get(slow, map[string]string{"X-Token": "valid", "X-Key": "valid", "X-Scopes": "read"})
 		assert.Equal(t, "token", rec.Body.String())
+	})
+
+	t.Run("Panic", func(t *testing.T) {
+		// A scheme's panic, which is waited for, is the request's, as it is
+		// for one scheme, such as to abort it
+		panicked := serve(t, &grantScheme{name: "token", header: "X-Token", panic: http.ErrAbortHandler}, &grantScheme{name: "key", header: "X-Key"})
+		assert.PanicsWithValue(t, http.ErrAbortHandler, func() {
+			get(panicked, map[string]string{"X-Key": "valid", "X-Scopes": "read"})
+		})
+
+		// One, after another granted access, is dropped
+		later := serve(t, &grantScheme{name: "token", header: "X-Token"}, &grantScheme{name: "key", header: "X-Key", delay: 20 * time.Millisecond, panic: "later"})
+		assert.NotPanics(t, func() {
+			rec := get(later, map[string]string{"X-Token": "valid", "X-Scopes": "read"})
+			assert.Equal(t, "token", rec.Body.String())
+		})
+	})
+
+	t.Run("Cloned", func(t *testing.T) {
+		// A scheme which changes its request's headers doesn't change the
+		// others', or the handler's
+		stripped := serve(t, &grantScheme{name: "token", header: "X-Token", strip: "X-Key"}, &grantScheme{name: "key", header: "X-Key"})
+		for range 20 {
+			rec := get(stripped, map[string]string{"X-Key": "valid", "X-Scopes": "read"})
+			assert.Equal(t, "key", rec.Body.String())
+		}
+	})
+
+	t.Run("Cleanup", func(t *testing.T) {
+		// The handler runs before the scheme's deferred cleanup, which
+		// cancels the context it called it with
+		derived := httprouterWithContextCheck(t, &grantScheme{name: "token", header: "X-Token", derive: true}, &grantScheme{name: "key", header: "X-Key"})
+		rec := get(derived, map[string]string{"X-Token": "valid", "X-Scopes": "read"})
+		assert.Equal(t, "context: <nil>", rec.Body.String())
 	})
 
 	t.Run("Cancelled", func(t *testing.T) {
