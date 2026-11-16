@@ -22,6 +22,16 @@ import (
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
+// Schemer is a type which gives its own schema, wherever it's used, such
+// as one with its own MarshalJSON, whose JSON isn't what its fields say.
+// Its schema replaces the one its fields would have, and isn't enriched by
+// struct tags, though a field of the type has its own tags, such as help.
+// Its value, or a pointer to it, is the zero value, when JSONSchema is
+// called.
+type Schemer interface {
+	JSONSchema() *Schema
+}
+
 type Schema struct {
 	upstream.Schema
 	resolved *upstream.Resolved
@@ -64,6 +74,9 @@ var fileType = reflect.TypeFor[types.File]()
 // jsonMarshalerType is used to detect named []byte types like json.RawMessage
 // that marshal as embedded JSON rather than base64-encoded bytes.
 var jsonMarshalerType = reflect.TypeFor[json.Marshaler]()
+
+// schemerType is used to detect types which give their own schema
+var schemerType = reflect.TypeFor[Schemer]()
 
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
@@ -138,8 +151,17 @@ func For[T any]() (*Schema, error) {
 	if v, ok := schemaCache.Load(t); ok {
 		return v.(*Schema), nil
 	}
-	s, err := upstream.For[T](nil)
+	// The types which give their own schema are used as they are, rather
+	// than inferred, and the schema is copied, so no use shares a value
+	own, err := ownSchemas(t)
 	if err != nil {
+		return nil, err
+	}
+	s, err := upstream.For[T](&upstream.ForOptions{TypeSchemas: own})
+	if err != nil {
+		return nil, err
+	}
+	if s, err = deepCopy(s); err != nil {
 		return nil, err
 	}
 	// enrichSchema only applies to struct types; skip for primitives, slices, etc.
@@ -436,6 +458,11 @@ func enrichValue(s *upstream.Schema, t reflect.Type) error {
 }
 
 func applySpecialTypeSchema(s *upstream.Schema, t reflect.Type) bool {
+	// A type which gives its own schema, which For gave upstream, is used
+	// as it is, with a field's description, rather than enriched
+	if isSchemer(t) {
+		return true
+	}
 	switch t {
 	case durationType:
 		// time.Duration is encoded by encoding/json as integer nanoseconds,
@@ -482,6 +509,141 @@ func applySpecialTypeSchema(s *upstream.Schema, t reflect.Type) bool {
 		}
 		return false
 	}
+}
+
+// isSchemer returns whether the type, or a pointer to it, gives its own
+// schema, as a Schemer
+func isSchemer(t reflect.Type) bool {
+	return t.Kind() != reflect.Interface && (t.Implements(schemerType) || reflect.PointerTo(t).Implements(schemerType))
+}
+
+// ownSchemas returns the schemas of the types which give their own, which
+// the type is, or has, in its fields, slices, arrays, maps and pointers,
+// by type, without pointers, as upstream's TypeSchemas has them. The types
+// which give their own schema aren't looked into, so their fields needn't
+// be inferable.
+func ownSchemas(t reflect.Type) (map[reflect.Type]*upstream.Schema, error) {
+	result := make(map[reflect.Type]*upstream.Schema)
+	seen := make(map[reflect.Type]bool)
+	var walk func(reflect.Type) error
+	walk = func(t reflect.Type) error {
+		for t.Kind() == reflect.Pointer {
+			t = t.Elem()
+		}
+		if seen[t] {
+			return nil
+		}
+		seen[t] = true
+		if isSchemer(t) {
+			schema, err := ownSchema(t)
+			if err != nil {
+				return err
+			} else if schema != nil {
+				result[t] = schema
+				return nil
+			}
+		}
+		switch t.Kind() {
+		case reflect.Struct:
+			for i := 0; i < t.NumField(); i++ {
+				if field := t.Field(i); field.IsExported() || field.Anonymous {
+					if err := walk(field.Type); err != nil {
+						return err
+					}
+				}
+			}
+		case reflect.Slice, reflect.Array:
+			return walk(t.Elem())
+		case reflect.Map:
+			if err := walk(t.Key()); err != nil {
+				return err
+			}
+			return walk(t.Elem())
+		}
+		return nil
+	}
+	if err := walk(t); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// ownSchema returns a deep copy of the schema which the type gives, or a
+// pointer to it does, as a Schemer, or nil. Its local references, to its
+// own definitions, would point elsewhere where it's used, so they're an
+// error.
+func ownSchema(t reflect.Type) (*upstream.Schema, error) {
+	value := reflect.New(t)
+	if t.Implements(schemerType) {
+		value = value.Elem()
+	}
+	schema := value.Interface().(Schemer).JSONSchema()
+	if schema == nil {
+		return nil, nil
+	}
+	copied, err := deepCopy(&schema.Schema)
+	if err != nil {
+		return nil, fmt.Errorf("jsonschema: %v's own schema: %w", t, err)
+	}
+	if hasLocalReferences(copied) {
+		return nil, fmt.Errorf("jsonschema: %v's own schema has local references, or definitions, which wouldn't be where it's used", t)
+	}
+	return copied, nil
+}
+
+// deepCopy returns a copy of the schema which shares nothing with it, such
+// as its enum, examples or constraints
+func deepCopy(s *upstream.Schema) (*upstream.Schema, error) {
+	data, err := json.Marshal(s)
+	if err != nil {
+		return nil, err
+	}
+	var copied upstream.Schema
+	if err := json.Unmarshal(data, &copied); err != nil {
+		return nil, err
+	}
+	return &copied, nil
+}
+
+// hasLocalReferences returns whether the schema, or one within it, has a
+// local reference, or definitions, from its JSON, which has every schema
+// within it
+func hasLocalReferences(s *upstream.Schema) bool {
+	data, err := json.Marshal(s)
+	if err != nil {
+		return false
+	}
+	var tree any
+	if err := json.Unmarshal(data, &tree); err != nil {
+		return false
+	}
+	var walk func(node any, property bool) bool
+	walk = func(node any, property bool) bool {
+		switch node := node.(type) {
+		case map[string]any:
+			for key, value := range node {
+				// The names of properties aren't keywords
+				if !property {
+					if ref, ok := value.(string); ok && key == "$ref" && strings.HasPrefix(ref, "#") {
+						return true
+					} else if key == "$defs" || key == "definitions" {
+						return true
+					}
+				}
+				if walk(value, !property && (key == "properties" || key == "patternProperties")) {
+					return true
+				}
+			}
+		case []any:
+			for _, value := range node {
+				if walk(value, false) {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	return walk(tree, false)
 }
 
 func isUUIDLikeType(t reflect.Type) bool {
