@@ -3,9 +3,11 @@ package httprouter
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -564,7 +566,7 @@ func Test_mockPathItem_WrapHandler_001(t *testing.T) {
 	assert.Equal("true", rec.Header().Get("X-Wrapped"))
 }
 
-func Test_RegisterPath_SecurityRequiresAllSchemes(t *testing.T) {
+func Test_RegisterPath_SecurityAlternatives(t *testing.T) {
 	assert := assert.New(t)
 
 	router := newTestRouter(t, "/", "")
@@ -579,20 +581,207 @@ func Test_RegisterPath_SecurityRequiresAllSchemes(t *testing.T) {
 	})
 	assert.NoError(router.RegisterPath("secure", nil, item))
 
-	// Both schemes are applied at runtime
+	// Both grant access, so the first does, and its headers are kept
 	req := httptest.NewRequest(http.MethodGet, "/secure", nil)
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 	assert.Equal(http.StatusNoContent, rec.Code)
 	assert.Contains(rec.Header(), "X-Scheme-Apikey")
-	assert.Equal("read", rec.Header().Get("X-Scheme-Oauth"))
+	assert.NotContains(rec.Header(), "X-Scheme-Oauth")
 
-	// The specification documents both schemes as one requirement
+	// The specification documents them as alternatives
 	op := router.Spec().Paths.MapOfPathItemValues["/secure"].Get
-	if assert.NotNil(op) && assert.Len(op.Security, 1) {
+	if assert.NotNil(op) && assert.Len(op.Security, 2) {
 		assert.Contains(op.Security[0], "apiKey")
-		assert.Contains(op.Security[0], "oauth")
+		assert.Contains(op.Security[1], "oauth")
 	}
+}
+
+// httprouterWithContextCheck returns a router whose route needs either
+// scheme, and whose handler writes its context's error
+func httprouterWithContextCheck(t *testing.T, token, key *grantScheme) http.Handler {
+	t.Helper()
+	router := newTestRouter(t, "/", "")
+	require.NoError(t, router.RegisterSecurityScheme("token", token))
+	require.NoError(t, router.RegisterSecurityScheme("key", key))
+	require.NoError(t, router.Register("secure", nil, func(path httprequest.PathItem) {
+		path.Get(func(w http.ResponseWriter, r *http.Request) {
+			_, _ = fmt.Fprintf(w, "context: %v", r.Context().Err())
+		}, func(op httprequest.PathOperation) {
+			op.Security("token", "read").Security("key", "read")
+		})
+	}))
+	return router
+}
+
+// grantScheme grants access to a request with its header, which is valid,
+// and the scopes in X-Scopes, after its delay, and puts its name in the
+// request's context, or blocks until its context is cancelled, when it's
+// told to
+type grantScheme struct {
+	name, header string
+	delay        time.Duration
+	block        bool
+	cancelled    chan struct{}
+	panic        any    // panics with it, after its delay
+	strip        string // deletes the header from its request
+	derive       bool   // calls the handler with a context it cancels after
+}
+
+type grantedKey struct{}
+
+func (s *grantScheme) Spec() openapi.SecurityScheme {
+	return openapi.SecurityScheme{Type: "apiKey", In: "header", Name: s.header}
+}
+
+func (s *grantScheme) Wrap(handler http.HandlerFunc, scopes []string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if s.block {
+			<-r.Context().Done()
+			close(s.cancelled)
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		time.Sleep(s.delay)
+		if s.panic != nil {
+			panic(s.panic)
+		}
+		if s.strip != "" {
+			r.Header.Del(s.strip)
+		}
+		if s.derive {
+			ctx, cancel := context.WithCancel(r.Context())
+			defer cancel()
+			r = r.WithContext(ctx)
+		}
+		switch {
+		case r.Header.Get(s.header) == "":
+			w.WriteHeader(http.StatusUnauthorized)
+		case r.Header.Get(s.header) != "valid":
+			w.Header().Set("WWW-Authenticate", s.name)
+			w.WriteHeader(http.StatusUnauthorized)
+		case !slices.Contains(strings.Split(r.Header.Get("X-Scopes"), ","), strings.Join(scopes, ",")):
+			http.Error(w, "forbidden by "+s.name, http.StatusForbidden)
+		default:
+			w.Header().Set("X-Granted-By", s.name)
+			handler(w, r.WithContext(context.WithValue(r.Context(), grantedKey{}, s.name)))
+		}
+	}
+}
+
+func Test_SecurityAlternatives(t *testing.T) {
+	// serve returns a router whose route needs a token or an API key, and
+	// the handler's response, which is the scheme which granted access
+	serve := func(t *testing.T, token, key *grantScheme) http.Handler {
+		t.Helper()
+		router := newTestRouter(t, "/", "")
+		require.NoError(t, router.RegisterSecurityScheme("token", token))
+		require.NoError(t, router.RegisterSecurityScheme("key", key))
+		require.NoError(t, router.Register("secure", nil, func(path httprequest.PathItem) {
+			path.Get(func(w http.ResponseWriter, r *http.Request) {
+				granted, _ := r.Context().Value(grantedKey{}).(string)
+				_, _ = w.Write([]byte(granted))
+			}, func(op httprequest.PathOperation) {
+				op.Security("token", "read").Security("key", "read")
+			})
+		}))
+		return router
+	}
+	get := func(handler http.Handler, headers map[string]string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodGet, "/secure", nil)
+		for key, value := range headers {
+			req.Header.Set(key, value)
+		}
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		return rec
+	}
+	router := serve(t, &grantScheme{name: "token", header: "X-Token"}, &grantScheme{name: "key", header: "X-Key"})
+
+	t.Run("Either", func(t *testing.T) {
+		rec := get(router, map[string]string{"X-Token": "valid", "X-Scopes": "read"})
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.Equal(t, "token", rec.Body.String(), "the context of the scheme which granted it")
+		assert.Equal(t, "token", rec.Header().Get("X-Granted-By"), "with its headers")
+
+		rec = get(router, map[string]string{"X-Key": "valid", "X-Scopes": "read"})
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.Equal(t, "key", rec.Body.String())
+	})
+
+	t.Run("Both", func(t *testing.T) {
+		rec := get(router, map[string]string{"X-Token": "valid", "X-Key": "valid", "X-Scopes": "read"})
+		assert.Equal(t, "token", rec.Body.String(), "the first, in order")
+	})
+
+	t.Run("Neither", func(t *testing.T) {
+		rec := get(router, nil)
+		assert.Equal(t, http.StatusUnauthorized, rec.Code)
+		rec = get(router, map[string]string{"X-Key": "invalid"})
+		assert.Equal(t, http.StatusUnauthorized, rec.Code)
+		assert.Empty(t, rec.Header().Get("WWW-Authenticate"), "the first's response, not the second's, which has a header")
+	})
+
+	t.Run("Forbidden", func(t *testing.T) {
+		// Valid, but without the scope, is forbidden, rather than
+		// unauthorized, which the other is
+		rec := get(router, map[string]string{"X-Key": "valid", "X-Scopes": "write"})
+		assert.Equal(t, http.StatusForbidden, rec.Code)
+		assert.Contains(t, rec.Body.String(), "forbidden by key")
+	})
+
+	t.Run("Order", func(t *testing.T) {
+		// The first in order, though it's slower
+		slow := serve(t, &grantScheme{name: "token", header: "X-Token", delay: 50 * time.Millisecond}, &grantScheme{name: "key", header: "X-Key"})
+		rec := get(slow, map[string]string{"X-Token": "valid", "X-Key": "valid", "X-Scopes": "read"})
+		assert.Equal(t, "token", rec.Body.String())
+	})
+
+	t.Run("Panic", func(t *testing.T) {
+		// A scheme's panic, which is waited for, is the request's, as it is
+		// for one scheme, such as to abort it
+		panicked := serve(t, &grantScheme{name: "token", header: "X-Token", panic: http.ErrAbortHandler}, &grantScheme{name: "key", header: "X-Key"})
+		assert.PanicsWithValue(t, http.ErrAbortHandler, func() {
+			get(panicked, map[string]string{"X-Key": "valid", "X-Scopes": "read"})
+		})
+
+		// One, after another granted access, is dropped
+		later := serve(t, &grantScheme{name: "token", header: "X-Token"}, &grantScheme{name: "key", header: "X-Key", delay: 20 * time.Millisecond, panic: "later"})
+		assert.NotPanics(t, func() {
+			rec := get(later, map[string]string{"X-Token": "valid", "X-Scopes": "read"})
+			assert.Equal(t, "token", rec.Body.String())
+		})
+	})
+
+	t.Run("Cloned", func(t *testing.T) {
+		// A scheme which changes its request's headers doesn't change the
+		// others', or the handler's
+		stripped := serve(t, &grantScheme{name: "token", header: "X-Token", strip: "X-Key"}, &grantScheme{name: "key", header: "X-Key"})
+		for range 20 {
+			rec := get(stripped, map[string]string{"X-Key": "valid", "X-Scopes": "read"})
+			assert.Equal(t, "key", rec.Body.String())
+		}
+	})
+
+	t.Run("Cleanup", func(t *testing.T) {
+		// The handler runs before the scheme's deferred cleanup, which
+		// cancels the context it called it with
+		derived := httprouterWithContextCheck(t, &grantScheme{name: "token", header: "X-Token", derive: true}, &grantScheme{name: "key", header: "X-Key"})
+		rec := get(derived, map[string]string{"X-Token": "valid", "X-Scopes": "read"})
+		assert.Equal(t, "context: <nil>", rec.Body.String())
+	})
+
+	t.Run("Cancelled", func(t *testing.T) {
+		// Another, which hasn't finished, is cancelled
+		blocked := &grantScheme{name: "key", header: "X-Key", block: true, cancelled: make(chan struct{})}
+		rec := get(serve(t, &grantScheme{name: "token", header: "X-Token"}, blocked), map[string]string{"X-Token": "valid", "X-Scopes": "read"})
+		assert.Equal(t, "token", rec.Body.String())
+		select {
+		case <-blocked.cancelled:
+		case <-time.After(5 * time.Second):
+			t.Fatal("the other alternative wasn't cancelled")
+		}
+	})
 }
 
 func Test_RegisterCatchAll_Subtree(t *testing.T) {

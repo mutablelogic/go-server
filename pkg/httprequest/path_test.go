@@ -135,13 +135,13 @@ func TestParametersFromPathWildcardSchema(t *testing.T) {
 	}
 }
 
-func TestSecurityRequiresAllSchemes(t *testing.T) {
-	// Chained schemes are all required, so they are documented as a single
-	// requirement rather than as alternatives
+func TestSecurityAlternatives(t *testing.T) {
+	// Each scheme is an alternative, any of which grants access, with its
+	// scopes copied from the caller, and replaced when it's added again
 	scopes := []string{"read"}
 	p := NewPathItem("summary", "description")
 	p.Get(func(http.ResponseWriter, *http.Request) {}, func(op PathOperation) {
-		op.Security("apiKey").Security("oauth", scopes...)
+		op.Security("apiKey").Security("oauth", scopes...).Security("apiKey", "write")
 	})
 	scopes[0] = "changed"
 
@@ -149,15 +149,14 @@ func TestSecurityRequiresAllSchemes(t *testing.T) {
 	if spec == nil || spec.Get == nil {
 		t.Fatalf("Spec().Get = nil, want populated GET operation")
 	}
-	if len(spec.Get.Security) != 1 {
-		t.Fatalf("len(Security) = %d, want 1 requirement holding both schemes", len(spec.Get.Security))
+	if len(spec.Get.Security) != 2 {
+		t.Fatalf("len(Security) = %d, want 2 alternatives", len(spec.Get.Security))
 	}
-	requirement := spec.Get.Security[0]
-	if got, ok := requirement["apiKey"]; !ok || got == nil || len(got) != 0 {
-		t.Errorf("apiKey scopes = %#v, want empty, non-nil", got)
+	if got := spec.Get.Security[0]; len(got) != 1 || len(got["apiKey"]) != 1 || got["apiKey"][0] != "write" {
+		t.Errorf("first alternative = %#v, want apiKey, with its scopes replaced", got)
 	}
-	if got := requirement["oauth"]; len(got) != 1 || got[0] != "read" {
-		t.Errorf("oauth scopes = %#v, want [read], copied from the caller", got)
+	if got := spec.Get.Security[1]; len(got) != 1 || len(got["oauth"]) != 1 || got["oauth"][0] != "read" {
+		t.Errorf("second alternative = %#v, want oauth [read], copied from the caller", got)
 	}
 }
 

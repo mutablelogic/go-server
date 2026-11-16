@@ -8,8 +8,10 @@ import (
 	"context"
 	"errors"
 	"io/fs"
+	"maps"
 	"net/http"
 	"path"
+	"slices"
 	"strings"
 	"time"
 
@@ -265,17 +267,34 @@ func (r *Router) RegisterPath(path string, params *jsonschema.Schema, pathitem h
 			if registerErr != nil {
 				return
 			}
+			// Each requirement is an alternative, whose schemes are all
+			// required, in the order of their names
+			alternatives := make([]wrapFunc, 0, len(op.Security))
 			for _, requirement := range op.Security {
-				for name, scopes := range requirement {
+				names := slices.Sorted(maps.Keys(requirement))
+				wraps := make([]wrapFunc, 0, len(names))
+				for _, name := range names {
 					scheme, ok := r.security[name]
 					if !ok {
 						registerErr = httpresponse.ErrNotImplemented.Withf("security scheme %q not registered for %s %s", name, method, path)
 						return
 					}
-					pathitem.WrapHandler(method, func(next http.HandlerFunc) http.HandlerFunc {
+					scopes := requirement[name]
+					wraps = append(wraps, func(next http.HandlerFunc) http.HandlerFunc {
 						return scheme.Wrap(next, scopes)
 					})
 				}
+				alternatives = append(alternatives, allOf(wraps))
+			}
+
+			// One alternative wraps the handler, and more than one run at
+			// once, in a parent
+			switch len(alternatives) {
+			case 0:
+			case 1:
+				pathitem.WrapHandler(method, alternatives[0])
+			default:
+				pathitem.WrapHandler(method, anyOf(alternatives))
 			}
 		})
 		if registerErr != nil {
