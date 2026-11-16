@@ -15,6 +15,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -469,6 +470,16 @@ func validate(content map[string]openapi.MediaType, header http.Header, body []b
 			return fmt.Errorf("form: %w", err)
 		}
 		body = data
+	case types.ContentTypeForm:
+		values, err := url.ParseQuery(string(body))
+		if err != nil {
+			return fmt.Errorf("form: %w", err)
+		}
+		data, err := json.Marshal(valuesObject(values))
+		if err != nil {
+			return err
+		}
+		body = data
 	}
 	return media.Schema.Validate(body)
 }
@@ -502,23 +513,32 @@ func formObject(header http.Header, body []byte) ([]byte, error) {
 		return nil, err
 	}
 	defer form.RemoveAll()
-	object := make(map[string]any, len(form.Value)+len(form.File))
-	for key, values := range form.Value {
-		object[key] = values
+	values := make(map[string][]string, len(form.Value)+len(form.File))
+	for key, value := range form.Value {
+		values[key] = value
 	}
 	for key, files := range form.File {
 		names := make([]string, 0, len(files))
 		for _, file := range files {
 			names = append(names, file.Filename)
 		}
-		object[key] = names
+		values[key] = names
 	}
-	for key, value := range object {
-		if values := value.([]string); len(values) == 1 {
-			object[key] = values[0]
+	return json.Marshal(valuesObject(values))
+}
+
+// valuesObject returns a form's values as an object, where a field with
+// one value is a string, and one with more is an array of them
+func valuesObject(values map[string][]string) map[string]any {
+	object := make(map[string]any, len(values))
+	for key, value := range values {
+		if len(value) == 1 {
+			object[key] = value[0]
+		} else {
+			object[key] = value
 		}
 	}
-	return json.Marshal(object)
+	return object
 }
 
 ///////////////////////////////////////////////////////////////////////////////
