@@ -93,3 +93,95 @@ func Test_Schemer(t *testing.T) {
 		require.NotNil(t, b.AdditionalProperties)
 	})
 }
+
+// channel has a field which can't be inferred, so it needs its own schema
+type channel struct {
+	C chan int
+}
+
+func (channel) JSONSchema() *jsonschema.Schema {
+	return mustSchema(`{"type":"string"}`)
+}
+
+// node is recursive, which can't be inferred, so it needs its own schema
+type node struct {
+	Children []node
+}
+
+func (node) JSONSchema() *jsonschema.Schema {
+	return mustSchema(`{"type":"array"}`)
+}
+
+// referenced has local references, which wouldn't be where it's used
+type referenced struct{}
+
+func (referenced) JSONSchema() *jsonschema.Schema {
+	return mustSchema(`{"$defs":{"v":{"type":"string"}},"$ref":"#/$defs/v"}`)
+}
+
+// level returns the same schema each time, with values which could be
+// shared
+type level int
+
+var levelSchema = mustSchema(`{"type":"object","properties":{"value":{"type":"integer","minimum":1,"enum":[1,2],"examples":[1]}}}`)
+
+func (level) JSONSchema() *jsonschema.Schema {
+	return levelSchema
+}
+
+func Test_SchemerReview(t *testing.T) {
+	t.Run("NotInferred", func(t *testing.T) {
+		// Its fields aren't looked into, so they needn't be inferable
+		type withChannel struct {
+			Channel channel `json:"channel"`
+			Tree    []node  `json:"tree"`
+		}
+		schema, err := jsonschema.For[withChannel]()
+		require.NoError(t, err)
+		assert.NoError(t, schema.Validate(json.RawMessage(`{"channel":"a","tree":[[]]}`)))
+		assert.Error(t, schema.Validate(json.RawMessage(`{"channel":1,"tree":[]}`)))
+		_, err = jsonschema.For[node]()
+		assert.NoError(t, err, "recursive")
+	})
+
+	t.Run("LocalReferences", func(t *testing.T) {
+		type withReferenced struct {
+			Value referenced `json:"value"`
+		}
+		_, err := jsonschema.For[withReferenced]()
+		assert.ErrorContains(t, err, "local references")
+		_, err = jsonschema.For[referenced]()
+		assert.ErrorContains(t, err, "local references")
+	})
+
+	t.Run("Description", func(t *testing.T) {
+		// A field's jsonschema tag is its description, before help
+		type described struct {
+			Attrs values `json:"attrs" jsonschema:"From the jsonschema tag" help:"From help"`
+		}
+		schema := jsonschema.MustFor[described]()
+		assert.Equal(t, "From the jsonschema tag", schema.Properties["attrs"].Description)
+		require.NotNil(t, schema.Properties["attrs"].AdditionalProperties, "its own schema")
+	})
+
+	t.Run("Shared", func(t *testing.T) {
+		// Each use is a deep copy, so a change to one's values isn't the
+		// provider's, or another use's
+		type twice struct {
+			A level `json:"a"`
+			B level `json:"b"`
+		}
+		schema := jsonschema.MustFor[twice]()
+		a := schema.Properties["a"].Properties["value"]
+		b := schema.Properties["b"].Properties["value"]
+		require.NotNil(t, a.Minimum)
+		*a.Minimum = 99
+		a.Enum[0] = 99
+		a.Examples[0] = 99
+		for name, s := range map[string]*jsonschema.Schema{"b": {Schema: *b}, "provider": {Schema: *levelSchema.Properties["value"]}} {
+			assert.Equal(t, float64(1), *s.Minimum, name)
+			assert.EqualValues(t, 1, s.Enum[0], name)
+			assert.EqualValues(t, 1, s.Examples[0], name)
+		}
+	})
+}

@@ -59,7 +59,12 @@ Fields with a `default:""` tag are automatically treated as optional so that def
 
 ### A type's own schema
 
-A type whose JSON isn't what its fields say, such as one with its own `MarshalJSON`, gives its own schema with `JSONSchema`, as a `Schemer`. It's used wherever the type is: at the top level, as a field, in a slice or a map, and by a pointer, with a value or a pointer receiver. It isn't enriched by struct tags, but a field of the type has its own, such as `help`.
+A type whose JSON isn't what its fields say, such as one with its own `MarshalJSON`, gives its own schema with `JSONSchema`, as a `Schemer`. It's used wherever the type is: at the top level, as a field, in a slice or a map, and by a pointer, with a value or a pointer receiver.
+
+- **Its fields:** aren't looked into, so they needn't be inferable, such as a channel, or a recursive type.
+- **Struct tags:** it isn't enriched by them, but a field of the type has its own description, from `jsonschema`, or else `help`.
+- **Copies:** each use is a deep copy, so a schema can be returned from a variable.
+- **References:** it can't have local `$ref`s or `$defs`, which wouldn't be where it's used, so `For` returns an error.
 
 ```go
 // Values are strings, or {"base64": "..."}, as MarshalJSON writes them
