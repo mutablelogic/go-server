@@ -9,6 +9,7 @@ import (
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
 	httprouter "github.com/mutablelogic/go-server/pkg/httprouter"
 	jsonschema "github.com/mutablelogic/go-server/pkg/jsonschema"
+	types "github.com/mutablelogic/go-server/pkg/types"
 	test "github.com/mutablelogic/go-server/test"
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
@@ -79,4 +80,34 @@ func Test_Server(t *testing.T) {
 		server.Reset()
 		assert.Empty(t, server.Exchanges())
 	})
+}
+
+func Test_Form(t *testing.T) {
+	// A URL-encoded form is validated as the object of its values, where a
+	// field with one value is a string
+	type form struct {
+		Name string   `json:"name"`
+		Tags []string `json:"tags,omitempty"`
+	}
+	server := test.NewServer(t, func(router *httprouter.Router) error {
+		return router.Register("form", nil, func(path httprequest.PathItem) {
+			path.Post(func(w http.ResponseWriter, r *http.Request) {
+				httpresponse.Empty(w, http.StatusNoContent)
+			}, func(op httprequest.PathOperation) {
+				op.RequestBody(jsonschema.MustFor[form](), types.ContentTypeForm)
+				op.EmptyResponse()
+			})
+		})
+	})
+	header := http.Header{"Content-Type": {types.ContentTypeForm}}
+	status, _, _ := server.Send(t, http.MethodPost, "form", header, []byte("name=one&tags=a&tags=b"))
+	assert.Equal(t, http.StatusNoContent, status)
+	assert.Empty(t, server.Verify())
+
+	// One which doesn't match the schema isn't conforming
+	server.Send(t, http.MethodPost, "form", header, []byte("name=one&name=two"))
+	errs := server.Verify()
+	require.Len(t, errs, 1)
+	assert.ErrorContains(t, errs[0], "request body")
+	server.Reset()
 }

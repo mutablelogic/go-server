@@ -18,6 +18,8 @@ So a test of a handler also checks that the handler does what its documentation 
   - JSON bodies are validated directly.
   - YAML is validated as the JSON it's equivalent to.
   - A multipart form is validated as an object of its fields, with each file as its name.
+  - A URL-encoded form is validated as an object of its fields.
+  - A field with one value is a string; one with more is an array.
   - A `text/plain` body, or a stream of server-sent events, is validated as a string.
 
 ## What's not checked
