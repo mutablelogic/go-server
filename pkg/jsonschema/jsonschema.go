@@ -22,6 +22,16 @@ import (
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
+// Schemer is a type which gives its own schema, wherever it's used, such
+// as one with its own MarshalJSON, whose JSON isn't what its fields say.
+// Its schema replaces the one its fields would have, and isn't enriched by
+// struct tags, though a field of the type has its own tags, such as help.
+// Its value, or a pointer to it, is the zero value, when JSONSchema is
+// called.
+type Schemer interface {
+	JSONSchema() *Schema
+}
+
 type Schema struct {
 	upstream.Schema
 	resolved *upstream.Resolved
@@ -64,6 +74,9 @@ var fileType = reflect.TypeFor[types.File]()
 // jsonMarshalerType is used to detect named []byte types like json.RawMessage
 // that marshal as embedded JSON rather than base64-encoded bytes.
 var jsonMarshalerType = reflect.TypeFor[json.Marshaler]()
+
+// schemerType is used to detect types which give their own schema
+var schemerType = reflect.TypeFor[Schemer]()
 
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
@@ -436,6 +449,11 @@ func enrichValue(s *upstream.Schema, t reflect.Type) error {
 }
 
 func applySpecialTypeSchema(s *upstream.Schema, t reflect.Type) bool {
+	// A type which gives its own schema
+	if own := ownSchema(t); own != nil {
+		*s = *own
+		return true
+	}
 	switch t {
 	case durationType:
 		// time.Duration is encoded by encoding/json as integer nanoseconds,
@@ -482,6 +500,27 @@ func applySpecialTypeSchema(s *upstream.Schema, t reflect.Type) bool {
 		}
 		return false
 	}
+}
+
+// ownSchema returns a copy of the schema which the type gives, as a
+// Schemer, or a pointer to it is, or nil
+func ownSchema(t reflect.Type) *upstream.Schema {
+	var value reflect.Value
+	switch {
+	case t.Kind() == reflect.Interface:
+		return nil
+	case t.Implements(schemerType):
+		value = reflect.New(t).Elem()
+	case reflect.PointerTo(t).Implements(schemerType):
+		value = reflect.New(t)
+	default:
+		return nil
+	}
+	schema := value.Interface().(Schemer).JSONSchema()
+	if schema == nil {
+		return nil
+	}
+	return schema.Schema.CloneSchemas()
 }
 
 func isUUIDLikeType(t reflect.Type) bool {

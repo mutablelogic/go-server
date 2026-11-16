@@ -55,6 +55,21 @@ Fields with a `default:""` tag are automatically treated as optional so that def
 | `[]byte` | `{"type":"string","format":"byte"}` | base64-encoded |
 | `json.RawMessage` | `{}` | embedded JSON, so any JSON value, including as a map value or slice item |
 | `string` + `format:"uuid"` tag | `{"type":"string","format":"uuid"}` | add `format:"uuid"` to any `string` or `*string` field — the format is advisory; validation enforces the string type only |
+| a `Schemer` | its own | a type which gives its own schema, wherever it's used — see below |
+
+### A type's own schema
+
+A type whose JSON isn't what its fields say, such as one with its own `MarshalJSON`, gives its own schema with `JSONSchema`, as a `Schemer`. It's used wherever the type is: at the top level, as a field, in a slice or a map, and by a pointer, with a value or a pointer receiver. It isn't enriched by struct tags, but a field of the type has its own, such as `help`.
+
+```go
+// Values are strings, or {"base64": "..."}, as MarshalJSON writes them
+type Attrs map[string][]string
+
+func (Attrs) JSONSchema() *jsonschema.Schema {
+    schema, _ := jsonschema.FromJSON(json.RawMessage(`{"type":"object","additionalProperties":{"type":"array","items":{"anyOf":[{"type":"string"},{"type":"object","properties":{"base64":{"type":"string"}},"required":["base64"]}]}}}`))
+    return schema
+}
+```
 
 ## Supported struct tags
 
