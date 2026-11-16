@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sync"
 	"testing"
 
 	// Packages
@@ -95,6 +96,50 @@ func Test_Sections(t *testing.T) {
 	})
 }
 
+func Test_SectionFunc(t *testing.T) {
+	// A section's value is the function's, each time it's served, and it's
+	// documented by its type, as a value's is
+	var mu sync.Mutex
+	var connected bool
+	server := test.NewServer(t, func(router *httprouter.Router) error {
+		return config.RegisterHandler(router, config.Config{Prefix: "/api"},
+			config.WithSection("credential", features{Decrypt: true}),
+			config.WithSectionFunc("status", func() status {
+				mu.Lock()
+				defer mu.Unlock()
+				return status{Connected: connected}
+			}),
+		)
+	})
+	get := func() status {
+		resp, err := http.Get(server.URL + config.Path)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		var got struct {
+			Modules struct {
+				Status status `json:"status"`
+			} `json:"modules"`
+		}
+		require.NoError(t, json.NewDecoder(resp.Body).Decode(&got))
+		return got.Modules.Status
+	}
+	assert.Equal(t, status{}, get())
+	mu.Lock()
+	connected = true
+	mu.Unlock()
+	assert.Equal(t, status{Connected: true}, get(), "as it is now")
+	assert.Empty(t, server.Verify())
+
+	schema := server.Spec().Paths.MapOfPathItemValues[config.Path].Get.Responses["200"].Content["application/json"].Schema
+	require.NotNil(t, schema)
+	assert.Contains(t, schema.Properties["modules"].Properties["status"].Properties, "connected")
+}
+
+// status is a section whose value changes while the server runs
+type status struct {
+	Connected bool `json:"connected" help:"Whether it's connected"`
+}
+
 func Test_NoSections(t *testing.T) {
 	// Without sections, there are no modules
 	server := test.NewServer(t, func(router *httprouter.Router) error {
@@ -118,6 +163,8 @@ func Test_SectionErrors(t *testing.T) {
 	assert.Error(t, register(config.Config{}, config.WithSection(" ", features{})), "a name is required")
 	assert.Error(t, register(config.Config{}, config.WithSection("credential", features{}), config.WithSection("credential", features{})), "a name is unique")
 	assert.Error(t, register(config.Config{Modules: map[string]any{"x": 1}}, config.WithSection("credential", features{})), "modules are set by sections")
+	assert.Error(t, register(config.Config{}, config.WithSectionFunc[features]("credential", nil)), "a function is required")
+	assert.Error(t, register(config.Config{}, config.WithSection("credential", features{}), config.WithSectionFunc("credential", func() features { return features{} })), "a name is unique, with a function too")
 	assert.NoError(t, register(config.Config{Modules: map[string]any{"x": 1}}), "modules can be set without sections")
 }
 

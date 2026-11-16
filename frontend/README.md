@@ -72,6 +72,12 @@ config.RegisterHandler(router, config.New(ctx, router, openapi),
 const features = configSection<{ decrypt: boolean; rotate: boolean }>(config, 'credential');
 ```
 
+A section which changes while the server runs, such as a module's status, is added with `config.WithSectionFunc`, whose function returns its value each time `config.json` is served, as `getConfig` reads it again:
+
+```go
+config.WithSectionFunc("ldap", func() Status { return manager.Status() }),
+```
+
 ## Following the server
 
 A `ConfigController` follows the server with the `ChangesController`. Its status is:

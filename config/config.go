@@ -51,7 +51,7 @@ type Config struct {
 
 	// What the server's modules, such as its packages, say of themselves,
 	// by their names, such as what they can do, which RegisterHandler sets
-	// from WithSection
+	// from WithSection and WithSectionFunc, each time it's served
 	Modules map[string]any `json:"modules,omitempty" help:"What the server's modules say of themselves, by their names, such as what they can do"`
 }
 
@@ -63,10 +63,11 @@ type opts struct {
 	sections []section
 }
 
-// section is a module's section of the configuration, and its schema
+// section is a module's section of the configuration, whose value is
+// returned each time it's served, and its schema
 type section struct {
 	name   string
-	value  any
+	value  func() any
 	schema *jsonschema.Schema
 }
 
@@ -115,6 +116,28 @@ func New(ctx server.Cmd, router *httprouter.Router, openapi bool) Config {
 // by its name, such as credential, with its value, such as what the module
 // can do, which the API's documentation describes, by its type
 func WithSection[T any](name string, value T) Opt {
+	return withSection[T](name, func() any { return value })
+}
+
+// WithSectionFunc adds a module's section to the configuration, as
+// WithSection does, whose value the function returns each time the
+// configuration is served, such as the module's status, which changes
+// while the server runs. It's called concurrently, as requests are.
+func WithSectionFunc[T any](name string, fn func() T) Opt {
+	if fn == nil {
+		return func(*opts) error {
+			return fmt.Errorf("config: section %q has no function", name)
+		}
+	}
+	return withSection[T](name, func() any { return fn() })
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+// withSection adds a section, whose value the function returns, and whose
+// schema is its type's
+func withSection[T any](name string, value func() any) Opt {
 	return func(o *opts) error {
 		if strings.TrimSpace(name) == "" {
 			return errors.New("config: a section's name is required")
@@ -140,15 +163,9 @@ func RegisterHandler(router *httprouter.Router, config Config, options ...Opt) e
 		}
 	}
 
-	// The modules' sections, which replace what the configuration has
-	if len(o.sections) > 0 {
-		if len(config.Modules) > 0 {
-			return errors.New("config: modules are set with WithSection, not in the configuration")
-		}
-		config.Modules = make(map[string]any, len(o.sections))
-		for _, section := range o.sections {
-			config.Modules[section.name] = section.value
-		}
+	// The modules' sections replace what the configuration has
+	if len(o.sections) > 0 && len(config.Modules) > 0 {
+		return errors.New("config: modules are set with WithSection, not in the configuration")
 	}
 
 	// The schema of the configuration, with the sections'
@@ -162,13 +179,27 @@ func RegisterHandler(router *httprouter.Router, config Config, options ...Opt) e
 
 		// GET
 		path.Get(func(w http.ResponseWriter, r *http.Request) {
-			httpresponse.JSON(w, http.StatusOK, httprequest.Indent(r), config)
+			httpresponse.JSON(w, http.StatusOK, httprequest.Indent(r), withModules(config, o.sections))
 		}, func(op httprequest.PathOperation) {
 			op.Summary("Get Configuration")
 			op.Description("The server's configuration, for its frontend: the path prefix of the API, the server's name and version, the path of the API's documentation, when it's served, the server's public endpoint, when it was given its public name, and what its modules say of themselves.")
 			op.JSONResponse(http.StatusOK, schema, "Configuration")
 		})
 	})
+}
+
+// withModules returns the configuration, with the sections' values, as
+// they are now, under modules, by their names, or as it is, without
+// sections
+func withModules(config Config, sections []section) Config {
+	if len(sections) == 0 {
+		return config
+	}
+	config.Modules = make(map[string]any, len(sections))
+	for _, section := range sections {
+		config.Modules[section.name] = section.value()
+	}
+	return config
 }
 
 // responseSchema returns the configuration's schema, whose modules are the
