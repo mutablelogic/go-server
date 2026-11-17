@@ -101,3 +101,26 @@ test('NavController pages without a section', () => {
     nav.setActive('about');
     assert.equal(nav.activeSection?.href, '#about');
 });
+
+test('NavController modules', () => {
+    // Modules share a section, each replacing only its own pages, which stay
+    // where they are, and a new module's are after the section's
+    const nav = new NavController({ name: 'llm', href: '#', pages: [] });
+    nav.setModule('chat', 'llm', [{ id: 'chat', label: 'Conversations', href: '#chat' }]);
+    nav.setModule('models', 'llm', [{ id: 'models', label: 'Models', href: '#models' }]);
+    nav.setModule('other', 'Other', [{ id: 'other', label: 'Other', href: '#other' }]);
+    nav.setModule('tools', 'llm', [{ id: 'tools', label: 'Tools', href: '#tools' }]);
+    assert.deepEqual(nav.current.pages.map((page) => page.id), ['chat', 'models', 'tools', 'other']);
+
+    nav.setModule('models', 'llm', [
+        { id: 'models', label: 'Models', href: '#models' },
+        { id: 'providers', label: 'Providers', href: '#providers' },
+    ]);
+    assert.deepEqual(nav.current.pages.map((page) => page.id), ['chat', 'models', 'providers', 'tools', 'other']);
+    assert.deepEqual(nav.sections.map((section) => section.label), ['llm', 'Other']);
+    assert.equal(nav.current.pages[1].module, 'models');
+    assert.equal(nav.current.pages[1].section, 'llm');
+
+    nav.setModule('models', 'llm', []);
+    assert.deepEqual(nav.current.pages.map((page) => page.id), ['chat', 'tools', 'other']);
+});
