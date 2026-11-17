@@ -19,8 +19,8 @@ TypeScript clients of go-server's APIs, for the frontends of servers built on it
 | `@mutablelogic/go-server/list` | `ListController`, which keeps a list an API returns a page at a time, sorted by the server, and follows its changes |
 | `@mutablelogic/go-server/list/view` | The `gs-table` element, a Carbon data table of a list's page, with sortable columns and pagination, whose rows open their items, can be expanded, and selected for batch actions, with a toolbar of a search and settings |
 | `@mutablelogic/go-server/list/tiles` | The `gs-tiles` element, a row of tiles of a list, after one for all of them, of which one is chosen |
-| `@mutablelogic/go-server/nav` | `NavController`, which keeps an app's name, and its pages, in sections, and which is active |
-| `@mutablelogic/go-server/nav/view` | The `gs-header` and `gs-side-nav` elements, the app's menu bar of its sections, and its sidebar of the active section's pages |
+| `@mutablelogic/go-server/nav` | `NavController`, which keeps an app's name, and its pages, in sections, and which is active. A module owns a section with `setSection`, or shares one, owning only its pages, with `setModule` |
+| `@mutablelogic/go-server/nav/view` | The `gs-header` and `gs-side-nav` elements, the app's menu bar of its sections, when there's more than one, and its sidebar of the active section's pages, above the element's own content, such as `gs-server-status` |
 | `@mutablelogic/go-server/page` | `PageAction`, an action of a page's header, and `runAction`, which runs one, busy while its promise is pending |
 | `@mutablelogic/go-server/page/view` | The `gs-page-header` element, the dark header at the top of a page, with an icon, a title, a subtitle or details, and actions on the right |
 | `@mutablelogic/go-server/router` | `Router`, which shows the page of the location's hash, such as `#database/shop` |

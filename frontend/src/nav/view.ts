@@ -67,6 +67,8 @@ abstract class ShellElement extends LitElement {
 }
 
 export class HeaderElement extends ShellElement {
+    // The menu bar has the sections, when there's more than one, so an app
+    // whose pages are all in one section, which the sidebar shows, has none
     // The active section's item is current, as true, rather than page, as
     // Carbon's header item only shows it's current, with is-active, when
     // aria-current isn't page, which it doesn't pass to its link, whose
@@ -81,7 +83,7 @@ export class HeaderElement extends ShellElement {
             <cds-header aria-label=${state.name}>
                 <cds-header-menu-button button-label-active="Close menu" button-label-inactive="Open menu"></cds-header-menu-button>
                 <cds-header-name href=${state.href} prefix=${state.prefix ?? ''}>${state.name}</cds-header-name>
-                ${sections.length ? html`
+                ${sections.length > 1 ? html`
                     <cds-header-nav menu-bar-label=${state.name}>
                         ${sections.map((section) => html`
                             <cds-header-nav-item href=${section.href} ?is-active=${section.active} aria-current=${section.active ? 'true' : nothing}>${section.label}</cds-header-nav-item>

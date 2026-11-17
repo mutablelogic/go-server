@@ -6,12 +6,14 @@
 // its pages, which setSection replaces.
 
 // NavPage is a page of the app: its id, which the router routes to, its
-// label, its link, and its section, such as Databases
+// label, its link, its section, such as Databases, and the module which
+// owns it, when modules share a section
 export interface NavPage {
     id: string;
     label: string;
     href: string;
     section?: string;
+    module?: string;
 }
 
 // NavState is the app's name, and its prefix, such as pg and manager, its
@@ -108,6 +110,36 @@ export class NavController {
         }
         if (!placed) {
             result.push(...owned);
+        }
+        this.update({ pages: result });
+    }
+
+    // setModule replaces the pages of the module, in the section, which
+    // other modules can share, such as an app whose modules' pages are all in
+    // one sidebar, keeping the other pages, and where the module's pages
+    // are, or adding them at the end of the section, or of the pages, when
+    // it's a new section. The pages are given the module, and the section.
+    setModule(module: string, section: string, pages: NavPage[]) {
+        const owned = pages.map((page) => ({ ...page, section, module }));
+        const result: NavPage[] = [];
+        let placed = false;
+        for (const page of this.state.pages) {
+            if (page.module !== module) {
+                result.push(page);
+            } else if (!placed) {
+                result.push(...owned);
+                placed = true;
+            }
+        }
+        if (!placed) {
+            // After the section's last page, or at the end
+            let last = -1;
+            result.forEach((page, i) => {
+                if (page.section === section) {
+                    last = i;
+                }
+            });
+            result.splice(last < 0 ? result.length : last + 1, 0, ...owned);
         }
         this.update({ pages: result });
     }
