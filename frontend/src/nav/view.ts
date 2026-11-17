@@ -15,7 +15,7 @@
 // optional peer dependencies.
 
 import { LitElement, html, nothing, type PropertyValues } from 'lit';
-import type { NavController, NavState } from './controller.ts';
+import { navItems, type NavController, type NavPage, type NavState } from './controller.ts';
 
 // Carbon components
 import '@carbon/web-components/es/components/ui-shell/index.js';
@@ -118,13 +118,26 @@ export class SideNavElement extends ShellElement {
         const section = this.controller?.activeSection;
         return html`
             <cds-side-nav-items>
-                ${(section?.pages ?? []).map((page) => html`
-                    <cds-side-nav-link href=${page.href} ?active=${page.id === state.active} aria-current=${page.id === state.active ? 'page' : 'false'}>${page.label}</cds-side-nav-link>
+                ${navItems(section?.pages ?? []).map((item) => item.menu === undefined ? link(item.pages[0], state.active) : html`
+                    <cds-side-nav-menu title=${item.menu} ?expanded=${item.pages.some((page) => page.id === state.active)}>
+                        ${item.pages.map((page) => html`
+                            <cds-side-nav-menu-item href=${page.href} ?active=${page.id === state.active} aria-current=${page.id === state.active ? 'page' : 'false'}>${page.label}</cds-side-nav-menu-item>
+                        `)}
+                    </cds-side-nav-menu>
                 `)}
             </cds-side-nav-items>
         `;
     }
 }
+
+// link returns the sidebar's link to a page, which is active when it's the
+// active page
+function link(page: NavPage, active?: string) {
+    return html`
+        <cds-side-nav-link href=${page.href} ?active=${page.id === active} aria-current=${page.id === active ? 'page' : 'false'}>${page.label}</cds-side-nav-link>
+    `;
+}
+
 
 if (!customElements.get(HeaderTag)) {
     customElements.define(HeaderTag, HeaderElement);

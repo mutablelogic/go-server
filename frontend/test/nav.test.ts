@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { NavController, type NavState } from '../src/nav/index.ts';
+import { NavController, navItems, type NavState } from '../src/nav/index.ts';
 
 test('NavController', () => {
     // The pages are grouped by their sections, in order, and the active
@@ -123,4 +123,20 @@ test('NavController modules', () => {
 
     nav.setModule('models', 'llm', []);
     assert.deepEqual(nav.current.pages.map((page) => page.id), ['chat', 'tools', 'other']);
+});
+
+test('navItems', () => {
+    // Pages next to each other with the same menu are in it, and others are
+    // on their own
+    const items = navItems([
+        { id: 'chat', label: 'Conversations', href: '#chat' },
+        { id: 'notes', label: 'Notes', href: '#workspace/notes', menu: 'Workspaces' },
+        { id: 'files', label: 'Files', href: '#workspace/files', menu: 'Workspaces' },
+        { id: 'tools', label: 'Tools', href: '#tools' },
+    ]);
+    assert.deepEqual(items.map((item) => ({ menu: item.menu, pages: item.pages.map((page) => page.id) })), [
+        { menu: undefined, pages: ['chat'] },
+        { menu: 'Workspaces', pages: ['notes', 'files'] },
+        { menu: undefined, pages: ['tools'] },
+    ]);
 });

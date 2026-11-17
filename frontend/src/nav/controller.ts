@@ -6,14 +6,16 @@
 // its pages, which setSection replaces.
 
 // NavPage is a page of the app: its id, which the router routes to, its
-// label, its link, its section, such as Databases, and the module which
-// owns it, when modules share a section
+// label, its link, its section, such as Databases, the module which owns
+// it, when modules share a section, and the menu it's in, in the sidebar,
+// such as Workspaces, which the pages next to it with the same menu are in
 export interface NavPage {
     id: string;
     label: string;
     href: string;
     section?: string;
     module?: string;
+    menu?: string;
 }
 
 // NavState is the app's name, and its prefix, such as pg and manager, its
@@ -33,6 +35,28 @@ export interface NavSection {
     href: string;
     pages: readonly NavPage[];
     active: boolean;
+}
+
+// NavItem is an item of the sidebar: a page, on its own, without a menu, or
+// the pages of a menu
+export interface NavItem {
+    menu?: string;
+    pages: NavPage[];
+}
+
+// navItems returns the sidebar's items of the pages: each page on its own,
+// or, with the pages next to it with the same menu, in it
+export function navItems(pages: readonly NavPage[]): NavItem[] {
+    const result: NavItem[] = [];
+    for (const page of pages) {
+        const last = result.at(-1);
+        if (page.menu !== undefined && last?.menu === page.menu) {
+            last.pages.push(page);
+        } else {
+            result.push({ menu: page.menu, pages: [page] });
+        }
+    }
+    return result;
 }
 
 export class NavController {
