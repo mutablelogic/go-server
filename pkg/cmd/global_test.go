@@ -306,8 +306,8 @@ func Test_Main_WithoutHTTP(t *testing.T) {
 		}
 	}
 
-	// Without them, there's no address, and neither are OTel's flags, which
-	// it's run without
+	// Without them, there's no address, even of the environment
+	t.Setenv("ADDR", "localhost:9001")
 	var addr string
 	os.Args = []string{"test", "run"}
 	if err := Main(testCmds{Run: addrTestCmd{&addr}}, "test", "v0", WithoutHTTP(), WithoutOTel()); err != nil {
@@ -315,5 +315,25 @@ func Test_Main_WithoutHTTP(t *testing.T) {
 	}
 	if addr != "" {
 		t.Errorf("HTTPAddr() = %q, want none", addr)
+	}
+}
+
+func Test_Main_WithoutOTel(t *testing.T) {
+	type testCmds struct {
+		Run runTestCmd `cmd:"" name:"run" help:"run"`
+	}
+	orig := os.Args
+	t.Cleanup(func() { os.Args = orig })
+	os.Args = []string{"test", "run"}
+	t.Setenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "not-a-valid-url")
+
+	// With OTel's flags, an invalid endpoint, of the environment, is an error
+	if err := Main(testCmds{}, "test", "v0"); err == nil {
+		t.Error("Main() expected an error for an invalid OTel traces endpoint, got nil")
+	}
+
+	// Without them, the environment isn't read, so nothing is exported
+	if err := Main(testCmds{}, "test", "v0", WithoutOTel()); err != nil {
+		t.Errorf("Main() with WithoutOTel() = %v, want nil", err)
 	}
 }
