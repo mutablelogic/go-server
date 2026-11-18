@@ -168,13 +168,17 @@ func (b *Broadcaster) Publish(change schema.Change) int {
 	var missed int
 	key := table{change.Schema, change.Table}
 	for ch, w := range b.channels {
+		// The rescans it's owed are sent first, whether or not the change
+		// matches its filter, so a watcher is sent them as changes are
+		// published. A change of a table it was owed a rescan of isn't sent,
+		// as the rescan is after it, and while any rescans are still owed,
+		// it's owed one of this change's table too, so a change doesn't
+		// arrive before a rescan of a change before it.
+		owed := w.owes[key]
+		w.flush(ch)
 		if !w.filter.Matches(change) {
 			continue
-		}
-		// The rescans it's owed are sent first, and while any are, it's owed
-		// one of this change's table too, so a change doesn't arrive before a
-		// rescan of a change before it
-		if w.flush(ch); w.owes[key] {
+		} else if owed {
 			missed++
 			continue
 		} else if len(w.owed) > 0 {

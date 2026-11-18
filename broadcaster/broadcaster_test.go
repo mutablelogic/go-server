@@ -224,4 +224,37 @@ func Test_Broadcaster(t *testing.T) {
 			t.Fatal("waiting for the rescan, which Run sends")
 		}
 	})
+
+	t.Run("RescanOwed", func(t *testing.T) {
+		b := broadcaster.New()
+		watchCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		rescan := schema.Change{Action: schema.ChangeUpdate, Table: "provider"}
+		other := schema.Change{Action: schema.ChangeCreate, Schema: "llm", Table: "session", Row: "1"}
+
+		// A change of a table it's owed a rescan of isn't sent after the
+		// rescan, though there's room for both, as the rescan is after it
+		ch := make(chan schema.Change, 2)
+		_, err := b.Watch(watchCtx, schema.ChangeFilter{}, ch)
+		require.NoError(t, err)
+		b.Publish(created)
+		b.Publish(created)
+		assert.Equal(t, 1, b.Publish(created))
+		events(ch)
+		assert.Equal(t, 1, b.Publish(deleted), "it's in the rescan, which is sent now")
+		assert.Equal(t, []schema.Change{rescan}, events(ch))
+
+		// A watcher is sent the rescan it's owed when a change which doesn't
+		// match its filter is published
+		providers := make(chan schema.Change, 1)
+		_, err = b.Watch(watchCtx, schema.ChangeFilter{Table: "provider"}, providers)
+		require.NoError(t, err)
+		b.Publish(created)
+		b.Publish(created)
+		assert.Equal(t, 2, b.Publish(created), "both are full")
+		events(ch)
+		events(providers)
+		b.Publish(other)
+		assert.Equal(t, []schema.Change{rescan}, events(providers), "of another table, which it doesn't watch")
+	})
 }
