@@ -72,9 +72,9 @@ func (w *DeadlineWriter) Flush() {
 // be called while a write is in progress.
 func (w *DeadlineWriter) SetTimeout(timeout time.Duration) {
 	w.mu.Lock()
+	defer w.mu.Unlock()
 	w.timeout = timeout
-	w.mu.Unlock()
-	w.deadline()
+	w.setDeadline()
 }
 
 // Unwrap returns the response writer, for a response controller
@@ -85,12 +85,19 @@ func (w *DeadlineWriter) Unwrap() http.ResponseWriter {
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-// deadline sets the deadline of the next write
+// deadline sets the deadline of the next write, of the timeout, which is
+// read and applied under the lock, so a write can't apply a timeout which
+// SetTimeout has changed since it was read
 func (w *DeadlineWriter) deadline() {
 	w.mu.Lock()
-	timeout := w.timeout
-	w.mu.Unlock()
-	if err := w.rc.SetWriteDeadline(time.Now().Add(timeout)); err != nil && !errors.Is(err, http.ErrNotSupported) {
+	defer w.mu.Unlock()
+	w.setDeadline()
+}
+
+// setDeadline sets the deadline of the timeout from now, which must be
+// locked
+func (w *DeadlineWriter) setDeadline() {
+	if err := w.rc.SetWriteDeadline(time.Now().Add(w.timeout)); err != nil && !errors.Is(err, http.ErrNotSupported) {
 		w.fail()
 	}
 }
