@@ -18,6 +18,7 @@ import (
 type DeadlineWriter struct {
 	http.ResponseWriter
 	rc      *http.ResponseController
+	mu      sync.Mutex
 	timeout time.Duration
 	once    sync.Once
 	failed  chan struct{}
@@ -65,6 +66,17 @@ func (w *DeadlineWriter) Flush() {
 	}
 }
 
+// SetTimeout changes the timeout of each write, and the deadline of the
+// write in progress, to the timeout from now, such as to end a stream to a
+// client which stopped reading sooner, when the server is stopping. It can
+// be called while a write is in progress.
+func (w *DeadlineWriter) SetTimeout(timeout time.Duration) {
+	w.mu.Lock()
+	w.timeout = timeout
+	w.mu.Unlock()
+	w.deadline()
+}
+
 // Unwrap returns the response writer, for a response controller
 func (w *DeadlineWriter) Unwrap() http.ResponseWriter {
 	return w.ResponseWriter
@@ -75,7 +87,10 @@ func (w *DeadlineWriter) Unwrap() http.ResponseWriter {
 
 // deadline sets the deadline of the next write
 func (w *DeadlineWriter) deadline() {
-	if err := w.rc.SetWriteDeadline(time.Now().Add(w.timeout)); err != nil && !errors.Is(err, http.ErrNotSupported) {
+	w.mu.Lock()
+	timeout := w.timeout
+	w.mu.Unlock()
+	if err := w.rc.SetWriteDeadline(time.Now().Add(timeout)); err != nil && !errors.Is(err, http.ErrNotSupported) {
 		w.fail()
 	}
 }
