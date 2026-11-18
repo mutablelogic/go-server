@@ -278,3 +278,62 @@ func Test_WithContext_SetURL(t *testing.T) {
 		t.Errorf("the command's URL is %v", got)
 	}
 }
+
+// addrTestCmd keeps the address of the HTTP flags which it's run with
+type addrTestCmd struct{ addr *string }
+
+func (r *addrTestCmd) Run(ctx server.Cmd) error { *r.addr = ctx.HTTPAddr(); return nil }
+
+func Test_Main_WithoutHTTP(t *testing.T) {
+	type testCmds struct {
+		Run addrTestCmd `cmd:"" name:"run" help:"run"`
+	}
+	orig := os.Args
+	t.Cleanup(func() { os.Args = orig })
+
+	// With the HTTP flags, of their defaults, or as they're set
+	for args, want := range map[string]string{"": "localhost:8084", "localhost:9000": "localhost:9000"} {
+		var addr string
+		os.Args = []string{"test", "run"}
+		if args != "" {
+			os.Args = []string{"test", "--http.addr", args, "run"}
+		}
+		if err := Main(testCmds{Run: addrTestCmd{&addr}}, "test", "v0"); err != nil {
+			t.Fatal(err)
+		}
+		if addr != want {
+			t.Errorf("HTTPAddr() = %q, want %q", addr, want)
+		}
+	}
+
+	// Without them, there's no address, even of the environment
+	t.Setenv("ADDR", "localhost:9001")
+	var addr string
+	os.Args = []string{"test", "run"}
+	if err := Main(testCmds{Run: addrTestCmd{&addr}}, "test", "v0", WithoutHTTP(), WithoutOTel()); err != nil {
+		t.Fatal(err)
+	}
+	if addr != "" {
+		t.Errorf("HTTPAddr() = %q, want none", addr)
+	}
+}
+
+func Test_Main_WithoutOTel(t *testing.T) {
+	type testCmds struct {
+		Run runTestCmd `cmd:"" name:"run" help:"run"`
+	}
+	orig := os.Args
+	t.Cleanup(func() { os.Args = orig })
+	os.Args = []string{"test", "run"}
+	t.Setenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "not-a-valid-url")
+
+	// With OTel's flags, an invalid endpoint, of the environment, is an error
+	if err := Main(testCmds{}, "test", "v0"); err == nil {
+		t.Error("Main() expected an error for an invalid OTel traces endpoint, got nil")
+	}
+
+	// Without them, the environment isn't read, so nothing is exported
+	if err := Main(testCmds{}, "test", "v0", WithoutOTel()); err != nil {
+		t.Errorf("Main() with WithoutOTel() = %v, want nil", err)
+	}
+}
