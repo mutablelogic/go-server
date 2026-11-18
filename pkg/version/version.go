@@ -28,8 +28,12 @@ func Version() string {
 		return GitBranch
 	}
 
-	// Fall back to vcs.revision from build info
+	// Fall back to the module's version, such as v1.0.0 when it's installed
+	// with go install, and then vcs.revision, from build info
 	if info, ok := debug.ReadBuildInfo(); ok {
+		if v := moduleVersion(info); v != "" {
+			return v
+		}
 		for _, s := range info.Settings {
 			if s.Key == "vcs.revision" && s.Value != "" {
 				return s.Value[:12]
@@ -114,4 +118,17 @@ func JSON(execName string) json.RawMessage {
 
 	// Return JSON metadata
 	return data
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+// moduleVersion returns the version of the main module, such as v1.0.0, of a
+// binary installed with go install, or of a build of a tagged commit, or
+// empty, when it's built from a folder, without a version
+func moduleVersion(info *debug.BuildInfo) string {
+	if info == nil || info.Main.Version == "" || info.Main.Version == "(devel)" {
+		return ""
+	}
+	return info.Main.Version
 }
