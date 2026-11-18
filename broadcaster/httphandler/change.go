@@ -25,8 +25,13 @@ import (
 const changeBuffer = 16
 
 // changeWriteTimeout is the longest a write to a client's stream can take,
-// before the client is taken to have stopped reading
-var changeWriteTimeout = 30 * time.Second
+// before the client is taken to have stopped reading, and
+// changeShutdownTimeout is how long it can take once the server is
+// stopping, so a client which stopped reading doesn't keep it waiting
+var (
+	changeWriteTimeout    = 30 * time.Second
+	changeShutdownTimeout = time.Second
+)
 
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
@@ -108,6 +113,18 @@ func changeWatchHandler(b *broadcaster.Broadcaster) http.HandlerFunc {
 			return
 		}
 		defer stream.Close()
+
+		// The broadcaster stopping, as the server is, shortens the deadline
+		// of the write in progress, which can be blocked by a client which
+		// stopped reading, so the stream ends soon
+		stopping := make(chan error, 1)
+		go func() {
+			err := <-done
+			if err != nil {
+				dw.SetTimeout(changeShutdownTimeout)
+			}
+			stopping <- err
+		}()
 		for {
 			select {
 			case <-ctx.Done():
@@ -115,7 +132,7 @@ func changeWatchHandler(b *broadcaster.Broadcaster) http.HandlerFunc {
 			case <-dw.Failed():
 				// The client stopped reading, or went away
 				return
-			case err := <-done:
+			case err := <-stopping:
 				// The broadcaster stopped, as the server is stopping, so the
 				// client is told, and the stream ends, so the server isn't
 				// waiting for it. The event has data, as an event without

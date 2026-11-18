@@ -5,7 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
+	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -179,4 +182,76 @@ func Test_WatchChangesShutdown(t *testing.T) {
 	resp, _ = watch(t, server, types.ContentTypeTextStream)
 	assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
 	assert.True(t, resp.Close, "the connection isn't closed")
+}
+
+// stalledWriter is a client which stops reading: a write blocks until its
+// deadline, when one is set
+type stalledWriter struct {
+	sync.Mutex
+	header   http.Header
+	deadline time.Time
+	blocked  chan struct{}
+	once     sync.Once
+}
+
+func (w *stalledWriter) Header() http.Header { return w.header }
+func (w *stalledWriter) WriteHeader(int)     {}
+func (w *stalledWriter) FlushError() error   { return nil }
+
+func (w *stalledWriter) Write(data []byte) (int, error) {
+	w.once.Do(func() { close(w.blocked) })
+	for {
+		w.Lock()
+		deadline := w.deadline
+		w.Unlock()
+		if !deadline.IsZero() && time.Now().After(deadline) {
+			return 0, os.ErrDeadlineExceeded
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func (w *stalledWriter) SetWriteDeadline(deadline time.Time) error {
+	w.Lock()
+	defer w.Unlock()
+	w.deadline = deadline
+	return nil
+}
+
+func Test_WatchChangesStalled(t *testing.T) {
+	b := broadcaster.New()
+	ctx, stop := context.WithCancel(context.Background())
+	defer stop()
+	go func() { _ = b.Run(ctx) }()
+	require.Eventually(t, b.Running, 5*time.Second, time.Millisecond)
+	mux := http.NewServeMux()
+	router, err := httprouter.NewRouter(context.Background(), mux, "/api", "", "test", "0.0.0")
+	require.NoError(t, err)
+	require.NoError(t, httphandler.RegisterHandlers(b, router))
+
+	// A client which stops reading, so a write blocks
+	w := &stalledWriter{header: http.Header{}, blocked: make(chan struct{})}
+	handled := make(chan struct{})
+	go func() {
+		defer close(handled)
+		req := httptest.NewRequest(http.MethodGet, "/api/changes", nil)
+		req.Header.Set("Accept", types.ContentTypeTextStream)
+		mux.ServeHTTP(w, req)
+	}()
+	select {
+	case <-w.blocked:
+	case <-time.After(10 * time.Second):
+		t.Fatal("nothing was written")
+	}
+
+	// The broadcaster stopping, as the server is, shortens the write's
+	// deadline, so the handler returns soon, not after its 30 seconds
+	stopped := time.Now()
+	stop()
+	select {
+	case <-handled:
+		assert.Less(t, time.Since(stopped), 5*time.Second)
+	case <-time.After(10 * time.Second):
+		t.Fatal("the handler didn't return")
+	}
 }

@@ -17,6 +17,6 @@ Watch the changes, as a stream of server-sent events, until the client closes th
 - With `schema`, `table` or `action`, only the changes with them are streamed, such as `?table=session&action=update`. Each matches any when it's left out.
 - The stream is watching once it has started, so a client which then loads what it shows misses no changes.
 - A client which falls behind is sent a rescan of each table it missed changes of: an `update` of the table, without a `row`, so it loads the table again.
-- When the server is stopping, a `shutdown` event is sent, and the stream ends, as there will be no more changes.
+- When the server is stopping, a `shutdown` event is sent, and the stream ends, as there will be no more changes, within a second, even when the client stopped reading.
 - A client which doesn't read its changes has up to 16 kept for it, and misses those after them.
 - Returns 400 if the action isn't `create`, `update` or `delete`, 406 if the client doesn't accept `text/event-stream`, or 503 if the server is stopping.
