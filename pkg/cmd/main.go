@@ -23,10 +23,49 @@ import (
 )
 
 ///////////////////////////////////////////////////////////////////////////////
+// TYPES
+
+// Opt is an option of Main
+type Opt func(*mainOpts)
+
+type mainOpts struct {
+	withoutHTTP bool
+	withoutOTel bool
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// OPTIONS
+
+// WithoutHTTP leaves out the flags of the HTTP server, and of a client of it,
+// --http.prefix, --http.addr and --http.timeout, for a program which neither
+// serves nor calls a server, such as a command-line tool
+func WithoutHTTP() Opt {
+	return func(o *mainOpts) {
+		o.withoutHTTP = true
+	}
+}
+
+// WithoutOTel leaves out the flags of OpenTelemetry, --otel.*, so nothing is
+// exported, though OTEL_ environment variables are set
+func WithoutOTel() Opt {
+	return func(o *mainOpts) {
+		o.withoutOTel = true
+	}
+}
+
+///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
 // Main is the main entry point for all commands. It parses command-line arguments and then dispatches to the appropriate command handler.
-func Main[T any](cmds T, description, version string) error {
+// The flags of the HTTP server and OpenTelemetry are global, unless opts
+// leave them out, such as WithoutHTTP for a program which neither serves
+// nor calls a server.
+func Main[T any](cmds T, description, version string, opts ...Opt) error {
+	var o mainOpts
+	for _, opt := range opts {
+		opt(&o)
+	}
+
 	var globals struct {
 		global
 		Cmds T `embed:""`
@@ -42,8 +81,17 @@ func Main[T any](cmds T, description, version string) error {
 		globals.description = description
 	}
 
+	// The flags of the HTTP server and OpenTelemetry, which are options
+	options := []kong.Option{}
+	if !o.withoutHTTP {
+		options = append(options, kong.Embed(&globals.HTTP, `prefix:"http."`))
+	}
+	if !o.withoutOTel {
+		options = append(options, kong.Embed(&globals.OTel, `prefix:"otel."`))
+	}
+
 	// Parse command-line arguments
-	kongctx := kong.Parse(&globals,
+	kongctx := kong.Parse(&globals, append(options,
 		kong.Name(globals.execName),
 		kong.Description(description),
 		kong.Vars{
@@ -56,7 +104,7 @@ func Main[T any](cmds T, description, version string) error {
 			Compact: true,
 		}),
 		kong.TypeMapper(reflect.TypeOf(time.Duration(0)), durationMapper()),
-	)
+	)...)
 
 	// Create logger
 	var level slog.LevelVar

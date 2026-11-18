@@ -30,21 +30,10 @@ type global struct {
 	Verbose      bool             `name:"verbose" help:"Enable verbose logging"`
 	PrintVersion kong.VersionFlag `name:"version" help:"Print version and exit"`
 
-	// HTTP server options
-	HTTP struct {
-		Prefix  string        `name:"prefix" help:"HTTP path prefix" default:"/api"`
-		Addr    string        `name:"addr" env:"${ENV_NAME}_ADDR,ADDR" help:"HTTP Listen address" default:"localhost:8084"`
-		Timeout time.Duration `name:"timeout" help:"HTTP server read/write timeout" default:"15m"`
-	} `embed:"" prefix:"http."`
-
-	// Open Telemetry options
-	OTel struct {
-		TracesEndpoint  string `env:"OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,OTEL_EXPORTER_OTLP_ENDPOINT" help:"Open Telemetry traces endpoint" default:""`
-		LogEndpoint     string `env:"OTEL_EXPORTER_OTLP_LOGS_ENDPOINT,OTEL_EXPORTER_OTLP_ENDPOINT" help:"Open Telemetry logs endpoint" default:""`
-		MetricsEndpoint string `env:"OTEL_EXPORTER_OTLP_METRICS_ENDPOINT,OTEL_EXPORTER_OTLP_ENDPOINT" help:"Open Telemetry metrics endpoint" default:""`
-		Header          string `env:"OTEL_EXPORTER_OTLP_HEADERS" help:"OpenTelemetry collector headers"`
-		Name            string `env:"OTEL_SERVICE_NAME" help:"OpenTelemetry service name" default:"${EXECUTABLE_NAME}"`
-	} `embed:"" prefix:"otel."`
+	// HTTP server and OpenTelemetry options, which are flags unless Main is
+	// given WithoutHTTP or WithoutOTel
+	HTTP httpFlags `kong:"-"`
+	OTel otelFlags `kong:"-"`
 
 	// Private fields
 	ctx         context.Context
@@ -60,6 +49,22 @@ type global struct {
 
 	// Defaults store for command defaults management
 	defaults
+}
+
+// httpFlags are the flags of the HTTP server, and of a client of it
+type httpFlags struct {
+	Prefix  string        `name:"prefix" help:"HTTP path prefix" default:"/api"`
+	Addr    string        `name:"addr" env:"${ENV_NAME}_ADDR,ADDR" help:"HTTP Listen address" default:"localhost:8084"`
+	Timeout time.Duration `name:"timeout" help:"HTTP server read/write timeout" default:"15m"`
+}
+
+// otelFlags are the flags of OpenTelemetry's exporters
+type otelFlags struct {
+	TracesEndpoint  string `env:"OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,OTEL_EXPORTER_OTLP_ENDPOINT" help:"Open Telemetry traces endpoint" default:""`
+	LogEndpoint     string `env:"OTEL_EXPORTER_OTLP_LOGS_ENDPOINT,OTEL_EXPORTER_OTLP_ENDPOINT" help:"Open Telemetry logs endpoint" default:""`
+	MetricsEndpoint string `env:"OTEL_EXPORTER_OTLP_METRICS_ENDPOINT,OTEL_EXPORTER_OTLP_ENDPOINT" help:"Open Telemetry metrics endpoint" default:""`
+	Header          string `env:"OTEL_EXPORTER_OTLP_HEADERS" help:"OpenTelemetry collector headers"`
+	Name            string `env:"OTEL_SERVICE_NAME" help:"OpenTelemetry service name" default:"${EXECUTABLE_NAME}"`
 }
 
 type child struct {

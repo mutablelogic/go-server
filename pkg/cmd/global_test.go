@@ -278,3 +278,42 @@ func Test_WithContext_SetURL(t *testing.T) {
 		t.Errorf("the command's URL is %v", got)
 	}
 }
+
+// addrTestCmd keeps the address of the HTTP flags which it's run with
+type addrTestCmd struct{ addr *string }
+
+func (r *addrTestCmd) Run(ctx server.Cmd) error { *r.addr = ctx.HTTPAddr(); return nil }
+
+func Test_Main_WithoutHTTP(t *testing.T) {
+	type testCmds struct {
+		Run addrTestCmd `cmd:"" name:"run" help:"run"`
+	}
+	orig := os.Args
+	t.Cleanup(func() { os.Args = orig })
+
+	// With the HTTP flags, of their defaults, or as they're set
+	for args, want := range map[string]string{"": "localhost:8084", "localhost:9000": "localhost:9000"} {
+		var addr string
+		os.Args = []string{"test", "run"}
+		if args != "" {
+			os.Args = []string{"test", "--http.addr", args, "run"}
+		}
+		if err := Main(testCmds{Run: addrTestCmd{&addr}}, "test", "v0"); err != nil {
+			t.Fatal(err)
+		}
+		if addr != want {
+			t.Errorf("HTTPAddr() = %q, want %q", addr, want)
+		}
+	}
+
+	// Without them, there's no address, and neither are OTel's flags, which
+	// it's run without
+	var addr string
+	os.Args = []string{"test", "run"}
+	if err := Main(testCmds{Run: addrTestCmd{&addr}}, "test", "v0", WithoutHTTP(), WithoutOTel()); err != nil {
+		t.Fatal(err)
+	}
+	if addr != "" {
+		t.Errorf("HTTPAddr() = %q, want none", addr)
+	}
+}
