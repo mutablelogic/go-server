@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"reflect"
 	"strconv"
 )
 
@@ -144,11 +145,26 @@ func value(v slog.Value) any {
 	case slog.KindAny:
 		if err, ok := v.Any().(error); ok {
 			if _, marshals := err.(json.Marshaler); !marshals {
-				return err.Error()
+				return errorText(err)
 			}
 		}
 	}
 	return v.Any()
+}
+
+// errorText returns an error's message, or nil, for a nil pointer, which
+// was encoded as null, as its Error method can panic, such as a nil
+// *os.PathError's, or a panic's message, as slog's handlers do
+func errorText(err error) (text any) {
+	if v := reflect.ValueOf(err); v.Kind() == reflect.Pointer && v.IsNil() {
+		return nil
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			text = fmt.Sprintf("!PANIC: %v", r)
+		}
+	}()
+	return err.Error()
 }
 
 func attrs(attrs []slog.Attr, r slog.Record) ([]byte, error) {

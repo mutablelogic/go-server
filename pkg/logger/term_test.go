@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"strings"
 	"testing"
 )
@@ -48,6 +49,25 @@ func TestTermHandlerErrors(t *testing.T) {
 	// An error is its message, in a group too, rather than {}
 	line := buf.String()
 	if !strings.HasSuffix(line, `{"error":"failed with 7","export":{"error":"failed with 8"},"wrapped":"export: timeout"}`+"\n") {
+		t.Errorf("unexpected line %q", line)
+	}
+}
+
+// panics is an error whose Error method panics
+type panics struct{}
+
+func (panics) Error() string { panic("no message") }
+
+func TestTermHandlerErrorPanics(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(NewTermHandler(&buf, new(slog.LevelVar)))
+	var nilPath *os.PathError
+	logger.Error("open", "error", nilPath, "panics", panics{})
+
+	// A nil pointer is null, as it was, and a panic is said, rather than
+	// logging panicking
+	line := buf.String()
+	if !strings.HasSuffix(line, `{"error":null,"panics":"!PANIC: no message"}`+"\n") {
 		t.Errorf("unexpected line %q", line)
 	}
 }
