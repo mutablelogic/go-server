@@ -21,7 +21,7 @@ import (
 // GLOBALS
 
 // changeBuffer is how many changes are kept for a client, while it reads
-// the ones before them, before they're dropped
+// the ones before them, after which it's sent a rescan of their tables
 const changeBuffer = 16
 
 // changeWriteTimeout is the longest a write to a client's stream can take,
