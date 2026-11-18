@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"reflect"
 	"strconv"
 )
 
@@ -126,6 +127,46 @@ func colorize(colorCode int, v string) string {
 	return fmt.Sprintf("\033[%sm%s%s", strconv.Itoa(colorCode), v, reset)
 }
 
+// value returns what's encoded of an attribute's value: a LogValuer's value,
+// a group's attributes, as an object, and an error's message, as slog's JSON
+// handler does, rather than its fields, which most errors don't export, so
+// it would be {}, unless it marshals itself
+func value(v slog.Value) any {
+	v = v.Resolve()
+	switch v.Kind() {
+	case slog.KindGroup:
+		group := make(map[string]any, len(v.Group()))
+		for _, a := range v.Group() {
+			if !a.Equal(slog.Attr{}) {
+				group[a.Key] = value(a.Value)
+			}
+		}
+		return group
+	case slog.KindAny:
+		if err, ok := v.Any().(error); ok {
+			if _, marshals := err.(json.Marshaler); !marshals {
+				return errorText(err)
+			}
+		}
+	}
+	return v.Any()
+}
+
+// errorText returns an error's message, or nil, for a nil pointer, which
+// was encoded as null, as its Error method can panic, such as a nil
+// *os.PathError's, or a panic's message, as slog's handlers do
+func errorText(err error) (text any) {
+	if v := reflect.ValueOf(err); v.Kind() == reflect.Pointer && v.IsNil() {
+		return nil
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			text = fmt.Sprintf("!PANIC: %v", r)
+		}
+	}()
+	return err.Error()
+}
+
 func attrs(attrs []slog.Attr, r slog.Record) ([]byte, error) {
 	if len(attrs) == 0 && r.NumAttrs() == 0 {
 		return nil, nil
@@ -135,13 +176,13 @@ func attrs(attrs []slog.Attr, r slog.Record) ([]byte, error) {
 		if a.Equal(slog.Attr{}) {
 			continue
 		}
-		kv[a.Key] = a.Value.Any()
+		kv[a.Key] = value(a.Value)
 	}
 	r.Attrs(func(a slog.Attr) bool {
 		if a.Equal(slog.Attr{}) {
 			return true
 		}
-		kv[a.Key] = a.Value.Any()
+		kv[a.Key] = value(a.Value)
 		return true
 	})
 

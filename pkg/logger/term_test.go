@@ -3,7 +3,10 @@ package logger
 import (
 	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
+	"os"
 	"strings"
 	"testing"
 )
@@ -30,5 +33,41 @@ func TestTermHandlerNoAttrs(t *testing.T) {
 	slog.New(NewTermHandler(&buf, new(slog.LevelVar))).Info("message")
 	if strings.Contains(buf.String(), "{") {
 		t.Errorf("expected no attributes, got %q", buf.String())
+	}
+}
+
+// opaque is an error with no exported fields, which encodes as {}
+type opaque struct{ code int }
+
+func (e opaque) Error() string { return fmt.Sprint("failed with ", e.code) }
+
+func TestTermHandlerErrors(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(NewTermHandler(&buf, new(slog.LevelVar)))
+	logger.Error("opentelemetry", "error", opaque{code: 7}, "wrapped", fmt.Errorf("export: %w", errors.New("timeout")), slog.Group("export", "error", opaque{code: 8}))
+
+	// An error is its message, in a group too, rather than {}
+	line := buf.String()
+	if !strings.HasSuffix(line, `{"error":"failed with 7","export":{"error":"failed with 8"},"wrapped":"export: timeout"}`+"\n") {
+		t.Errorf("unexpected line %q", line)
+	}
+}
+
+// panics is an error whose Error method panics
+type panics struct{}
+
+func (panics) Error() string { panic("no message") }
+
+func TestTermHandlerErrorPanics(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(NewTermHandler(&buf, new(slog.LevelVar)))
+	var nilPath *os.PathError
+	logger.Error("open", "error", nilPath, "panics", panics{})
+
+	// A nil pointer is null, as it was, and a panic is said, rather than
+	// logging panicking
+	line := buf.String()
+	if !strings.HasSuffix(line, `{"error":null,"panics":"!PANIC: no message"}`+"\n") {
+		t.Errorf("unexpected line %q", line)
 	}
 }
