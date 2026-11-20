@@ -80,6 +80,19 @@ type Cmd interface {
 	// HTTPTimeout returns the HTTP read/write timeout.
 	HTTPTimeout() time.Duration
 
+	// DataDir returns the application's folder of the user's data, which is
+	// kept, such as its credentials, its settings, and its databases: the
+	// executable's name, in ~/Library/Application Support on macOS, in
+	// %AppData% on Windows, and in $XDG_DATA_HOME, or ~/.local/share,
+	// elsewhere. It's created, readable only by its owner.
+	DataDir() (string, error)
+
+	// CacheDir returns the application's folder of the user's cache, which
+	// can be cleared, so only what can be got again is kept there: the
+	// executable's name, in os.UserCacheDir. It's created, readable only by
+	// its owner.
+	CacheDir() (string, error)
+
 	// WithContext returns a copy of the Cmd with the provided context.
 	WithContext(context.Context) Cmd
 }
