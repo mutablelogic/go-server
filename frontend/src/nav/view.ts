@@ -120,7 +120,7 @@ export class SideNavElement extends ShellElement {
             <cds-side-nav-items>
                 ${navItems(section?.pages ?? []).map((item) => item.menu === undefined ? html`
                     ${link(item.pages[0], state.active)}
-                    ${item.children.map((page) => child(page, state.active))}
+                    ${children(item.pages[0], item.children, state.active)}
                 ` : html`
                     <cds-side-nav-menu title=${item.menu} ?expanded=${item.pages.some((page) => page.id === state.active)}>
                         ${item.pages.map((page) => html`
@@ -141,11 +141,23 @@ function link(page: NavPage, active?: string) {
     `;
 }
 
-// child returns the sidebar's link to a page beneath another, which is
-// indented, as a menu's are, but isn't in one, so it isn't collapsed
-function child(page: NavPage, active?: string) {
+// children returns the sidebar's links to the pages beneath another, which
+// are indented, as a menu's are, but aren't in one, so they aren't
+// collapsed. They're a list of their own, named for the page they're
+// beneath, in an item of the sidebar's list, so a screen reader has what
+// they're beneath, too.
+function children(parent: NavPage, pages: readonly NavPage[], active?: string) {
+    if (pages.length === 0) {
+        return nothing;
+    }
     return html`
-        <cds-side-nav-menu-item href=${page.href} title=${page.title ?? nothing} ?active=${page.id === active} aria-current=${page.id === active ? 'page' : 'false'}>${page.label}</cds-side-nav-menu-item>
+        <div role="listitem">
+            <div role="list" aria-label=${parent.label}>
+                ${pages.map((page) => html`
+                    <cds-side-nav-menu-item role="listitem" href=${page.href} title=${page.title ?? nothing} ?active=${page.id === active} aria-current=${page.id === active ? 'page' : 'false'}>${page.label}</cds-side-nav-menu-item>
+                `)}
+            </div>
+        </div>
     `;
 }
 

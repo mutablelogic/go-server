@@ -162,3 +162,22 @@ test('navItems of pages beneath others', () => {
         { menu: undefined, pages: ['orphan'], children: [] },
     ]);
 });
+
+test('navItems of menus, with pages beneath others between them', () => {
+    // A child between pages of the same menu splits it, as they aren't next
+    // to each other, and a page with a parent, which isn't there, isn't in
+    // its menu
+    const items = navItems([
+        { id: 'a1', label: 'A1', href: '#a1', menu: 'A' },
+        { id: 'child', label: 'Child', href: '#child', parent: 'p' },
+        { id: 'a2', label: 'A2', href: '#a2', menu: 'A' },
+        { id: 'p', label: 'P', href: '#p' },
+        { id: 'x', label: 'X', href: '#x', menu: 'A', parent: 'missing' },
+    ]);
+    assert.deepEqual(items.map((item) => ({ menu: item.menu, pages: item.pages.map((page) => page.id), children: item.children.map((page) => page.id) })), [
+        { menu: 'A', pages: ['a1'], children: [] },
+        { menu: 'A', pages: ['a2'], children: [] },
+        { menu: undefined, pages: ['p'], children: ['child'] },
+        { menu: undefined, pages: ['x'], children: [] },
+    ]);
+});

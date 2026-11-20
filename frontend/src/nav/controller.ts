@@ -53,29 +53,38 @@ export interface NavItem {
 
 // navItems returns the sidebar's items of the pages: each page on its own,
 // with the pages whose parent it is beneath it, in their order, or, with the
-// pages next to it with the same menu, in it. A page whose parent isn't a
-// page on its own, of the pages, is on its own.
+// pages right before it with the same menu, in it. A page with a parent is
+// never in a menu: one whose parent isn't a page on its own, of the pages,
+// is on its own.
 export function navItems(pages: readonly NavPage[]): NavItem[] {
     const parents = new Set(pages.filter((page) => page.menu === undefined && page.parent === undefined).map((page) => page.id));
+    const isChild = (page: NavPage) => page.parent !== undefined && page.parent !== page.id && parents.has(page.parent);
     const result: NavItem[] = [];
     const byParent = new Map<string, NavItem>();
+
+    // previous is the item of the page before, so a menu only has the
+    // pages next to each other, and not those which a child was between
+    let previous: NavItem | undefined;
     for (const page of pages) {
-        const last = result.at(-1);
-        if (page.parent !== undefined && page.parent !== page.id && parents.has(page.parent)) {
+        if (isChild(page)) {
+            previous = undefined;
             continue;
-        } else if (page.menu !== undefined && last?.menu === page.menu) {
-            last.pages.push(page);
-        } else {
-            const item: NavItem = { menu: page.menu, pages: [page], children: [] };
-            result.push(item);
-            if (page.menu === undefined && page.parent === undefined) {
-                byParent.set(page.id, item);
-            }
+        }
+        const menu = page.parent === undefined ? page.menu : undefined;
+        if (menu !== undefined && previous?.menu === menu) {
+            previous.pages.push(page);
+            continue;
+        }
+        const item: NavItem = { menu, pages: [page], children: [] };
+        result.push(item);
+        previous = item;
+        if (menu === undefined && page.parent === undefined) {
+            byParent.set(page.id, item);
         }
     }
     for (const page of pages) {
-        if (page.parent !== undefined && page.parent !== page.id && parents.has(page.parent)) {
-            byParent.get(page.parent)?.children.push(page);
+        if (isChild(page)) {
+            byParent.get(page.parent!)?.children.push(page);
         }
     }
     return result;

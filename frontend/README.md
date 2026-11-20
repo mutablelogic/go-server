@@ -339,7 +339,7 @@ document.querySelector('gs-side-nav')!.controller = nav;
 - **Modules:** `setSection(section, pages)` replaces a section's pages, keeping where it is in the menu bar, or adds it at the end, so a module can change its own pages without the others'. No pages removes it.
 - **Pages:** `setPages` replaces them all, and `setActive` makes one active.
 - **Titles:** a page's `title` is shown when its link is pointed at, such as its whole label, which the sidebar cuts short, with an ellipsis, when it's long.
-- **Pages beneath others:** a page with a `parent`, the id of a page on its own, is indented beneath it in the sidebar, in order, and is always shown, as it isn't collapsed, such as each volume beneath Volumes. A page whose parent isn't a page on its own is on its own.
+- **Pages beneath others:** a page with a `parent`, the id of a page on its own, is indented beneath it in the sidebar, in order, and is always shown, as it isn't collapsed, such as each volume beneath Volumes. They're a list of their own, named for their parent, for screen readers. A page and its parent must be in the same section, as the sidebar is of one section's pages: give them the same `section`, or add them with `setSection` or `setModule`, which do. A page with a parent is never in a menu: one whose parent isn't a page on its own is on its own.
 - **Menus:** pages with a `menu`, next to each other, are in a collapsible menu of the sidebar.
 - **Theme:** the elements render without a shadow root, so a Carbon theme class on the element they're in, such as `cds--g100`, applies, and Carbon's ui-shell opens the sidebar from the header's menu button.
 - **The sidebar's content:** what's inside `gs-side-nav`, such as `gs-server-status`, is kept at the bottom of the sidebar.
