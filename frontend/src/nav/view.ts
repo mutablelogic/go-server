@@ -124,7 +124,7 @@ export class SideNavElement extends ShellElement {
                 ` : html`
                     <cds-side-nav-menu title=${item.menu} ?expanded=${item.pages.some((page) => page.id === state.active)}>
                         ${item.pages.map((page) => html`
-                            <cds-side-nav-menu-item href=${page.href} ?active=${page.id === state.active} aria-current=${page.id === state.active ? 'page' : 'false'}>${page.label}</cds-side-nav-menu-item>
+                            <cds-side-nav-menu-item href=${page.href} title=${page.title ?? nothing} ?active=${page.id === state.active} aria-current=${page.id === state.active ? 'page' : 'false'}>${page.label}</cds-side-nav-menu-item>
                         `)}
                     </cds-side-nav-menu>
                 `)}
@@ -137,7 +137,7 @@ export class SideNavElement extends ShellElement {
 // active page
 function link(page: NavPage, active?: string) {
     return html`
-        <cds-side-nav-link href=${page.href} ?active=${page.id === active} aria-current=${page.id === active ? 'page' : 'false'}>${page.label}</cds-side-nav-link>
+        <cds-side-nav-link href=${page.href} title=${page.title ?? nothing} ?active=${page.id === active} aria-current=${page.id === active ? 'page' : 'false'}>${page.label}</cds-side-nav-link>
     `;
 }
 
@@ -145,7 +145,7 @@ function link(page: NavPage, active?: string) {
 // indented, as a menu's are, but isn't in one, so it isn't collapsed
 function child(page: NavPage, active?: string) {
     return html`
-        <cds-side-nav-menu-item href=${page.href} ?active=${page.id === active} aria-current=${page.id === active ? 'page' : 'false'}>${page.label}</cds-side-nav-menu-item>
+        <cds-side-nav-menu-item href=${page.href} title=${page.title ?? nothing} ?active=${page.id === active} aria-current=${page.id === active ? 'page' : 'false'}>${page.label}</cds-side-nav-menu-item>
     `;
 }
 

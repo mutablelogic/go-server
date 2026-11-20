@@ -10,10 +10,13 @@
 // it, when modules share a section, and the menu it's in, in the sidebar,
 // such as Workspaces, which the pages next to it with the same menu are in,
 // or the id of the page it's beneath, in the sidebar, such as a volume's,
-// which is beneath Volumes, indented, and isn't collapsed
+// which is beneath Volumes, indented, and isn't collapsed, and its title,
+// which the sidebar shows when it's pointed at, such as its whole label,
+// which the sidebar cuts short, when it's long
 export interface NavPage {
     id: string;
     label: string;
+    title?: string;
     href: string;
     section?: string;
     module?: string;
