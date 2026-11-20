@@ -137,8 +137,10 @@ func Main[T any](cmds T, description, version string, opts ...Opt) error {
 	}
 	path := filepath.Join(dataDir, "defaults.json")
 	if cacheDir, err := os.UserCacheDir(); err == nil {
+		// They're moved when they can be, which doesn't stop it starting,
+		// when they can't, which keeps them where they were
 		if err := moveFrom(filepath.Join(cacheDir, globals.execName, "defaults.json"), path); err != nil {
-			return err
+			globals.logger.WarnContext(globals.ctx, "the defaults can't be moved to the data folder", "error", err.Error())
 		}
 	}
 	if err := globals.init(path); err != nil {
