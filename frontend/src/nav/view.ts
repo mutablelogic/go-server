@@ -118,7 +118,10 @@ export class SideNavElement extends ShellElement {
         const section = this.controller?.activeSection;
         return html`
             <cds-side-nav-items>
-                ${navItems(section?.pages ?? []).map((item) => item.menu === undefined ? link(item.pages[0], state.active) : html`
+                ${navItems(section?.pages ?? []).map((item) => item.menu === undefined ? html`
+                    ${link(item.pages[0], state.active)}
+                    ${item.children.map((page) => child(page, state.active))}
+                ` : html`
                     <cds-side-nav-menu title=${item.menu} ?expanded=${item.pages.some((page) => page.id === state.active)}>
                         ${item.pages.map((page) => html`
                             <cds-side-nav-menu-item href=${page.href} ?active=${page.id === state.active} aria-current=${page.id === state.active ? 'page' : 'false'}>${page.label}</cds-side-nav-menu-item>
@@ -135,6 +138,14 @@ export class SideNavElement extends ShellElement {
 function link(page: NavPage, active?: string) {
     return html`
         <cds-side-nav-link href=${page.href} ?active=${page.id === active} aria-current=${page.id === active ? 'page' : 'false'}>${page.label}</cds-side-nav-link>
+    `;
+}
+
+// child returns the sidebar's link to a page beneath another, which is
+// indented, as a menu's are, but isn't in one, so it isn't collapsed
+function child(page: NavPage, active?: string) {
+    return html`
+        <cds-side-nav-menu-item href=${page.href} ?active=${page.id === active} aria-current=${page.id === active ? 'page' : 'false'}>${page.label}</cds-side-nav-menu-item>
     `;
 }
 

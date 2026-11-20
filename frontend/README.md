@@ -19,7 +19,7 @@ TypeScript clients of go-server's APIs, for the frontends of servers built on it
 | `@mutablelogic/go-server/list` | `ListController`, which keeps a list an API returns a page at a time, sorted by the server, and follows its changes |
 | `@mutablelogic/go-server/list/view` | The `gs-table` element, a Carbon data table of a list's page, with sortable columns and pagination, whose rows open their items, can be expanded, and selected for batch actions, with a toolbar of a search and settings |
 | `@mutablelogic/go-server/list/tiles` | The `gs-tiles` element, a row of tiles of a list, after one for all of them, of which one is chosen |
-| `@mutablelogic/go-server/nav` | `NavController`, which keeps an app's name, and its pages, in sections, and which is active. A module owns a section with `setSection`, or shares one, owning only its pages, with `setModule`. Pages with a `menu` are in a menu of the sidebar, such as Workspaces, with the pages next to them with the same menu |
+| `@mutablelogic/go-server/nav` | `NavController`, which keeps an app's name, and its pages, in sections, and which is active. A module owns a section with `setSection`, or shares one, owning only its pages, with `setModule`. Pages with a `menu` are in a menu of the sidebar, such as Workspaces, with the pages next to them with the same menu, and pages with a `parent` are indented beneath it |
 | `@mutablelogic/go-server/nav/view` | The `gs-header` and `gs-side-nav` elements, the app's menu bar of its sections, when there's more than one, and its sidebar of the active section's pages, above the element's own content, such as `gs-server-status` |
 | `@mutablelogic/go-server/page` | `PageAction`, an action of a page's header, and `runAction`, which runs one, busy while its promise is pending |
 | `@mutablelogic/go-server/page/view` | The `gs-page-header` element, the dark header at the top of a page, with an icon, a title, a subtitle or details, and actions on the right |
@@ -338,6 +338,8 @@ document.querySelector('gs-side-nav')!.controller = nav;
 - **Sections:** a section links to its first page. A page without a section is a section of its own, even when its label matches another's. `activeSection` is the active page's section, or the first, when no page is active.
 - **Modules:** `setSection(section, pages)` replaces a section's pages, keeping where it is in the menu bar, or adds it at the end, so a module can change its own pages without the others'. No pages removes it.
 - **Pages:** `setPages` replaces them all, and `setActive` makes one active.
+- **Pages beneath others:** a page with a `parent`, the id of a page on its own, is indented beneath it in the sidebar, in order, and is always shown, as it isn't collapsed, such as each volume beneath Volumes. A page whose parent isn't a page on its own is on its own.
+- **Menus:** pages with a `menu`, next to each other, are in a collapsible menu of the sidebar.
 - **Theme:** the elements render without a shadow root, so a Carbon theme class on the element they're in, such as `cds--g100`, applies, and Carbon's ui-shell opens the sidebar from the header's menu button.
 - **The sidebar's content:** what's inside `gs-side-nav`, such as `gs-server-status`, is kept at the bottom of the sidebar.
 

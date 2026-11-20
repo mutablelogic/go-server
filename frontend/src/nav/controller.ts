@@ -8,7 +8,9 @@
 // NavPage is a page of the app: its id, which the router routes to, its
 // label, its link, its section, such as Databases, the module which owns
 // it, when modules share a section, and the menu it's in, in the sidebar,
-// such as Workspaces, which the pages next to it with the same menu are in
+// such as Workspaces, which the pages next to it with the same menu are in,
+// or the id of the page it's beneath, in the sidebar, such as a volume's,
+// which is beneath Volumes, indented, and isn't collapsed
 export interface NavPage {
     id: string;
     label: string;
@@ -16,6 +18,7 @@ export interface NavPage {
     section?: string;
     module?: string;
     menu?: string;
+    parent?: string;
 }
 
 // NavState is the app's name, and its prefix, such as pg and manager, its
@@ -37,23 +40,39 @@ export interface NavSection {
     active: boolean;
 }
 
-// NavItem is an item of the sidebar: a page, on its own, without a menu, or
-// the pages of a menu
+// NavItem is an item of the sidebar: a page, on its own, without a menu,
+// with the pages beneath it, which are indented, or the pages of a menu
 export interface NavItem {
     menu?: string;
     pages: NavPage[];
+    children: NavPage[];
 }
 
 // navItems returns the sidebar's items of the pages: each page on its own,
-// or, with the pages next to it with the same menu, in it
+// with the pages whose parent it is beneath it, in their order, or, with the
+// pages next to it with the same menu, in it. A page whose parent isn't a
+// page on its own, of the pages, is on its own.
 export function navItems(pages: readonly NavPage[]): NavItem[] {
+    const parents = new Set(pages.filter((page) => page.menu === undefined && page.parent === undefined).map((page) => page.id));
     const result: NavItem[] = [];
+    const byParent = new Map<string, NavItem>();
     for (const page of pages) {
         const last = result.at(-1);
-        if (page.menu !== undefined && last?.menu === page.menu) {
+        if (page.parent !== undefined && page.parent !== page.id && parents.has(page.parent)) {
+            continue;
+        } else if (page.menu !== undefined && last?.menu === page.menu) {
             last.pages.push(page);
         } else {
-            result.push({ menu: page.menu, pages: [page] });
+            const item: NavItem = { menu: page.menu, pages: [page], children: [] };
+            result.push(item);
+            if (page.menu === undefined && page.parent === undefined) {
+                byParent.set(page.id, item);
+            }
+        }
+    }
+    for (const page of pages) {
+        if (page.parent !== undefined && page.parent !== page.id && parents.has(page.parent)) {
+            byParent.get(page.parent)?.children.push(page);
         }
     }
     return result;

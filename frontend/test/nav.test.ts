@@ -140,3 +140,25 @@ test('navItems', () => {
         { menu: undefined, pages: ['tools'] },
     ]);
 });
+
+test('navItems of pages beneath others', () => {
+    // A page beneath another is its child, in order, wherever it is, and
+    // isn't an item of its own; one whose parent isn't a page on its own,
+    // such as one in a menu, or which isn't there, is
+    const items = navItems([
+        { id: 'volumes', label: 'Volumes', href: '#volumes' },
+        { id: 'volume/media', label: 'media', href: '#volume/media', parent: 'volumes' },
+        { id: 'about', label: 'About', href: '#about' },
+        { id: 'volume/photos', label: 'photos', href: '#volume/photos', parent: 'volumes' },
+        { id: 'notes', label: 'Notes', href: '#notes', menu: 'Workspaces' },
+        { id: 'inmenu', label: 'In a menu', href: '#inmenu', parent: 'notes' },
+        { id: 'orphan', label: 'Orphan', href: '#orphan', parent: 'nowhere' },
+    ]);
+    assert.deepEqual(items.map((item) => ({ menu: item.menu, pages: item.pages.map((page) => page.id), children: item.children.map((page) => page.id) })), [
+        { menu: undefined, pages: ['volumes'], children: ['volume/media', 'volume/photos'] },
+        { menu: undefined, pages: ['about'], children: [] },
+        { menu: 'Workspaces', pages: ['notes'], children: [] },
+        { menu: undefined, pages: ['inmenu'], children: [] },
+        { menu: undefined, pages: ['orphan'], children: [] },
+    ]);
+});
