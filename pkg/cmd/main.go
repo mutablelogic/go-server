@@ -128,11 +128,20 @@ func Main[T any](cmds T, description, version string, opts ...Opt) error {
 	globals.ctx, globals.cancel = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer globals.cancel()
 
-	// Load defaults
-	cacheDir, err := os.UserCacheDir()
+	// Load defaults, which are kept in the application's folder of the
+	// user's data, and were kept in its folder of their cache, which are
+	// moved, when they're there
+	dataDir, err := globals.DataDir()
 	if err != nil {
 		return err
-	} else if err := globals.init(filepath.Join(cacheDir, globals.execName, "defaults.json")); err != nil {
+	}
+	path := filepath.Join(dataDir, "defaults.json")
+	if cacheDir, err := os.UserCacheDir(); err == nil {
+		if err := moveFrom(filepath.Join(cacheDir, globals.execName, "defaults.json"), path); err != nil {
+			return err
+		}
+	}
+	if err := globals.init(path); err != nil {
 		return err
 	}
 
