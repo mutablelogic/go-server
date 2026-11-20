@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"reflect"
 	"sync"
 	"time"
 
@@ -65,7 +67,13 @@ func (h *otelErrors) handle(err error) {
 	if err == nil {
 		return
 	}
-	message, now := err.Error(), h.now()
+	message, ok := errorMessage(err)
+	if !ok {
+		// An error without a message, which can't be counted, is logged
+		h.log.ErrorContext(context.Background(), "opentelemetry", "error", err)
+		return
+	}
+	now := h.now()
 	h.mu.Lock()
 	e, exists := h.errors[message]
 	if exists && now.Sub(e.logged) < otelErrorInterval {
@@ -96,10 +104,26 @@ func (h *otelErrors) forget() {
 		return
 	}
 	var oldest string
+	var found bool
 	for message, e := range h.errors {
-		if oldest == "" || e.logged.Before(h.errors[oldest].logged) {
-			oldest = message
+		if !found || e.logged.Before(h.errors[oldest].logged) {
+			oldest, found = message, true
 		}
 	}
 	delete(h.errors, oldest)
+}
+
+// errorMessage returns an error's message, and false when it has none, as
+// it's a nil pointer, or its Error method panics, such as a nil
+// *os.PathError's
+func errorMessage(err error) (message string, ok bool) {
+	if v := reflect.ValueOf(err); v.Kind() == reflect.Pointer && v.IsNil() {
+		return "", false
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			message, ok = fmt.Sprint("!PANIC: ", r), false
+		}
+	}()
+	return err.Error(), true
 }
