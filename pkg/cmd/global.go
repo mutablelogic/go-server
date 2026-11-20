@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"strconv"
@@ -15,6 +16,7 @@ import (
 	// Packages
 	kong "github.com/alecthomas/kong"
 	client "github.com/mutablelogic/go-client"
+	transport "github.com/mutablelogic/go-client/pkg/transport"
 	server "github.com/mutablelogic/go-server"
 	types "github.com/mutablelogic/go-server/pkg/types"
 	metric "go.opentelemetry.io/otel/metric"
@@ -147,7 +149,12 @@ func (g *global) ClientEndpoint() (string, []client.ClientOpt, error) {
 	}
 	opts := []client.ClientOpt{}
 	if g.Debug || g.Verbose {
-		opts = append(opts, client.OptTrace(os.Stderr, g.Verbose))
+		// Requests and responses are logged, with their bodies when verbose.
+		// go-client installs OptTracer's transport outside this middleware,
+		// so a request which is traced is logged with its trace ID
+		opts = append(opts, client.OptTransport(func(parent http.RoundTripper) http.RoundTripper {
+			return transport.NewLogging(os.Stderr, parent, g.Verbose)
+		}))
 	}
 	if g.tracer != nil {
 		opts = append(opts, client.OptTracer(g.tracer))
