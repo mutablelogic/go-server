@@ -149,9 +149,9 @@ func (g *global) ClientEndpoint() (string, []client.ClientOpt, error) {
 	}
 	opts := []client.ClientOpt{}
 	if g.Debug || g.Verbose {
-		// Requests and responses are logged, with their bodies when verbose,
-		// inside the tracer's transport, which is added after, so a request
-		// which is traced is logged with its trace ID
+		// Requests and responses are logged, with their bodies when verbose.
+		// go-client installs OptTracer's transport outside this middleware,
+		// so a request which is traced is logged with its trace ID
 		opts = append(opts, client.OptTransport(func(parent http.RoundTripper) http.RoundTripper {
 			return transport.NewLogging(os.Stderr, parent, g.Verbose)
 		}))
