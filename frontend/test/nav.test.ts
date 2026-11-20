@@ -140,3 +140,44 @@ test('navItems', () => {
         { menu: undefined, pages: ['tools'] },
     ]);
 });
+
+test('navItems of pages beneath others', () => {
+    // A page beneath another is its child, in order, wherever it is, and
+    // isn't an item of its own; one whose parent isn't a page on its own,
+    // such as one in a menu, or which isn't there, is
+    const items = navItems([
+        { id: 'volumes', label: 'Volumes', href: '#volumes' },
+        { id: 'volume/media', label: 'media', href: '#volume/media', parent: 'volumes' },
+        { id: 'about', label: 'About', href: '#about' },
+        { id: 'volume/photos', label: 'photos', href: '#volume/photos', parent: 'volumes' },
+        { id: 'notes', label: 'Notes', href: '#notes', menu: 'Workspaces' },
+        { id: 'inmenu', label: 'In a menu', href: '#inmenu', parent: 'notes' },
+        { id: 'orphan', label: 'Orphan', href: '#orphan', parent: 'nowhere' },
+    ]);
+    assert.deepEqual(items.map((item) => ({ menu: item.menu, pages: item.pages.map((page) => page.id), children: item.children.map((page) => page.id) })), [
+        { menu: undefined, pages: ['volumes'], children: ['volume/media', 'volume/photos'] },
+        { menu: undefined, pages: ['about'], children: [] },
+        { menu: 'Workspaces', pages: ['notes'], children: [] },
+        { menu: undefined, pages: ['inmenu'], children: [] },
+        { menu: undefined, pages: ['orphan'], children: [] },
+    ]);
+});
+
+test('navItems of menus, with pages beneath others between them', () => {
+    // A child between pages of the same menu splits it, as they aren't next
+    // to each other, and a page with a parent, which isn't there, isn't in
+    // its menu
+    const items = navItems([
+        { id: 'a1', label: 'A1', href: '#a1', menu: 'A' },
+        { id: 'child', label: 'Child', href: '#child', parent: 'p' },
+        { id: 'a2', label: 'A2', href: '#a2', menu: 'A' },
+        { id: 'p', label: 'P', href: '#p' },
+        { id: 'x', label: 'X', href: '#x', menu: 'A', parent: 'missing' },
+    ]);
+    assert.deepEqual(items.map((item) => ({ menu: item.menu, pages: item.pages.map((page) => page.id), children: item.children.map((page) => page.id) })), [
+        { menu: 'A', pages: ['a1'], children: [] },
+        { menu: 'A', pages: ['a2'], children: [] },
+        { menu: undefined, pages: ['p'], children: ['child'] },
+        { menu: undefined, pages: ['x'], children: [] },
+    ]);
+});

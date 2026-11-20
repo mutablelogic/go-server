@@ -8,14 +8,20 @@
 // NavPage is a page of the app: its id, which the router routes to, its
 // label, its link, its section, such as Databases, the module which owns
 // it, when modules share a section, and the menu it's in, in the sidebar,
-// such as Workspaces, which the pages next to it with the same menu are in
+// such as Workspaces, which the pages next to it with the same menu are in,
+// or the id of the page it's beneath, in the sidebar, such as a volume's,
+// which is beneath Volumes, indented, and isn't collapsed, and its title,
+// which the sidebar shows when it's pointed at, such as its whole label,
+// which the sidebar cuts short, when it's long
 export interface NavPage {
     id: string;
     label: string;
+    title?: string;
     href: string;
     section?: string;
     module?: string;
     menu?: string;
+    parent?: string;
 }
 
 // NavState is the app's name, and its prefix, such as pg and manager, its
@@ -37,23 +43,48 @@ export interface NavSection {
     active: boolean;
 }
 
-// NavItem is an item of the sidebar: a page, on its own, without a menu, or
-// the pages of a menu
+// NavItem is an item of the sidebar: a page, on its own, without a menu,
+// with the pages beneath it, which are indented, or the pages of a menu
 export interface NavItem {
     menu?: string;
     pages: NavPage[];
+    children: NavPage[];
 }
 
 // navItems returns the sidebar's items of the pages: each page on its own,
-// or, with the pages next to it with the same menu, in it
+// with the pages whose parent it is beneath it, in their order, or, with the
+// pages right before it with the same menu, in it. A page with a parent is
+// never in a menu: one whose parent isn't a page on its own, of the pages,
+// is on its own.
 export function navItems(pages: readonly NavPage[]): NavItem[] {
+    const parents = new Set(pages.filter((page) => page.menu === undefined && page.parent === undefined).map((page) => page.id));
+    const isChild = (page: NavPage) => page.parent !== undefined && page.parent !== page.id && parents.has(page.parent);
     const result: NavItem[] = [];
+    const byParent = new Map<string, NavItem>();
+
+    // previous is the item of the page before, so a menu only has the
+    // pages next to each other, and not those which a child was between
+    let previous: NavItem | undefined;
     for (const page of pages) {
-        const last = result.at(-1);
-        if (page.menu !== undefined && last?.menu === page.menu) {
-            last.pages.push(page);
-        } else {
-            result.push({ menu: page.menu, pages: [page] });
+        if (isChild(page)) {
+            previous = undefined;
+            continue;
+        }
+        const menu = page.parent === undefined ? page.menu : undefined;
+        if (menu !== undefined && previous?.menu === menu) {
+            previous.pages.push(page);
+            continue;
+        }
+        const item: NavItem = { menu, pages: [page], children: [] };
+        result.push(item);
+        previous = item;
+        if (menu === undefined && page.parent === undefined) {
+            byParent.set(page.id, item);
+        }
+    }
+    for (const page of pages) {
+        if (isChild(page)) {
+            byParent.get(page.parent!)?.children.push(page);
         }
     }
     return result;

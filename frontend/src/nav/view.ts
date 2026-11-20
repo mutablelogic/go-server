@@ -118,10 +118,13 @@ export class SideNavElement extends ShellElement {
         const section = this.controller?.activeSection;
         return html`
             <cds-side-nav-items>
-                ${navItems(section?.pages ?? []).map((item) => item.menu === undefined ? link(item.pages[0], state.active) : html`
+                ${navItems(section?.pages ?? []).map((item) => item.menu === undefined ? html`
+                    ${link(item.pages[0], state.active)}
+                    ${children(item.pages[0], item.children, state.active)}
+                ` : html`
                     <cds-side-nav-menu title=${item.menu} ?expanded=${item.pages.some((page) => page.id === state.active)}>
                         ${item.pages.map((page) => html`
-                            <cds-side-nav-menu-item href=${page.href} ?active=${page.id === state.active} aria-current=${page.id === state.active ? 'page' : 'false'}>${page.label}</cds-side-nav-menu-item>
+                            <cds-side-nav-menu-item href=${page.href} title=${page.title ?? nothing} ?active=${page.id === state.active} aria-current=${page.id === state.active ? 'page' : 'false'}>${page.label}</cds-side-nav-menu-item>
                         `)}
                     </cds-side-nav-menu>
                 `)}
@@ -134,7 +137,27 @@ export class SideNavElement extends ShellElement {
 // active page
 function link(page: NavPage, active?: string) {
     return html`
-        <cds-side-nav-link href=${page.href} ?active=${page.id === active} aria-current=${page.id === active ? 'page' : 'false'}>${page.label}</cds-side-nav-link>
+        <cds-side-nav-link href=${page.href} title=${page.title ?? nothing} ?active=${page.id === active} aria-current=${page.id === active ? 'page' : 'false'}>${page.label}</cds-side-nav-link>
+    `;
+}
+
+// children returns the sidebar's links to the pages beneath another, which
+// are indented, as a menu's are, but aren't in one, so they aren't
+// collapsed. They're a list of their own, named for the page they're
+// beneath, in an item of the sidebar's list, so a screen reader has what
+// they're beneath, too.
+function children(parent: NavPage, pages: readonly NavPage[], active?: string) {
+    if (pages.length === 0) {
+        return nothing;
+    }
+    return html`
+        <div role="listitem">
+            <div role="list" aria-label=${parent.label}>
+                ${pages.map((page) => html`
+                    <cds-side-nav-menu-item role="listitem" href=${page.href} title=${page.title ?? nothing} ?active=${page.id === active} aria-current=${page.id === active ? 'page' : 'false'}>${page.label}</cds-side-nav-menu-item>
+                `)}
+            </div>
+        </div>
     `;
 }
 
