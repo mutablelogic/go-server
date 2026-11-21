@@ -3,7 +3,7 @@
 // tells the views which subscribe to it, such as the gs-panel element,
 // whenever it changes
 
-import type { PanelAction, PanelHeader, PanelState, PanelTab } from './schema.ts';
+import type { PanelAction, PanelActionState, PanelHeader, PanelState, PanelTab } from './schema.ts';
 
 // PanelListener is called with the panel's state, whenever it changes
 export type PanelListener<T> = (state: PanelState<T>) => void;
@@ -33,6 +33,11 @@ export class PanelController<T = unknown> {
     private readonly closes = new Set<(item: T) => void>();
     private readonly errors = new Set<(error: unknown, action: PanelAction) => void>();
     private state: PanelState<T>;
+
+    // pending is the action which is running, until what it returns settles,
+    // which is kept apart from the footer's actions, so it's running while
+    // they're set, or its tab's are, or its tab is removed
+    private pending?: PanelAction;
 
     constructor(options: PanelOptions = {}) {
         this.state = {
@@ -97,10 +102,8 @@ export class PanelController<T = unknown> {
     // enabled once the name of what's deleted is typed. An action which is
     // running keeps running.
     setActions(actions: PanelAction[]) {
-        const running = this.state.actions.filter((state) => state.running);
-        const states = actions.map((action) => ({ ...action, running: running.some((state) => same(state, action)) }));
         const tabs = this.state.tabs.map((tab) => tab.value === this.state.tab ? { ...tab, actions: [...actions] } : tab);
-        this.update({ tabs, actions: states });
+        this.update({ tabs, actions: this.states(actions) });
     }
 
     // tab is the value of the tab which is chosen, or undefined, when the
@@ -118,7 +121,7 @@ export class PanelController<T = unknown> {
         const chosen = [tab, this.state.tab].find((value) => copies.some((t) => t.value === value && !t.disabled))
             ?? copies.find((t) => !t.disabled)?.value;
         const actions = copies.find((t) => t.value === chosen)?.actions ?? (copies.length ? [] : this.state.actions);
-        this.update({ tabs: copies, tab: chosen, actions: actions.map((action) => ({ ...action, running: false })) });
+        this.update({ tabs: copies, tab: chosen, actions: this.states(actions) });
     }
 
     // selectTab chooses the tab of the value, whose actions are the footer's,
@@ -130,7 +133,7 @@ export class PanelController<T = unknown> {
             return false;
         }
         if (value !== this.state.tab) {
-            this.update({ tab: value, actions: (tab.actions ?? []).map((action) => ({ ...action, running: false })) });
+            this.update({ tab: value, actions: this.states(tab.actions ?? []) });
         }
         return true;
     }
@@ -146,6 +149,7 @@ export class PanelController<T = unknown> {
             return false;
         }
         if (state.run) {
+            this.pending = state;
             this.setRunning(action, true);
             try {
                 await state.run();
@@ -153,6 +157,7 @@ export class PanelController<T = unknown> {
                 this.errors.forEach((fn) => fn(error, action));
                 return false;
             } finally {
+                this.pending = undefined;
                 this.setRunning(action, false);
             }
         }
@@ -165,7 +170,7 @@ export class PanelController<T = unknown> {
     // running is whether an action is running, while which the others can't
     // be run, such as Cancel while Save is running
     get running(): boolean {
-        return this.state.actions.some((state) => state.running);
+        return this.pending !== undefined;
     }
 
     // subscribe calls the function with the panel's state, now, and whenever
@@ -187,6 +192,13 @@ export class PanelController<T = unknown> {
     onError(fn: (error: unknown, action: PanelAction) => void): this {
         this.errors.add(fn);
         return this;
+    }
+
+    // states are the actions' states, of which the one which is pending is
+    // running
+    private states(actions: readonly PanelAction[]): PanelActionState[] {
+        const pending = this.pending;
+        return actions.map((action) => ({ ...action, running: pending !== undefined && same(pending, action) }));
     }
 
     // setRunning sets whether the action is running, when it's still one of

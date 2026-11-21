@@ -159,4 +159,30 @@ test('PanelController', async (t) => {
         assert.ok(panel.selectTab('view'));
         assert.deepEqual(panel.current.actions, []);
     });
+
+    await t.test('tabs set while running', async () => {
+        // An action which runs is running while the tabs are set again, of the
+        // same, or others, which don't have it, so it can't run again, nor
+        // can another, until it settles
+        let resolve!: () => void;
+        const save: PanelAction = { label: 'Save', close: false, run: () => new Promise<void>((done) => { resolve = done; }) };
+        const other: PanelAction = { label: 'Other', close: false, run: () => undefined };
+        const tabs: PanelTab[] = [{ value: 'edit', label: 'Edit', actions: [save] }];
+        const panel = new PanelController<string>({ tabs });
+        panel.open('one');
+        const saving = panel.run(save);
+        panel.setTabs(tabs);
+        assert.ok(panel.running);
+        assert.ok(panel.current.actions[0].running);
+        assert.equal(await panel.run(save), false);
+        panel.setTabs([{ value: 'other', label: 'Other', actions: [other] }]);
+        assert.ok(panel.running);
+        assert.ok(!panel.current.actions[0].running);
+        assert.equal(await panel.run(other), false);
+        assert.equal(panel.selectTab('other'), false);
+        resolve();
+        assert.equal(await saving, true);
+        assert.ok(!panel.running);
+        assert.equal(await panel.run(other), true);
+    });
 });
