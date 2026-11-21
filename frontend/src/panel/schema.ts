@@ -15,10 +15,12 @@ export type PanelActionKind = 'primary' | 'secondary' | 'tertiary' | 'ghost' | '
 // PanelAction is an action in the panel's footer, such as Save, or Cancel,
 // which runs when it's clicked, until what it returns settles, and then
 // closes the panel, unless it fails, or close is false. An action without
-// run, such as Cancel, closes the panel.
+// run, such as Cancel, closes the panel. Its icon, a 16px Carbon icon
+// descriptor, or a rendered icon, is on its button, after its label.
 export interface PanelAction {
     label: string;
     kind?: PanelActionKind;
+    icon?: unknown;
     disabled?: boolean;
     close?: boolean;
     run?: () => unknown;

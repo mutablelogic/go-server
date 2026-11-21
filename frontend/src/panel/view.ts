@@ -17,6 +17,7 @@
 
 import { LitElement, css, html, nothing, type PropertyValues } from 'lit';
 import { closeIcon } from '../internal/icons.ts';
+import { renderIcon } from '../internal/render-icon.ts';
 import type { PanelController } from './controller.ts';
 import type { PanelActionState, PanelState } from './schema.ts';
 
@@ -321,7 +322,7 @@ export class PanelElement extends LitElement {
             return html`<cds-inline-loading status="active">${action.label}</cds-inline-loading>`;
         }
         return html`<cds-button kind=${action.kind ?? 'primary'} ?disabled=${action.disabled || this.controller?.running}
-            @click=${() => void this.controller?.run(action)}>${action.label}</cds-button>`;
+            @click=${() => void this.controller?.run(action)}>${action.label}${action.icon ? renderIcon(action.icon, 'icon') : nothing}</cds-button>`;
     }
 
     // watch shows the controller's panel, while the element is in the page

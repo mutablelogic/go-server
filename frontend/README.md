@@ -14,6 +14,8 @@ TypeScript clients of go-server's APIs, for the frontends of servers built on it
 | `@mutablelogic/go-server/notification/view` | The `gs-notifications` element, which shows a controller's notifications as Carbon toasts |
 | `@mutablelogic/go-server/panel` | `PanelController`, which keeps a panel's item, header, tabs and actions, such as Save and Cancel, which close it, and runs them |
 | `@mutablelogic/go-server/panel/view` | The `gs-panel` element, which shows a controller's panel on the right of the page, with its header, its tabs, its body, which is the element's content, and its actions |
+| `@mutablelogic/go-server/player` | `Media`, what's played, `play`, which plays it in the page's player, of `PlayEvent`, and `playable`, whether a type is audio or video |
+| `@mutablelogic/go-server/player/view` | The `gs-media-player` element, for a sidebar, which plays the media of each `PlayEvent`, until it's closed, and says when it can't be loaded |
 | `@mutablelogic/go-server/config` | `getConfig`, which reads the server's `/config.json`, `configClient`, which is the client of the API it says is at its prefix, and `ConfigController`, which follows the server, as it goes down, comes back, and is upgraded |
 | `@mutablelogic/go-server/config/view` | The `gs-server-status` element, for a sidebar, which shows the server's version, that it's down, or upgraded, and links to its documentation |
 | `@mutablelogic/go-server/list` | `ListController`, which keeps a list an API returns a page at a time, sorted by the server, and follows its changes |
