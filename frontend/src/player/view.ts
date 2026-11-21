@@ -12,6 +12,7 @@
 //     }
 
 import { LitElement, css, html, nothing, type PropertyValues } from 'lit';
+import { keyed } from 'lit/directives/keyed.js';
 import { closeIcon, musicIcon, videoIcon } from '../internal/icons.ts';
 import { PlayEvent, type Media } from './index.ts';
 
@@ -34,6 +35,7 @@ export class MediaPlayerElement extends LitElement {
         media: { attribute: false },
         playing: { type: Boolean, reflect: true },
         unavailable: { state: true },
+        requests: { state: true },
     };
 
     // media is what's played, or none, when it's hidden, playing is whether
@@ -42,6 +44,10 @@ export class MediaPlayerElement extends LitElement {
     declare media?: Media;
     declare playing: boolean;
     declare private unavailable: boolean;
+
+    // requests counts what's asked to be played, so each is played, from its
+    // start, of an element of its own, even of the same media, or URL
+    declare private requests: number;
 
     private readonly onPlay = (event: Event) => this.play((event as CustomEvent<Media>).detail);
 
@@ -106,6 +112,7 @@ export class MediaPlayerElement extends LitElement {
         super();
         this.playing = false;
         this.unavailable = false;
+        this.requests = 0;
     }
 
     override connectedCallback() {
@@ -119,22 +126,20 @@ export class MediaPlayerElement extends LitElement {
         this.close();
     }
 
-    // play plays the media, from its start, in place of what's played
+    // play plays the media, from its start, in place of what's played, even
+    // when it's what's played
     play(media: Media) {
+        this.unload();
         this.unavailable = false;
         this.media = media;
+        this.requests++;
     }
 
     // close stops playing, and closes the media's request, as the browser
     // can keep it open while the element is paused, or until it's collected,
     // such as when the server is stopping, and hides the player
     close() {
-        const element = this.element;
-        if (element) {
-            element.pause();
-            element.removeAttribute('src');
-            element.load();
-        }
+        this.unload();
         const closed = this.media !== undefined;
         this.media = undefined;
         this.unavailable = false;
@@ -151,7 +156,7 @@ export class MediaPlayerElement extends LitElement {
 
     // The media which is chosen is played, once its element is rendered
     protected override updated(changed: PropertyValues<this>) {
-        if (changed.has('media') && this.media) {
+        if ((changed as Map<string, unknown>).has('requests') && this.media) {
             this.element?.play().catch(() => {
                 // The browser didn't let it play, so its controls play it
             });
@@ -175,10 +180,21 @@ export class MediaPlayerElement extends LitElement {
             </div>
             ${this.unavailable
                 ? html`<div class="unavailable">This file is no longer available</div>`
-                : video
+                : keyed(this.requests, video
                     ? html`<video controls preload="metadata" src=${media.url} @error=${() => this.failed()}></video>`
-                    : html`<audio controls preload="metadata" src=${media.url} @error=${() => this.failed()}></audio>`}
+                    : html`<audio controls preload="metadata" src=${media.url} @error=${() => this.failed()}></audio>`)}
         `;
+    }
+
+    // unload stops the element which plays, and closes its request, before
+    // it's replaced, or removed
+    private unload() {
+        const element = this.element;
+        if (element) {
+            element.pause();
+            element.removeAttribute('src');
+            element.load();
+        }
     }
 
     // element is the audio, or video, which plays the media
