@@ -12,7 +12,9 @@
 // or the id of the page it's beneath, in the sidebar, such as a volume's,
 // which is beneath Volumes, indented, and isn't collapsed, and its title,
 // which the sidebar shows when it's pointed at, such as its whole label,
-// which the sidebar cuts short, when it's long
+// which the sidebar cuts short, when it's long, and whether it's disabled,
+// which the sidebar shows dimmed, and doesn't link to, unless it's active,
+// such as a volume which is unmounted
 export interface NavPage {
     id: string;
     label: string;
@@ -22,6 +24,7 @@ export interface NavPage {
     module?: string;
     menu?: string;
     parent?: string;
+    disabled?: boolean;
 }
 
 // NavState is the app's name, and its prefix, such as pg and manager, its

@@ -124,7 +124,8 @@ export class SideNavElement extends ShellElement {
                 ` : html`
                     <cds-side-nav-menu title=${item.menu} ?expanded=${item.pages.some((page) => page.id === state.active)}>
                         ${item.pages.map((page) => html`
-                            <cds-side-nav-menu-item href=${page.href} title=${page.title ?? nothing} ?active=${page.id === state.active} aria-current=${page.id === state.active ? 'page' : 'false'}>${page.label}</cds-side-nav-menu-item>
+                            <cds-side-nav-menu-item href=${href(page, state.active)} title=${page.title ?? nothing} ?active=${page.id === state.active} aria-current=${page.id === state.active ? 'page' : 'false'}
+                                aria-disabled=${disabled(page, state.active) ? 'true' : nothing} style=${disabled(page, state.active) ? DisabledStyle : nothing} @click=${disabled(page, state.active) ? prevent : nothing}>${page.label}</cds-side-nav-menu-item>
                         `)}
                     </cds-side-nav-menu>
                 `)}
@@ -133,11 +134,34 @@ export class SideNavElement extends ShellElement {
     }
 }
 
+// disabled returns whether a page is disabled, in the sidebar, which it
+// isn't when it's active, so the page which is shown isn't
+function disabled(page: NavPage, active?: string): boolean {
+    return page.disabled === true && page.id !== active;
+}
+
+// href returns the link of a page, of the sidebar, which a page which is
+// disabled hasn't, so it can't be followed
+function href(page: NavPage, active?: string) {
+    return disabled(page, active) ? nothing : page.href;
+}
+
+// prevent stops a click of a page which is disabled, whose link Carbon
+// renders with an empty href, which would go to the app's page itself
+function prevent(event: Event) {
+    event.preventDefault();
+}
+
+// DisabledStyle dims a page's link, of the sidebar, which is disabled, with
+// Carbon's disabled text and icon tokens, which its link's text is of
+const DisabledStyle = '--cds-text-primary: var(--cds-text-disabled, #8d8d8d); --cds-text-secondary: var(--cds-text-disabled, #8d8d8d); --cds-icon-secondary: var(--cds-icon-disabled, #8d8d8d); cursor: not-allowed;';
+
 // link returns the sidebar's link to a page, which is active when it's the
 // active page
 function link(page: NavPage, active?: string) {
     return html`
-        <cds-side-nav-link href=${page.href} title=${page.title ?? nothing} ?active=${page.id === active} aria-current=${page.id === active ? 'page' : 'false'}>${page.label}</cds-side-nav-link>
+        <cds-side-nav-link href=${href(page, active)} title=${page.title ?? nothing} ?active=${page.id === active} aria-current=${page.id === active ? 'page' : 'false'}
+            aria-disabled=${disabled(page, active) ? 'true' : nothing} style=${disabled(page, active) ? DisabledStyle : nothing} @click=${disabled(page, active) ? prevent : nothing}>${page.label}</cds-side-nav-link>
     `;
 }
 
@@ -154,7 +178,8 @@ function children(parent: NavPage, pages: readonly NavPage[], active?: string) {
         <div role="listitem">
             <div role="list" aria-label=${parent.label}>
                 ${pages.map((page) => html`
-                    <cds-side-nav-menu-item role="listitem" href=${page.href} title=${page.title ?? nothing} ?active=${page.id === active} aria-current=${page.id === active ? 'page' : 'false'}>${page.label}</cds-side-nav-menu-item>
+                    <cds-side-nav-menu-item role="listitem" href=${href(page, active)} title=${page.title ?? nothing} ?active=${page.id === active} aria-current=${page.id === active ? 'page' : 'false'}
+                        aria-disabled=${disabled(page, active) ? 'true' : nothing} style=${disabled(page, active) ? DisabledStyle : nothing} @click=${disabled(page, active) ? prevent : nothing}>${page.label}</cds-side-nav-menu-item>
                 `)}
             </div>
         </div>
