@@ -3,13 +3,24 @@
 
 // PageAction is an action on the right of a page's header: its label, its
 // kind, which is primary by default, its icon, a 16px Carbon icon
-// descriptor, or a rendered icon, and what it runs, when it's clicked. When
+// descriptor, or a rendered icon, and what it runs, when it's clicked, or
+// its menu, of what's chosen, which it opens, such as Add, of kinds of
+// what's added. When
 // run returns a promise, or anything with a then, such as a promise of
 // another realm, its button is disabled until it settles.
 export interface PageAction {
     label: string;
     kind?: 'primary' | 'secondary' | 'tertiary' | 'ghost' | 'danger';
     icon?: unknown;
+    disabled?: boolean;
+    run?: () => void | PromiseLike<unknown>;
+    menu?: PageMenuItem[];
+}
+
+// PageMenuItem is an item of an action's menu, such as a kind of what's
+// added, which runs when it's chosen, as an action does when it's clicked
+export interface PageMenuItem {
+    label: string;
     disabled?: boolean;
     run: () => void | PromiseLike<unknown>;
 }
@@ -19,10 +30,10 @@ export interface PageAction {
 // rejects with, rather than letting it escape. It returns once the action
 // has settled. A promise is anything with a then, so one of another realm,
 // such as an iframe, is one too.
-export async function runAction(action: PageAction, busy: (busy: boolean) => void, onError: (error: unknown) => void): Promise<void> {
+export async function runAction(action: PageAction | PageMenuItem, busy: (busy: boolean) => void, onError: (error: unknown) => void): Promise<void> {
     let result: void | PromiseLike<unknown>;
     try {
-        result = action.run();
+        result = action.run?.();
     } catch (error) {
         onError(error);
         return;

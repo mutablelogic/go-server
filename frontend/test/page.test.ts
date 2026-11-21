@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { runAction, type PageAction } from '../src/page/action.ts';
+import { runAction, type PageAction, type PageMenuItem } from '../src/page/action.ts';
 
 test('runAction', async (t) => {
     const record = () => {
@@ -53,5 +53,20 @@ test('runAction', async (t) => {
         await runAction(action, r.onBusy, r.onError);
         assert.deepEqual(r.busy, []);
         assert.deepEqual(r.errors, [error]);
+    });
+
+    await t.test('a menu item, and an action of a menu', async () => {
+        // A menu's item runs as an action does, and an action which has a
+        // menu, and no run, runs nothing, and isn't busy
+        const r = record();
+        let ran = '';
+        const item: PageMenuItem = { label: 'File', run: () => new Promise<void>((done) => { ran = 'file'; done(); }) };
+        await runAction(item, r.onBusy, r.onError);
+        assert.equal(ran, 'file');
+        assert.deepEqual(r.busy, [true, false]);
+        const menu = record();
+        await runAction({ label: 'Add', menu: [item] } as PageAction, menu.onBusy, menu.onError);
+        assert.deepEqual(menu.busy, []);
+        assert.deepEqual(menu.errors, []);
     });
 });

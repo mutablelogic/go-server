@@ -9,12 +9,14 @@
 import { LitElement, css, html, nothing } from 'lit';
 import iconLoader from '@carbon/web-components/es/globals/internal/icon-loader.js';
 import type { CarbonIconDescriptor } from '@carbon/web-components/es/globals/internal/icon-loader-utils.js';
-import { runAction, type PageAction } from './action.ts';
+import { runAction, type PageAction, type PageMenuItem } from './action.ts';
 
 // Carbon components
 import '@carbon/web-components/es/components/button/index.js';
+import '@carbon/web-components/es/components/menu-button/index.js';
+import '@carbon/web-components/es/components/menu/index.js';
 
-export type { PageAction } from './action.ts';
+export type { PageAction, PageMenuItem } from './action.ts';
 
 // PageHeaderTag is the element's tag
 export const PageHeaderTag = 'gs-page-header';
@@ -147,7 +149,14 @@ export class PageHeaderElement extends LitElement {
                 <slot></slot>
                 ${this.actions.length ? html`
                     <div class="actions">
-                        ${this.actions.map((action) => html`
+                        ${this.actions.map((action) => action.menu ? html`
+                            <cds-menu-button kind=${action.kind ?? 'primary'} size="md" label=${action.label} menu-alignment="bottom-end"
+                                ?disabled=${action.disabled || this.busy.has(action)}>
+                                ${action.menu.map((item) => html`
+                                    <cds-menu-item label=${item.label} ?disabled=${item.disabled} @click=${() => this.run(action, item)}></cds-menu-item>
+                                `)}
+                            </cds-menu-button>
+                        ` : html`
                             <cds-button kind=${action.kind ?? 'primary'} size="md" ?disabled=${action.disabled || this.busy.has(action)} @click=${() => this.run(action)}>
                                 ${action.label}
                                 ${action.icon ? renderIcon(action.icon, 'icon') : nothing}
@@ -159,15 +168,16 @@ export class PageHeaderElement extends LitElement {
         `;
     }
 
-    // run runs an action, with its button disabled while its promise is
-    // pending, and fires PageActionErrorEvent when it fails. An action
-    // which is disabled, or busy, isn't run, even when it's clicked again
-    // before its button is rendered disabled.
-    private run(action: PageAction) {
-        if (action.disabled || this.busy.has(action)) {
+    // run runs an action, or the item of its menu which is chosen, with its
+    // button disabled while its promise is pending, and fires
+    // PageActionErrorEvent, of the action, when it fails. An action, or
+    // item, which is disabled, or busy, isn't run, even when it's clicked
+    // again before its button is rendered disabled.
+    private run(action: PageAction, item?: PageMenuItem) {
+        if (action.disabled || item?.disabled || this.busy.has(action)) {
             return;
         }
-        void runAction(action, (busy) => {
+        void runAction(item ?? action, (busy) => {
             const next = new Set(this.busy);
             if (busy) {
                 next.add(action);
