@@ -21,7 +21,7 @@ TypeScript clients of go-server's APIs, for the frontends of servers built on it
 | `@mutablelogic/go-server/list/tiles` | The `gs-tiles` element, a row of tiles of a list, after one for all of them, of which one is chosen |
 | `@mutablelogic/go-server/nav` | `NavController`, which keeps an app's name, and its pages, in sections, and which is active. A module owns a section with `setSection`, or shares one, owning only its pages, with `setModule`. Pages with a `menu` are in a menu of the sidebar, such as Workspaces, with the pages next to them with the same menu, and pages with a `parent` are indented beneath it |
 | `@mutablelogic/go-server/nav/view` | The `gs-header` and `gs-side-nav` elements, the app's menu bar of its sections, when there's more than one, and its sidebar of the active section's pages, above the element's own content, such as `gs-server-status` |
-| `@mutablelogic/go-server/page` | `PageAction`, an action of a page's header, and `runAction`, which runs one, busy while its promise is pending |
+| `@mutablelogic/go-server/page` | `PageAction`, an action of a page's header, or a menu of `PageMenuItem`s, and `runAction`, which runs one, busy while its promise is pending |
 | `@mutablelogic/go-server/page/view` | The `gs-page-header` element, the dark header at the top of a page, with an icon, a title, a subtitle or details, and actions on the right |
 | `@mutablelogic/go-server/router` | `Router`, which shows the page of the location's hash, such as `#database/shop` |
 
@@ -322,6 +322,7 @@ header.addEventListener(PageActionErrorEvent, (event) => notifications.error("It
   - `kind` is Carbon's button kind, primary by default, and `disabled` disables one.
   - When `run` returns a promise, its button is disabled until it settles.
   - When it throws, or rejects, the header fires `gs-page-action-error`, with the action and the error.
+  - `menu`, of items, each a `label`, `run` and `disabled`, makes it a Carbon menu button, such as Add, of what's added. The item which is chosen runs as an action does, with the button disabled until it settles, and its error is the action's. An action of a menu needs no `run`.
 - **Controls:** what's in its default slot, such as a search, sits beside the title.
 - **Spacing:** `--gs-page-header-margin` sets its margin, such as the negative of the page's padding, so it spans the page.
 
