@@ -18,9 +18,12 @@ export interface PageAction {
 }
 
 // PageMenuItem is an item of an action's menu, such as a kind of what's
-// added, which runs when it's chosen, as an action does when it's clicked
+// added, of its label, and its icon, a 16px Carbon icon descriptor, or a
+// rendered icon, which runs when it's chosen, as an action does when it's
+// clicked
 export interface PageMenuItem {
     label: string;
+    icon?: unknown;
     disabled?: boolean;
     run: () => void | PromiseLike<unknown>;
 }
