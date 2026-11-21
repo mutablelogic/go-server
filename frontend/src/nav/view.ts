@@ -123,7 +123,7 @@ export class SideNavElement extends ShellElement {
                     ${children(item.pages[0], item.children, state.active)}
                 ` : html`
                     <cds-side-nav-menu title=${item.menu} ?expanded=${item.pages.some((page) => page.id === state.active)}>
-                        ${item.pages.map((page) => html`
+                        ${item.pages.map((page) => disabled(page, state.active) ? disabledItem(page, true) : html`
                             <cds-side-nav-menu-item href=${page.href} title=${page.title ?? nothing} ?active=${page.id === state.active} aria-current=${page.id === state.active ? 'page' : 'false'}>${page.label}</cds-side-nav-menu-item>
                         `)}
                     </cds-side-nav-menu>
@@ -133,9 +133,38 @@ export class SideNavElement extends ShellElement {
     }
 }
 
+// disabled returns whether a page is disabled, in the sidebar, which it
+// isn't when it's active, so the page which is shown isn't
+function disabled(page: NavPage, active?: string): boolean {
+    return page.disabled === true && page.id !== active;
+}
+
+// disabledItem returns a page which is disabled, of the sidebar, which isn't
+// a link, as Carbon's has an anchor of an empty href, which a middle click,
+// or opening it in a new tab, would follow, but is the same as one, dimmed,
+// of a link of the sidebar, or of an item, which is indented, of a menu, or
+// beneath another, and says what it is when it's pointed at
+function disabledItem(page: NavPage, item: boolean) {
+    return html`
+        <div role="listitem" aria-disabled="true" title=${page.title ?? nothing} style=${item ? DisabledItemStyle : DisabledLinkStyle}>
+            <span style=${DisabledTextStyle}>${page.label}</span>
+        </div>
+    `;
+}
+
+// The styles of a page which is disabled, of Carbon's link of the sidebar,
+// and its item, which is indented, and isn't bold, and their text, which is
+// of Carbon's disabled token, and cut short, when it's long
+const DisabledLinkStyle = 'display: flex; align-items: center; block-size: 2rem; padding: 0 1rem; font-weight: 600; cursor: not-allowed;';
+const DisabledItemStyle = 'display: flex; align-items: center; block-size: 2rem; padding: 0 1rem 0 2rem; font-weight: 400; cursor: not-allowed;';
+const DisabledTextStyle = 'overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--cds-text-disabled, rgba(244, 244, 244, 0.25)); font-size: 0.875rem; line-height: 1.25rem; letter-spacing: 0.1px; user-select: none;';
+
 // link returns the sidebar's link to a page, which is active when it's the
 // active page
 function link(page: NavPage, active?: string) {
+    if (disabled(page, active)) {
+        return disabledItem(page, false);
+    }
     return html`
         <cds-side-nav-link href=${page.href} title=${page.title ?? nothing} ?active=${page.id === active} aria-current=${page.id === active ? 'page' : 'false'}>${page.label}</cds-side-nav-link>
     `;
@@ -153,7 +182,7 @@ function children(parent: NavPage, pages: readonly NavPage[], active?: string) {
     return html`
         <div role="listitem">
             <div role="list" aria-label=${parent.label}>
-                ${pages.map((page) => html`
+                ${pages.map((page) => disabled(page, active) ? disabledItem(page, true) : html`
                     <cds-side-nav-menu-item role="listitem" href=${page.href} title=${page.title ?? nothing} ?active=${page.id === active} aria-current=${page.id === active ? 'page' : 'false'}>${page.label}</cds-side-nav-menu-item>
                 `)}
             </div>
