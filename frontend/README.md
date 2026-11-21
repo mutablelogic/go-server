@@ -322,7 +322,7 @@ header.addEventListener(PageActionErrorEvent, (event) => notifications.error("It
   - `kind` is Carbon's button kind, primary by default, and `disabled` disables one.
   - When `run` returns a promise, its button is disabled until it settles.
   - When it throws, or rejects, the header fires `gs-page-action-error`, with the action and the error.
-  - `menu`, of items, each a `label`, `run` and `disabled`, makes it a Carbon menu button, such as Add, of what's added. The item which is chosen runs as an action does, with the button disabled until it settles, and its error is the action's. An action of a menu needs no `run`.
+  - `menu`, of items, each a `label`, `icon` (16px, as an action's), `run` and `disabled`, makes it a Carbon menu button, such as Add, of what's added. The item which is chosen runs as an action does, with the button disabled until it settles, and its error is the action's. An action of a menu needs no `run`.
 - **Controls:** what's in its default slot, such as a search, sits beside the title.
 - **Spacing:** `--gs-page-header-margin` sets its margin, such as the negative of the page's padding, so it spans the page.
 

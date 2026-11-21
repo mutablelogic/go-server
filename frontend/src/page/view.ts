@@ -154,7 +154,9 @@ export class PageHeaderElement extends LitElement {
                                 ?disabled=${action.disabled || this.busy.has(action)}>
                                 <cds-menu>
                                     ${action.menu.map((item) => html`
-                                        <cds-menu-item label=${item.label} ?disabled=${item.disabled} @click=${() => this.run(action, item)}></cds-menu-item>
+                                        <cds-menu-item label=${item.label} ?disabled=${item.disabled} @click=${() => this.run(action, item)}>
+                                            ${item.icon ? renderIcon(item.icon, 'render-icon') : nothing}
+                                        </cds-menu-item>
                                     `)}
                                 </cds-menu>
                             </cds-menu-button>
