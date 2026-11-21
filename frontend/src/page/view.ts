@@ -7,8 +7,7 @@
 // dependencies.
 
 import { LitElement, css, html, nothing } from 'lit';
-import iconLoader from '@carbon/web-components/es/globals/internal/icon-loader.js';
-import type { CarbonIconDescriptor } from '@carbon/web-components/es/globals/internal/icon-loader-utils.js';
+import { renderIcon } from '../internal/render-icon.ts';
 import { runAction, type PageAction, type PageMenuItem } from './action.ts';
 
 // Carbon components
@@ -193,21 +192,6 @@ export class PageHeaderElement extends LitElement {
             this.dispatchEvent(new CustomEvent<PageActionError>(PageActionErrorEvent, { detail: { action, error }, bubbles: true, composed: true }));
         });
     }
-}
-
-// renderIcon renders a Carbon icon descriptor, in the slot, when it's
-// given, or else an icon which is rendered already, as it is
-function renderIcon(icon: unknown, slot?: string) {
-    if (isDescriptor(icon)) {
-        return iconLoader(icon, slot ? { slot } : undefined);
-    }
-    return slot ? html`<span slot=${slot}>${icon}</span>` : icon;
-}
-
-// isDescriptor is true for a Carbon icon descriptor, such as
-// @carbon/icons/es/add/16.js's default export
-function isDescriptor(icon: unknown): icon is CarbonIconDescriptor {
-    return typeof icon === 'object' && icon !== null && 'elem' in icon && 'attrs' in icon;
 }
 
 if (!customElements.get(PageHeaderTag)) {

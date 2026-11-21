@@ -62,6 +62,14 @@
             "types": "./dist/panel/view.d.ts",
             "import": "./dist/panel/view.js"
         },
+        "./player": {
+            "types": "./dist/player/index.d.ts",
+            "import": "./dist/player/index.js"
+        },
+        "./player/view": {
+            "types": "./dist/player/view.d.ts",
+            "import": "./dist/player/view.js"
+        },
         "./page": {
             "types": "./dist/page/index.d.ts",
             "import": "./dist/page/index.js"
