@@ -152,9 +152,11 @@ export class PageHeaderElement extends LitElement {
                         ${this.actions.map((action) => action.menu ? html`
                             <cds-menu-button kind=${action.kind ?? 'primary'} size="md" label=${action.label} menu-alignment="bottom-end"
                                 ?disabled=${action.disabled || this.busy.has(action)}>
-                                ${action.menu.map((item) => html`
-                                    <cds-menu-item label=${item.label} ?disabled=${item.disabled} @click=${() => this.run(action, item)}></cds-menu-item>
-                                `)}
+                                <cds-menu>
+                                    ${action.menu.map((item) => html`
+                                        <cds-menu-item label=${item.label} ?disabled=${item.disabled} @click=${() => this.run(action, item)}></cds-menu-item>
+                                    `)}
+                                </cds-menu>
                             </cds-menu-button>
                         ` : html`
                             <cds-button kind=${action.kind ?? 'primary'} size="md" ?disabled=${action.disabled || this.busy.has(action)} @click=${() => this.run(action)}>
