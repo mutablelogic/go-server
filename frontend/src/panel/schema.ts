@@ -24,6 +24,17 @@ export interface PanelAction {
     run?: () => unknown;
 }
 
+// PanelTab is a tab of the panel, beneath its header, such as View, Edit or
+// Delete, which is chosen by its value, whose body the panel's content
+// shows, of the state's tab, and whose actions are the footer's, while it's
+// chosen. A tab which is disabled can't be chosen.
+export interface PanelTab {
+    value: string;
+    label: string;
+    disabled?: boolean;
+    actions?: PanelAction[];
+}
+
 // PanelActionState is an action, and whether it's running, as it was clicked,
 // and what it returned hasn't settled
 export interface PanelActionState extends PanelAction {
@@ -32,12 +43,16 @@ export interface PanelActionState extends PanelAction {
 
 // PanelState is what a view of the panel shows: whether it's open, its
 // item, which is kept while it closes, its header, whether it can be closed,
-// by its close button, the escape key, or clicking the page beside it, and
-// the actions in its footer
+// by its close button, the escape key, or clicking the page beside it, its
+// tabs, of which none are shown when there are none, the value of the one
+// which is chosen, and the actions in its footer, which are the chosen
+// tab's, when it has tabs
 export interface PanelState<T> {
     open: boolean;
     item?: T;
     header: PanelHeader;
     closable: boolean;
+    tabs: readonly PanelTab[];
+    tab?: string;
     actions: readonly PanelActionState[];
 }

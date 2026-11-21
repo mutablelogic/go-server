@@ -3,7 +3,7 @@
 // tells the views which subscribe to it, such as the gs-panel element,
 // whenever it changes
 
-import type { PanelAction, PanelHeader, PanelState } from './schema.ts';
+import type { PanelAction, PanelHeader, PanelState, PanelTab } from './schema.ts';
 
 // PanelListener is called with the panel's state, whenever it changes
 export type PanelListener<T> = (state: PanelState<T>) => void;
@@ -18,8 +18,14 @@ export interface PanelOptions {
     closable?: boolean;
 
     // actions are the actions in its footer, which can be changed with
-    // setActions
+    // setActions, when it has no tabs
     actions?: PanelAction[];
+
+    // tabs are its tabs, each of its own actions, of which tab is chosen,
+    // or else the first which isn't disabled, which can be changed with
+    // setTabs
+    tabs?: PanelTab[];
+    tab?: string;
 }
 
 export class PanelController<T = unknown> {
@@ -33,8 +39,12 @@ export class PanelController<T = unknown> {
             open: false,
             header: { ...options.header },
             closable: options.closable ?? true,
+            tabs: [],
             actions: (options.actions ?? []).map((action) => ({ ...action, running: false })),
         };
+        if (options.tabs?.length) {
+            this.setTabs(options.tabs, options.tab);
+        }
     }
 
     // item is the item which is shown, while the panel is open, or the one
@@ -82,9 +92,47 @@ export class PanelController<T = unknown> {
     }
 
     // setActions sets the actions in the panel's footer, which is left out
-    // when there are none
+    // when there are none, which are the chosen tab's, when it has tabs, so
+    // they're its actions while it's chosen again, such as Delete, which is
+    // enabled once the name of what's deleted is typed. An action which is
+    // running keeps running.
     setActions(actions: PanelAction[]) {
-        this.update({ actions: actions.map((action) => ({ ...action, running: false })) });
+        const running = this.state.actions.filter((state) => state.running);
+        const states = actions.map((action) => ({ ...action, running: running.some((state) => same(state, action)) }));
+        const tabs = this.state.tabs.map((tab) => tab.value === this.state.tab ? { ...tab, actions: [...actions] } : tab);
+        this.update({ tabs, actions: states });
+    }
+
+    // tab is the value of the tab which is chosen, or undefined, when the
+    // panel has no tabs
+    get tab(): string | undefined {
+        return this.state.tab;
+    }
+
+    // setTabs sets the panel's tabs, of which the tab of the value is chosen,
+    // or else the one which is chosen now, when it's one of them, or else
+    // the first which isn't disabled, and the footer's actions are its. No
+    // tabs are shown when there are none.
+    setTabs(tabs: PanelTab[], tab?: string) {
+        const copies = tabs.map((t) => ({ ...t, actions: t.actions ? [...t.actions] : undefined }));
+        const chosen = [tab, this.state.tab].find((value) => copies.some((t) => t.value === value && !t.disabled))
+            ?? copies.find((t) => !t.disabled)?.value;
+        const actions = copies.find((t) => t.value === chosen)?.actions ?? (copies.length ? [] : this.state.actions);
+        this.update({ tabs: copies, tab: chosen, actions: actions.map((action) => ({ ...action, running: false })) });
+    }
+
+    // selectTab chooses the tab of the value, whose actions are the footer's,
+    // unless it's disabled, or isn't one of the tabs, or an action is
+    // running, as it would be of another tab. Returns true when it's chosen.
+    selectTab(value: string): boolean {
+        const tab = this.state.tabs.find((t) => t.value === value);
+        if (!tab || tab.disabled || this.running) {
+            return false;
+        }
+        if (value !== this.state.tab) {
+            this.update({ tab: value, actions: (tab.actions ?? []).map((action) => ({ ...action, running: false })) });
+        }
+        return true;
     }
 
     // run runs the action, as when it's clicked, unless it's disabled, or

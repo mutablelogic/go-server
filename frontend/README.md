@@ -12,8 +12,8 @@ TypeScript clients of go-server's APIs, for the frontends of servers built on it
 | `@mutablelogic/go-server/broadcaster` | The broadcaster's `Change` schema, `watchChanges`, and `ChangesController`, which other controllers subscribe to |
 | `@mutablelogic/go-server/notification` | `NotificationController`, which keeps notifications, such as errors, until they time out, or are closed, and tells the views which subscribe to it |
 | `@mutablelogic/go-server/notification/view` | The `gs-notifications` element, which shows a controller's notifications as Carbon toasts |
-| `@mutablelogic/go-server/panel` | `PanelController`, which keeps a panel's item, header and actions, such as Save and Cancel, which close it, and runs them |
-| `@mutablelogic/go-server/panel/view` | The `gs-panel` element, which shows a controller's panel on the right of the page, with its header, its body, which is the element's content, and its actions |
+| `@mutablelogic/go-server/panel` | `PanelController`, which keeps a panel's item, header, tabs and actions, such as Save and Cancel, which close it, and runs them |
+| `@mutablelogic/go-server/panel/view` | The `gs-panel` element, which shows a controller's panel on the right of the page, with its header, its tabs, its body, which is the element's content, and its actions |
 | `@mutablelogic/go-server/config` | `getConfig`, which reads the server's `/config.json`, `configClient`, which is the client of the API it says is at its prefix, and `ConfigController`, which follows the server, as it goes down, comes back, and is upgraded |
 | `@mutablelogic/go-server/config/view` | The `gs-server-status` element, for a sidebar, which shows the server's version, that it's down, or upgraded, and links to its documentation |
 | `@mutablelogic/go-server/list` | `ListController`, which keeps a list an API returns a page at a time, sorted by the server, and follows its changes |
@@ -242,6 +242,19 @@ panel.open(agent);
   - An action without `run`, such as Cancel, closes the panel.
   - An action which fails leaves the panel open, and calls `onError`.
   - An action with `close: false` leaves it open.
+- **Tabs:** optional, beneath the header, such as View, Edit and Delete, each of its own actions, with `setTabs(tabs, tab?)`, or the `tabs` option. The chosen tab is `tab`, which the body is rendered from, on the state's change. It's the first which isn't disabled, unless it's chosen.
+  - `selectTab(value)` chooses another, as clicking it does, unless it's disabled, or an action is running.
+  - `setActions` sets the chosen tab's actions, which it keeps while another is chosen, such as Delete, once it's enabled.
+
+```ts
+panel.setTabs([
+    { value: 'view', label: 'View', actions: [{ label: 'Unmount', kind: 'secondary', run: unmount }] },
+    { value: 'edit', label: 'Edit', actions: [{ label: 'Save', run: save }] },
+    { value: 'delete', label: 'Delete', actions: [{ label: 'Delete', kind: 'danger', disabled: true, run: remove }] },
+]);
+panel.subscribe(({ tab }) => render(tab));
+```
+
 - **Closing:** by its close button, the escape key, or clicking the page beside it, when it's closable. `onClose` is called with its item.
 - **Focus:** the page beside it is inert while it's open, except for regions which announce, such as `gs-notifications`, and what was focused before is focused again when it closes.
 - **Position:** `--gs-panel-top`, below a 3rem header by default, `--gs-panel-width`, 28rem by default, and `--gs-panel-z-index`.

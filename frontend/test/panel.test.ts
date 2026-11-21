@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { PanelController, type PanelAction, type PanelState } from '../src/panel/index.ts';
+import { PanelController, type PanelAction, type PanelState, type PanelTab } from '../src/panel/index.ts';
 
 test('PanelController', async (t) => {
     await t.test('open', () => {
@@ -92,5 +92,71 @@ test('PanelController', async (t) => {
         // The actions can be changed
         panel.setActions([{ label: 'Done' }]);
         assert.deepEqual(panel.current.actions.map((action) => action.label), ['Done']);
+    });
+
+    await t.test('tabs', async () => {
+        // A panel of tabs has the actions of the tab which is chosen, which is
+        // the first which isn't disabled, by default
+        const mount: PanelAction = { label: 'Mount', run: () => undefined };
+        const save: PanelAction = { label: 'Save', run: () => undefined };
+        const remove: PanelAction = { label: 'Delete', kind: 'danger', disabled: true, run: () => undefined };
+        const tabs: PanelTab[] = [
+            { value: 'none', label: 'None', disabled: true },
+            { value: 'view', label: 'View', actions: [mount] },
+            { value: 'edit', label: 'Edit', actions: [save] },
+            { value: 'delete', label: 'Delete', actions: [remove] },
+        ];
+        const panel = new PanelController<string>({ tabs });
+        assert.equal(panel.tab, 'view');
+        assert.deepEqual(panel.current.tabs.map((tab) => tab.value), ['none', 'view', 'edit', 'delete']);
+        assert.deepEqual(panel.current.actions.map((action) => action.label), ['Mount']);
+
+        // Another tab is chosen, of its actions, but not one which is
+        // disabled, or isn't a tab
+        assert.ok(panel.selectTab('edit'));
+        assert.equal(panel.tab, 'edit');
+        assert.deepEqual(panel.current.actions.map((action) => action.label), ['Save']);
+        assert.ok(!panel.selectTab('none'));
+        assert.ok(!panel.selectTab('missing'));
+        assert.equal(panel.tab, 'edit');
+
+        // The actions which are set are the chosen tab's, so they're its when
+        // it's chosen again, such as Delete, once it's enabled
+        assert.ok(panel.selectTab('delete'));
+        assert.ok(panel.current.actions[0].disabled);
+        panel.setActions([{ ...remove, disabled: false }]);
+        assert.ok(panel.selectTab('view'));
+        assert.ok(panel.selectTab('delete'));
+        assert.ok(!panel.current.actions[0].disabled);
+
+        // Setting the tabs again keeps the chosen one, when it's one of them,
+        // or chooses the one of the value
+        panel.setTabs(tabs);
+        assert.equal(panel.tab, 'delete');
+        panel.setTabs(tabs, 'edit');
+        assert.equal(panel.tab, 'edit');
+        panel.setTabs([]);
+        assert.equal(panel.tab, undefined);
+        assert.deepEqual(panel.current.tabs, []);
+    });
+
+    await t.test('tabs while running', async () => {
+        // Another tab can't be chosen while an action runs
+        let resolve!: () => void;
+        const save: PanelAction = { label: 'Save', close: false, run: () => new Promise<void>((done) => { resolve = done; }) };
+        const panel = new PanelController<string>({ tabs: [{ value: 'edit', label: 'Edit', actions: [save] }, { value: 'view', label: 'View' }] });
+        panel.open('one');
+        const saving = panel.run(save);
+        assert.ok(!panel.selectTab('view'));
+        assert.equal(panel.tab, 'edit');
+
+        // An action which is set while it runs keeps running
+        panel.setActions([save]);
+        assert.ok(panel.current.actions[0].running);
+        resolve();
+        assert.equal(await saving, true);
+        assert.ok(!panel.running);
+        assert.ok(panel.selectTab('view'));
+        assert.deepEqual(panel.current.actions, []);
     });
 });

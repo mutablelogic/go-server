@@ -1,9 +1,11 @@
 // The gs-panel element shows a panel controller's panel, on the right of
 // the page, over the page beneath the header, which is darkened, as a modal
 // dialog: its optional header, with its icon, title, subtitle and close
-// button, its body, which is the element's content, and which scrolls, and
-// its optional footer, of its actions, such as Save and Cancel, which show
-// they're running, until they're done, and close it. It's open while the controller says so, and closes it by its
+// button, its optional tabs, such as View, Edit and Delete, beneath it, of
+// which the one which is chosen is the controller's, its body, which is the
+// element's content, of the tab which is chosen, and which scrolls, and its
+// optional footer, of its actions, or the chosen tab's, such as Save and
+// Cancel, which show they're running, until they're done, and close it. It's open while the controller says so, and closes it by its
 // close button, the escape key, or clicking the page beside it, when it can
 // be closed. It needs lit and @carbon/web-components, which are the
 // package's optional peer dependencies.
@@ -22,6 +24,7 @@ import type { PanelActionState, PanelState } from './schema.ts';
 import '@carbon/web-components/es/components/button/index.js';
 import '@carbon/web-components/es/components/icon-button/index.js';
 import '@carbon/web-components/es/components/inline-loading/index.js';
+import '@carbon/web-components/es/components/tabs/index.js';
 
 // PanelTag is the element's tag
 export const PanelTag = 'gs-panel';
@@ -161,6 +164,12 @@ export class PanelElement extends LitElement {
 
         /* The body scrolls, between the header, and the footer, which
            don't */
+        .tabs {
+            flex: none;
+            padding: 0 1rem;
+            border-bottom: 1px solid var(--cds-border-subtle, #c6c6c6);
+        }
+
         .body {
             flex: 1;
             min-height: 0;
@@ -256,6 +265,7 @@ export class PanelElement extends LitElement {
             <div class="backdrop" @click=${this.close}></div>
             <div class="panel" role="dialog" aria-modal="true" aria-labelledby="title" tabindex="-1">
                 ${this.renderHeader(state)}
+                ${this.renderTabs(state)}
                 <div class="body"><slot></slot></div>
                 ${state.actions.length > 0 ? html`<footer>${state.actions.map((action) => this.renderAction(action))}</footer>` : nothing}
             </div>
@@ -287,7 +297,24 @@ export class PanelElement extends LitElement {
         `;
     }
 
-    // renderAction returns an action's button, which is disabled while
+    // renderTabs returns the tabs, of which the one which is chosen is the
+    // controller's, which can't be changed while an action runs, or nothing,
+    // when there are none
+    private renderTabs(state: PanelState<unknown>) {
+        if (state.tabs.length === 0) {
+            return nothing;
+        }
+        const running = this.controller?.running ?? false;
+        return html`
+            <div class="tabs">
+                <cds-tabs value=${state.tab ?? ''} @cds-tabs-selected=${(event: CustomEvent<{ item: HTMLElement & { value: string } }>) => this.controller?.selectTab(event.detail.item.value)}>
+                    ${state.tabs.map((tab) => html`<cds-tab value=${tab.value} ?disabled=${tab.disabled || (running && tab.value !== state.tab)}>${tab.label}</cds-tab>`)}
+                </cds-tabs>
+            </div>
+        `;
+    }
+
+        // renderAction returns an action's button, which is disabled while
     // another action runs, or that it's running
     private renderAction(action: PanelActionState) {
         if (action.running) {
