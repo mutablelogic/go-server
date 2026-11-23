@@ -73,12 +73,14 @@ export interface TableAction<T> {
 }
 
 // TableRowAction is an action of a row's item, in its menu of actions, such
-// as Delete: its label, whether it's dangerous, which is red, as Carbon's
+// as Delete: its label, its icon, before it, a 16px Carbon icon descriptor,
+// or a rendered icon, whether it's dangerous, which is red, as Carbon's
 // are, whether a divider is above it, whether it's disabled, and what it
 // runs, with the item. When run throws, or its promise rejects,
 // TableActionErrorEvent is fired.
 export interface TableRowAction<T> {
     label: string;
+    icon?: unknown;
     danger?: boolean;
     divider?: boolean;
     disabled?: boolean;
@@ -760,7 +762,7 @@ export class TableElement<T = unknown> extends LitElement {
                         <cds-overflow-menu-body flipped>
                             ${actions.map((action) => html`
                                 <cds-overflow-menu-item ?danger=${action.danger} ?divider=${action.divider} ?disabled=${action.disabled}
-                                    @click=${() => this.runRow(action, item)}>${action.label}</cds-overflow-menu-item>
+                                    @click=${() => this.runRow(action, item)}>${action.icon ? html`<span style=${settingStyle}>${renderMenuIcon(action.icon)}${action.label}</span>` : action.label}</cds-overflow-menu-item>
                             `)}
                         </cds-overflow-menu-body>
                     </cds-overflow-menu>
@@ -993,6 +995,18 @@ function minWidth<T>(columns: readonly Column<T>[], selectable: boolean, rowActi
 const settingStyle = 'display: inline-flex; align-items: center; gap: 0.5rem';
 const checkStyle = 'display: inline-flex; width: 1rem; height: 1rem';
 const visuallyHiddenStyle = 'position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap';
+
+// renderMenuIcon renders a Carbon icon descriptor, or an icon which is
+// rendered already, before an item's label, in a menu, of its colour, so
+// it's white of a dangerous item, as it's chosen
+function renderMenuIcon(icon: unknown) {
+    if (typeof icon === 'object' && icon !== null && 'elem' in icon) {
+        return iconLoader(icon as CarbonIconDescriptor, { style: menuIconStyle });
+    }
+    return html`<span style=${menuIconStyle}>${icon}</span>`;
+}
+
+const menuIconStyle = 'display: inline-flex; flex: none; width: 1rem; height: 1rem; fill: currentColor';
 
 function renderIcon(icon: unknown) {
     if (typeof icon === 'object' && icon !== null && 'elem' in icon) {
