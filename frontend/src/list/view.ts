@@ -630,7 +630,9 @@ export class TableElement<T = unknown> extends LitElement {
     }
 
     // renderToolbar returns the toolbar, with its search and settings, and
-    // the batch actions bar over it, while items are selected. It's apart
+    // the batch actions bar over it, while items are selected, whose
+    // buttons are of the data table's context, as Carbon's are, so their
+    // icons are beside their labels. It's apart
     // from the table, so it stays while the table is loading, as when the
     // list is filtered by its search, which keeps what's typed, and focus.
     private renderToolbar() {
@@ -645,7 +647,7 @@ export class TableElement<T = unknown> extends LitElement {
                     <cds-table-batch-actions size=${this.toolbarSizeOf()} ?active=${this.selected.size > 0} selected-rows-count=${this.selected.size}
                         @cds-table-batch-actions-cancel-clicked=${() => this.clearSelection()}>
                         ${this.actions!.map((action) => html`
-                            <cds-button size=${this.toolbarSizeOf()} kind=${action.kind ?? 'primary'} ?disabled=${this.busy} @click=${() => this.run(action)}>
+                            <cds-button data-context="data-table" size=${this.toolbarSizeOf()} kind=${action.kind ?? 'primary'} ?disabled=${this.busy} @click=${() => this.run(action)}>
                                 ${action.label}${action.icon ? renderIcon(action.icon) : nothing}
                             </cds-button>
                         `)}
