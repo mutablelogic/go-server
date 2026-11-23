@@ -1,6 +1,9 @@
 // The gs-table element shows a list controller's page as a Carbon data
 // table, with its columns, and pagination beneath it, which loads the page,
-// or the page's size, which is changed. A column which has a sort key sorts
+// or the page's size, which is changed, or, when it scrolls, the items which
+// are loaded, which loads more as its end is scrolled to, beneath a header
+// which stays at the top of what scrolls it. Its columns can have fixed
+// widths, whose cells are cut short, of one line. A column which has a sort key sorts
 // the list, by the server, when its header is clicked. Clicking a row opens
 // its item in the controller, as does its first cell, which is a button, from
 // the keyboard, and the item which is opened is selected. It
@@ -31,11 +34,16 @@ import '@carbon/web-components/es/components/pagination/index.js';
 // Column is a column of the table: its header, its cell of an item, and
 // the key the list is sorted by, by the server, when it can be, and which
 // direction it's sorted in first, which is descending, unless it's set
+// A column can have a width, such as 8rem, which makes the table's columns
+// fixed, of their widths, where those without one share what's left, and
+// its cells can be aligned to its end, such as of sizes.
 export interface Column<T> {
     header: string;
     cell: (item: T) => unknown;
     sort?: string;
     sortFirst?: Sort['direction'];
+    width?: string;
+    align?: 'start' | 'end';
 }
 
 // LegendItem is what a legend explains, such as a tag, as it's shown in the
@@ -137,6 +145,9 @@ export class TableElement<T = unknown> extends LitElement {
         search: { type: String },
         settings: { attribute: false },
         toolbarActions: { attribute: false },
+        scrolls: { type: Boolean, reflect: true },
+        size: { type: String },
+        countLabel: { attribute: false },
         running: { state: true },
         empty: { type: String },
         state: { state: true },
@@ -183,6 +194,23 @@ export class TableElement<T = unknown> extends LitElement {
     // toolbarActions are buttons at the toolbar's end, such as Create, which
     // show it, when they're set
     declare toolbarActions?: TableToolbarAction[];
+
+    // scrolls is true of a table of a list controller which scrolls, which
+    // has no pagination, and loads more as its end is scrolled to, in the
+    // element which scrolls it, beneath a header which stays at its top, at
+    // --gs-table-sticky-top
+    declare scrolls: boolean;
+
+    // size is the size of the table's rows, Carbon's, such as sm, or lg, by
+    // default
+    declare size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+
+    // countLabel says how many items there are, beneath a table which
+    // scrolls, once they're all loaded, such as 12 files
+    declare countLabel?: (total: number) => string;
+
+    // observer watches the end of a table which scrolls, to load more
+    private observer?: IntersectionObserver;
 
     // running are the toolbar's actions whose promises are pending
     declare private running: Set<TableToolbarAction>;
@@ -326,6 +354,65 @@ export class TableElement<T = unknown> extends LitElement {
             cursor: pointer;
         }
 
+        /* A table which scrolls is scrolled by what it's in, rather than
+           itself, or Carbon's table, so its header stays at the top */
+        :host([scrolls]) .table {
+            overflow: visible;
+        }
+
+        :host([scrolls]) cds-table::part(inner-container),
+        :host([scrolls]) cds-table::part(content) {
+            overflow: visible;
+        }
+
+        :host([scrolls]) cds-table-head {
+            position: sticky;
+            top: var(--gs-table-sticky-top, 0);
+            z-index: 1;
+        }
+
+        /* A table of fixed columns, of their widths, whose cells are of one
+           line, cut short, and which is at least as wide as they are, with
+           --gs-table-column-width of each column without a width */
+        cds-table.fixed::part(content) {
+            table-layout: fixed;
+            min-width: var(--gs-table-min-width, 0);
+        }
+
+        cds-table.fixed cds-table-cell,
+        cds-table.fixed cds-table-header-cell {
+            box-sizing: border-box;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* A button is as wide as what's in it, even as a block, so it's
+           as wide as its cell, to cut what's in it short */
+        cds-table.fixed button.open {
+            display: block;
+            box-sizing: border-box;
+            width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .end-aligned {
+            text-align: end;
+        }
+
+        /* Beneath a table which scrolls: more which are loading, which
+           couldn't be, or how many there are */
+        .more {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            min-height: 2.5rem;
+            padding: 0 1rem;
+            color: var(--cds-text-secondary, #525252);
+            font-size: 0.875rem;
+        }
+
         button.open:focus-visible {
             outline: 2px solid var(--cds-focus, #0f62fe);
             outline-offset: 2px;
@@ -350,6 +437,7 @@ export class TableElement<T = unknown> extends LitElement {
         super();
         this.columns = [];
         this.empty = 'Nothing';
+        this.scrolls = false;
         this.expanded = new Set();
         this.selected = new Map();
         this.busy = false;
@@ -373,6 +461,8 @@ export class TableElement<T = unknown> extends LitElement {
 
     override disconnectedCallback() {
         clearTimeout(this.searching);
+        this.observer?.disconnect();
+        this.observer = undefined;
         this.unsubscribe?.();
         this.unsubscribe = undefined;
         super.disconnectedCallback();
@@ -386,11 +476,13 @@ export class TableElement<T = unknown> extends LitElement {
     }
 
     // An expandable table's rows' chevrons point right, when they're
-    // collapsed, and down, when they're expanded
+    // collapsed, and down, when they're expanded, and the end of a table
+    // which scrolls is watched
     protected override updated() {
         if (this.expand) {
             this.renderRoot.querySelectorAll('cds-table-row, cds-table-header-row').forEach((row) => disclose(row));
         }
+        this.watchEnd();
     }
 
     protected override render() {
@@ -430,8 +522,9 @@ export class TableElement<T = unknown> extends LitElement {
         const selectable = !!this.actions?.length;
         const items = state.items;
         const onPage = items.filter((item) => this.selected.has(this.keyOf(item))).length;
+        const fixed = this.columns.some((column) => column.width);
         return html`
-            <cds-table ?expandable=${!!expand}>
+            <cds-table size=${this.size ?? 'lg'} ?expandable=${!!expand} class=${fixed ? 'fixed' : ''} style=${fixed ? `--gs-table-min-width: ${minWidth(this.columns, selectable)}` : ''}>
                 <cds-table-head>
                     <cds-table-header-row ?expandable=${!!expand}>
                         ${selectable ? html`
@@ -448,7 +541,7 @@ export class TableElement<T = unknown> extends LitElement {
                     ${state.items.map((item) => {
                         const expanded = !!expand && this.expanded.has(this.keyOf(item));
                         return html`
-                            <cds-table-row ?data-selected=${state.selected === item} ?selected=${selectable && this.selected.has(this.keyOf(item))}
+                            <cds-table-row size=${this.size ?? 'lg'} ?data-selected=${state.selected === item} ?selected=${selectable && this.selected.has(this.keyOf(item))}
                                 ?expandable=${!!expand} ?expanded=${expanded}
                                 @click=${(event: Event) => {
                                     if (!expanderClicked(event)) {
@@ -462,7 +555,7 @@ export class TableElement<T = unknown> extends LitElement {
                                             @cds-checkbox-changed=${(event: CustomEvent<{ checked: boolean }>) => this.selectItem(item, event.detail.checked)}>Select</cds-checkbox>
                                     </cds-table-cell>
                                 ` : nothing}
-                                ${this.columns.map((column, index) => html`<cds-table-cell>${index === 0 ? html`<button type="button" class="open">${column.cell(item)}</button>` : column.cell(item)}</cds-table-cell>`)}
+                                ${this.columns.map((column, index) => html`<cds-table-cell class=${column.align === 'end' ? 'end-aligned' : ''}>${index === 0 ? html`<button type="button" class="open">${column.cell(item)}</button>` : column.cell(item)}</cds-table-cell>`)}
                             </cds-table-row>
                             ${expand ? html`
                                 <cds-table-expanded-row ?expanded=${expanded} colspan=${this.columns.length + 1 + (selectable ? 1 : 0)}>
@@ -473,8 +566,8 @@ export class TableElement<T = unknown> extends LitElement {
                     })}
                 </cds-table-body>
             </cds-table>
-            ${state.items.length === 0 ? html`<div class="empty">${this.empty}</div>` : nothing}
-            ${state.total > 0 ? html`
+            ${state.items.length === 0 && !state.failed ? html`<div class="empty">${this.empty}</div>` : nothing}
+            ${this.scrolls ? this.renderMore(state) : state.total > 0 ? html`
                 <cds-pagination .page=${state.page} .pageSize=${state.pageSize} .start=${(state.page - 1) * state.pageSize}
                     .totalItems=${state.total}
                     @cds-pagination-changed-current=${(event: CustomEvent<{ page: number }>) => this.controller?.setPage(event.detail.page)}
@@ -483,6 +576,42 @@ export class TableElement<T = unknown> extends LitElement {
                 </cds-pagination>
             ` : nothing}
         `;
+    }
+
+    // renderMore returns what's beneath a table which scrolls: the end,
+    // which loads more when it's scrolled to, while there are more, saying
+    // they're loading, or that they couldn't be, with Try again, or else how
+    // many there are
+    private renderMore(state: ListState<T>) {
+        if (state.failed) {
+            return html`
+                <div class="more">
+                    <span>${state.items?.length ? "More couldn't be loaded" : "They couldn't be loaded"}</span>
+                    <cds-button kind="ghost" size="sm" @click=${() => void this.controller?.loadMore()}>Try again</cds-button>
+                </div>
+            `;
+        } else if (state.more) {
+            return html`<div class="more end">${state.loading ? 'Loading…' : ''}</div>`;
+        } else if (this.countLabel && state.items?.length) {
+            return html`<div class="more">${this.countLabel(state.total)}</div>`;
+        }
+        return nothing;
+    }
+
+    // watchEnd watches the end of a table which scrolls, once it's
+    // rendered, and loads more when it's scrolled to, within 200px
+    private watchEnd() {
+        this.observer?.disconnect();
+        this.observer = undefined;
+        const end = this.renderRoot.querySelector('.more.end');
+        if (this.scrolls && end && typeof IntersectionObserver !== 'undefined') {
+            this.observer = new IntersectionObserver((entries) => {
+                if (entries.some((entry) => entry.isIntersecting)) {
+                    void this.controller?.loadMore();
+                }
+            }, { rootMargin: '200px' });
+            this.observer.observe(end);
+        }
     }
 
     // renderToolbar returns the toolbar, with its search and settings, and
@@ -583,14 +712,16 @@ export class TableElement<T = unknown> extends LitElement {
     // server, when it's clicked, when the column can be sorted. Carbon's
     // table, which sorts the rows on the page itself, isn't told.
     private renderHeader(column: Column<T>, sort?: Sort) {
+        const style = column.width ? `width: ${column.width}` : '';
+        const align = column.align === 'end' ? 'end-aligned' : '';
         if (column.sort === undefined) {
-            return html`<cds-table-header-cell>${column.header}</cds-table-header-cell>`;
+            return html`<cds-table-header-cell class=${align} style=${style}>${column.header}</cds-table-header-cell>`;
         }
         const key = column.sort;
         const first = column.sortFirst ?? 'descending';
         const direction = sort?.key === key ? sort.direction : 'none';
         return html`
-            <cds-table-header-cell is-sortable sort-direction=${direction} sort-cycle=${first === 'descending' ? 'bi-states-from-descending' : 'bi-states-from-ascending'}
+            <cds-table-header-cell class=${align} style=${style} is-sortable sort-direction=${direction} sort-cycle=${first === 'descending' ? 'bi-states-from-descending' : 'bi-states-from-ascending'}
                 @cds-table-header-cell-sort=${(event: CustomEvent<{ sortDirection: string }>) => {
                     event.preventDefault();
                     event.stopPropagation();
@@ -737,6 +868,17 @@ function disclose(row: Element) {
             root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
         }
     });
+}
+
+// minWidth returns the least width of a table of fixed columns: their
+// widths, and --gs-table-column-width, 12rem by default, of each without
+// one, and of the checkboxes which select rows
+function minWidth<T>(columns: readonly Column<T>[], selectable: boolean): string {
+    const widths = columns.map((column) => column.width ?? 'var(--gs-table-column-width, 12rem)');
+    if (selectable) {
+        widths.push('3rem');
+    }
+    return `calc(${widths.join(' + ')})`;
 }
 
 function renderIcon(icon: unknown) {
