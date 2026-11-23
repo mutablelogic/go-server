@@ -106,11 +106,13 @@ export interface TableSelection<T = unknown> {
 }
 
 // TableSetting is a setting in a table's toolbar's menu, such as Show
-// disabled, which is checked when it's on
+// disabled, which is checked when it's on, and can't be chosen when it's
+// disabled, such as the last of the columns which are shown
 export interface TableSetting {
     key: string;
     label: string;
     checked: boolean;
+    disabled?: boolean;
 }
 
 // TableSearchEvent is fired, with what's typed in the toolbar's search,
@@ -329,30 +331,6 @@ export class TableElement<T = unknown> extends LitElement {
         cds-table-cell.select {
             width: 3rem;
             padding-right: 0;
-        }
-
-        /* What's said to assistive technology, but not shown, such as
-           whether a setting is on */
-        .visually-hidden {
-            position: absolute;
-            width: 1px;
-            height: 1px;
-            overflow: hidden;
-            clip: rect(0 0 0 0);
-            white-space: nowrap;
-        }
-
-        /* A setting in the toolbar's menu has a checkmark when it's on, and
-           space for one when it isn't */
-        .setting {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .setting .check {
-            display: inline-flex;
-            width: 1rem;
         }
 
         cds-table-row[data-selected] cds-table-cell {
@@ -688,11 +666,15 @@ export class TableElement<T = unknown> extends LitElement {
                         <span slot="tooltip-content">Settings</span>
                         <cds-overflow-menu-body flipped>
                             ${this.settings.map((setting) => html`
-                                <cds-overflow-menu-item @click=${() => this.dispatchEvent(new CustomEvent<TableSettingChange>(TableSettingEvent, {
-                                    detail: { key: setting.key, checked: !setting.checked }, bubbles: true, composed: true,
-                                }))}>
-                                    <span class="setting">
-                                        <span class="check">${setting.checked ? checkmarkIcon : nothing}</span>${setting.label}<span class="visually-hidden">, ${setting.checked ? 'on' : 'off'}</span>
+                                <cds-overflow-menu-item ?disabled=${setting.disabled} @click=${() => {
+                                    if (!setting.disabled) {
+                                        this.dispatchEvent(new CustomEvent<TableSettingChange>(TableSettingEvent, {
+                                            detail: { key: setting.key, checked: !setting.checked }, bubbles: true, composed: true,
+                                        }));
+                                    }
+                                }}>
+                                    <span style=${settingStyle}>
+                                        <span style=${checkStyle}>${setting.checked ? checkmarkIcon : nothing}</span>${setting.label}<span style=${visuallyHiddenStyle}>, ${setting.checked ? 'on' : 'off'}</span>
                                     </span>
                                 </cds-overflow-menu-item>
                             `)}
@@ -909,6 +891,14 @@ function minWidth<T>(columns: readonly Column<T>[], selectable: boolean): string
     }
     return `calc(${widths.join(' + ')})`;
 }
+
+// The styles of a setting in the toolbar's menu, which are inline, as
+// Carbon moves the menu out of the table's shadow root, whose styles don't
+// reach it: its checkmark when it's on, and space for one when it isn't,
+// and whether it's on, which is said to assistive technology, but not shown
+const settingStyle = 'display: inline-flex; align-items: center; gap: 0.5rem';
+const checkStyle = 'display: inline-flex; width: 1rem; height: 1rem';
+const visuallyHiddenStyle = 'position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap';
 
 function renderIcon(icon: unknown) {
     if (typeof icon === 'object' && icon !== null && 'elem' in icon) {
