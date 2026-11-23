@@ -149,6 +149,7 @@ export class TableElement<T = unknown> extends LitElement {
         settings: { attribute: false },
         toolbarActions: { attribute: false },
         scrolls: { type: Boolean, reflect: true },
+        selectable: { type: Boolean },
         size: { type: String },
         countLabel: { attribute: false },
         running: { state: true },
@@ -184,6 +185,11 @@ export class TableElement<T = unknown> extends LitElement {
     // rows selectable, with a checkbox, when they're set. The selection is
     // kept across pages, and shown, with the actions, above the table.
     declare actions?: TableAction<T>[];
+
+    // selectable makes the rows selectable, with a checkbox, without batch
+    // actions, such as of a toolbar action which runs with the selection,
+    // which gs-table-selection says has changed
+    declare selectable: boolean;
 
     // search is the placeholder of a search in the toolbar, such as Search
     // certificates, which shows it, when it's set, and fires
@@ -432,6 +438,7 @@ export class TableElement<T = unknown> extends LitElement {
         this.columns = [];
         this.empty = 'Nothing';
         this.scrolls = false;
+        this.selectable = false;
         this.expanded = new Set();
         this.selected = new Map();
         this.busy = false;
@@ -513,7 +520,7 @@ export class TableElement<T = unknown> extends LitElement {
         // selects the page, and the actions above it, while there's a
         // selection.
         const expand = this.expand;
-        const selectable = !!this.actions?.length;
+        const selectable = this.selectable || !!this.actions?.length;
         const items = state.items;
         const onPage = items.filter((item) => this.selected.has(this.keyOf(item))).length;
         const fixed = this.columns.some((column) => column.width);
@@ -626,14 +633,14 @@ export class TableElement<T = unknown> extends LitElement {
     // from the table, so it stays while the table is loading, as when the
     // list is filtered by its search, which keeps what's typed, and focus.
     private renderToolbar() {
-        const selectable = !!this.actions?.length;
-        if (!(selectable && this.selected.size) && !this.search && !this.settings?.length && !this.toolbarActions?.length) {
+        const batch = !!this.actions?.length;
+        if (!(batch && this.selected.size) && !this.search && !this.settings?.length && !this.toolbarActions?.length) {
             return nothing;
         }
         return html`
             <cds-table-toolbar>
                 ${this.renderToolbarContent()}
-                ${selectable ? html`
+                ${batch ? html`
                     <cds-table-batch-actions ?active=${this.selected.size > 0} selected-rows-count=${this.selected.size}
                         @cds-table-batch-actions-cancel-clicked=${() => this.clearSelection()}>
                         ${this.actions!.map((action) => html`
