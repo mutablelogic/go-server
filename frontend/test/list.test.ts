@@ -182,4 +182,158 @@ test('ListController', async (t) => {
         assert.deepEqual(list.current.items, []);
         assert.deepEqual(errors, ["Roles couldn't be loaded"]);
     });
+
+    await t.test('scroll', async () => {
+        // A list which scrolls loads a page, then adds the next, after the
+        // last item, until there are no more, of its count
+        const items = Array.from({ length: 25 }, (_, i) => ({ name: `item${i}` }));
+        const afters: (string | undefined)[] = [];
+        const list = new ListController<Item>({
+            name: 'Items', scroll: true, pageSize: 10, same: (a, b) => a.name === b.name,
+            list: async (offset, limit, _sort, after) => {
+                afters.push(after?.name);
+                return pages(items)(offset, limit);
+            },
+        });
+        await list.load();
+        assert.equal(list.current.items?.length, 10);
+        assert.equal(list.current.more, true);
+        await list.loadMore();
+        assert.equal(list.current.items?.length, 20);
+        assert.equal(list.current.items?.[10].name, 'item10');
+        await list.loadMore();
+        assert.equal(list.current.items?.length, 25);
+        assert.equal(list.current.more, false);
+        assert.equal(list.current.total, 25);
+        await list.loadMore();
+        assert.deepEqual(afters, [undefined, 'item9', 'item19']);
+
+        // It's loaded again, as many as are loaded, from its start
+        items[0] = { name: 'changed' };
+        await list.refresh();
+        assert.equal(list.current.items?.length, 25);
+        assert.equal(list.current.items?.[0].name, 'changed');
+    });
+
+    await t.test('scroll without a count', async () => {
+        // Without a count, there are more while pages are full, or as a page
+        // says, and the total is what's loaded
+        const items = Array.from({ length: 15 }, (_, i) => ({ name: `item${i}` }));
+        const list = new ListController<Item>({
+            name: 'Items', scroll: true, pageSize: 10, same: (a, b) => a.name === b.name,
+            list: async (offset, limit) => ({ body: items.slice(offset, offset + limit) }),
+        });
+        await list.load();
+        assert.equal(list.current.more, true);
+        assert.equal(list.current.total, 10);
+        await list.loadMore();
+        assert.equal(list.current.more, false);
+        assert.equal(list.current.total, 15);
+    });
+
+    await t.test('scroll fails', async () => {
+        // More which can't be loaded say so, until they're loaded
+        let fail = false;
+        const list = new ListController<Item>({
+            name: 'Items', scroll: true, pageSize: 2, same: (a, b) => a.name === b.name,
+            list: async (offset, limit) => {
+                if (fail) {
+                    throw new Error('it failed');
+                }
+                return { count: 4, body: [{ name: `a${offset}` }, { name: `a${offset + 1}` }].slice(0, limit) };
+            },
+        });
+        await list.load();
+        fail = true;
+        await list.loadMore();
+        assert.equal(list.current.failed, true);
+        assert.equal(list.current.items?.length, 2);
+        fail = false;
+        await list.loadMore();
+        assert.equal(list.current.failed, false);
+        assert.equal(list.current.items?.length, 4);
+    });
+
+    await t.test('scroll sort', async () => {
+        // Sorting a list which scrolls loads it from its start, loading
+        const list = new ListController<Item>({
+            name: 'Items', scroll: true, pageSize: 2, same: (a, b) => a.name === b.name,
+            list: async (offset, limit, sort) => ({ count: 6, body: [{ name: `${sort?.direction ?? 'none'}${offset}` }, { name: `${sort?.direction ?? 'none'}${offset + 1}` }] }),
+        });
+        await list.load();
+        await list.loadMore();
+        assert.equal(list.current.items?.length, 4);
+        const states: ListState<Item>[] = [];
+        list.subscribe((state) => states.push(state));
+        list.setSort({ key: 'name', direction: 'ascending' });
+        await list.refresh();
+        assert.equal(states[1].items, undefined);
+        assert.deepEqual(list.current.items?.map((item) => item.name), ['ascending0', 'ascending1']);
+    });
+
+    await t.test('scroll fails to load', async () => {
+        // A list which scrolls, which can't be loaded, failed, and loads its
+        // first page when more are loaded, and it's loading while it's
+        // loaded again
+        let fail = true;
+        const list = new ListController<Item>({
+            name: 'Items', scroll: true, pageSize: 2, same: (a, b) => a.name === b.name,
+            list: async () => {
+                if (fail) {
+                    throw new Error('it failed');
+                }
+                return { count: 1, body: [{ name: 'a' }] };
+            },
+        });
+        await list.load();
+        assert.deepEqual([list.current.items, list.current.failed, list.current.more], [[], true, true]);
+        fail = false;
+        await list.loadMore();
+        assert.deepEqual([list.current.items?.length, list.current.failed, list.current.more], [1, false, false]);
+        const refresh = list.refresh();
+        assert.equal(list.current.loading, true);
+        await refresh;
+        assert.equal(list.current.loading, false);
+    });
+
+    await t.test('scroll refresh ignores more which are loading', async () => {
+        // More which were loading before the list is loaded again aren't
+        // added, nor do they fail it
+        let release: (() => void) | undefined;
+        let fail = false;
+        const list = new ListController<Item>({
+            name: 'Items', scroll: true, pageSize: 2, same: (a, b) => a.name === b.name,
+            list: async (offset) => {
+                if (offset > 0) {
+                    await new Promise<void>((resolve) => { release = resolve; });
+                    if (fail) {
+                        throw new Error('it failed');
+                    }
+                }
+                return { count: 4, body: [{ name: `a${offset}` }, { name: `a${offset + 1}` }] };
+            },
+        });
+        await list.load();
+        const more = list.loadMore();
+        await waitFor(() => release !== undefined);
+        await list.refresh();
+        fail = true;
+        release?.();
+        await more;
+        assert.deepEqual(list.current.items?.map((item) => item.name), ['a0', 'a1']);
+        assert.equal(list.current.failed, false);
+    });
+
+    await t.test('scroll keeps the opened item, as it is loaded', async () => {
+        // An item which is opened, which a later page has, is that page's
+        const list = new ListController<Item>({
+            name: 'Items', scroll: true, pageSize: 2, same: (a, b) => a.name === b.name,
+            list: async (offset) => ({ count: 4, body: [{ name: `a${offset}`, n: offset }, { name: `a${offset + 1}`, n: offset + 1 }] }),
+        });
+        await list.load();
+        list.open({ name: 'a3' });
+        await list.loadMore();
+        assert.equal(list.current.selected, list.current.items?.[3]);
+        assert.equal(list.current.selected?.n, 3);
+    });
 });
