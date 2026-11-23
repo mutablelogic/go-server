@@ -157,8 +157,12 @@ export class PanelController<T = unknown> {
                 this.errors.forEach((fn) => fn(error, action));
                 return false;
             } finally {
+                // It's done, so the panel isn't running, which its listeners
+                // are told, even when the action isn't one of its actions any
+                // more, such as when it replaced them, so their buttons aren't
+                // left disabled
                 this.pending = undefined;
-                this.setRunning(action, false);
+                this.update({ actions: this.states(this.state.actions) });
             }
         }
         if (state.close !== false) {
@@ -201,7 +205,7 @@ export class PanelController<T = unknown> {
         return actions.map((action) => ({ ...action, running: pending !== undefined && same(pending, action) }));
     }
 
-    // setRunning sets whether the action is running, when it's still one of
+    // setRunning sets that the action is running, when it's still one of
     // the panel's actions
     private setRunning(action: PanelAction, running: boolean) {
         if (this.state.actions.some((state) => same(state, action) && state.running !== running)) {

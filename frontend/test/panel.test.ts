@@ -94,6 +94,25 @@ test('PanelController', async (t) => {
         assert.deepEqual(panel.current.actions.map((action) => action.label), ['Done']);
     });
 
+    await t.test('replaced while running', async () => {
+        // An action which replaces the panel's actions while it runs, such as
+        // Add, which asks to sign in first, of Sign in, isn't running once
+        // it's done, which the listeners are told, so the action which
+        // replaced it can be run
+        const signIn: PanelAction = { label: 'Sign in', close: false, run: () => {} };
+        const panel = new PanelController<string>();
+        const add: PanelAction = { label: 'Add', close: false, run: async () => { panel.setActions([signIn]); } };
+        panel.setActions([add]);
+        panel.open('one');
+        const running: boolean[] = [];
+        panel.subscribe(() => running.push(panel.running));
+        assert.equal(await panel.run(add), true);
+        assert.equal(panel.running, false);
+        assert.equal(running.at(-1), false, 'the last state the listeners are told of isn\'t running');
+        assert.deepEqual(panel.current.actions.map((action) => [action.label, action.running]), [['Sign in', false]]);
+        assert.equal(await panel.run(signIn), true);
+    });
+
     await t.test('tabs', async () => {
         // A panel of tabs has the actions of the tab which is chosen, which is
         // the first which isn't disabled, by default
