@@ -150,6 +150,7 @@ export class TableElement<T = unknown> extends LitElement {
         toolbarActions: { attribute: false },
         scrolls: { type: Boolean, reflect: true },
         size: { type: String },
+        toolbarSize: { type: String, attribute: 'toolbar-size' },
         countLabel: { attribute: false },
         running: { state: true },
         empty: { type: String },
@@ -207,6 +208,13 @@ export class TableElement<T = unknown> extends LitElement {
     // size is the size of the table's rows, Carbon's, such as sm, or lg, by
     // default
     declare size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+
+    // toolbarSize is the size of the toolbar, and its search, settings,
+    // and buttons, and of the batch actions bar, of Carbon's sizes of a
+    // toolbar, which are xs, sm and lg, of 24, 32 and 48 pixels, which is of
+    // the table's size by default, as Carbon's table's is: sm, or xs, of
+    // those, and otherwise lg
+    declare toolbarSize?: 'xs' | 'sm' | 'lg';
 
     // countLabel says how many items there are, beneath a table which
     // scrolls, once they're all loaded, such as 12 files
@@ -631,13 +639,13 @@ export class TableElement<T = unknown> extends LitElement {
             return nothing;
         }
         return html`
-            <cds-table-toolbar>
+            <cds-table-toolbar size=${this.toolbarSizeOf()}>
                 ${this.renderToolbarContent()}
                 ${selectable ? html`
-                    <cds-table-batch-actions ?active=${this.selected.size > 0} selected-rows-count=${this.selected.size}
+                    <cds-table-batch-actions size=${this.toolbarSizeOf()} ?active=${this.selected.size > 0} selected-rows-count=${this.selected.size}
                         @cds-table-batch-actions-cancel-clicked=${() => this.clearSelection()}>
                         ${this.actions!.map((action) => html`
-                            <cds-button kind=${action.kind ?? 'primary'} ?disabled=${this.busy} @click=${() => this.run(action)}>
+                            <cds-button size=${this.toolbarSizeOf()} kind=${action.kind ?? 'primary'} ?disabled=${this.busy} @click=${() => this.run(action)}>
                                 ${action.label}${action.icon ? renderIcon(action.icon) : nothing}
                             </cds-button>
                         `)}
@@ -657,11 +665,11 @@ export class TableElement<T = unknown> extends LitElement {
         return html`
             <cds-table-toolbar-content>
                 ${this.search ? html`
-                    <cds-table-toolbar-search persistent placeholder=${this.search}
+                    <cds-table-toolbar-search size=${this.toolbarSizeOf()} persistent placeholder=${this.search}
                         @cds-search-input=${(event: CustomEvent<{ value: string }>) => this.searched(event.detail.value)}></cds-table-toolbar-search>
                 ` : nothing}
                 ${this.settings?.length ? html`
-                    <cds-overflow-menu toolbar-action>
+                    <cds-overflow-menu size=${this.toolbarSizeOf()} toolbar-action>
                         ${settingsIcon}
                         <span slot="tooltip-content">Settings</span>
                         <cds-overflow-menu-body flipped>
@@ -682,12 +690,22 @@ export class TableElement<T = unknown> extends LitElement {
                     </cds-overflow-menu>
                 ` : nothing}
                 ${(this.toolbarActions ?? []).map((action) => html`
-                    <cds-button kind=${action.kind ?? 'primary'} ?disabled=${action.disabled || this.running.has(action)} @click=${() => this.runToolbar(action)}>
+                    <cds-button size=${this.toolbarSizeOf()} kind=${action.kind ?? 'primary'} ?disabled=${action.disabled || this.running.has(action)} @click=${() => this.runToolbar(action)}>
                         ${action.label}${action.icon ? renderIcon(action.icon) : nothing}
                     </cds-button>
                 `)}
             </cds-table-toolbar-content>
         `;
+    }
+
+    // toolbarSizeOf returns the size of the toolbar: its own, or of the
+    // table's, sm, or xs, of those, and otherwise lg, as Carbon's table's is
+    private toolbarSizeOf(): string {
+        if (this.toolbarSize) {
+            return this.toolbarSize;
+        }
+        const size = this.size ?? 'lg';
+        return size === 'xs' || size === 'sm' ? size : 'lg';
     }
 
     // runToolbar runs a toolbar action, while its button is disabled, and
