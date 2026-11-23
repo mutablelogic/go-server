@@ -30,6 +30,7 @@ import '@carbon/web-components/es/components/checkbox/index.js';
 import '@carbon/web-components/es/components/data-table/index.js';
 import '@carbon/web-components/es/components/overflow-menu/index.js';
 import '@carbon/web-components/es/components/pagination/index.js';
+import '@carbon/web-components/es/components/skeleton-text/index.js';
 
 // Column is a column of the table: its header, its cell of an item, and
 // the key the list is sorted by, by the server, when it can be, and which
@@ -310,6 +311,17 @@ export class TableElement<T = unknown> extends LitElement {
             cursor: pointer;
         }
 
+        /* The skeleton's rows, of more which are loading, aren't chosen */
+        cds-table-row.skeleton {
+            cursor: default;
+            pointer-events: none;
+        }
+
+        cds-table-row.skeleton cds-skeleton-text {
+            display: block;
+            max-width: 75%;
+        }
+
         /* The item which is opened */
         /* The checkboxes which select rows, for batch actions, are a narrow
            column */
@@ -403,6 +415,10 @@ export class TableElement<T = unknown> extends LitElement {
 
         /* Beneath a table which scrolls: more which are loading, which
            couldn't be, or how many there are */
+        .more.end {
+            min-height: 0;
+        }
+
         .more {
             display: flex;
             align-items: center;
@@ -564,6 +580,7 @@ export class TableElement<T = unknown> extends LitElement {
                             ` : nothing}
                         `;
                     })}
+                    ${this.scrolls && state.more && !state.failed ? this.renderSkeletonRows(selectable) : nothing}
                 </cds-table-body>
             </cds-table>
             ${state.items.length === 0 && !state.failed ? html`<div class="empty">${this.empty}</div>` : nothing}
@@ -578,10 +595,22 @@ export class TableElement<T = unknown> extends LitElement {
         `;
     }
 
+    // renderSkeletonRows returns rows of Carbon's skeleton, whose grey bars
+    // are animated, at the end of a table which scrolls, while there are
+    // more, which are loaded as they're scrolled to
+    private renderSkeletonRows(selectable: boolean) {
+        return [0, 1, 2].map(() => html`
+            <cds-table-row size=${this.size ?? 'lg'} class="skeleton" aria-hidden="true">
+                ${selectable ? html`<cds-table-cell class="select"></cds-table-cell>` : nothing}
+                ${this.columns.map(() => html`<cds-table-cell><cds-skeleton-text></cds-skeleton-text></cds-table-cell>`)}
+            </cds-table-row>
+        `);
+    }
+
     // renderMore returns what's beneath a table which scrolls: the end,
-    // which loads more when it's scrolled to, while there are more, saying
-    // they're loading, or that they couldn't be, with Try again, or else how
-    // many there are
+    // which loads more when it's scrolled to, while there are more, beneath
+    // the skeleton's rows, or that they couldn't be, with Try again, or else
+    // how many there are
     private renderMore(state: ListState<T>) {
         if (state.failed) {
             return html`
@@ -591,7 +620,7 @@ export class TableElement<T = unknown> extends LitElement {
                 </div>
             `;
         } else if (state.more) {
-            return html`<div class="more end">${state.loading ? 'Loading…' : ''}</div>`;
+            return html`<div class="more end" aria-busy=${state.loading ? 'true' : 'false'}></div>`;
         } else if (this.countLabel && state.items?.length) {
             return html`<div class="more">${this.countLabel(state.total)}</div>`;
         }
