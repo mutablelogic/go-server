@@ -162,7 +162,9 @@ export class ListController<T> {
                 const { page, pageSize, sort } = this.state;
                 const generation = this.generation;
                 if (this.options.scroll) {
-                    await this.refreshScroll(generation);
+                    // More which are loading, from before, are ignored, as
+                    // what's loaded is replaced
+                    await this.refreshScroll(++this.generation);
                     continue;
                 }
                 try {
@@ -219,7 +221,7 @@ export class ListController<T> {
                 }
                 const body = list.body ?? [];
                 const loaded = [...items, ...body];
-                this.update({ items: loaded, total: list.count ?? loaded.length, more: hasMore(list, items.length, pageSize), loading: false });
+                this.update({ items: loaded, total: list.count ?? loaded.length, more: hasMore(list, items.length, pageSize), loading: false, selected: this.loadedSelected(body) });
             } catch {
                 if (generation === this.generation) {
                     this.update({ loading: false, failed: true });
@@ -261,6 +263,17 @@ export class ListController<T> {
         if (this.state.selected !== undefined) {
             this.update({ selected: undefined });
         }
+    }
+
+    // loadedSelected returns the item which is opened, as it's loaded, when
+    // it's of the items, such as once a sort moves it to a later page, so
+    // it's the same item the views show, or else as it is
+    private loadedSelected(items: readonly T[]): T | undefined {
+        const selected = this.state.selected;
+        if (selected === undefined) {
+            return undefined;
+        }
+        return items.find((item) => this.options.same(item, selected)) ?? selected;
     }
 
     // refreshScroll loads a list which scrolls again, from its start, as

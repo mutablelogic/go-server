@@ -295,4 +295,45 @@ test('ListController', async (t) => {
         await refresh;
         assert.equal(list.current.loading, false);
     });
+
+    await t.test('scroll refresh ignores more which are loading', async () => {
+        // More which were loading before the list is loaded again aren't
+        // added, nor do they fail it
+        let release: (() => void) | undefined;
+        let fail = false;
+        const list = new ListController<Item>({
+            name: 'Items', scroll: true, pageSize: 2, same: (a, b) => a.name === b.name,
+            list: async (offset) => {
+                if (offset > 0) {
+                    await new Promise<void>((resolve) => { release = resolve; });
+                    if (fail) {
+                        throw new Error('it failed');
+                    }
+                }
+                return { count: 4, body: [{ name: `a${offset}` }, { name: `a${offset + 1}` }] };
+            },
+        });
+        await list.load();
+        const more = list.loadMore();
+        await waitFor(() => release !== undefined);
+        await list.refresh();
+        fail = true;
+        release?.();
+        await more;
+        assert.deepEqual(list.current.items?.map((item) => item.name), ['a0', 'a1']);
+        assert.equal(list.current.failed, false);
+    });
+
+    await t.test('scroll keeps the opened item, as it is loaded', async () => {
+        // An item which is opened, which a later page has, is that page's
+        const list = new ListController<Item>({
+            name: 'Items', scroll: true, pageSize: 2, same: (a, b) => a.name === b.name,
+            list: async (offset) => ({ count: 4, body: [{ name: `a${offset}`, n: offset }, { name: `a${offset + 1}`, n: offset + 1 }] }),
+        });
+        await list.load();
+        list.open({ name: 'a3' });
+        await list.loadMore();
+        assert.equal(list.current.selected, list.current.items?.[3]);
+        assert.equal(list.current.selected?.n, 3);
+    });
 });
