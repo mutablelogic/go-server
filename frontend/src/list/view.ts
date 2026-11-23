@@ -20,7 +20,7 @@
 import { LitElement, css, html, nothing } from 'lit';
 import iconLoader from '@carbon/web-components/es/globals/internal/icon-loader.js';
 import type { CarbonIconDescriptor } from '@carbon/web-components/es/globals/internal/icon-loader-utils.js';
-import { checkmarkIcon, settingsIcon } from '../internal/icons.ts';
+import { checkmarkIcon, overflowIcon, settingsIcon } from '../internal/icons.ts';
 import { runAction } from '../page/action.ts';
 import type { ListController, ListState, Sort } from './controller.ts';
 
@@ -72,6 +72,19 @@ export interface TableAction<T> {
     run: (items: T[]) => void | PromiseLike<unknown>;
 }
 
+// TableRowAction is an action of a row's item, in its menu of actions, such
+// as Delete: its label, whether it's dangerous, which is red, as Carbon's
+// are, whether a divider is above it, whether it's disabled, and what it
+// runs, with the item. When run throws, or its promise rejects,
+// TableActionErrorEvent is fired.
+export interface TableRowAction<T> {
+    label: string;
+    danger?: boolean;
+    divider?: boolean;
+    disabled?: boolean;
+    run: (item: T) => void | PromiseLike<unknown>;
+}
+
 // TableToolbarAction is a button in a table's toolbar, such as Create: its
 // label, its kind, which is primary by default, its icon, a 16px Carbon icon
 // descriptor, or a rendered icon, whether it's disabled, and what it runs,
@@ -92,7 +105,7 @@ export const TableActionErrorEvent = 'gs-table-action-error';
 
 // TableActionError is the detail of a TableActionErrorEvent
 export interface TableActionError<T = unknown> {
-    action: TableAction<T> | TableToolbarAction;
+    action: TableAction<T> | TableToolbarAction | TableRowAction<T>;
     error: unknown;
 }
 
@@ -145,6 +158,7 @@ export class TableElement<T = unknown> extends LitElement {
         expand: { attribute: false },
         itemKey: { attribute: false },
         actions: { attribute: false },
+        rowActions: { attribute: false },
         search: { type: String },
         settings: { attribute: false },
         toolbarActions: { attribute: false },
@@ -185,6 +199,11 @@ export class TableElement<T = unknown> extends LitElement {
     // rows selectable, with a checkbox, when they're set. The selection is
     // kept across pages, and shown, with the actions, above the table.
     declare actions?: TableAction<T>[];
+
+    // rowActions returns the actions of a row's item, in a menu of them, of
+    // Carbon's overflow menu, at the end of its row, which shows a column of
+    // them, when it's set, and of none, of an item which has none
+    declare rowActions?: (item: T) => TableRowAction<T>[];
 
     // search is the placeholder of a search in the toolbar, such as Search
     // certificates, which shows it, when it's set, and fires
@@ -339,6 +358,20 @@ export class TableElement<T = unknown> extends LitElement {
         cds-table-cell.select {
             width: 3rem;
             padding-right: 0;
+        }
+
+        /* A row's menu of actions is a narrow column, at its end, whose
+           menu is as tall as the row */
+        cds-table-header-cell.row-actions,
+        cds-table-cell.row-actions {
+            box-sizing: border-box;
+            width: 3rem;
+            padding: 0;
+            text-align: end;
+        }
+
+        cds-table-cell.row-actions cds-overflow-menu {
+            block-size: 100%;
         }
 
         cds-table-row[data-selected] cds-table-cell {
@@ -526,7 +559,7 @@ export class TableElement<T = unknown> extends LitElement {
         const onPage = items.filter((item) => this.selected.has(this.keyOf(item))).length;
         const fixed = this.columns.some((column) => column.width);
         return html`
-            <cds-table size=${this.size ?? 'lg'} ?expandable=${!!expand} class=${fixed ? 'fixed' : ''} style=${fixed ? `--gs-table-min-width: ${minWidth(this.columns, selectable)}` : ''}>
+            <cds-table size=${this.size ?? 'lg'} ?expandable=${!!expand} class=${fixed ? 'fixed' : ''} style=${fixed ? `--gs-table-min-width: ${minWidth(this.columns, selectable, !!this.rowActions)}` : ''}>
                 <cds-table-head>
                     <cds-table-header-row ?expandable=${!!expand}>
                         ${selectable ? html`
@@ -537,6 +570,7 @@ export class TableElement<T = unknown> extends LitElement {
                             </cds-table-header-cell>
                         ` : nothing}
                         ${this.columns.map((column) => this.renderHeader(column, state.sort))}
+                        ${this.rowActions ? html`<cds-table-header-cell class="row-actions"><span style=${visuallyHiddenStyle}>Actions</span></cds-table-header-cell>` : nothing}
                     </cds-table-header-row>
                 </cds-table-head>
                 <cds-table-body>
@@ -558,9 +592,10 @@ export class TableElement<T = unknown> extends LitElement {
                                     </cds-table-cell>
                                 ` : nothing}
                                 ${this.columns.map((column, index) => html`<cds-table-cell class=${column.align === 'end' ? 'end-aligned' : ''}>${index === 0 ? html`<button type="button" class="open">${column.cell(item)}</button>` : column.cell(item)}</cds-table-cell>`)}
+                                ${this.rowActions ? this.renderRowActions(item) : nothing}
                             </cds-table-row>
                             ${expand ? html`
-                                <cds-table-expanded-row ?expanded=${expanded} colspan=${this.columns.length + 1 + (selectable ? 1 : 0)}>
+                                <cds-table-expanded-row ?expanded=${expanded} colspan=${this.columns.length + 1 + (selectable ? 1 : 0) + (this.rowActions ? 1 : 0)}>
                                     ${expanded ? expand(item) : nothing}
                                 </cds-table-expanded-row>
                             ` : nothing}
@@ -589,6 +624,7 @@ export class TableElement<T = unknown> extends LitElement {
             <cds-table-row size=${this.size ?? 'lg'} class="skeleton" aria-hidden="true">
                 ${selectable ? html`<cds-table-cell class="select"></cds-table-cell>` : nothing}
                 ${this.columns.map(() => html`<cds-table-cell><cds-skeleton-text></cds-skeleton-text></cds-table-cell>`)}
+                ${this.rowActions ? html`<cds-table-cell class="row-actions"></cds-table-cell>` : nothing}
             </cds-table-row>
         `);
     }
@@ -706,6 +742,40 @@ export class TableElement<T = unknown> extends LitElement {
         }
         const size = this.size ?? 'lg';
         return size === 'xs' || size === 'sm' ? size : 'lg';
+    }
+
+    // renderRowActions returns the menu of the actions of a row's item, of
+    // Carbon's overflow menu, whose clicks don't open, or select, its row,
+    // or nothing, of an item which has none
+    private renderRowActions(item: T) {
+        const actions = this.rowActions?.(item) ?? [];
+        return html`
+            <cds-table-cell class="row-actions" @click=${(event: Event) => event.stopPropagation()}>
+                ${actions.length ? html`
+                    <cds-overflow-menu size=${this.size ?? 'lg'} data-table>
+                        ${overflowIcon}
+                        <span slot="tooltip-content">Actions</span>
+                        <cds-overflow-menu-body flipped>
+                            ${actions.map((action) => html`
+                                <cds-overflow-menu-item ?danger=${action.danger} ?divider=${action.divider} ?disabled=${action.disabled}
+                                    @click=${() => this.runRow(action, item)}>${action.label}</cds-overflow-menu-item>
+                            `)}
+                        </cds-overflow-menu-body>
+                    </cds-overflow-menu>
+                ` : nothing}
+            </cds-table-cell>
+        `;
+    }
+
+    // runRow runs a row's action, with its item, and fires
+    // TableActionErrorEvent when it fails, unless it's disabled
+    private runRow(action: TableRowAction<T>, item: T) {
+        if (action.disabled) {
+            return;
+        }
+        void (async () => action.run(item))().catch((error: unknown) => {
+            this.dispatchEvent(new CustomEvent<TableActionError<T>>(TableActionErrorEvent, { detail: { action, error }, bubbles: true, composed: true }));
+        });
     }
 
     // runToolbar runs a toolbar action, while its button is disabled, and
@@ -901,10 +971,14 @@ function disclose(row: Element) {
 
 // minWidth returns the least width of a table of fixed columns: their
 // widths, and --gs-table-column-width, 12rem by default, of each without
-// one, and of the checkboxes which select rows
-function minWidth<T>(columns: readonly Column<T>[], selectable: boolean): string {
+// one, and of the checkboxes which select rows, and the menus of their
+// actions
+function minWidth<T>(columns: readonly Column<T>[], selectable: boolean, rowActions = false): string {
     const widths = columns.map((column) => column.width ?? 'var(--gs-table-column-width, 12rem)');
     if (selectable) {
+        widths.push('3rem');
+    }
+    if (rowActions) {
         widths.push('3rem');
     }
     return `calc(${widths.join(' + ')})`;
