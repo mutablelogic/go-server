@@ -20,7 +20,9 @@ var remoteAddrHeaders = []string{"X-Real-Ip", "X-Forwarded-For", "CF-Connecting-
 // HTTP SERVER MIDDLEWARE
 
 // HTTPHandler returns an HTTP middleware that instruments requests with
-// otelhttp and logs a request summary after the handler completes.
+// otelhttp and logs a request summary after the handler completes. The path
+// values which the handler marks as secret, with RedactPathValue, such as a
+// token, are replaced by their names, in braces, in the log, and the span.
 func HTTPHandler(serverName string, log *slog.Logger) func(http.Handler) http.Handler {
 	if log == nil {
 		log = slog.Default()
@@ -31,7 +33,20 @@ func HTTPHandler(serverName string, log *slog.Logger) func(http.Handler) http.Ha
 			wrapped := NewResponseWriter(w)
 			start := time.Now()
 
+			// The handler marks the path values which are secret, which are
+			// left out of the log, and the span
+			ctx, red := withRedactions(r.Context())
+			r = r.WithContext(ctx)
+
 			next.ServeHTTP(wrapped, r)
+
+			// The path, and URL, without the values which are secret, which
+			// replace the span's, when there are some
+			path, redacted := red.redact(r.URL.Path)
+			full, _ := red.redact(r.URL.String())
+			if redacted {
+				trace.SpanFromContext(r.Context()).SetAttributes(attribute.String("url.path", path))
+			}
 
 			if r.Pattern != "" {
 				if labeler, ok := otelhttp.LabelerFromContext(r.Context()); ok {
@@ -52,8 +67,8 @@ func HTTPHandler(serverName string, log *slog.Logger) func(http.Handler) http.Ha
 				"http.response.status_text", statusText,
 				"http.response.body.size", wrapped.Size(),
 				"client.address", remoteAddr(r),
-				"url.full", r.URL.String(),
-				"url.path", r.URL.Path,
+				"url.full", full,
+				"url.path", path,
 				"url.query", r.URL.RawQuery,
 				"server.address", r.Host,
 				"server.name", serverName,
@@ -63,7 +78,7 @@ func HTTPHandler(serverName string, log *slog.Logger) func(http.Handler) http.Ha
 				attrs = append(attrs, "trace_id", spanCtx.TraceID().String())
 			}
 
-			msg := fmt.Sprintf("request %s %s -> %d", r.Method, r.URL.Path, status)
+			msg := fmt.Sprintf("request %s %s -> %d", r.Method, path, status)
 			if statusText != "" {
 				msg += " " + statusText
 			}
