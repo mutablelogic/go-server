@@ -33,20 +33,22 @@ func HTTPHandler(serverName string, log *slog.Logger) func(http.Handler) http.Ha
 			wrapped := NewResponseWriter(w)
 			start := time.Now()
 
-			// The handler marks the path values which are secret, which are
-			// left out of the log, and the span
-			ctx, red := withRedactions(r.Context())
-			r = r.WithContext(ctx)
+			// The path values which the handler marks as secret are left out
+			// of the span, whether it returns, or panics, as the span is
+			// exported either way
+			red, u := redactionsFrom(r.Context()), *r.URL
+			defer func() {
+				if path, _, redacted := red.redact(&u); redacted {
+					span := trace.SpanFromContext(r.Context())
+					span.SetName(spanName(r, path))
+					span.SetAttributes(attribute.String("url.path", path))
+				}
+			}()
 
 			next.ServeHTTP(wrapped, r)
 
-			// The path, and URL, without the values which are secret, which
-			// replace the span's, when there are some
-			path, redacted := red.redact(r.URL.Path)
-			full, _ := red.redact(r.URL.String())
-			if redacted {
-				trace.SpanFromContext(r.Context()).SetAttributes(attribute.String("url.path", path))
-			}
+			// And of the log
+			path, full, _ := red.redact(&u)
 
 			if r.Pattern != "" {
 				if labeler, ok := otelhttp.LabelerFromContext(r.Context()); ok {
@@ -95,18 +97,40 @@ func HTTPHandler(serverName string, log *slog.Logger) func(http.Handler) http.Ha
 			}
 		})
 
-		return otelhttp.NewHandler(
+		traced := otelhttp.NewHandler(
 			handler,
 			serverName,
 			otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
-				route := r.Pattern
-				if route == "" {
-					route = r.URL.Path
-				}
-				return r.Method + " " + route
+				return spanName(r, r.URL.Path)
 			}),
 		)
+
+		// The request has the redactions before it's traced, rather than
+		// within, as otelhttp reads what the mux, and the handler, set of the
+		// request it serves, such as its pattern
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			served := r.WithContext(withRedactions(r.Context()))
+
+			// The server removes the files of the request's form, when it's
+			// the request which it made which has it
+			defer func() {
+				if served.MultipartForm != nil {
+					r.MultipartForm = served.MultipartForm
+				}
+			}()
+			traced.ServeHTTP(w, served)
+		})
 	}
+}
+
+// spanName returns the name of the request's span, which is its method, and
+// its pattern, or else the path, when it has none
+func spanName(r *http.Request, path string) string {
+	route := r.Pattern
+	if route == "" {
+		route = path
+	}
+	return r.Method + " " + route
 }
 
 // HTTPHandlerFunc is like HTTPHandler but wraps http.HandlerFunc directly.
