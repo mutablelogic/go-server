@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	// Packages
+	httprequest "github.com/mutablelogic/go-server/pkg/httprequest"
 	otel "github.com/mutablelogic/go-server/pkg/otel"
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
@@ -23,7 +24,7 @@ func TestHTTPHandler_RedactPathValue(t *testing.T) {
 	// A route whose token is secret, and one whose id isn't
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /hook/{token}", func(w http.ResponseWriter, r *http.Request) {
-		otel.RedactPathValue(r, "token", "missing")
+		httprequest.RedactPathValue(r, "token", "missing")
 		w.WriteHeader(http.StatusAccepted)
 	})
 	mux.HandleFunc("GET /item/{id}", func(w http.ResponseWriter, r *http.Request) {
@@ -64,7 +65,7 @@ func TestHTTPHandler_RedactPathValue(t *testing.T) {
 
 	// A request which the middleware isn't serving is ignored
 	plain := httptest.NewRequest(http.MethodPost, "/hook/x", nil)
-	assert.NotPanics(t, func() { otel.RedactPathValue(plain, "token") })
+	assert.NotPanics(t, func() { httprequest.RedactPathValue(plain, "token") })
 }
 
 func TestHTTPHandler_RedactPathValueCases(t *testing.T) {
@@ -102,7 +103,7 @@ func TestHTTPHandler_RedactPathValueCases(t *testing.T) {
 			called := false
 			mux.HandleFunc(test.pattern, func(w http.ResponseWriter, r *http.Request) {
 				called = true
-				otel.RedactPathValue(r, test.names...)
+				httprequest.RedactPathValue(r, test.names...)
 			})
 			var logs bytes.Buffer
 			handler := otel.HTTPHandler("test", slog.New(slog.NewJSONHandler(&logs, nil)))(mux)
@@ -137,7 +138,7 @@ func TestHTTPHandler_RedactPathValueWithoutPattern(t *testing.T) {
 	// request, whose span would be named by its path
 	mux := http.NewServeMux()
 	mux.HandleFunc("/hook/{token}", func(w http.ResponseWriter, r *http.Request) {
-		otel.RedactPathValue(r, "token")
+		httprequest.RedactPathValue(r, "token")
 	})
 	router := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mux.ServeHTTP(w, r.WithContext(r.Context()))
@@ -156,7 +157,7 @@ func TestHTTPHandler_RedactPathValuePanic(t *testing.T) {
 	// A handler which panics, whose panic isn't swallowed
 	mux := http.NewServeMux()
 	mux.HandleFunc("/hook/{token}", func(w http.ResponseWriter, r *http.Request) {
-		otel.RedactPathValue(r, "token")
+		httprequest.RedactPathValue(r, "token")
 		panic("failed")
 	})
 	const token = "s3cretTOKENvalue"

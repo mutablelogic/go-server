@@ -1,4 +1,4 @@
-package otel
+package httprequest
 
 import (
 	"cmp"
@@ -14,8 +14,7 @@ import (
 // TYPES
 
 // redactions are the path values of a request which are secret, by their
-// names, which a handler marks, with RedactPathValue, and the middleware
-// leaves out of its log, and its span
+// names, which are left out of what's logged, and traced, of it
 type redactions struct {
 	mu     sync.Mutex
 	values map[string]string // The values, by their names
@@ -27,13 +26,34 @@ type redactKey struct{}
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-// RedactPathValue marks the request's path values, by their names, such as
-// a token in /hook/{token}, as secret, so HTTPHandler's log, and span, have
-// the path with {token} in the value's place, including when the handler
-// panics. A handler calls it, of a request which HTTPHandler is serving,
-// before it does anything else. A name without a value is ignored, as is a
-// request which HTTPHandler isn't serving. Only the path is redacted, rather
-// than the query.
+// Redact returns the handler, whose requests' path values of the names, such
+// as a token in /hook/{token}, are secret, and whose requests can have more
+// marked, with RedactPathValue. A router wraps the middleware of a route
+// with it, whose path parameters are secret, so they're secret whichever
+// handler, or middleware, answers.
+func Redact(next http.HandlerFunc, names ...string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		served := r
+		if redactionsFrom(r.Context()) == nil {
+			served = r.WithContext(context.WithValue(r.Context(), redactKey{}, &redactions{values: make(map[string]string)}))
+
+			// The server removes the files of a request's form, of the
+			// request which it made
+			defer func() {
+				if served.MultipartForm != nil {
+					r.MultipartForm = served.MultipartForm
+				}
+			}()
+		}
+		RedactPathValue(served, names...)
+		next(w, served)
+	}
+}
+
+// RedactPathValue marks the request's path values, by their names, as
+// secret, so they're left out of what's logged, and traced, of it. A name
+// without a value is ignored, as is a request which Redact isn't serving.
+// Only the path is redacted, rather than the query.
 func RedactPathValue(r *http.Request, names ...string) {
 	red := redactionsFrom(r.Context())
 	if red == nil {
@@ -48,13 +68,15 @@ func RedactPathValue(r *http.Request, names ...string) {
 	}
 }
 
+// RedactedURL returns the path of the URL, and the URL, of the context's
+// request, as they can be logged, with the name, in braces, in place of each
+// path value which is secret, and whether there were any
+func RedactedURL(ctx context.Context, u *url.URL) (path, full string, redacted bool) {
+	return redactionsFrom(ctx).redact(u)
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
-
-// withRedactions returns the context, with redactions, which handlers mark
-func withRedactions(ctx context.Context) context.Context {
-	return context.WithValue(ctx, redactKey{}, &redactions{values: make(map[string]string)})
-}
 
 // redactionsFrom returns the redactions of the context, or nil
 func redactionsFrom(ctx context.Context) *redactions {

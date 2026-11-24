@@ -230,7 +230,9 @@ func (r *Router) RegisterFS(path string, fs fs.FS, middleware bool, spec *openap
 }
 
 // Register registers a [PathItem] handler at path. If path is relative
-// the router prefix is prepended. Any security schemes referenced by the
+// the router prefix is prepended. A path parameter whose format in params is
+// "password", such as a token, is secret, and is left out of the log, and
+// the traces, of the path's requests. Any security schemes referenced by the
 // path item's OpenAPI operations must already be registered on the router;
 // matching handlers are wrapped with those security schemes before the
 // router's middleware chain is applied.
@@ -247,7 +249,9 @@ func (r *Router) Register(path string, params *jsonschema.Schema, fn func(pathit
 }
 
 // RegisterPath registers a [PathItem] handler at path. If path is relative
-// the router prefix is prepended. Any security schemes referenced by the
+// the router prefix is prepended. A path parameter whose format in params is
+// "password", such as a token, is secret, and is left out of the log, and
+// the traces, of the path's requests. Any security schemes referenced by the
 // path item's OpenAPI operations must already be registered on the router;
 // matching handlers are wrapped with those security schemes before the
 // router's middleware chain is applied.
@@ -309,12 +313,33 @@ func (r *Router) RegisterPath(path string, params *jsonschema.Schema, pathitem h
 		return httpresponse.ErrNotImplemented.Withf("path item %q has no handlers", path)
 	}
 
-	// Register the handler
-	return r.safeHandle(path, r.middleware.Wrap(handler))
+	// Register the handler, whose path parameters which are secret are left
+	// out of the log, and the traces, of every request which the path
+	// matches, whichever middleware, or method, answers
+	wrapped := r.middleware.Wrap(handler)
+	if names := secretParameters(spec); len(names) > 0 {
+		wrapped = httprequest.Redact(wrapped, names...)
+	}
+	return r.safeHandle(path, wrapped)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
+
+// secretParameters returns the names of the path's parameters which are
+// secret, whose format is password
+func secretParameters(spec *openapi.PathItem) []string {
+	if spec == nil {
+		return nil
+	}
+	var names []string
+	for _, param := range spec.Parameters {
+		if param.In == openapi.ParameterInPath && param.Schema != nil && param.Schema.Format == "password" {
+			names = append(names, param.Name)
+		}
+	}
+	return names
+}
 
 // pageExts are the extensions of a page's own files, which change with each
 // build, and whose names don't

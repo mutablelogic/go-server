@@ -8,7 +8,7 @@ import (
 	"time"
 
 	// Packages
-
+	httprequest "github.com/mutablelogic/go-server/pkg/httprequest"
 	otelhttp "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	attribute "go.opentelemetry.io/otel/attribute"
 	trace "go.opentelemetry.io/otel/trace"
@@ -21,8 +21,9 @@ var remoteAddrHeaders = []string{"X-Real-Ip", "X-Forwarded-For", "CF-Connecting-
 
 // HTTPHandler returns an HTTP middleware that instruments requests with
 // otelhttp and logs a request summary after the handler completes. The path
-// values which the handler marks as secret, with RedactPathValue, such as a
-// token, are replaced by their names, in braces, in the log, and the span.
+// values which are secret, such as a token, which a route's path parameters
+// say, or a handler marks, with httprequest.RedactPathValue, are replaced by
+// their names, in braces, in the log, and the span.
 func HTTPHandler(serverName string, log *slog.Logger) func(http.Handler) http.Handler {
 	if log == nil {
 		log = slog.Default()
@@ -33,12 +34,12 @@ func HTTPHandler(serverName string, log *slog.Logger) func(http.Handler) http.Ha
 			wrapped := NewResponseWriter(w)
 			start := time.Now()
 
-			// The path values which the handler marks as secret are left out
-			// of the span, whether it returns, or panics, as the span is
-			// exported either way
-			red, u := redactionsFrom(r.Context()), *r.URL
+			// The path values which are secret are left out of the span,
+			// whether the handler returns, or panics, as the span is exported
+			// either way
+			u := *r.URL
 			defer func() {
-				if path, _, redacted := red.redact(&u); redacted {
+				if path, _, redacted := httprequest.RedactedURL(r.Context(), &u); redacted {
 					span := trace.SpanFromContext(r.Context())
 					span.SetName(spanName(r, path))
 					span.SetAttributes(attribute.String("url.path", path))
@@ -48,7 +49,7 @@ func HTTPHandler(serverName string, log *slog.Logger) func(http.Handler) http.Ha
 			next.ServeHTTP(wrapped, r)
 
 			// And of the log
-			path, full, _ := red.redact(&u)
+			path, full, _ := httprequest.RedactedURL(r.Context(), &u)
 
 			if r.Pattern != "" {
 				if labeler, ok := otelhttp.LabelerFromContext(r.Context()); ok {
@@ -101,25 +102,15 @@ func HTTPHandler(serverName string, log *slog.Logger) func(http.Handler) http.Ha
 			handler,
 			serverName,
 			otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
-				return spanName(r, r.URL.Path)
+				path, _, _ := httprequest.RedactedURL(r.Context(), r.URL)
+				return spanName(r, path)
 			}),
 		)
 
-		// The request has the redactions before it's traced, rather than
-		// within, as otelhttp reads what the mux, and the handler, set of the
-		// request it serves, such as its pattern
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			served := r.WithContext(withRedactions(r.Context()))
-
-			// The server removes the files of the request's form, when it's
-			// the request which it made which has it
-			defer func() {
-				if served.MultipartForm != nil {
-					r.MultipartForm = served.MultipartForm
-				}
-			}()
-			traced.ServeHTTP(w, served)
-		})
+		// The request can be redacted before it's traced, rather than within,
+		// as otelhttp reads what the mux, and the handler, set of the request
+		// it serves, such as its pattern
+		return httprequest.Redact(traced.ServeHTTP)
 	}
 }
 
