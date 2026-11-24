@@ -8,7 +8,7 @@ import (
 	"time"
 
 	// Packages
-
+	httprequest "github.com/mutablelogic/go-server/pkg/httprequest"
 	otelhttp "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	attribute "go.opentelemetry.io/otel/attribute"
 	trace "go.opentelemetry.io/otel/trace"
@@ -20,7 +20,10 @@ var remoteAddrHeaders = []string{"X-Real-Ip", "X-Forwarded-For", "CF-Connecting-
 // HTTP SERVER MIDDLEWARE
 
 // HTTPHandler returns an HTTP middleware that instruments requests with
-// otelhttp and logs a request summary after the handler completes.
+// otelhttp and logs a request summary after the handler completes. The path
+// values which are secret, such as a token, which a route's path parameters
+// say, or a handler marks, with httprequest.RedactPathValue, are replaced by
+// their names, in braces, in the log, and the span.
 func HTTPHandler(serverName string, log *slog.Logger) func(http.Handler) http.Handler {
 	if log == nil {
 		log = slog.Default()
@@ -31,7 +34,22 @@ func HTTPHandler(serverName string, log *slog.Logger) func(http.Handler) http.Ha
 			wrapped := NewResponseWriter(w)
 			start := time.Now()
 
+			// The path values which are secret are left out of the span,
+			// whether the handler returns, or panics, as the span is exported
+			// either way
+			u := *r.URL
+			defer func() {
+				if path, _, redacted := httprequest.RedactedURL(r.Context(), &u); redacted {
+					span := trace.SpanFromContext(r.Context())
+					span.SetName(spanName(r, path))
+					span.SetAttributes(attribute.String("url.path", path))
+				}
+			}()
+
 			next.ServeHTTP(wrapped, r)
+
+			// And of the log
+			path, full, _ := httprequest.RedactedURL(r.Context(), &u)
 
 			if r.Pattern != "" {
 				if labeler, ok := otelhttp.LabelerFromContext(r.Context()); ok {
@@ -52,8 +70,8 @@ func HTTPHandler(serverName string, log *slog.Logger) func(http.Handler) http.Ha
 				"http.response.status_text", statusText,
 				"http.response.body.size", wrapped.Size(),
 				"client.address", remoteAddr(r),
-				"url.full", r.URL.String(),
-				"url.path", r.URL.Path,
+				"url.full", full,
+				"url.path", path,
 				"url.query", r.URL.RawQuery,
 				"server.address", r.Host,
 				"server.name", serverName,
@@ -63,7 +81,7 @@ func HTTPHandler(serverName string, log *slog.Logger) func(http.Handler) http.Ha
 				attrs = append(attrs, "trace_id", spanCtx.TraceID().String())
 			}
 
-			msg := fmt.Sprintf("request %s %s -> %d", r.Method, r.URL.Path, status)
+			msg := fmt.Sprintf("request %s %s -> %d", r.Method, path, status)
 			if statusText != "" {
 				msg += " " + statusText
 			}
@@ -80,18 +98,30 @@ func HTTPHandler(serverName string, log *slog.Logger) func(http.Handler) http.Ha
 			}
 		})
 
-		return otelhttp.NewHandler(
+		traced := otelhttp.NewHandler(
 			handler,
 			serverName,
 			otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
-				route := r.Pattern
-				if route == "" {
-					route = r.URL.Path
-				}
-				return r.Method + " " + route
+				path, _, _ := httprequest.RedactedURL(r.Context(), r.URL)
+				return spanName(r, path)
 			}),
 		)
+
+		// The request can be redacted before it's traced, rather than within,
+		// as otelhttp reads what the mux, and the handler, set of the request
+		// it serves, such as its pattern
+		return httprequest.Redact(traced.ServeHTTP)
 	}
+}
+
+// spanName returns the name of the request's span, which is its method, and
+// its pattern, or else the path, when it has none
+func spanName(r *http.Request, path string) string {
+	route := r.Pattern
+	if route == "" {
+		route = path
+	}
+	return r.Method + " " + route
 }
 
 // HTTPHandlerFunc is like HTTPHandler but wraps http.HandlerFunc directly.
